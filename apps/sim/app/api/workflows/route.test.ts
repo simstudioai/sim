@@ -88,7 +88,7 @@ describe('Workflows API Route - POST ordering', () => {
   })
 
   it('rejects creating a workflow inside a locked folder', async () => {
-    const { FolderLockedError } = await import('@sim/workflow-authz')
+    const { FolderLockedError } = await import('@sim/platform-authz/workflow')
     workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
       new FolderLockedError('Folder is locked')
     )

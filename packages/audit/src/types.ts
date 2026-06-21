@@ -64,6 +64,8 @@ export const AuditAction = {
   FILE_DELETED: 'file.deleted',
   FILE_RESTORED: 'file.restored',
   FILE_MOVED: 'file.moved',
+  FILE_SHARED: 'file.shared',
+  FILE_SHARE_DISABLED: 'file.share_disabled',
 
   // Folders
   FOLDER_CREATED: 'folder.created',
@@ -99,6 +101,7 @@ export const AuditAction = {
 
   // Members
   MEMBER_INVITED: 'member.invited',
+  MEMBER_ADDED: 'member.added',
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
 

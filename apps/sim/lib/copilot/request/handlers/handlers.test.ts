@@ -91,9 +91,8 @@ describe('sse-handlers tool lifecycle', () => {
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
       currentThinkingBlock: null,
+      subagentThinkingBlocks: new Map(),
       isInThinkingBlock: false,
-      subAgentParentToolCallId: undefined,
-      subAgentParentStack: [],
       subAgentContent: {},
       subAgentToolCalls: {},
       pendingContent: '',
@@ -169,10 +168,7 @@ describe('sse-handlers tool lifecycle', () => {
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
           phase: MothershipStreamV1ToolPhase.call,
-          ui: {
-            title: 'Reading foo.txt',
-            phaseLabel: 'Workspace',
-          },
+          ui: {},
         },
       } satisfies StreamEvent,
       context,
@@ -198,53 +194,16 @@ describe('sse-handlers tool lifecycle', () => {
 
     const updated = context.toolCalls.get('tool-1')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
-    expect(updated?.displayTitle).toBe('Reading foo.txt')
+    // Display titles are derived client-side from the tool name (+args), not the
+    // stream; read with no path resolves to the static "Reading file".
+    expect(updated?.displayTitle).toBe('Reading file')
     expect(updated?.result?.output).toEqual({ ok: true })
     expect(context.contentBlocks.at(0)).toEqual(
       expect.objectContaining({
         type: 'tool_call',
         toolCall: expect.objectContaining({
           id: 'tool-1',
-          displayTitle: 'Reading foo.txt',
-        }),
-      })
-    )
-  })
-
-  it('uses phaseLabel as a display title fallback when no title is provided', async () => {
-    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    const onEvent = vi.fn()
-
-    await sseHandlers.tool(
-      {
-        type: MothershipStreamV1EventType.tool,
-        payload: {
-          toolCallId: 'tool-phase-label',
-          toolName: ReadTool.id,
-          arguments: { workflowId: 'workflow-1' },
-          executor: MothershipStreamV1ToolExecutor.sim,
-          mode: MothershipStreamV1ToolMode.async,
-          phase: MothershipStreamV1ToolPhase.call,
-          ui: {
-            phaseLabel: 'Workspace',
-          },
-        },
-      } satisfies StreamEvent,
-      context,
-      execContext,
-      { onEvent, interactive: false, timeout: 1000 }
-    )
-
-    await sleep(0)
-
-    const updated = context.toolCalls.get('tool-phase-label')
-    expect(updated?.displayTitle).toBe('Workspace')
-    expect(context.contentBlocks.at(0)).toEqual(
-      expect.objectContaining({
-        type: 'tool_call',
-        toolCall: expect.objectContaining({
-          id: 'tool-phase-label',
-          displayTitle: 'Workspace',
+          displayTitle: 'Reading file',
         }),
       })
     )
@@ -461,8 +420,6 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('updates stored params when a subagent generating event is followed by the final tool call', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    context.subAgentParentToolCallId = 'parent-1'
-    context.subAgentParentStack = ['parent-1']
     context.toolCalls.set('parent-1', {
       id: 'parent-1',
       name: 'workflow',
@@ -521,7 +478,6 @@ describe('sse-handlers tool lifecycle', () => {
   })
 
   it('routes subagent text using the event scope parent tool call id', async () => {
-    context.subAgentParentToolCallId = 'wrong-parent'
     context.subAgentContent['parent-1'] = ''
 
     await subAgentHandlers.text(
@@ -572,7 +528,6 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('routes subagent tool calls using the event scope parent tool call id', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    context.subAgentParentToolCallId = 'wrong-parent'
     context.toolCalls.set('parent-1', {
       id: 'parent-1',
       name: 'deploy',
@@ -601,6 +556,65 @@ describe('sse-handlers tool lifecycle', () => {
     await sleep(0)
 
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
+  })
+
+  it('keeps two concurrent subagent lanes separate for text and thinking', async () => {
+    const send = (parent: string, channel: MothershipStreamV1TextChannel, text: string) =>
+      subAgentHandlers.text(
+        {
+          type: MothershipStreamV1EventType.text,
+          scope: {
+            lane: 'subagent',
+            parentToolCallId: parent,
+            spanId: `span-${parent}`,
+            agentId: 'research',
+          },
+          payload: { channel, text },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+
+    // Interleaved thinking across two concurrent lanes.
+    await send('A', MothershipStreamV1TextChannel.thinking, 'A-think-1 ')
+    await send('B', MothershipStreamV1TextChannel.thinking, 'B-think-1 ')
+    await send('A', MothershipStreamV1TextChannel.thinking, 'A-think-2')
+
+    // Each lane accumulates its own thinking block — no cross-contamination.
+    expect(context.subagentThinkingBlocks.get('A')?.content).toBe('A-think-1 A-think-2')
+    expect(context.subagentThinkingBlocks.get('B')?.content).toBe('B-think-1 ')
+
+    // Interleaved assistant text across the two lanes.
+    await send('A', MothershipStreamV1TextChannel.assistant, 'A-text')
+    await send('B', MothershipStreamV1TextChannel.assistant, 'B-text')
+
+    expect(context.subAgentContent.A).toBe('A-text')
+    expect(context.subAgentContent.B).toBe('B-text')
+
+    // Assistant text flushed each lane's thinking into contentBlocks, attributed
+    // to the correct parent (not whichever subagent streamed most recently).
+    const thinking = context.contentBlocks.filter((b) => b.type === 'subagent_thinking')
+    expect(thinking.find((b) => b.parentToolCallId === 'A')?.content).toBe('A-think-1 A-think-2')
+    expect(thinking.find((b) => b.parentToolCallId === 'B')?.content).toBe('B-think-1 ')
+  })
+
+  it('drops a subagent text event that is missing its parent tool call id', async () => {
+    const before = context.contentBlocks.length
+    await subAgentHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        scope: { lane: 'subagent', agentId: 'research' },
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'orphan' },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    // No lane to attribute to — nothing is added rather than mis-attributed.
+    expect(context.contentBlocks.length).toBe(before)
+    expect(Object.keys(context.subAgentContent)).not.toContain('undefined')
   })
 
   it('skips duplicate tool_call after result', async () => {

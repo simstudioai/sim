@@ -43,6 +43,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
       finalApiKey = await resolveVertexCredential(
         evaluatorConfig.vertexCredential,
+        ctx.userId,
         'vertex-evaluator'
       )
     }

@@ -7,8 +7,11 @@ import {
   workflowSubflows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  FolderLockedError,
+} from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission, FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'

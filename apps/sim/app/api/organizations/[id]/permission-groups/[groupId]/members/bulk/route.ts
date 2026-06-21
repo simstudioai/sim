@@ -82,27 +82,23 @@ export const POST = withRouteHandler(
         // check and inserts are atomic against concurrent adds or scope changes.
         await acquirePermissionGroupOrgLock(tx, organizationId)
 
-        // Re-read the group's scope under the lock: a concurrent scope change may
-        // have flipped all-vs-specific (and cleared its workspaces) since the
-        // pre-transaction load, so the conflict check must use one consistent
-        // snapshot of appliesToAllWorkspaces + workspaces.
+        // Re-read the group under the lock: a concurrent scope change may have
+        // changed its workspaces since the pre-transaction load, so the conflict
+        // check uses one consistent snapshot.
         const lockedGroup = await loadGroupInOrganization(id, organizationId, tx)
         if (!lockedGroup) {
           throw new Error('GROUP_NOT_FOUND')
         }
 
-        // Bulk add is all-or-nothing for conflicts: if any selected user would be
-        // governed by two groups on the same workspace (all-vs-all, or specific
-        // groups sharing a workspace), add nobody and surface the conflict so the
-        // admin can fix the selection. Members already in this group are no-ops.
-        const groupWorkspaceIds = lockedGroup.appliesToAllWorkspaces
-          ? []
-          : (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+        // Bulk add is all-or-nothing for conflicts: if any selected user is
+        // already an explicit member of another group sharing one of this group's
+        // workspaces, add nobody and surface the conflict so the admin can fix the
+        // selection. Members already in this group are no-ops.
+        const groupWorkspaceIds = (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
         const conflicts = await findScopeConflicts(
           {
             organizationId,
             excludeGroupId: id,
-            appliesToAllWorkspaces: lockedGroup.appliesToAllWorkspaces,
             workspaceIds: groupWorkspaceIds,
             candidateUserIds: targetUserIds,
           },

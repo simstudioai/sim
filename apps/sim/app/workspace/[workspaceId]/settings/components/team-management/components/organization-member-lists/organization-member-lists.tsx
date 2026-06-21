@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipDropdown,
   ChipInput,
@@ -12,8 +14,14 @@ import {
   DropdownMenuTrigger,
   MoreHorizontal,
   Search,
+  toast,
 } from '@/components/emcn'
-import type { OrgRole, PermissionType } from '@/components/permissions'
+import {
+  type OrgRole,
+  type PermissionType,
+  RoleLockTooltip,
+  workspaceRoleLockReason,
+} from '@/components/permissions'
 import type {
   OrganizationRoster,
   RosterMember,
@@ -29,7 +37,10 @@ import {
   ManageCreditsModal,
   type ManageCreditsTarget,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal'
-import { useUpdateWorkspacePermissions } from '@/hooks/queries/invitations'
+import {
+  useRemoveWorkspaceMember,
+  useUpdateWorkspacePermissions,
+} from '@/hooks/queries/invitations'
 import {
   useCancelInvitation,
   useResendInvitation,
@@ -93,6 +104,7 @@ export function OrganizationMemberLists({
   const updateMemberRole = useUpdateOrganizationMemberRole()
   const updateInvitation = useUpdateInvitation()
   const updatePermissions = useUpdateWorkspacePermissions()
+  const removeWorkspaceMember = useRemoveWorkspaceMember()
   const cancelInvitation = useCancelInvitation()
   const resendInvitation = useResendInvitation()
 
@@ -299,9 +311,12 @@ export function OrganizationMemberLists({
     workspaceId: string,
     access: RosterWorkspaceAccess
   ) => {
-    const rowUserIsOrgAdmin = member.role === 'owner' || member.role === 'admin'
-    const wouldDemoteSelf = member.userId === currentUserId && access.permission === 'admin'
+    const rowUserIsOrgAdmin = isOrgAdminRole(member.role)
+    const isSelf = member.userId === currentUserId
+    const wouldDemoteSelf = isSelf && access.permission === 'admin'
     const disabled = rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
+    const lockReason = rowUserIsOrgAdmin ? workspaceRoleLockReason('org-admin') : null
+    const canRemoveFromWorkspace = !rowUserIsOrgAdmin && !isSelf
 
     return (
       <MemberRow
@@ -311,26 +326,49 @@ export function OrganizationMemberLists({
         image={member.image}
         status={`Joined ${formatJoinedDate(member.createdAt)}`}
         roleControl={
-          <ChipDropdown
-            value={access.permission}
-            onChange={(permission) =>
-              updatePermissions
-                .mutateAsync({
-                  workspaceId,
-                  organizationId,
-                  updates: [{ userId: member.userId, permissions: permission as PermissionType }],
-                })
-                .catch((error) => logger.error('Failed to update workspace permission', { error }))
-            }
-            options={WORKSPACE_ROLE_OPTIONS}
-            matchTriggerWidth={false}
-            disabled={disabled}
-          />
+          <RoleLockTooltip reason={lockReason}>
+            <ChipDropdown
+              value={access.permission}
+              onChange={(permission) =>
+                updatePermissions
+                  .mutateAsync({
+                    workspaceId,
+                    organizationId,
+                    updates: [{ userId: member.userId, permissions: permission as PermissionType }],
+                  })
+                  .catch((error) =>
+                    logger.error('Failed to update workspace permission', { error })
+                  )
+              }
+              options={WORKSPACE_ROLE_OPTIONS}
+              matchTriggerWidth={false}
+              disabled={disabled}
+            />
+          </RoleLockTooltip>
         }
         menu={buildActionsMenu(
-          <DropdownMenuItem onSelect={() => copyToClipboard(member.email)}>
-            Copy email
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem onSelect={() => copyToClipboard(member.email)}>
+              Copy email
+            </DropdownMenuItem>
+            {canRemoveFromWorkspace && (
+              <DropdownMenuItem
+                className='text-[var(--text-error)]'
+                onSelect={() =>
+                  removeWorkspaceMember
+                    .mutateAsync({ userId: member.userId, workspaceId, organizationId })
+                    .catch((error) => {
+                      logger.error('Failed to remove workspace member', { error })
+                      toast.error("Couldn't remove member", {
+                        description: getErrorMessage(error, 'Please try again in a moment.'),
+                      })
+                    })
+                }
+              >
+                Remove from workspace
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       />
     )

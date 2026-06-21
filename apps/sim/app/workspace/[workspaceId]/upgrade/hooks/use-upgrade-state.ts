@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
@@ -103,7 +104,7 @@ export function useUpgradeState(): UpgradeState {
   }, [subscription.isPaid, subscriptionData?.data?.billingInterval])
 
   const userRole = subscriptionData?.data?.organization?.role ?? 'member'
-  const isTeamAdmin = ['owner', 'admin'].includes(userRole)
+  const isTeamAdmin = isOrgAdminRole(userRole)
 
   const permissions = getSubscriptionPermissions(
     {

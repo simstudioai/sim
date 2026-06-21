@@ -43,7 +43,10 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
 
-    if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
+    if (
+      authCookie &&
+      validateAuthToken(authCookie.value, chatId, chatData.authType, chatData.password)
+    ) {
       return true
     }
 

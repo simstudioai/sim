@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'

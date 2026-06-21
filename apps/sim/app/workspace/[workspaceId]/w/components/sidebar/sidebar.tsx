@@ -347,7 +347,16 @@ const HIDDEN_STYLE = { display: 'none' } as const
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+interface SidebarProps {
+  /**
+   * Authoritative collapse state, derived once in {@link WorkspaceChrome} from the
+   * `sidebar_collapsed` cookie (server prop → store after hydration) and passed in
+   * so the rail's structure, labels, and width all read a single source.
+   */
+  isCollapsed: boolean
+}
+
+export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -378,7 +387,6 @@ export const Sidebar = memo(function Sidebar() {
   }, [initializeSearchData, filterBlocks, providerModelSignature])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
@@ -1273,7 +1281,7 @@ export const Sidebar = memo(function Sidebar() {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'sidebar-collapse-btn ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
+                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'

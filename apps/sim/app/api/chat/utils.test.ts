@@ -76,6 +76,7 @@ vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
   isEmailAllowed: mockIsEmailAllowed,
+  deploymentAuthCookieName: (prefix: string, id: string) => `${prefix}_auth_${id}`,
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -134,6 +135,7 @@ describe('Chat API Utils', () => {
       expect(mockValidateAuthToken).toHaveBeenCalledWith(
         'valid-token',
         'chat-id',
+        'password',
         'encrypted-password'
       )
       expect(result.authorized).toBe(true)
@@ -407,7 +409,7 @@ describe('Chat API Utils', () => {
         })
 
         expect(result.authorized).toBe(false)
-        expect(result.error).toBe('Your email is not authorized to access this chat')
+        expect(result.error).toBe('Your email is not authorized to access this resource')
       })
     })
   })

@@ -580,6 +580,7 @@ describe.concurrent('Blocks Module', () => {
         'text',
         'router-input',
         'table-selector',
+        'column-selector',
         'filter-builder',
         'sort-builder',
         'skill-input',

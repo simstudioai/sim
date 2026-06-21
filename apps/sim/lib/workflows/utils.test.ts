@@ -20,7 +20,7 @@ const { mockAuthorizeWorkflow } = vi.hoisted(() => ({
   mockAuthorizeWorkflow: vi.fn(),
 }))
 
-vi.mock('@sim/workflow-authz', () => ({
+vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
   getActiveWorkflowContext: vi.fn(),
   getActiveWorkflowRecord: vi.fn(),

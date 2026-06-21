@@ -22,7 +22,7 @@ import {
   toast,
   Upload,
 } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import { Download, Send } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
@@ -66,10 +66,12 @@ import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components
 import {
   FileViewer,
   isCsvStreamOnly,
+  isMarkdownFile,
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -269,6 +271,7 @@ export function Files() {
     folderIds: string[]
     name: string
   } | null>(null)
+  const [shareFileId, setShareFileId] = useState<string | null>(null)
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
@@ -295,6 +298,18 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
+  const shareModal = shareFile ? (
+    <ShareModal
+      open
+      onOpenChange={(open) => !open && setShareFileId(null)}
+      workspaceId={workspaceId}
+      fileId={shareFile.id}
+      fileName={shareFile.name}
+      initialShare={shareFile.share ?? null}
+    />
+  ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
@@ -978,6 +993,11 @@ export function Files() {
     }
   }, [])
 
+  const handleShareSelected = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) setShareFileId(file.id)
+  }, [])
+
   const handleBulkDelete = useCallback(() => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     setDeleteTarget({
@@ -1055,6 +1075,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                { label: 'Share', icon: Send, onClick: handleShareSelected },
                 { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
@@ -1071,6 +1092,7 @@ export function Files() {
     headerRename.editValue,
     handleStartHeaderRename,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1219,6 +1241,12 @@ export function Files() {
       listRename.startRename(folderRowId(item.folder.id), item.folder.name)
     closeContextMenu()
   }, [listRename.startRename, closeContextMenu])
+
+  const handleContextMenuShare = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file') setShareFileId(item.file.id)
+    closeContextMenu()
+  }, [closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1395,7 +1423,11 @@ export function Files() {
     const streamOnly = isCsvStreamOnly(selectedFile)
     const canEditText = isTextEditable(selectedFile) && !streamOnly
     const canPreview = isPreviewable(selectedFile) && !streamOnly
-    const hasSplitView = canEditText && canPreview
+    // Markdown renders in the single-surface inline editor, which has no raw/split/preview
+    // modes — so it keeps Save but drops the mode toggle.
+    const isInlineMarkdown = isMarkdownFile(selectedFile)
+    const hasSplitView = canEditText && canPreview && !isInlineMarkdown
+    const showPreviewToggle = canPreview && !isInlineMarkdown
 
     const saveLabel =
       saveStatus === 'saving'
@@ -1432,7 +1464,7 @@ export function Files() {
               onSelect: handleCyclePreviewMode,
             },
           ]
-        : canPreview
+        : showPreviewToggle
           ? [
               {
                 text: previewMode === 'preview' ? 'Edit' : 'Preview',
@@ -1448,6 +1480,11 @@ export function Files() {
       },
       ...(canEdit
         ? [
+            {
+              text: 'Share',
+              icon: Send,
+              onSelect: handleShareSelected,
+            },
             {
               text: 'Delete',
               icon: Trash,
@@ -1466,6 +1503,7 @@ export function Files() {
     handleTogglePreview,
     handleSave,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1827,7 +1865,7 @@ export function Files() {
     return (
       <Resource>
         <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
-        <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+        <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
       </Resource>
@@ -1875,6 +1913,8 @@ export function Files() {
           onDelete={handleDelete}
           isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
+
+        {shareModal}
       </>
     )
   }
@@ -1956,6 +1996,11 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
+        onShare={
+          canEdit && contextMenuItemRef.current?.kind === 'file'
+            ? handleContextMenuShare
+            : undefined
+        }
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
@@ -1970,6 +2015,8 @@ export function Files() {
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
+
+      {shareModal}
 
       <input
         ref={fileInputRef}

@@ -70,11 +70,15 @@ type BatchSendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitat
   organizationId?: string | null
 }
 
-type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'>
+type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'> & {
+  added: string[]
+}
 
 /**
  * Sends workspace invitations through the server-side batch endpoint.
- * Returns results for each invitation indicating success or failure.
+ * Returns results for each invitation indicating success or failure. Existing
+ * organization members are added directly (no acceptance) and reported in
+ * `added`; everyone else receives a pending invitation in `successful`.
  */
 export function useBatchSendWorkspaceInvitations() {
   const queryClient = useQueryClient()
@@ -93,12 +97,19 @@ export function useBatchSendWorkspaceInvitations() {
 
       return {
         successful: result.successful ?? [],
+        added: result.added ?? [],
         failed: result.failed ?? [],
       }
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.permissions(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.members(variables.workspaceId),
       })
       if (variables.organizationId) {
         queryClient.invalidateQueries({

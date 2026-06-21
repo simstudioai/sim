@@ -44,6 +44,7 @@ import {
   exportDownloadContract,
   exportTableAsyncContract,
   findTableRowsContract,
+  getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
   importIntoTableAsyncContract,
@@ -72,6 +73,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import type {
   CsvHeaderMapping,
+  EnrichmentRunDetail,
   Filter,
   RowData,
   RowExecutionMetadata,
@@ -115,6 +117,10 @@ export const tableKeys = {
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
+  enrichmentDetails: (tableId: string) =>
+    [...tableKeys.detail(tableId), 'enrichment-detail'] as const,
+  enrichmentDetail: (tableId: string, rowId: string, groupId: string) =>
+    [...tableKeys.enrichmentDetails(tableId), rowId, groupId] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -267,6 +273,18 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
   })
 }
 
+/**
+ * Shared table-detail query options so non-component callers (e.g. selector
+ * providers) can `ensureQueryData` the same cache entry `useTable` populates.
+ */
+export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
+  return {
+    queryKey: tableKeys.detail(tableId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
+    staleTime: 30 * 1000,
+  }
+}
+
 export interface TableRunState {
   dispatches: ActiveDispatch[]
   runningCellCount: number
@@ -283,6 +301,44 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
     runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
   }
+}
+
+async function fetchEnrichmentDetail(
+  tableId: string,
+  rowId: string,
+  groupId: string,
+  signal?: AbortSignal
+): Promise<EnrichmentRunDetail | null> {
+  const response = await requestJson(getEnrichmentDetailContract, {
+    params: { tableId, rowId, groupId },
+    signal,
+  })
+  return response.data.detail
+}
+
+/**
+ * Enrichment cascade breakdown for one cell, fetched on demand when the
+ * enrichment details panel opens. Kept off the hot grid read — only queried
+ * while `enabled` (panel open with a selected row + group).
+ *
+ * `staleTime: 0` so reopening the panel always refetches: a cell can be re-run
+ * between opens (the run writes new `enrichmentDetails` in the background with no
+ * client invalidation), and the panel is opened on demand, so a fresh fetch per
+ * open keeps the cascade in sync without a cached stale run.
+ */
+export function useEnrichmentDetail(
+  tableId: string,
+  rowId: string | null,
+  groupId: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: tableKeys.enrichmentDetail(tableId, rowId ?? '', groupId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchEnrichmentDetail(tableId, rowId as string, groupId as string, signal),
+    enabled: Boolean(tableId && rowId && groupId) && (options?.enabled ?? true),
+    staleTime: 0,
+  })
 }
 
 /** Count groups flipped to in-flight (`pending`) by an optimistic schedule that

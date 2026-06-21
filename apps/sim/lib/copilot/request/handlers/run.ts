@@ -18,6 +18,9 @@ export const handleRunEvent: StreamHandler = (event, context) => {
       parentToolCallId: frame.parentToolCallId,
       parentToolName: frame.parentToolName,
       pendingToolIds: frame.pendingToolIds,
+      // Carried through for the per-subagent resume fan-out; undefined under the
+      // legacy bundled-frame model (all frames share the top-level checkpointId).
+      ...(frame.checkpointId ? { checkpointId: frame.checkpointId } : {}),
     }))
 
     context.awaitingAsyncContinuation = {

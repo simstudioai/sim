@@ -5,8 +5,9 @@
  * resolution (previous version by default, explicit version when provided)
  * and the mapping of activation results to v1 API responses.
  */
+
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
-import { WorkflowLockedError } from '@sim/workflow-authz'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

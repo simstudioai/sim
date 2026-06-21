@@ -1,5 +1,3 @@
-export type StreamingMode = 'append' | 'replace'
-
 export type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
 
 export interface TextEditorContentState {
@@ -7,13 +5,19 @@ export interface TextEditorContentState {
   content: string
   savedContent: string
   lastStreamedContent: string | null
+  /**
+   * Whether `savedContent` is the file's real baseline (not the initial placeholder). False only
+   * before the first fetched content has been observed — e.g. a stream that began before the initial
+   * fetch resolved. While false, a fetched value is treated as the baseline to adopt, not as the
+   * agent's write advancing past the baseline (which would finalize the editor to stale content).
+   */
+  hasBaseline: boolean
 }
 
 export interface SyncTextEditorContentStateOptions {
   canReconcileToFetchedContent: boolean
   fetchedContent?: string
   streamingContent?: string
-  streamingMode: StreamingMode
 }
 
 export type TextEditorContentAction =
@@ -26,25 +30,7 @@ export const INITIAL_TEXT_EDITOR_CONTENT_STATE: TextEditorContentState = {
   content: '',
   savedContent: '',
   lastStreamedContent: null,
-}
-
-export function resolveStreamingEditorContent(
-  fetchedContent: string | undefined,
-  streamingContent: string,
-  streamingMode: StreamingMode
-): string {
-  if (streamingMode === 'replace' || fetchedContent === undefined) {
-    return streamingContent
-  }
-
-  if (
-    fetchedContent.endsWith(streamingContent) ||
-    fetchedContent.endsWith(`\n${streamingContent}`)
-  ) {
-    return fetchedContent
-  }
-
-  return `${fetchedContent}\n${streamingContent}`
+  hasBaseline: false,
 }
 
 function finalizeTextEditorContentState(
@@ -55,7 +41,8 @@ function finalizeTextEditorContentState(
     state.phase === 'ready' &&
     state.content === nextContent &&
     state.savedContent === nextContent &&
-    state.lastStreamedContent === null
+    state.lastStreamedContent === null &&
+    state.hasBaseline
   ) {
     return state
   }
@@ -65,17 +52,30 @@ function finalizeTextEditorContentState(
     content: nextContent,
     savedContent: nextContent,
     lastStreamedContent: null,
+    hasBaseline: true,
   }
 }
 
 function moveTextEditorContentStateToStreaming(
   state: TextEditorContentState,
-  nextContent: string
+  nextContent: string,
+  fetchedBaseline?: string
 ): TextEditorContentState {
+  // A stream that begins before the initial fetch resolves leaves `savedContent` at its placeholder.
+  // The first fetched value to arrive during the stream IS the file's pre-edit baseline (the agent
+  // hasn't persisted its write yet), so adopt it. Without this, a later refetch of that same pre-edit
+  // content would read as an "advance" past the placeholder and finalize the editor to stale content
+  // mid-stream. Empty-file creates are unaffected: their baseline genuinely is ''.
+  const adoptBaseline = !state.hasBaseline && fetchedBaseline !== undefined
+  const savedContent = adoptBaseline ? fetchedBaseline : state.savedContent
+  const hasBaseline = state.hasBaseline || adoptBaseline
+
   if (
     state.phase === 'streaming' &&
     state.content === nextContent &&
-    state.lastStreamedContent === nextContent
+    state.lastStreamedContent === nextContent &&
+    state.savedContent === savedContent &&
+    state.hasBaseline === hasBaseline
   ) {
     return state
   }
@@ -85,6 +85,8 @@ function moveTextEditorContentStateToStreaming(
     phase: 'streaming',
     content: nextContent,
     lastStreamedContent: nextContent,
+    savedContent,
+    hasBaseline,
   }
 }
 
@@ -105,20 +107,21 @@ export function syncTextEditorContentState(
   state: TextEditorContentState,
   options: SyncTextEditorContentStateOptions
 ): TextEditorContentState {
-  const { canReconcileToFetchedContent, fetchedContent, streamingContent, streamingMode } = options
+  const { canReconcileToFetchedContent, fetchedContent, streamingContent } = options
 
   if (streamingContent !== undefined) {
-    const nextContent = resolveStreamingEditorContent(
-      fetchedContent,
-      streamingContent,
-      streamingMode
-    )
+    const nextContent = streamingContent
     const fetchedMatchesNextContent = fetchedContent !== undefined && fetchedContent === nextContent
     const fetchedMatchesLastStreamedContent =
       fetchedContent !== undefined &&
       state.lastStreamedContent !== null &&
       fetchedContent === state.lastStreamedContent
-    const hasFetchedAdvanced = fetchedContent !== undefined && fetchedContent !== state.savedContent
+    // Only an ESTABLISHED baseline makes "fetched differs from savedContent" mean "the agent's write
+    // advanced". Before the baseline is established (stream started before the fetch resolved),
+    // savedContent is a placeholder, so the file's own pre-edit content would falsely read as an
+    // advance and finalize to stale content; instead it is adopted as the baseline in moveToStreaming.
+    const hasFetchedAdvanced =
+      fetchedContent !== undefined && state.hasBaseline && fetchedContent !== state.savedContent
 
     if (
       (state.phase === 'streaming' || state.phase === 'reconciling') &&
@@ -136,7 +139,7 @@ export function syncTextEditorContentState(
       return finalizeTextEditorContentState(state, fetchedContent)
     }
 
-    return moveTextEditorContentStateToStreaming(state, nextContent)
+    return moveTextEditorContentStateToStreaming(state, nextContent, fetchedContent)
   }
 
   if (state.phase === 'streaming' || state.phase === 'reconciling') {
@@ -192,9 +195,12 @@ export function textEditorContentReducer(
         content: action.content,
       }
     case 'save-success':
+      // Advance only the saved baseline. Never roll `content` back to the saved snapshot: a
+      // keystroke landing while the save was in flight makes `content` newer than `action.content`,
+      // and overwriting it would silently drop that edit (and leave the doc looking clean so it's
+      // never re-saved). Leaving `content` ahead keeps the doc dirty so the trailing edit autosaves.
       if (
         state.phase === 'ready' &&
-        state.content === action.content &&
         state.savedContent === action.content &&
         state.lastStreamedContent === null
       ) {
@@ -203,9 +209,9 @@ export function textEditorContentReducer(
       return {
         ...state,
         phase: 'ready',
-        content: action.content,
         savedContent: action.content,
         lastStreamedContent: null,
+        hasBaseline: true,
       }
     default:
       return state

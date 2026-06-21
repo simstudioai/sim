@@ -2,10 +2,8 @@ import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
   CompleteScheduledTask,
-  CreateFolder,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
-  DeleteFolder,
   DeleteWorkflow,
   DeleteWorkspaceMcpServer,
   DeployApi,
@@ -23,18 +21,17 @@ import {
   GetWorkflowRunOptions,
   Glob as GlobTool,
   Grep as GrepTool,
-  ListFolders,
   ListIntegrationTools,
   ListUserWorkspaces,
   ListWorkspaceMcpServers,
   LoadDeployment,
   ManageCredential,
   ManageCustomTool,
+  ManageFolder,
   ManageMcpTool,
   ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
-  MoveFolder,
   MoveWorkflow,
   OauthGetAuthLink,
   OauthRequestAccess,
@@ -92,12 +89,10 @@ import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import {
-  executeCreateFolder,
   executeCreateWorkflow,
-  executeDeleteFolder,
   executeDeleteWorkflow,
   executeGenerateApiKey,
-  executeMoveFolder,
+  executeManageFolder,
   executeMoveWorkflow,
   executeRenameWorkflow,
   executeRunBlock,
@@ -113,7 +108,6 @@ import {
   executeGetDeployedWorkflowState,
   executeGetWorkflowData,
   executeGetWorkflowRunOptions,
-  executeListFolders,
   executeListUserWorkspaces,
 } from '../tools/handlers/workflow/queries'
 import { registerHandlers } from './executor'
@@ -140,7 +134,6 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
-    [ListFolders.id]: h(executeListFolders),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),
@@ -148,12 +141,10 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GetDeployedWorkflowState.id]: h(executeGetDeployedWorkflowState),
 
     [CreateWorkflow.id]: h(executeCreateWorkflow),
-    [CreateFolder.id]: h(executeCreateFolder),
     [DeleteWorkflow.id]: h(executeDeleteWorkflow),
-    [DeleteFolder.id]: h(executeDeleteFolder),
     [RenameWorkflow.id]: h(executeRenameWorkflow),
     [MoveWorkflow.id]: h(executeMoveWorkflow),
-    [MoveFolder.id]: h(executeMoveFolder),
+    [ManageFolder.id]: h(executeManageFolder),
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),

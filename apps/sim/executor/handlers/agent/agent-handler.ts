@@ -972,6 +972,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
         finalApiKey = await resolveVertexCredential(
           providerRequest.vertexCredential,
+          ctx.userId,
           'vertex-agent'
         )
       }

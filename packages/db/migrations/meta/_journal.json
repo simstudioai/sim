@@ -1688,6 +1688,41 @@
       "when": 1781700000000,
       "tag": "0241_drop_table_row_cap_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1781818772450,
+      "tag": "0242_public_share",
+      "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1781895339512,
+      "tag": "0243_kb_workspace_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1781899910981,
+      "tag": "0244_table_row_executions_enrichment_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1781904859472,
+      "tag": "0245_public_share_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1781985478354,
+      "tag": "0246_convert_grandfathered_all_ws_permission_groups",
+      "breakpoints": true
     }
   ]
 }
