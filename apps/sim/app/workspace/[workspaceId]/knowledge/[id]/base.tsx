@@ -293,9 +293,11 @@ export function KnowledgeBase({
     setDocumentFilters,
   ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
 
-  // The input is controlled directly by the instant nuqs value; only the URL
-  // write is debounced. The document query below reads a debounced value so it
-  // doesn't refetch on every keystroke. Changing the search resets pagination.
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The document query below reads a debounced value so it
+   * doesn't refetch on every keystroke. Changing the search resets pagination.
+   */
   const handleSearchChange = useCallback(
     (newQuery: string) => {
       const trimmed = newQuery.trim()
@@ -898,8 +900,10 @@ export function KnowledgeBase({
         setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
         setCurrentPage(1)
       },
-      // Clearing writes the defaults back (stripped by clearOnDefault), so the
-      // sort menu reads "no active sort" again and the URL stays clean.
+      /**
+       * Clearing writes the defaults back (stripped by clearOnDefault), so the
+       * sort menu reads "no active sort" again and the URL stays clean.
+       */
       onClear: () => {
         setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
         setCurrentPage(1)

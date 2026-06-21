@@ -110,9 +110,11 @@ export function Tables() {
     setTableFilters,
   ] = useQueryStates(tablesParsers, tablesUrlKeys)
 
-  // The input is controlled directly by the instant nuqs value; only the URL
-  // write is debounced. The in-memory filter below still reads a debounced value
-  // so it doesn't recompute on every keystroke.
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced value
+   * so it doesn't recompute on every keystroke.
+   */
   const setSearchTerm = useCallback(
     (value: string) => {
       const trimmed = value.trim()

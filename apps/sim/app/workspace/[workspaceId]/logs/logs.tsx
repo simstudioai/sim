@@ -237,17 +237,21 @@ export default function Logs() {
   const [executionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
   const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() => executionId)
 
-  // The log-details `tab` param is owned/written by the details panel, but the
-  // orchestrator must clear it when the panel closes so a lingering `?tab=trace`
-  // never carries over to the next log opened from the list.
+  /**
+   * The log-details `tab` param is owned/written by the details panel, but the
+   * orchestrator must clear it when the panel closes so a lingering `?tab=trace`
+   * never carries over to the next log opened from the list.
+   */
   const [, setLogDetailsTab] = useQueryState(logDetailsTabParam.key, {
     ...logDetailsTabParam.parser,
     ...logDetailsTabUrlKeys,
   })
 
-  // `urlSearchQuery` is the instant nuqs value (its URL write is debounced inside
-  // `useLogFilters`); the query/filtering still debounce off it to avoid per-keystroke
-  // fetches.
+  /**
+   * `urlSearchQuery` is the instant nuqs value (its URL write is debounced inside
+   * `useLogFilters`); the query/filtering still debounce off it to avoid
+   * per-keystroke fetches.
+   */
   const debouncedSearchQuery = useDebounce(urlSearchQuery, 300)
 
   const isLive = true
@@ -487,9 +491,11 @@ export default function Logs() {
     }
   }, [contextMenuLog, workflowIds, setWorkflowIds])
 
+  /**
+   * `resetFilters()` already clears `search` (sets it to null), so no separate
+   * search reset is needed here.
+   */
   const handleClearAllFilters = useCallback(() => {
-    // `resetFilters()` already clears `search` (sets it to null), so no separate
-    // search reset is needed here.
     resetFilters()
   }, [resetFilters])
 

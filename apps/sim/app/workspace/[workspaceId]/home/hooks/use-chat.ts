@@ -1070,9 +1070,11 @@ export function useChat(
   const internalActiveResourceState = useState<string | null>(
     options?.initialActiveResourceId ?? null
   )
-  // Prefer a caller-supplied controlled binding (URL-backed nuqs on the home/Chat
-  // surface) so the URL is the single source of truth; fall back to internal state
-  // for the workflow editor copilot, which keeps resource selection out of the URL.
+  /**
+   * Prefer a caller-supplied controlled binding (URL-backed nuqs on the home/Chat
+   * surface) so the URL is the single source of truth; fall back to internal state
+   * for the workflow editor copilot, which keeps resource selection out of the URL.
+   */
   const [activeResourceId, setActiveResourceId] =
     options?.activeResourceState ?? internalActiveResourceState
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)

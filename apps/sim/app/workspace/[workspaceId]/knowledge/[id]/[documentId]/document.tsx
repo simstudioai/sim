@@ -188,13 +188,15 @@ export function Document({
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
-  // Inline editor state. The open chunk is sourced directly from the URL `chunk`
-  // param (single source of truth) so back/forward, deep links, and external
-  // navigation drive the editor; opening/closing a chunk writes the param.
+  /**
+   * Inline editor state. The open chunk is sourced directly from the URL `chunk`
+   * param (single source of truth) so back/forward, deep links, and external
+   * navigation drive the editor; opening/closing a chunk writes the param.
+   */
   const selectedChunkId = chunkFromURL
+  /** Opening a chunk is a destination (back closes it); clearing replaces. */
   const setSelectedChunkId = useCallback(
     (chunkId: string | null) => {
-      // Opening a chunk is a destination (back closes it); clearing replaces.
       void setDocumentParams({ chunk: chunkId }, chunkId !== null ? { history: 'push' } : undefined)
     },
     [setDocumentParams]

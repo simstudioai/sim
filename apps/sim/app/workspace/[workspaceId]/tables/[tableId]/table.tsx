@@ -504,8 +504,10 @@ export function Table({
       options: columnOptions,
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
       onSort: (column, direction) => setSortParams({ sort: column, dir: direction }),
-      // Clearing writes the default direction (stripped by clearOnDefault) and
-      // drops the column, leaving a clean URL with no active sort.
+      /**
+       * Clearing writes the default direction (stripped by clearOnDefault) and
+       * drops the column, leaving a clean URL with no active sort.
+       */
       onClear: () => setSortParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
     }),
     [columnOptions, sortColumn, sortDirection, setSortParams]

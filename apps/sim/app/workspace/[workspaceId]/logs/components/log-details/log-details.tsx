@@ -278,8 +278,11 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const { config: permissionConfig } = usePermissionConfig()
 
   const isInitialTabMountRef = useRef(true)
+  /**
+   * Honors a deep-linked tab on first mount; resets to overview only when
+   * switching to a different log.
+   */
   useEffect(() => {
-    // Honor a deep-linked tab on first mount; reset to overview only when switching to a different log.
     if (isInitialTabMountRef.current) {
       isInitialTabMountRef.current = false
     } else {

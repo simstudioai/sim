@@ -157,9 +157,11 @@ export function RecentlyDeleted() {
     setRecentlyDeletedFilters,
   ] = useQueryStates(recentlyDeletedParsers, recentlyDeletedUrlKeys)
 
-  // The input is controlled directly by the instant nuqs value; only the URL
-  // write is debounced. Filtering below is cheap in-memory over a small list, so
-  // it reads the instant value too.
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over a small list, so
+   * it reads the instant value too.
+   */
   const setSearchTerm = useCallback(
     (value: string) => {
       const trimmed = value.trim()

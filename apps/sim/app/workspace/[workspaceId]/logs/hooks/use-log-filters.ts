@@ -115,13 +115,15 @@ export function useLogFilters(): UseLogFilters {
     [setFilters]
   )
 
+  /**
+   * Debounces only the search param's URL write; the returned `filters.search`
+   * value still updates instantly so the controlled input stays responsive.
+   * Clearing flushes immediately so the param drops out without lingering.
+   */
   const setSearchQuery = useCallback(
     (query: string) => {
       const trimmed = query.trim()
       const next = trimmed.length > 0 ? trimmed : null
-      // Debounce only the search param's URL write; the returned `filters.search`
-      // value still updates instantly so the controlled input stays responsive.
-      // Clearing flushes immediately so the param drops out without lingering.
       setFilters(
         { search: next },
         next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }

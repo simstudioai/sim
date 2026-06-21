@@ -69,25 +69,30 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
-  // URL is the single source of truth for the selected resource. `Home` renders
-  // client-side, so nuqs reads `?resource=` from the URL on mount — the same
-  // value the page previously threaded through `initialResourceId` — and writes
-  // it back with `history: 'replace'`, the previous behavior, minus the banned
-  // `window.history.replaceState` param-mutation effect. The page wraps `Home`
-  // in Suspense for the `useSearchParams` requirement.
+  /**
+   * URL is the single source of truth for the selected resource. `Home` renders
+   * client-side, so nuqs reads `?resource=` from the URL on mount — the same
+   * value the page previously threaded through `initialResourceId` — and writes
+   * it back with `history: 'replace'`, the previous behavior, minus the banned
+   * `window.history.replaceState` param-mutation effect. The page wraps `Home`
+   * in Suspense for the `useSearchParams` requirement.
+   */
   const [activeResourceParam, setResourceParam] = useQueryState(resourceParam.key, {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
-  // Strips any leftover URL fragment on selection change, preserving the old
-  // effect's `url.hash = ''` (the only hash usage on this surface) without a
-  // separate effect-sync mirror. This rewrites the fragment only — it never
-  // mutates a query param via the History API.
+  /**
+   * Strips any leftover URL fragment on selection change, preserving the old
+   * effect's `url.hash = ''` (the only hash usage on this surface) without a
+   * separate effect-sync mirror. This rewrites the fragment only — it never
+   * mutates a query param via the History API.
+   *
+   * Order matters: the fragment is stripped synchronously BEFORE the nuqs write,
+   * because nuqs re-appends `location.hash` on its (deferred) flush — clearing the
+   * hash first ensures the param write doesn't carry the stale fragment back.
+   */
   const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
     (action) => {
-      // Order matters: strip the fragment synchronously BEFORE the nuqs write.
-      // nuqs re-appends `location.hash` on its (deferred) flush, so clearing the
-      // hash first ensures the param write doesn't carry the stale fragment back.
       if (typeof window !== 'undefined' && window.location.hash) {
         const { pathname, search } = window.location
         window.history.replaceState(window.history.state, '', `${pathname}${search}`)
@@ -96,8 +101,10 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setResourceParam]
   )
-  // Controlled binding handed to `useChat` so the URL is the sole owner of the
-  // selection with no dual source.
+  /**
+   * Controlled binding handed to `useChat` so the URL is the sole owner of the
+   * selection with no dual source.
+   */
   const activeResourceState = useMemo<[string | null, Dispatch<SetStateAction<string | null>>]>(
     () => [activeResourceParam, setActiveResourceUrl],
     [activeResourceParam, setActiveResourceUrl]
