@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteTable, renameTable, TableConflictError, type TableSchema } from '@/lib/table'
+import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
@@ -46,6 +47,10 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
 
     const schemaData = table.schema as TableSchema
 
+    // Source the row cap from the workspace's live plan, not the value stored on
+    // the table at creation time (which goes stale when the plan changes).
+    const { maxRowsPerTable } = await getWorkspaceTableLimits(table.workspaceId)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -59,7 +64,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
           },
           metadata: table.metadata ?? null,
           rowCount: table.rowCount,
-          maxRows: table.maxRows,
+          maxRows: maxRowsPerTable,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()

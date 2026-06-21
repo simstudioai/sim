@@ -8,6 +8,10 @@ import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  type DirectGrantOutcome,
+  grantWorkspaceAccessDirectly,
+} from '@/lib/invitations/direct-grant'
+import {
   cancelPendingInvitation,
   createPendingInvitation,
   findPendingGrantForWorkspaceEmail,
@@ -16,6 +20,7 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getWorkspaceWithOwner,
+  hasWorkspaceAdminAccess,
   type PermissionType,
   type WorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
@@ -38,6 +43,10 @@ export interface WorkspaceInvitationResult {
   permission: PermissionType
   membershipIntent: InvitationMembershipIntent
   expiresAt: Date | undefined
+  /** True when the user was granted access directly (no pending invitation). */
+  instantAdd?: boolean
+  /** Direct-grant outcome when `instantAdd` is true. */
+  outcome?: DirectGrantOutcome['outcome']
 }
 
 export class WorkspaceInvitationError extends Error {
@@ -77,20 +86,8 @@ export async function prepareWorkspaceInvitationContext({
 }): Promise<WorkspaceInvitationContext> {
   await validateInvitationsAllowed(inviterId, workspaceId)
 
-  const userPermission = await db
-    .select()
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.entityId, workspaceId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.userId, inviterId),
-        eq(permissions.permissionType, 'admin')
-      )
-    )
-    .then((rows) => rows[0])
-
-  if (!userPermission) {
+  const isAdmin = await hasWorkspaceAdminAccess(inviterId, workspaceId)
+  if (!isAdmin) {
     throw new WorkspaceInvitationError({
       message: 'You need admin permissions to invite users',
       status: 403,
@@ -152,6 +149,11 @@ export async function createWorkspaceInvitation({
     .then((rows) => rows[0])
 
   if (existingUser) {
+    const workspaceOrganizationId = context.workspaceDetails.organizationId
+    const existingMembership = workspaceOrganizationId
+      ? await getUserOrganization(existingUser.id)
+      : null
+
     const existingPermission = await db
       .select()
       .from(permissions)
@@ -164,6 +166,11 @@ export async function createWorkspaceInvitation({
       )
       .then((rows) => rows[0])
 
+    /**
+     * Already a workspace member: reject. Invites never change an existing
+     * member's permission — role changes go through the members list, not the
+     * invite flow. (The client also blocks re-inviting current teammates.)
+     */
     if (existingPermission) {
       throw new WorkspaceInvitationError({
         message: `${normalizedEmail} already has access to this workspace`,
@@ -172,18 +179,46 @@ export async function createWorkspaceInvitation({
       })
     }
 
-    if (context.invitePolicy.organizationId) {
-      const existingMembership = await getUserOrganization(existingUser.id)
-      if (
-        existingMembership &&
-        existingMembership.organizationId !== context.invitePolicy.organizationId
-      ) {
+    /**
+     * Invitee already belongs to the workspace's organization (and is not yet a
+     * member of this workspace): grant access directly, with no invitation or
+     * acceptance step.
+     */
+    if (
+      workspaceOrganizationId &&
+      existingMembership &&
+      existingMembership.organizationId === workspaceOrganizationId
+    ) {
+      const directGrant = await grantWorkspaceAccessDirectly({
+        userId: existingUser.id,
+        email: normalizedEmail,
+        workspaceId: context.workspaceId,
+        workspaceName: context.workspaceDetails.name,
+        permission: invitationPermission,
+        organizationId: workspaceOrganizationId,
+        actorId: context.inviterId,
+        actorName: context.inviterName,
+        actorEmail: context.inviterEmail,
+        request,
+      })
+
+      return {
+        id: existingUser.id,
+        workspaceId: context.workspaceId,
+        email: normalizedEmail,
+        permission: invitationPermission,
+        membershipIntent: 'internal',
+        expiresAt: undefined,
+        instantAdd: true,
+        outcome: directGrant.outcome,
+      }
+    }
+
+    if (workspaceOrganizationId) {
+      if (existingMembership && existingMembership.organizationId !== workspaceOrganizationId) {
         membershipIntent = 'external'
       } else if (context.invitePolicy.requiresSeat && !existingMembership) {
-        const seatValidation = await validateSeatAvailability(
-          context.invitePolicy.organizationId,
-          1
-        )
+        const seatValidation = await validateSeatAvailability(workspaceOrganizationId, 1)
         if (!seatValidation.canInvite) {
           throw new WorkspaceInvitationError({
             message: seatValidation.reason || 'No available seats for this organization.',

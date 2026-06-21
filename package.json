@@ -44,6 +44,8 @@
     "trace-events-contract:check": "bun run scripts/sync-trace-events-contract.ts --check",
     "metrics-contract:generate": "bun run scripts/sync-metrics-contract.ts",
     "metrics-contract:check": "bun run scripts/sync-metrics-contract.ts --check",
+    "vfs-snapshot-contract:generate": "bun run scripts/sync-vfs-snapshot-contract.ts",
+    "vfs-snapshot-contract:check": "bun run scripts/sync-vfs-snapshot-contract.ts --check",
     "mship:generate": "bun run scripts/generate-mship-contracts.ts",
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "prepare": "bun husky",

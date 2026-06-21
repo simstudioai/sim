@@ -135,6 +135,59 @@ export interface WorkflowGroup {
 }
 
 /**
+ * State of one provider in an enrichment cascade run. `matched`/`no_match`/
+ * `error` actually called the tool; `skipped` had insufficient inputs; `not_run`
+ * was never reached because an earlier provider matched.
+ */
+export type EnrichmentProviderStatus = 'matched' | 'no_match' | 'skipped' | 'error' | 'not_run'
+
+/**
+ * Outcome of one provider attempt in an enrichment cascade, for the enrichment
+ * details panel. The full configured cascade is recorded: `skipped` providers
+ * had insufficient inputs, `not_run` providers sit after the match.
+ */
+export interface EnrichmentProviderOutcome {
+  /** Provider id, e.g. `'hunter'`. */
+  id: string
+  /** Human label, e.g. `'Hunter'`. */
+  label: string
+  /** Tool id the provider runs, e.g. `'hunter_find_email'` — resolves the block
+   *  icon for the details panel. */
+  toolId: string
+  status: EnrichmentProviderStatus
+  /** Hosted-key cost (USD) this provider incurred; `0` for skip / no_match / error / BYOK. */
+  cost: number
+  /** Wall-clock ms this provider's tool call took; `0` for skipped. */
+  durationMs: number
+  /** Error message when `status === 'error'`, else `null`. */
+  error: string | null
+}
+
+/**
+ * Per-(row, group) cascade breakdown for an enrichment run, surfaced in the
+ * enrichment details panel. Persisted on the `tableRowExecutions` sidecar but
+ * deliberately kept out of the hot grid read path (fetched on demand) — it can
+ * carry a dozen provider outcomes per cell.
+ */
+export interface EnrichmentRunDetail {
+  /** ISO timestamp when the cascade started. */
+  startedAt: string
+  /** ISO timestamp when the cascade finished. */
+  completedAt: string
+  /** Wall-clock ms across the whole cascade. */
+  durationMs: number
+  /** Sum of per-provider hosted-key cost (USD). */
+  totalCost: number
+  /** Provider id that produced the match, or `null` on no match. */
+  matchedProvider: string | null
+  /** True when the run was cancelled (stop / signal abort) — drives a
+   *  "Cancelled" result rather than inferring no-match/not-run from the cascade. */
+  aborted: boolean
+  /** Every configured provider, in cascade order (including `not_run` ones). */
+  providers: EnrichmentProviderOutcome[]
+}
+
+/**
  * Per-row execution state for one workflow group, persisted as a row in the
  * `tableRowExecutions` sidecar keyed by `(rowId, groupId)`. Holds run
  * metadata only — picked output values land in `row.data` directly.
@@ -163,6 +216,13 @@ export interface RowExecutionMetadata {
    *  re-runs whose `cancelledAt > dispatch.requestedAt` — a user cancel
    *  mid-dispatch must not be overridden by `isManualRun`. */
   cancelledAt?: string
+  /**
+   * Enrichment cascade breakdown for `enrichment`-type groups, written on the
+   * terminal cell write. Persisted on `tableRowExecutions` but NOT hydrated by
+   * `loadExecutionsByRow` (kept off the hot grid read) — read it on demand via
+   * `loadEnrichmentDetail` for the details panel.
+   */
+  enrichmentDetails?: EnrichmentRunDetail | null
 }
 
 /** Map of `WorkflowGroup.id` → execution state. Stored on every row. */

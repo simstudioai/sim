@@ -28,6 +28,13 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
       description: 'Row data to insert or update',
       visibility: 'user-or-llm',
     },
+    conflictTarget: {
+      type: 'string',
+      required: false,
+      description:
+        'Unique column to match on. Required only when the table has more than one unique column.',
+      visibility: 'user-only',
+    },
   },
 
   request: {
@@ -45,6 +52,7 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
       return {
         data: params.data,
         workspaceId,
+        ...(params.conflictTarget ? { conflictTarget: params.conflictTarget } : {}),
       }
     },
   },

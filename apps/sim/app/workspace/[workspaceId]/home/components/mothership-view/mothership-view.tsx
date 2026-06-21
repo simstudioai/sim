@@ -7,6 +7,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
+  isMarkdownFile,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -51,6 +52,7 @@ interface MothershipViewProps {
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
+  isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
 }
 
@@ -64,6 +66,7 @@ export const MothershipView = memo(
       isCollapsed,
       className,
       previewSession,
+      isAgentResponding,
       genericResourceData,
     }: MothershipViewProps,
     ref
@@ -98,9 +101,12 @@ export const MothershipView = memo(
       canEdit &&
       active?.type === 'file' &&
       RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
+      // Markdown renders in the single-surface inline editor (streamed preview → editable in place),
+      // so it has no raw/split/preview toggle to offer.
+      !isMarkdownFile({ type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
-      // other rich types (markdown, html, svg, …) on the file list loading.
+      // other rich types (html, svg, …) on the file list loading.
       !(isActiveCsv && filesLoading) &&
       !(activeFile && isCsvStreamOnly(activeFile))
 
@@ -132,6 +138,7 @@ export const MothershipView = memo(
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
+                isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
                 onNotFound={(resourceId) => removeResource('log', resourceId)}

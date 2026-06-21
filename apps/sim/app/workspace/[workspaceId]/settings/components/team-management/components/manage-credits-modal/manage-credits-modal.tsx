@@ -72,6 +72,9 @@ export function ManageCreditsModal({
   const isSaving = updateLimit.isPending
 
   const creditsUsed = data ? data.creditsUsed.toLocaleString() : '—'
+  const creditsUsedTitle = data
+    ? `Credits used this ${data.billingInterval === 'year' ? 'year' : 'month'}`
+    : 'Credits used'
 
   const handleSave = () => {
     if (!userId) return
@@ -97,7 +100,7 @@ export function ManageCreditsModal({
       <ChipModalBody>
         <ChipModalField
           type='copy'
-          title='Credits used'
+          title={creditsUsedTitle}
           value={isLoading ? 'Loading…' : creditsUsed}
           copyLabel='Copy credits used'
         />

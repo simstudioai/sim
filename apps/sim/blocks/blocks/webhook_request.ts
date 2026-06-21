@@ -4,7 +4,7 @@ import type { RequestResponse } from '@/tools/http/types'
 
 export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
   type: 'webhook_request',
-  name: 'Webhook',
+  name: 'Outgoing Webhook',
   description: 'Send a webhook request',
   longDescription:
     'Send an HTTP POST request to a webhook URL with automatic webhook headers. Optionally sign the payload with HMAC-SHA256 for secure webhook delivery.',

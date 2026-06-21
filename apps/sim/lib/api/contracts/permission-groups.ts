@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
@@ -21,6 +22,8 @@ export const permissionGroupFullConfigSchema = z.object({
   disableSkills: z.boolean(),
   disableInvitations: z.boolean(),
   disablePublicApi: z.boolean(),
+  disablePublicFileSharing: z.boolean(),
+  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
   hideDeployA2a: z.boolean(),
@@ -117,10 +120,13 @@ export const MAX_PERMISSION_GROUP_WORKSPACES = 500
 const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_WORKSPACES)
 
 /**
- * Enforce the workspace-scope invariants shared by create and update:
+ * Enforce the workspace-scope invariants shared by create and update. Only the
+ * organization default group is org-wide; every non-default group targets
+ * specific workspaces:
+ *  - all-workspaces scope (`appliesToAllWorkspaces === true`) is allowed only
+ *    when `isDefault === true`,
  *  - a specific-scope group (`appliesToAllWorkspaces === false`) must name at
- *    least one workspace,
- *  - the organization default group must apply to all workspaces, and
+ *    least one workspace and cannot be the default group, and
  *  - an all-workspaces or default group must not name specific workspaces
  *    (otherwise `workspaceIds` would be silently dropped server-side).
  */
@@ -128,15 +134,20 @@ function refineWorkspaceScope(
   body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[]; isDefault?: boolean },
   ctx: z.RefinementCtx
 ) {
-  // A default group is always org-wide, and an explicit all-workspaces group has
-  // no specific workspaces. Reject workspaceIds in either case rather than
-  // silently dropping them when the scope resolves to all-workspaces.
   const allWorkspaces = body.isDefault === true || body.appliesToAllWorkspaces === true
   if (allWorkspaces && body.workspaceIds && body.workspaceIds.length > 0) {
     ctx.addIssue({
       code: 'custom',
       path: ['workspaceIds'],
       message: 'workspaceIds can only be set when the group targets specific workspaces',
+    })
+  }
+  if (body.appliesToAllWorkspaces === true && body.isDefault !== true) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['appliesToAllWorkspaces'],
+      message:
+        'Only the default group can apply to all workspaces; non-default groups must target specific workspaces',
     })
   }
   if (body.appliesToAllWorkspaces === false) {

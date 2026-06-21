@@ -17,6 +17,7 @@ import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { googleFormsConnectorMeta } from '@/connectors/google-forms/meta'
+import { googleMeetConnectorMeta } from '@/connectors/google-meet/meta'
 import { googleSheetsConnectorMeta } from '@/connectors/google-sheets/meta'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
@@ -77,6 +78,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   google_docs: googleDocsConnectorMeta,
   google_drive: googleDriveConnectorMeta,
   google_forms: googleFormsConnectorMeta,
+  google_meet: googleMeetConnectorMeta,
   google_sheets: googleSheetsConnectorMeta,
   grain: grainConnectorMeta,
   granola: granolaConnectorMeta,

@@ -6,6 +6,13 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('PIIValidator')
 const DEFAULT_TIMEOUT = 30000 // 30 seconds
 
+/**
+ * Max total bytes of text sent to a single Presidio subprocess. spaCy NER is the
+ * bottleneck, so large payloads are split into multiple short calls instead of
+ * one that risks the 30s timeout.
+ */
+const PII_CHUNK_MAX_BYTES = 256 * 1024
+
 export interface PIIValidationInput {
   text: string
   entityTypes: string[] // e.g., ["PERSON", "EMAIL_ADDRESS", "CREDIT_CARD"]
@@ -70,6 +77,126 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   }
 }
 
+interface PIIMaskBatchResult {
+  passed: boolean
+  error?: string
+  results?: { maskedText: string }[]
+}
+
+/**
+ * Mask PII across many strings, preserving input order. Strings are grouped into
+ * byte-budgeted chunks so no single subprocess exceeds {@link PII_CHUNK_MAX_BYTES}
+ * (keeping each call well under the 30s timeout). One Presidio engine pair is
+ * reused per subprocess invocation. Rejects on any subprocess failure so callers
+ * can apply their own fail-safe.
+ */
+export async function maskPIIBatch(
+  texts: string[],
+  entityTypes: string[],
+  language = 'en'
+): Promise<string[]> {
+  if (texts.length === 0) return []
+
+  const chunks: string[][] = []
+  let current: string[] = []
+  let currentBytes = 0
+  for (const text of texts) {
+    const bytes = Buffer.byteLength(text, 'utf8')
+    if (current.length > 0 && currentBytes + bytes > PII_CHUNK_MAX_BYTES) {
+      chunks.push(current)
+      current = []
+      currentBytes = 0
+    }
+    current.push(text)
+    currentBytes += bytes
+  }
+  if (current.length > 0) chunks.push(current)
+
+  const masked: string[] = []
+  for (const chunk of chunks) {
+    const result = await runPythonScript<PIIMaskBatchResult>({
+      texts: chunk,
+      entityTypes,
+      mode: 'mask',
+      language,
+    })
+    if (!result.passed || !result.results || result.results.length !== chunk.length) {
+      throw new Error(result.error || 'PII batch masking returned an unexpected result')
+    }
+    for (const item of result.results) masked.push(item.maskedText)
+  }
+
+  return masked
+}
+
+/**
+ * Spawn the Presidio Python script, write the payload to stdin as JSON, and parse
+ * the `__SIM_RESULT__=` marker from stdout. Rejects on non-zero exit, timeout,
+ * spawn failure, or a missing/unparseable marker.
+ */
+function runPythonScript<T>(payload: Record<string, unknown>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const guardrailsDir = path.join(process.cwd(), 'lib/guardrails')
+    const scriptPath = path.join(guardrailsDir, 'validate_pii.py')
+    const venvPython = path.join(guardrailsDir, 'venv/bin/python3')
+    const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3'
+
+    const python = spawn(pythonCmd, [scriptPath])
+    let stdout = ''
+    let stderr = ''
+
+    const timeout = setTimeout(() => {
+      python.kill()
+      reject(new Error('PII processing timeout'))
+    }, DEFAULT_TIMEOUT)
+
+    // stdin errors (e.g. EPIPE when the child exits before draining the payload —
+    // chunks can exceed the OS pipe buffer) emit on stdin, not the process. Without
+    // a listener Node throws an unhandled 'error' and crashes; funnel it into the
+    // promise so the caller's fail-safe scrub path handles it.
+    python.stdin.on('error', (error: Error) => {
+      clearTimeout(timeout)
+      reject(new Error(`PII script stdin error: ${error.message}`))
+    })
+    python.stdin.write(JSON.stringify(payload))
+    python.stdin.end()
+    python.stdout.on('data', (data) => {
+      stdout += data.toString()
+    })
+    python.stderr.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    python.on('close', (code) => {
+      clearTimeout(timeout)
+      if (code !== 0) {
+        reject(new Error(stderr || `PII script exited with code ${code}`))
+        return
+      }
+      const prefix = '__SIM_RESULT__='
+      const marker = stdout.split('\n').find((l) => l.startsWith(prefix))
+      if (!marker) {
+        reject(new Error(`No result marker in PII script output: ${stdout.substring(0, 200)}`))
+        return
+      }
+      try {
+        resolve(JSON.parse(marker.slice(prefix.length)) as T)
+      } catch (error: any) {
+        reject(new Error(`Failed to parse PII script result: ${error.message}`))
+      }
+    })
+
+    python.on('error', (error) => {
+      clearTimeout(timeout)
+      reject(
+        new Error(
+          `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`
+        )
+      )
+    })
+  })
+}
+
 /**
  * Execute Python PII detection script
  */
@@ -106,6 +233,12 @@ async function executePythonPIIDetection(
       entityTypes,
       mode,
       language,
+    })
+    // See runPythonScript: stdin errors (EPIPE on early child exit) must be
+    // caught here or Node throws an unhandled 'error' and crashes the process.
+    python.stdin.on('error', (error: Error) => {
+      clearTimeout(timeout)
+      reject(new Error(`Failed to write to Python: ${error.message}`))
     })
     python.stdin.write(inputData)
     python.stdin.end()
@@ -184,59 +317,4 @@ async function executePythonPIIDetection(
   })
 }
 
-/**
- * List of all supported PII entity types
- * Based on Microsoft Presidio's supported entities
- */
-export const SUPPORTED_PII_ENTITIES = {
-  // Common/Global
-  CREDIT_CARD: 'Credit card number',
-  CRYPTO: 'Cryptocurrency wallet address',
-  DATE_TIME: 'Date or time',
-  EMAIL_ADDRESS: 'Email address',
-  IBAN_CODE: 'International Bank Account Number',
-  IP_ADDRESS: 'IP address',
-  NRP: 'Nationality, religious or political group',
-  LOCATION: 'Location',
-  PERSON: 'Person name',
-  PHONE_NUMBER: 'Phone number',
-  MEDICAL_LICENSE: 'Medical license number',
-  URL: 'URL',
-
-  // USA
-  US_BANK_NUMBER: 'US bank account number',
-  US_DRIVER_LICENSE: 'US driver license',
-  US_ITIN: 'US Individual Taxpayer Identification Number',
-  US_PASSPORT: 'US passport number',
-  US_SSN: 'US Social Security Number',
-
-  // UK
-  UK_NHS: 'UK NHS number',
-  UK_NINO: 'UK National Insurance Number',
-
-  // Other countries
-  ES_NIF: 'Spanish NIF number',
-  ES_NIE: 'Spanish NIE number',
-  IT_FISCAL_CODE: 'Italian fiscal code',
-  IT_DRIVER_LICENSE: 'Italian driver license',
-  IT_VAT_CODE: 'Italian VAT code',
-  IT_PASSPORT: 'Italian passport',
-  IT_IDENTITY_CARD: 'Italian identity card',
-  PL_PESEL: 'Polish PESEL number',
-  SG_NRIC_FIN: 'Singapore NRIC/FIN',
-  SG_UEN: 'Singapore Unique Entity Number',
-  AU_ABN: 'Australian Business Number',
-  AU_ACN: 'Australian Company Number',
-  AU_TFN: 'Australian Tax File Number',
-  AU_MEDICARE: 'Australian Medicare number',
-  IN_PAN: 'Indian Permanent Account Number',
-  IN_AADHAAR: 'Indian Aadhaar number',
-  IN_VEHICLE_REGISTRATION: 'Indian vehicle registration',
-  IN_VOTER: 'Indian voter ID',
-  IN_PASSPORT: 'Indian passport',
-  FI_PERSONAL_IDENTITY_CODE: 'Finnish Personal Identity Code',
-  KR_RRN: 'Korean Resident Registration Number',
-  TH_TNIN: 'Thai National ID Number',
-} as const
-
-export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
+export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

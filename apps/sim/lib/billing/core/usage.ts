@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -891,7 +892,7 @@ export async function maybeSendUsageThresholdEmail(params: {
           .where(eq(member.organizationId, params.organizationId))
 
         for (const a of admins) {
-          const isAdmin = a.role === 'owner' || a.role === 'admin'
+          const isAdmin = isOrgAdminRole(a.role)
           if (!isAdmin) continue
           if (a.enabled === false) continue
           if (!a.email) continue

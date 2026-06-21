@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { Plus } from 'lucide-react'
 import {
   Avatar,
@@ -63,7 +64,7 @@ export function CredentialSets() {
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const userRole = getUserRole(activeOrganization, session?.user?.email)
-  const isAdmin = userRole === 'admin' || userRole === 'owner'
+  const isAdmin = isOrgAdminRole(userRole)
   const canManageCredentialSets = hasTeamPlan && isAdmin && !!activeOrganization?.id
 
   const { data: memberships = [], isPending: membershipsLoading } = useCredentialSetMemberships()

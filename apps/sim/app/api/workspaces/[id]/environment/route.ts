@@ -44,10 +44,9 @@ const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
  * Restricts decrypted workspace env values to administrators. Members (including
  * read-only) receive the variable names with empty values so editor autocomplete
  * and conflict detection keep working without leaking secret values. A value is
- * revealed when the caller is a credential admin of that key, or — for legacy
- * keys predating per-secret ACLs — when they hold workspace `admin` permission.
- * Mirrors the per-key edit gating in PUT/DELETE: if you can administer a secret,
- * you can read it.
+ * revealed when the caller is a workspace admin (which includes organization
+ * admins) or a per-secret credential admin of that key. Mirrors the per-key edit
+ * gating in PUT/DELETE: if you can administer a secret, you can read it.
  */
 async function maskWorkspaceEnvForViewer({
   workspaceDecrypted,
@@ -61,7 +60,7 @@ async function maskWorkspaceEnvForViewer({
   permission: PermissionType
 }): Promise<Record<string, string>> {
   const workspaceKeys = Object.keys(workspaceDecrypted)
-  const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+  const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
     workspaceId,
     envKeys: workspaceKeys,
     userId,
@@ -69,7 +68,7 @@ async function maskWorkspaceEnvForViewer({
 
   const masked: Record<string, string> = {}
   for (const key of workspaceKeys) {
-    const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
+    const canViewValue = permission === 'admin' || adminKeys.has(key)
     masked[key] = canViewValue ? workspaceDecrypted[key] : ''
   }
   return masked
@@ -169,7 +168,8 @@ export const PUT = withRouteHandler(
         envKeys: incomingKeys,
         userId,
       })
-      const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      const isKeyAdmin = (key: string) => permission === 'admin' || adminKeys.has(key)
+      const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !isKeyAdmin(k))
       if (forbiddenExisting.length > 0) {
         logger.warn(`[${requestId}] Workspace env update denied`, {
           workspaceId,
@@ -311,7 +311,8 @@ export const DELETE = withRouteHandler(
         envKeys: keys,
         userId,
       })
-      const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      const isKeyAdmin = (key: string) => permission === 'admin' || adminKeys.has(key)
+      const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !isKeyAdmin(k))
       if (forbiddenExisting.length > 0) {
         logger.warn(`[${requestId}] Workspace env delete denied`, {
           workspaceId,

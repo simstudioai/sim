@@ -8,6 +8,7 @@ import {
 import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getE2BDocFormat } from './doc-compile'
+import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { consumeLatestFileIntent } from './file-intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
@@ -49,9 +50,15 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return { success: false, message: 'content is required for edit_content' }
     }
 
+    // Consume the intent from THIS file subagent's channel (its outer tool_use
+    // id), not just the latest in the message — otherwise two file agents
+    // writing concurrently would each grab whichever workspace_file landed last
+    // and write their content into the wrong file. Falls back to latest-in-
+    // message when no channel id is present (main-agent / legacy calls).
     const intent = await consumeLatestFileIntent(workspaceId, {
       chatId: context.chatId,
       messageId: context.messageId,
+      channelId: context.parentToolCallId,
     })
     if (!intent) {
       return {
@@ -244,9 +251,13 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         userId: context.userId,
       })
 
+      // Flag any `/api/files/view/<id>` embeds the model just authored that won't render/export
+      // (non-workspace or missing), so it can self-correct on the next step.
+      const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
+
       return {
         success: true,
-        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)`,
+        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)${embedWarning}`,
         data: {
           id: intent.fileId,
           name: fileRecord.name,

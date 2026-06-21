@@ -3,11 +3,23 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { MothershipStreamV1ErrorPayload } from '@/lib/copilot/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { createStreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
+import { reduceEvent } from './turn-model'
+
+function textEnvelope(text: string): PersistedStreamEventEnvelope {
+  return {
+    v: 1,
+    seq: 1,
+    ts: '',
+    stream: { streamId: 's', cursor: '1' },
+    type: 'text',
+    payload: { channel: 'assistant', text },
+  } as unknown as PersistedStreamEventEnvelope
+}
 
 describe('createStreamLoopContext', () => {
   describe('isStale', () => {
@@ -82,7 +94,7 @@ describe('createStreamLoopContext', () => {
   })
 
   describe('preserveExistingState reconnect hydration', () => {
-    it('rebuilds blocks, toolMap, toolArgsMap, subagentBySpanId and recovers the active subagent', () => {
+    it('rebuilds the model (tools and subagent lanes) from the persisted snapshot', () => {
       const blocks: ContentBlock[] = [
         { type: 'text', content: 'hi' },
         {
@@ -103,16 +115,15 @@ describe('createStreamLoopContext', () => {
           streamingContentRef: ref('hi'),
         })
       )
-      expect(ctx.state.blocks).toHaveLength(3)
-      expect(ctx.state.runningText).toBe('hi')
-      expect(ctx.state.toolMap.get('tc-1')).toBe(1)
-      expect(ctx.state.toolArgsMap.get('tc-1')).toEqual({ path: '/a' })
-      expect(ctx.state.subagentBySpanId.get('span-1')).toBe('file')
-      expect(ctx.state.activeSubagent).toBe('file')
-      expect(ctx.state.activeSubagentParentToolCallId).toBe('tc-1')
+      const tool = ctx.state.model.nodes.get('tc-1')
+      expect(tool?.kind).toBe('tool')
+      expect((tool as { status: string }).status).toBe('success')
+      const agent = ctx.state.model.nodes.get('span-1')
+      expect(agent?.kind).toBe('agent')
+      expect((agent as { agentId: string }).agentId).toBe('file')
     })
 
-    it('stops recovering the active subagent at a subagent_end marker', () => {
+    it('rebuilds a closed subagent lane as terminal at a subagent_end marker', () => {
       const blocks: ContentBlock[] = [
         { type: 'subagent', content: 'file', spanId: 'span-1' },
         { type: 'subagent_end', spanId: 'span-1' },
@@ -123,7 +134,9 @@ describe('createStreamLoopContext', () => {
           streamingBlocksRef: ref<ContentBlock[]>(blocks),
         })
       )
-      expect(ctx.state.activeSubagent).toBeUndefined()
+      const agent = ctx.state.model.nodes.get('span-1')
+      expect(agent?.kind).toBe('agent')
+      expect((agent as { status: string }).status).not.toBe('running')
     })
 
     it('does not clear the shared refs on a preserve-state stream', () => {
@@ -146,7 +159,6 @@ describe('createStreamLoopContext', () => {
       const ctx = createStreamLoopContext(
         makeStreamLoopDeps({ expectedGen: 1, streamGenRef: ref(2), setPendingMessages })
       )
-      ctx.state.blocks.push({ type: 'text', content: 'x' })
       ctx.ops.flush()
       expect(setPendingMessages).not.toHaveBeenCalled()
     })
@@ -156,8 +168,8 @@ describe('createStreamLoopContext', () => {
       const ctx = createStreamLoopContext(
         makeStreamLoopDeps({ chatIdRef: ref<string | undefined>(undefined), setPendingMessages })
       )
-      ctx.state.runningText = 'hello'
-      ctx.state.blocks.push({ type: 'text', content: 'hello' })
+      // flush serializes the model (the single source of truth) into the snapshot.
+      reduceEvent(ctx.state.model, textEnvelope('hello'))
       ctx.ops.flush()
       expect(setPendingMessages).toHaveBeenCalledTimes(1)
       const updater = setPendingMessages.mock.calls[0][0] as (prev: ChatMessage[]) => ChatMessage[]
@@ -188,63 +200,6 @@ describe('createStreamLoopContext', () => {
       )
       ctx.ops.flushText()
       expect(setPendingMessages).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('block builders', () => {
-    it('ensureTextBlock coalesces consecutive same-scope text blocks', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      const a = ctx.ops.ensureTextBlock(undefined, undefined, undefined, {})
-      const b = ctx.ops.ensureTextBlock(undefined, undefined, undefined, {})
-      expect(a).toBe(b)
-      expect(ctx.state.blocks).toHaveLength(1)
-    })
-
-    it('ensureTextBlock starts a new block on a subagent-scope change and stamps the prior end', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      const main = ctx.ops.ensureTextBlock(undefined, undefined, undefined, {})
-      const sub = ctx.ops.ensureTextBlock('file', undefined, undefined, { spanId: 's1' })
-      expect(sub).not.toBe(main)
-      expect(ctx.state.blocks).toHaveLength(2)
-      expect(main.endedAt).toBeTypeOf('number')
-      expect(sub.spanId).toBe('s1')
-      expect(sub.subagent).toBe('file')
-    })
-
-    it('ensureThinkingBlock uses subagent_thinking under a subagent', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      const tb = ctx.ops.ensureThinkingBlock('file', 'tc', undefined, {})
-      expect(tb.type).toBe('subagent_thinking')
-    })
-
-    it('toEventMs falls back to a finite now on an invalid timestamp', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      const ms = ctx.ops.toEventMs('not-a-date')
-      expect(Number.isFinite(ms)).toBe(true)
-    })
-
-    it('resolveScopedSubagent prefers agentId, then spanId, then parentToolCallId, then active', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      ctx.state.subagentBySpanId.set('s1', 'spanAgent')
-      ctx.state.subagentByParentToolCallId.set('p1', 'parentAgent')
-      ctx.state.activeSubagent = 'activeAgent'
-      expect(ctx.ops.resolveScopedSubagent('explicit', 'p1', 's1')).toBe('explicit')
-      expect(ctx.ops.resolveScopedSubagent(undefined, 'p1', 's1')).toBe('spanAgent')
-      expect(ctx.ops.resolveScopedSubagent(undefined, 'p1', undefined)).toBe('parentAgent')
-      expect(ctx.ops.resolveScopedSubagent(undefined, undefined, undefined)).toBe('activeAgent')
-    })
-
-    it('buildInlineErrorTag includes the message, code and provider', () => {
-      const ctx = createStreamLoopContext(makeStreamLoopDeps())
-      const tag = ctx.ops.buildInlineErrorTag({
-        message: 'boom',
-        code: 'E1',
-        provider: 'openai',
-      } as unknown as MothershipStreamV1ErrorPayload)
-      expect(tag).toContain('mothership-error')
-      expect(tag).toContain('boom')
-      expect(tag).toContain('E1')
-      expect(tag).toContain('openai')
     })
   })
 })

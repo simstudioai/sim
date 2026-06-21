@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {

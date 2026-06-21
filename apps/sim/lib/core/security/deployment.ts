@@ -38,6 +38,7 @@ function generateAuthToken(
 export function validateAuthToken(
   token: string,
   deploymentId: string,
+  authType: string,
   encryptedPassword?: string | null
 ): boolean {
   try {
@@ -55,9 +56,14 @@ export function validateAuthToken(
 
     const parts = payload.split(':')
     if (parts.length < 4) return false
-    const [storedId, _type, timestamp, storedPwSlot] = parts
+    const [storedId, storedType, timestamp, storedPwSlot] = parts
 
     if (storedId !== deploymentId) return false
+
+    // Bind the cookie to the auth type so a token minted under one mode (e.g. a
+    // `public` share, which has an empty password slot) can't satisfy another
+    // mode (e.g. `email` OTP) after the share's auth type is changed.
+    if (storedType !== authType) return false
 
     const expectedPwSlot = passwordSlot(encryptedPassword)
     if (storedPwSlot !== expectedPwSlot) return false
@@ -72,19 +78,27 @@ export function validateAuthToken(
   }
 }
 
+/** The kind of deployed resource an auth cookie/token belongs to. */
+export type DeploymentAuthKind = 'chat' | 'file'
+
+/** Canonical auth cookie name for a deployed resource (`{kind}_auth_{id}`). */
+export function deploymentAuthCookieName(cookiePrefix: DeploymentAuthKind, id: string): string {
+  return `${cookiePrefix}_auth_${id}`
+}
+
 /**
  * Sets an authentication cookie for a deployment
  */
 export function setDeploymentAuthCookie(
   response: NextResponse,
-  cookiePrefix: 'chat',
+  cookiePrefix: DeploymentAuthKind,
   deploymentId: string,
   authType: string,
   encryptedPassword?: string | null
 ): void {
   const token = generateAuthToken(deploymentId, authType, encryptedPassword)
   response.cookies.set({
-    name: `${cookiePrefix}_auth_${deploymentId}`,
+    name: deploymentAuthCookieName(cookiePrefix, deploymentId),
     value: token,
     httpOnly: true,
     secure: !isDev,
@@ -95,17 +109,22 @@ export function setDeploymentAuthCookie(
 }
 
 /**
- * Checks if an email matches the allowed emails list (exact match or domain match)
+ * Checks if an email matches the allowed emails list (exact match or domain
+ * match). Case-insensitive — email addresses are compared lowercased on both
+ * sides, so callers don't need to normalize before calling.
  */
 export function isEmailAllowed(email: string, allowedEmails: string[]): boolean {
-  if (allowedEmails.includes(email)) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedAllowed = allowedEmails.map((allowed) => allowed.trim().toLowerCase())
+
+  if (normalizedAllowed.includes(normalizedEmail)) {
     return true
   }
 
-  const atIndex = email.indexOf('@')
+  const atIndex = normalizedEmail.indexOf('@')
   if (atIndex > 0) {
-    const domain = email.substring(atIndex + 1)
-    if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+    const domain = normalizedEmail.substring(atIndex + 1)
+    if (domain && normalizedAllowed.some((allowed) => allowed === `@${domain}`)) {
       return true
     }
   }

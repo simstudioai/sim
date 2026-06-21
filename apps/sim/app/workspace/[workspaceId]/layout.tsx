@@ -1,4 +1,5 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ToastProvider } from '@/components/emcn'
 import { getSession } from '@/lib/auth'
@@ -27,6 +28,7 @@ export default async function WorkspaceLayout({
   }
 
   const { workspaceId } = await params
+  const initialSidebarCollapsed = (await cookies()).get('sidebar_collapsed')?.value === '1'
   const queryClient = getQueryClient()
   const sidebarPrefetch = prefetchWorkspaceSidebar(queryClient, workspaceId, session.user.id)
 
@@ -47,7 +49,9 @@ export default async function WorkspaceLayout({
             <WorkspacePermissionsProvider>
               <WorkspaceScopeSync />
               <HydrationBoundary state={dehydrate(queryClient)}>
-                <WorkspaceChrome>{children}</WorkspaceChrome>
+                <WorkspaceChrome initialSidebarCollapsed={initialSidebarCollapsed}>
+                  {children}
+                </WorkspaceChrome>
               </HydrationBoundary>
             </WorkspacePermissionsProvider>
           </div>

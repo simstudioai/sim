@@ -516,7 +516,7 @@ export async function upsertRow(
     targetColumnKey = getColumnId(uniqueColumns[0])
   } else {
     throw new Error(
-      `Table has multiple unique columns (${uniqueColumns.map((c) => c.name).join(', ')}). Specify conflictTarget to indicate which column to match on.`
+      `Table has multiple unique columns (${uniqueColumns.map((c) => c.name).join(', ')}). Specify a conflict column to indicate which one to match on.`
     )
   }
 

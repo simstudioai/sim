@@ -2,13 +2,14 @@ import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
+import { getTrigger } from '@/triggers'
 
 export const GitLabBlock: BlockConfig<GitLabResponse> = {
   type: 'gitlab',
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
   authMode: AuthMode.ApiKey,
-  triggerAllowed: false,
+  triggerAllowed: true,
   longDescription:
     'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
   docsLink: 'https://docs.sim.ai/integrations/gitlab',
@@ -437,6 +438,12 @@ Return ONLY the commit message - no explanations, no extra text.`,
         ],
       },
     },
+    ...getTrigger('gitlab_push').subBlocks,
+    ...getTrigger('gitlab_merge_request').subBlocks,
+    ...getTrigger('gitlab_issue').subBlocks,
+    ...getTrigger('gitlab_pipeline').subBlocks,
+    ...getTrigger('gitlab_comment').subBlocks,
+    ...getTrigger('gitlab_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -745,6 +752,18 @@ Return ONLY the commit message - no explanations, no extra text.`,
     note: { type: 'json', description: 'Comment/note details' },
     // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
+  },
+
+  triggers: {
+    enabled: true,
+    available: [
+      'gitlab_push',
+      'gitlab_merge_request',
+      'gitlab_issue',
+      'gitlab_pipeline',
+      'gitlab_comment',
+      'gitlab_webhook',
+    ],
   },
 }
 

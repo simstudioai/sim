@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateOrganizationMemberRoleContract } from '@/lib/api/contracts/organization'
@@ -54,7 +55,7 @@ export const GET = withRouteHandler(
       }
 
       const userRole = userMember[0].role
-      const hasAdminAccess = ['owner', 'admin'].includes(userRole)
+      const hasAdminAccess = isOrgAdminRole(userRole)
 
       const memberQuery = db
         .select({
@@ -182,7 +183,7 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (!['owner', 'admin'].includes(userMember[0].role)) {
+      if (!isOrgAdminRole(userMember[0].role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
@@ -306,7 +307,7 @@ export const DELETE = withRouteHandler(
       }
 
       const canRemoveMembers =
-        ['owner', 'admin'].includes(userMember[0].role) || session.user.id === targetUserId
+        isOrgAdminRole(userMember[0].role) || session.user.id === targetUserId
 
       if (!canRemoveMembers) {
         return NextResponse.json({ error: 'Forbidden - Insufficient permissions' }, { status: 403 })

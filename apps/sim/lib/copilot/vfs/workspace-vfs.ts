@@ -120,6 +120,7 @@ import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
+  hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
@@ -378,12 +379,131 @@ function getStaticComponentFiles(): Map<string, string> {
  *   components/triggers/{provider}/{id}.json           (external triggers: github, slack, etc.)
  */
 export class WorkspaceVFS {
+  // Eagerly-materialized, cheap content (structure + metadata): folder markers,
+  // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
+  // Lazily-materialized, expensive content keyed by VFS path. The loader runs on
+  // demand: a `read` resolves exactly one entry; a scoped `grep` resolves only
+  // the entries within its scope; an unscoped `grep` resolves all; a `glob` never
+  // resolves any (it matches keys only). This is why a read/glob no longer pays
+  // for every workflow's graph-load + lint + stringify — only grep over contents
+  // does, and only for what it actually scans.
+  private lazy: Map<string, () => Promise<string | null>> = new Map()
+  // Per-instance (per-tool-call) memo so state.json + lint.json for the same
+  // workflow share one normalized-table load, and deployment.json + versions.json
+  // share one deployment query.
+  private normalizedCache = new Map<
+    string,
+    Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>>
+  >()
+  private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
   private _betaEnabled = false
 
   get workspaceId(): string {
     return this._workspaceId
+  }
+
+  /** Register a VFS path whose (expensive) content is produced on demand. */
+  private registerLazy(path: string, loader: () => Promise<string | null>): void {
+    this.lazy.set(path, loader)
+  }
+
+  /**
+   * Load a workflow's normalized state once per instance. state.json and lint.json
+   * both need it, and a grep over a workflow's dir touches both — without this they
+   * would each re-load the full block graph.
+   */
+  private loadNormalized(
+    workflowId: string
+  ): Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>> {
+    let cached = this.normalizedCache.get(workflowId)
+    if (!cached) {
+      cached = loadWorkflowFromNormalizedTables(workflowId)
+      this.normalizedCache.set(workflowId, cached)
+    }
+    return cached
+  }
+
+  /** Load a workflow's deployment data once per instance (deployment.json + versions.json share it). */
+  private loadDeployments(wf: {
+    id: string
+    isDeployed: boolean
+    deployedAt: Date | null
+  }): Promise<DeploymentData | null> {
+    let cached = this.deploymentCache.get(wf.id)
+    if (!cached) {
+      cached = this.getWorkflowDeployments(wf.id, this._workspaceId, wf.isDeployed, wf.deployedAt)
+      this.deploymentCache.set(wf.id, cached)
+    }
+    return cached
+  }
+
+  /**
+   * Resolve a single lazy artifact into {@link files}. Idempotent: once resolved
+   * the entry moves to `files` and the loader is dropped. A loader that returns
+   * null (no data) leaves nothing behind, so the path reads as "not found".
+   */
+  private async resolveLazyPath(path: string): Promise<string | null> {
+    const existing = this.files.get(path)
+    if (existing !== undefined) return existing
+    const loader = this.lazy.get(path)
+    if (!loader) return null
+    this.lazy.delete(path)
+    let content: string | null = null
+    try {
+      content = await loader()
+    } catch (err) {
+      logger.warn('Failed to resolve lazy VFS artifact', {
+        workspaceId: this._workspaceId,
+        path,
+        error: toError(err).message,
+      })
+      content = null
+    }
+    if (content !== null) this.files.set(path, content)
+    return content
+  }
+
+  /**
+   * Resolve every lazy artifact a grep over `scope` will scan, in parallel. An
+   * undefined scope (unscoped grep) resolves all — the worst case, equivalent to
+   * the old eager full materialize, but now only paid by an unscoped grep.
+   * Uses the same scope matcher as {@link ops.grep} so the materialized set is
+   * exactly the set grep filters in.
+   */
+  private async resolveLazyWithinScope(scope?: string): Promise<void> {
+    const targets: string[] = []
+    for (const path of this.lazy.keys()) {
+      if (!scope || ops.pathWithinGrepScope(path, scope)) targets.push(path)
+    }
+    if (targets.length === 0) return
+    await Promise.all(targets.map((path) => this.resolveLazyPath(path)))
+  }
+
+  /**
+   * `recently-deleted/` artifacts are opt-in: excluded from the active view
+   * unless a path/pattern explicitly scopes into them.
+   */
+  private isRecentlyDeleted(key: string): boolean {
+    return key.startsWith('recently-deleted/')
+  }
+
+  /**
+   * A keys-only view (eager values plus empty placeholders for unresolved lazy
+   * paths) for glob/suggestSimilar, which match on keys and never read content.
+   */
+  private keyView(includeDeleted: boolean): Map<string, string> {
+    const view = new Map<string, string>()
+    for (const [key, value] of this.files) {
+      if (includeDeleted || !this.isRecentlyDeleted(key)) view.set(key, value)
+    }
+    for (const key of this.lazy.keys()) {
+      if ((includeDeleted || !this.isRecentlyDeleted(key)) && !view.has(key)) {
+        view.set(key, '')
+      }
+    }
+    return view
   }
 
   /**
@@ -394,6 +514,9 @@ export class WorkspaceVFS {
   async materialize(workspaceId: string, userId: string): Promise<void> {
     const start = Date.now()
     this.files = new Map()
+    this.lazy = new Map()
+    this.normalizedCache = new Map()
+    this.deploymentCache = new Map()
     this._workspaceId = workspaceId
     this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
@@ -507,7 +630,7 @@ export class WorkspaceVFS {
   private activeFiles(): Map<string, string> {
     const filtered = new Map<string, string>()
     for (const [key, value] of this.files) {
-      if (!key.startsWith('recently-deleted/')) {
+      if (!this.isRecentlyDeleted(key)) {
         filtered.set(key, value)
       }
     }
@@ -519,11 +642,14 @@ export class WorkspaceVFS {
     return this.activeFiles()
   }
 
-  grep(
+  async grep(
     pattern: string,
     path?: string,
     options?: GrepOptions
-  ): GrepMatch[] | string[] | ops.GrepCountEntry[] {
+  ): Promise<GrepMatch[] | string[] | ops.GrepCountEntry[]> {
+    // grep is the only op that scans contents, so it is the only op that pays to
+    // materialize lazy artifacts — and only those within its scope.
+    await this.resolveLazyWithinScope(path)
     return ops.grep(this.filesForPath(path), pattern, path, options)
   }
 
@@ -578,16 +704,23 @@ export class WorkspaceVFS {
   }
 
   glob(pattern: string): string[] {
-    const target = pattern.startsWith('recently-deleted') ? this.files : this.activeFiles()
-    return ops.glob(target, pattern)
+    // glob matches keys only, so it resolves no lazy content — it sees the full
+    // path structure (eager keys + lazy placeholders) for free.
+    const includeDeleted = pattern.startsWith('recently-deleted')
+    return ops.glob(this.keyView(includeDeleted), pattern)
   }
 
-  read(path: string, offset?: number, limit?: number): ReadResult | null {
+  async read(path: string, offset?: number, limit?: number): Promise<ReadResult | null> {
+    // Resolve the one lazy artifact being read into `files`; a no-op for eager
+    // paths (already present) and unknown paths (no loader). Lazy keys are always
+    // ASCII (built via encodeURIComponent), so no Unicode-normalized lookup is
+    // needed here; ops.read still does its own NFC/NFD fallback over `files`.
+    await this.resolveLazyPath(path)
     return ops.read(this.files, path, offset, limit)
   }
 
   suggestSimilar(missingPath: string, max?: number): string[] {
-    return ops.suggestSimilar(this.files, missingPath, max)
+    return ops.suggestSimilar(this.keyView(true), missingPath, max)
   }
 
   private async resolveWorkspaceFileForDynamicRead(
@@ -1017,6 +1150,37 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Resolve the set of folder IDs that are effectively locked — locked directly
+   * or via a locked ancestor folder. A workflow inside any of these folders is
+   * itself immutable, so its meta.json must report `locked: true`. Mirrors the
+   * folder-chain walk in `@sim/platform-authz/workflow` getFolderLockStatus, but resolves
+   * the whole workspace in memory to avoid a per-workflow DB round trip.
+   */
+  private computeLockedFolderIds(
+    folders: Array<{ folderId: string; parentId: string | null; locked: boolean }>
+  ): Set<string> {
+    const byId = new Map(folders.map((f) => [f.folderId, f]))
+    const lockedFolderIds = new Set<string>()
+
+    for (const folder of folders) {
+      let current: string | null = folder.folderId
+      const visited = new Set<string>()
+      while (current && !visited.has(current)) {
+        visited.add(current)
+        const node = byId.get(current)
+        if (!node) break
+        if (node.locked) {
+          lockedFolderIds.add(folder.folderId)
+          break
+        }
+        current = node.parentId
+      }
+    }
+
+    return lockedFolderIds
+  }
+
+  /**
    * Materialize all workflows using the shared listWorkflows function.
    * Workflows are nested under their folder paths in the VFS:
    *   workflows/{folder}/{name}/  (if in a folder)
@@ -1031,6 +1195,7 @@ export class WorkspaceVFS {
     ])
 
     const folderPaths = this.buildFolderPaths(folderRows)
+    const lockedFolderIds = this.computeLockedFolderIds(folderRows)
 
     // NOTE: materialization is a pure READ. Alias backing (changelog/plan
     // folders + files) is ensured at write time — workflow create/rename
@@ -1056,7 +1221,8 @@ export class WorkspaceVFS {
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
         const workflowPath = prefix.replace(/\/$/, '')
 
-        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
+        const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
+        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
 
         if (workflowArtifactsEnabled) {
           const changelog = findWorkspaceFileRecord(
@@ -1126,118 +1292,87 @@ export class WorkspaceVFS {
           )
         }
 
-        let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
-        try {
-          normalized = await loadWorkflowFromNormalizedTables(wf.id)
-          if (normalized) {
-            const sanitized = sanitizeForCopilot({
-              blocks: normalized.blocks,
-              edges: normalized.edges,
-              loops: normalized.loops,
-              parallels: normalized.parallels,
-            } as any)
-            this.files.set(`${prefix}state.json`, JSON.stringify(sanitized, null, 2))
+        // Heavy per-workflow content is LAZY: a read/glob never loads the block
+        // graph, runs lint, or queries executions/deployments. Only a read of the
+        // specific artifact — or a grep whose scope touches it — resolves it.
+        // state.json + lint.json share one memoized normalized-table load;
+        // deployment.json + versions.json share one memoized deployment query.
+        // This is the change that stops every read/glob from paying O(workflows)
+        // graph-loads + lint + stringify (what made large-workspace reads ~40s).
+        this.registerLazy(`${prefix}state.json`, async () => {
+          const normalized = await this.loadNormalized(wf.id)
+          // loadWorkflowFromNormalizedTables returns null for a zero-block
+          // workflow; it still exists and must be readable, so emit an
+          // empty-but-valid state.json rather than a 404.
+          const sanitized = normalized
+            ? sanitizeForCopilot({
+                blocks: normalized.blocks,
+                edges: normalized.edges,
+                loops: normalized.loops,
+                parallels: normalized.parallels,
+              } as any)
+            : sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any)
+          return JSON.stringify(sanitized, null, 2)
+        })
 
-            // Dynamically-computed validation state (lint.json), derived from
-            // the raw normalized state so subBlock values, advancedMode,
-            // canonicalModes, and subflow edges are all available.
-            //
-            // CPU-only by design: tier-2 reference resolution
-            // (collectUnresolvedReferences) runs DB queries per selector field
-            // and is validated where it matters — at edit_workflow apply time.
-            // Running it here meant workflows × selectors sequential DB queries
-            // on every read/glob/grep call, which is what made `files/` reads
-            // take ~40s in large workspaces.
-            try {
-              const graphLint = lintEditedWorkflowState(normalized as any)
-              const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
-              this.files.set(
-                `${prefix}lint.json`,
-                JSON.stringify(
-                  {
-                    ...graphLint,
-                    fieldIssues,
-                    notes: [
-                      UNRESOLVABLE_AT_LINT_NOTE,
-                      'Credential/resource reference resolution is validated when editing the workflow, not in this snapshot.',
-                    ],
-                  },
-                  null,
-                  2
-                )
-              )
-            } catch (lintErr) {
-              logger.warn('Failed to compute lint.json', {
-                workflowId: wf.id,
-                error: toError(lintErr).message,
-              })
-            }
-          } else {
-            // loadWorkflowFromNormalizedTables returns null when the workflow has
-            // zero block rows. A block-less workflow still exists and must be
-            // readable, so emit an empty-but-valid state.json — otherwise
-            // read("workflows/{path}/state.json") 404s and suggestSimilar points the
-            // agent at a different, same-named workflow. dag/lint are derived from
-            // blocks and are omitted for the empty case.
-            this.files.set(
-              `${prefix}state.json`,
-              JSON.stringify(
-                sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any),
-                null,
-                2
-              )
-            )
-          }
-        } catch (err) {
-          logger.warn('Failed to load workflow state', {
-            workflowId: wf.id,
-            error: toError(err).message,
-          })
-        }
-
-        try {
-          const execRows = await db
-            .select({
-              id: workflowExecutionLogs.id,
-              executionId: workflowExecutionLogs.executionId,
-              status: workflowExecutionLogs.status,
-              trigger: workflowExecutionLogs.trigger,
-              startedAt: workflowExecutionLogs.startedAt,
-              endedAt: workflowExecutionLogs.endedAt,
-              totalDurationMs: workflowExecutionLogs.totalDurationMs,
-            })
-            .from(workflowExecutionLogs)
-            .where(eq(workflowExecutionLogs.workflowId, wf.id))
-            .orderBy(desc(workflowExecutionLogs.startedAt))
-            .limit(5)
-
-          if (execRows.length > 0) {
-            this.files.set(`${prefix}executions.json`, serializeRecentExecutions(execRows))
-          }
-        } catch (err) {
-          logger.warn('Failed to load execution logs', {
-            workflowId: wf.id,
-            error: toError(err).message,
-          })
-        }
-
-        try {
-          const deploymentData = await this.getWorkflowDeployments(
-            wf.id,
-            workspaceId,
-            wf.isDeployed,
-            wf.deployedAt
+        this.registerLazy(`${prefix}lint.json`, async () => {
+          const normalized = await this.loadNormalized(wf.id)
+          // Derived from the raw normalized state (subBlock values, advancedMode,
+          // canonicalModes, subflow edges). CPU-only by design: tier-2 reference
+          // resolution runs at edit_workflow apply time, not here. A zero-block
+          // workflow has no lint (reads as not-found, as before).
+          if (!normalized) return null
+          const graphLint = lintEditedWorkflowState(normalized as any)
+          const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
+          return JSON.stringify(
+            {
+              ...graphLint,
+              fieldIssues,
+              notes: [
+                UNRESOLVABLE_AT_LINT_NOTE,
+                'Credential/resource reference resolution is validated when editing the workflow, not in this snapshot.',
+              ],
+            },
+            null,
+            2
           )
-          if (deploymentData) {
-            this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
-            if (deploymentData.versions && deploymentData.versions.length > 0) {
-              this.files.set(`${prefix}versions.json`, serializeVersions(deploymentData.versions))
-            }
-          }
-        } catch (err) {
-          logger.warn('Failed to load deployment data', {
-            workflowId: wf.id,
-            error: toError(err).message,
+        })
+
+        // executions.json is advertised only when the workflow has run (cheap
+        // signal: lastRunAt), matching the old "set iff execRows > 0" behavior
+        // without the per-workflow query on every tool call.
+        if (wf.lastRunAt) {
+          this.registerLazy(`${prefix}executions.json`, async () => {
+            const execRows = await db
+              .select({
+                id: workflowExecutionLogs.id,
+                executionId: workflowExecutionLogs.executionId,
+                status: workflowExecutionLogs.status,
+                trigger: workflowExecutionLogs.trigger,
+                startedAt: workflowExecutionLogs.startedAt,
+                endedAt: workflowExecutionLogs.endedAt,
+                totalDurationMs: workflowExecutionLogs.totalDurationMs,
+              })
+              .from(workflowExecutionLogs)
+              .where(eq(workflowExecutionLogs.workflowId, wf.id))
+              .orderBy(desc(workflowExecutionLogs.startedAt))
+              .limit(5)
+            return execRows.length > 0 ? serializeRecentExecutions(execRows) : null
+          })
+        }
+
+        // deployment.json / versions.json are advertised when the workflow is
+        // deployed (cheap signal: isDeployed). Both share one memoized query.
+        if (wf.isDeployed) {
+          this.registerLazy(`${prefix}deployment.json`, async () => {
+            const deploymentData = await this.loadDeployments(wf)
+            return deploymentData ? serializeDeployments(deploymentData) : null
+          })
+          this.registerLazy(`${prefix}versions.json`, async () => {
+            const deploymentData = await this.loadDeployments(wf)
+            return deploymentData?.versions && deploymentData.versions.length > 0
+              ? serializeVersions(deploymentData.versions)
+              : null
           })
         }
       })
@@ -1284,70 +1419,61 @@ export class WorkspaceVFS {
           })
         )
 
-        try {
-          const docRows = await db
-            .select({
-              id: document.id,
-              filename: document.filename,
-              fileSize: document.fileSize,
-              mimeType: document.mimeType,
-              chunkCount: document.chunkCount,
-              tokenCount: document.tokenCount,
-              processingStatus: document.processingStatus,
-              enabled: document.enabled,
-              uploadedAt: document.uploadedAt,
-            })
-            .from(document)
-            .where(
-              and(
-                eq(document.knowledgeBaseId, kb.id),
-                eq(document.userExcluded, false),
-                isNull(document.archivedAt),
-                isNull(document.deletedAt)
+        // documents.json / connectors.json are lazy, advertised only when the KB
+        // summary says they exist (docCount / connectorTypes) — no per-KB query on
+        // a read/glob, only when the artifact is read or grepped.
+        if (kb.docCount > 0) {
+          this.registerLazy(`${prefix}documents.json`, async () => {
+            const docRows = await db
+              .select({
+                id: document.id,
+                filename: document.filename,
+                fileSize: document.fileSize,
+                mimeType: document.mimeType,
+                chunkCount: document.chunkCount,
+                tokenCount: document.tokenCount,
+                processingStatus: document.processingStatus,
+                enabled: document.enabled,
+                uploadedAt: document.uploadedAt,
+              })
+              .from(document)
+              .where(
+                and(
+                  eq(document.knowledgeBaseId, kb.id),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt)
+                )
               )
-            )
-
-          if (docRows.length > 0) {
-            this.files.set(`${prefix}documents.json`, serializeDocuments(docRows))
-          }
-        } catch (err) {
-          logger.warn('Failed to load KB documents', {
-            knowledgeBaseId: kb.id,
-            error: toError(err).message,
+            return docRows.length > 0 ? serializeDocuments(docRows) : null
           })
         }
 
-        try {
-          const connectorRows = await db
-            .select({
-              id: knowledgeConnector.id,
-              connectorType: knowledgeConnector.connectorType,
-              status: knowledgeConnector.status,
-              syncMode: knowledgeConnector.syncMode,
-              syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
-              lastSyncAt: knowledgeConnector.lastSyncAt,
-              lastSyncError: knowledgeConnector.lastSyncError,
-              lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
-              nextSyncAt: knowledgeConnector.nextSyncAt,
-              consecutiveFailures: knowledgeConnector.consecutiveFailures,
-              createdAt: knowledgeConnector.createdAt,
-            })
-            .from(knowledgeConnector)
-            .where(
-              and(
-                eq(knowledgeConnector.knowledgeBaseId, kb.id),
-                isNull(knowledgeConnector.archivedAt),
-                isNull(knowledgeConnector.deletedAt)
+        if (kb.connectorTypes.length > 0) {
+          this.registerLazy(`${prefix}connectors.json`, async () => {
+            const connectorRows = await db
+              .select({
+                id: knowledgeConnector.id,
+                connectorType: knowledgeConnector.connectorType,
+                status: knowledgeConnector.status,
+                syncMode: knowledgeConnector.syncMode,
+                syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
+                lastSyncAt: knowledgeConnector.lastSyncAt,
+                lastSyncError: knowledgeConnector.lastSyncError,
+                lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
+                nextSyncAt: knowledgeConnector.nextSyncAt,
+                consecutiveFailures: knowledgeConnector.consecutiveFailures,
+                createdAt: knowledgeConnector.createdAt,
+              })
+              .from(knowledgeConnector)
+              .where(
+                and(
+                  eq(knowledgeConnector.knowledgeBaseId, kb.id),
+                  isNull(knowledgeConnector.archivedAt),
+                  isNull(knowledgeConnector.deletedAt)
+                )
               )
-            )
-
-          if (connectorRows.length > 0) {
-            this.files.set(`${prefix}connectors.json`, serializeConnectors(connectorRows))
-          }
-        } catch (err) {
-          logger.warn('Failed to load KB connectors', {
-            knowledgeBaseId: kb.id,
-            error: toError(err).message,
+            return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
           })
         }
       })
@@ -1922,29 +2048,25 @@ export class WorkspaceVFS {
           this.files.set(`jobs/${safeName}/history.json`, JSON.stringify(history, null, 2))
         }
 
-        try {
-          const execRows = await db
-            .select({
-              id: jobExecutionLogs.id,
-              executionId: jobExecutionLogs.executionId,
-              status: jobExecutionLogs.status,
-              trigger: jobExecutionLogs.trigger,
-              startedAt: jobExecutionLogs.startedAt,
-              endedAt: jobExecutionLogs.endedAt,
-              totalDurationMs: jobExecutionLogs.totalDurationMs,
-            })
-            .from(jobExecutionLogs)
-            .where(eq(jobExecutionLogs.scheduleId, job.id))
-            .orderBy(desc(jobExecutionLogs.startedAt))
-            .limit(5)
-
-          if (execRows.length > 0) {
-            this.files.set(`jobs/${safeName}/executions.json`, serializeRecentExecutions(execRows))
-          }
-        } catch (err) {
-          logger.warn('Failed to load job execution logs', {
-            jobId: job.id,
-            error: toError(err).message,
+        // executions.json is lazy, advertised only when the job has run (cheap
+        // signal: lastRanAt) — no per-job query on a read/glob.
+        if (job.lastRanAt) {
+          this.registerLazy(`jobs/${safeName}/executions.json`, async () => {
+            const execRows = await db
+              .select({
+                id: jobExecutionLogs.id,
+                executionId: jobExecutionLogs.executionId,
+                status: jobExecutionLogs.status,
+                trigger: jobExecutionLogs.trigger,
+                startedAt: jobExecutionLogs.startedAt,
+                endedAt: jobExecutionLogs.endedAt,
+                totalDurationMs: jobExecutionLogs.totalDurationMs,
+              })
+              .from(jobExecutionLogs)
+              .where(eq(jobExecutionLogs.scheduleId, job.id))
+              .orderBy(desc(jobExecutionLogs.startedAt))
+              .limit(5)
+            return execRows.length > 0 ? serializeRecentExecutions(execRows) : null
           })
         }
       }
@@ -2118,9 +2240,10 @@ export class WorkspaceVFS {
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
+      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId),
-        getAccessibleOAuthCredentials(workspaceId, userId),
+        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
       ])

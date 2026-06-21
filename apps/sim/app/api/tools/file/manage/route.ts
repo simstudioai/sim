@@ -1,4 +1,5 @@
 import { Buffer, isUtf8 } from 'buffer'
+import type { Readable } from 'stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -197,12 +198,67 @@ const MAX_DECOMPRESS_TOTAL_BYTES = 200 * 1024 * 1024
 const S_IFMT = 0o170000
 const S_IFLNK = 0o120000
 
-/** Read a zip entry's declared uncompressed size without materializing it (zip-bomb pre-check). */
+/**
+ * Read a zip entry's declared uncompressed size without materializing it. This
+ * value comes straight from the (attacker-controlled) ZIP metadata, so it is only
+ * usable as a cheap fast-reject for honestly-declared archives — never as the
+ * authoritative cap. {@link inflateEntryWithinCaps} enforces the real limit on the
+ * inflated byte stream.
+ */
 const readEntryUncompressedSize = (entry: JSZip.JSZipObject): number | undefined => {
   const data = (entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
   const size = data?.uncompressedSize
   return typeof size === 'number' && Number.isFinite(size) ? size : undefined
 }
+
+type InflateResult = { ok: true; buffer: Buffer } | { ok: false; reason: 'entry' | 'total' }
+
+/**
+ * Inflate a single zip entry through a streaming counting sink, tearing the
+ * stream down the moment cumulative output would exceed the per-entry cap or the
+ * remaining total budget. The declared uncompressed size in the ZIP header is
+ * attacker-controlled and is NOT trusted here: a forged-small or absent size
+ * cannot cause the full (potentially gigabyte-scale) entry to be materialized in
+ * memory, because enforcement happens on the actual inflated bytes as they
+ * arrive. Peak memory is bounded by the cap plus one DEFLATE chunk.
+ */
+const inflateEntryWithinCaps = (
+  entry: JSZip.JSZipObject,
+  remainingTotalBudget: number
+): Promise<InflateResult> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    let settled = false
+    const stream = entry.nodeStream() as Readable
+
+    const settle = (result: InflateResult) => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      resolve(result)
+    }
+
+    stream.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_DECOMPRESS_ENTRY_BYTES) {
+        settle({ ok: false, reason: 'entry' })
+        return
+      }
+      if (size > remainingTotalBudget) {
+        settle({ ok: false, reason: 'total' })
+        return
+      }
+      chunks.push(chunk)
+    })
+    stream.on('end', () => settle({ ok: true, buffer: Buffer.concat(chunks, size) }))
+    stream.on('error', (error) => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      reject(error)
+    })
+  })
 
 /** True when a zip entry's unix mode marks it as a symlink (never extracted). */
 const isSymlinkEntry = (entry: JSZip.JSZipObject): boolean => {
@@ -770,8 +826,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           safeEntries.push({ entry, segments })
         }
 
-        // Reject standard zip bombs up front using the declared uncompressed sizes,
-        // before materializing any entry into memory.
         let declaredTotal = 0
         for (const { entry } of safeEntries) {
           const declaredSize = readEntryUncompressedSize(entry)
@@ -781,19 +835,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           if (declaredTotal > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
         }
 
-        // Read and validate every safe entry before writing anything, so a cap
-        // breach never leaves partially-extracted files behind in the workspace.
         const pending: Array<{ segments: string[]; buffer: Buffer }> = []
         let totalBytes = 0
         for (const { entry, segments } of safeEntries) {
-          const buffer = await entry.async('nodebuffer')
-          // Enforce the per-entry cap on the materialized size too, covering
-          // entries that omit a declared uncompressed size.
-          if (buffer.length > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
-          totalBytes += buffer.length
-          if (totalBytes > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
-
-          pending.push({ segments, buffer })
+          const result = await inflateEntryWithinCaps(
+            entry,
+            MAX_DECOMPRESS_TOTAL_BYTES - totalBytes
+          )
+          if (!result.ok) {
+            return result.reason === 'entry'
+              ? entryTooLargeResponse(entry.name)
+              : totalTooLargeResponse()
+          }
+          totalBytes += result.buffer.length
+          pending.push({ segments, buffer: result.buffer })
         }
 
         if (pending.length === 0) {
