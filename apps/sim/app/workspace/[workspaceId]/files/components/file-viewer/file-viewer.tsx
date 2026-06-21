@@ -92,6 +92,7 @@ interface FileViewerProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   isAgentEditing?: boolean
+  streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -108,6 +109,7 @@ export function FileViewer({
   saveRef,
   streamingContent,
   isAgentEditing,
+  streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: FileViewerProps) {
@@ -150,6 +152,7 @@ export function FileViewer({
           saveRef={saveRef}
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}
+          streamIsIncremental={streamIsIncremental}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />

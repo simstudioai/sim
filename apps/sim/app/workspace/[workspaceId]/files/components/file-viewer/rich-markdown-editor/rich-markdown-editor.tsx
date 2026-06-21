@@ -45,6 +45,12 @@ interface RichMarkdownEditorProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   isAgentEditing?: boolean
+  /**
+   * True when the stream delivers complete full-file snapshots (an `append`/`patch` edit built on the
+   * existing file) rather than a from-scratch rebuild (`create`/`update`). Incremental snapshots are
+   * applied live; a rebuild is only revealed while it extends what's shown (see the streaming tick).
+   */
+  streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -60,6 +66,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   saveRef,
   streamingContent,
   isAgentEditing,
+  streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: RichMarkdownEditorProps) {
@@ -101,6 +108,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       isStreaming={isStreamInteractionLocked}
       canEdit={canEdit}
       autoFocus={autoFocus}
+      streamIsIncremental={streamIsIncremental}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
@@ -117,6 +125,8 @@ interface LoadedRichMarkdownEditorProps {
   isStreaming: boolean
   canEdit: boolean
   autoFocus?: boolean
+  /** See {@link RichMarkdownEditorProps.streamIsIncremental}. */
+  streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
@@ -140,6 +150,7 @@ export function LoadedRichMarkdownEditor({
   isStreaming,
   canEdit,
   autoFocus,
+  streamIsIncremental,
   disableStreamingAutoScroll,
   onChange,
   onSaveShortcut,
@@ -160,8 +171,9 @@ export function LoadedRichMarkdownEditor({
   )
   /**
    * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
-   * onUpdate) and on each streamed sync. The streaming tick reveals a chunk only when it extends this,
-   * so an agent rewrite holds the current content instead of collapsing to a partial result.
+   * onUpdate) and on each streamed sync. Incremental edits (append/patch) stream complete snapshots and
+   * always apply; a from-scratch rebuild (create/update) only applies while it still extends this, so a
+   * rewrite holds the current content instead of collapsing to a partial result.
    */
   const lastSyncedBodyRef = useRef<string | null>(
     streamingAtMountRef.current ? null : splitFrontmatter(content).body
@@ -170,6 +182,10 @@ export function LoadedRichMarkdownEditor({
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
+  // Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
+  // between sessions within one turn, e.g. an append followed by a rewrite).
+  const streamIsIncrementalRef = useRef(streamIsIncremental)
+  streamIsIncrementalRef.current = streamIsIncremental
   const router = useRouter()
   const routerRef = useRef(router)
   routerRef.current = router
@@ -300,7 +316,11 @@ export function LoadedRichMarkdownEditor({
         }
         const shownBody = lastSyncedBodyRef.current
         const extendsShown = shownBody === null || pending.startsWith(shownBody)
-        if (!extendsShown) {
+        // Incremental edits (append/patch) arrive as complete full-file snapshots, so each is applied
+        // live — ProseMirror diffs the localized change in place (mid-doc rewrite, insertion, delete).
+        // A rebuild (create/update streamed from scratch) only extends while revealing from empty; once
+        // a chunk would collapse the established document it is held until settle, avoiding the flicker.
+        if (!streamIsIncrementalRef.current && !extendsShown) {
           streamRafRef.current = null
           return
         }

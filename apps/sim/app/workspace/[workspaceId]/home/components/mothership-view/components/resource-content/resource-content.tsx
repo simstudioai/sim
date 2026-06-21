@@ -167,6 +167,11 @@ export const ResourceContent = memo(function ResourceContent({
   }, [workspaceId, streamFileName])
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
+  // `append`/`patch` stream complete full-file snapshots (built on the existing file), so the editor
+  // applies each live. `create`/`update` are streamed from scratch and would collapse an open doc, so
+  // the editor holds until settle. See the rich-markdown streaming tick.
+  const streamIsIncremental =
+    previewSession?.operation === 'append' || previewSession?.operation === 'patch'
   const isTextPreview =
     !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
   // Feed streamed content only while actively streaming. On completion the session keeps
@@ -195,6 +200,7 @@ export const ResourceContent = memo(function ResourceContent({
           previewMode={previewMode ?? 'preview'}
           streamingContent={textStreamingContent}
           isAgentEditing={isAgentEditing}
+          streamIsIncremental={streamIsIncremental}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -218,6 +224,7 @@ export const ResourceContent = memo(function ResourceContent({
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
           isAgentEditing={isAgentEditing}
+          streamIsIncremental={streamIsIncremental}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -604,6 +611,7 @@ interface EmbeddedFileProps {
   previewMode?: PreviewMode
   streamingContent?: string
   isAgentEditing?: boolean
+  streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -615,6 +623,7 @@ function EmbeddedFile({
   previewMode,
   streamingContent,
   isAgentEditing,
+  streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -657,6 +666,7 @@ function EmbeddedFile({
         previewMode={previewMode}
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
+        streamIsIncremental={streamIsIncremental}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />
