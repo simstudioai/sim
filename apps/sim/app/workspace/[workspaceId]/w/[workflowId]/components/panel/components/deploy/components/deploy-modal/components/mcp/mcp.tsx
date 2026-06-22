@@ -54,6 +54,7 @@ interface McpDeployProps {
   workflowDescription?: string | null
   isDeployed: boolean
   deployedState?: WorkflowState | null
+  isLoadingDeployedState: boolean
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
@@ -123,6 +124,7 @@ export function McpDeploy({
   workflowDescription,
   isDeployed,
   deployedState,
+  isLoadingDeployedState,
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
@@ -138,7 +140,7 @@ export function McpDeploy({
   const updateToolMutation = useUpdateWorkflowMcpTool()
 
   // The MCP tool is built from the DEPLOYED Start block and the server materializes overrides
-  // against it; the form is gated on deployedState below, so it works purely off the deployed
+  // against it; the form waits for the deployed-state load below, so it works off the deployed
   // snapshot (never the live editor), keeping its defaults and override classification in lockstep
   // with what MCP clients receive.
   const inputFormat = useMemo((): NormalizedField[] => {
@@ -466,7 +468,7 @@ export function McpDeploy({
     )
   }
 
-  if (isLoadingServers || !deployedState) {
+  if (isLoadingServers || (isLoadingDeployedState && !deployedState)) {
     return (
       <div className='-mx-1 space-y-4 px-1'>
         <div className='space-y-3'>
