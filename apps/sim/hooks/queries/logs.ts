@@ -37,7 +37,8 @@ export const logKeys = {
   list: (workspaceId: string | undefined, filters: LogFilters) =>
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
-  detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
+  detail: (workspaceId: string | undefined, logId: string | undefined) =>
+    [...logKeys.details(), workspaceId ?? '', logId ?? ''] as const,
   byExecutionAll: () => [...logKeys.all, 'byExecution'] as const,
   byExecution: (workspaceId: string | undefined, executionId: string | undefined) =>
     [...logKeys.byExecutionAll(), workspaceId ?? '', executionId ?? ''] as const,
@@ -189,7 +190,7 @@ export function useLogDetail(
   options?: UseLogDetailOptions
 ) {
   return useQuery({
-    queryKey: logKeys.detail(logId),
+    queryKey: logKeys.detail(workspaceId, logId),
     queryFn: ({ signal }) => fetchLogDetail(logId as string, workspaceId as string, signal),
     enabled: Boolean(logId) && Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
@@ -212,7 +213,7 @@ export function useLogByExecutionId(
         query: { workspaceId: workspaceId as string },
         signal,
       })
-      queryClient.setQueryData(logKeys.detail(data.id), data)
+      queryClient.setQueryData(logKeys.detail(workspaceId, data.id), data)
       return data
     },
     enabled: Boolean(workspaceId) && Boolean(executionId),
@@ -222,7 +223,7 @@ export function useLogByExecutionId(
 
 export function prefetchLogDetail(queryClient: QueryClient, logId: string, workspaceId: string) {
   queryClient.prefetchQuery({
-    queryKey: logKeys.detail(logId),
+    queryKey: logKeys.detail(workspaceId, logId),
     queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
     staleTime: 30 * 1000,
   })
@@ -315,6 +316,7 @@ export function useCancelExecution() {
       })
 
       let affectedLogId: string | null = null
+      let affectedWorkspaceId: string | undefined
       queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
         if (!old) return old
         return {
@@ -324,6 +326,7 @@ export function useCancelExecution() {
             logs: page.logs.map((log) => {
               if (log.executionId !== executionId) return log
               affectedLogId = log.id
+              affectedWorkspaceId = log.workflow?.workspaceId ?? undefined
               return { ...log, status: 'cancelling' }
             }),
           })),
@@ -332,23 +335,31 @@ export function useCancelExecution() {
 
       let previousDetail: WorkflowLogDetail | undefined
       if (affectedLogId) {
-        previousDetail = queryClient.getQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId))
+        previousDetail = queryClient.getQueryData<WorkflowLogDetail>(
+          logKeys.detail(affectedWorkspaceId, affectedLogId)
+        )
         if (previousDetail) {
-          queryClient.setQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId), {
-            ...previousDetail,
-            status: 'cancelling',
-          })
+          queryClient.setQueryData<WorkflowLogDetail>(
+            logKeys.detail(affectedWorkspaceId, affectedLogId),
+            {
+              ...previousDetail,
+              status: 'cancelling',
+            }
+          )
         }
       }
 
-      return { previousQueries, affectedLogId, previousDetail }
+      return { previousQueries, affectedLogId, affectedWorkspaceId, previousDetail }
     },
     onError: (_err, _variables, context) => {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
         queryClient.setQueryData(queryKey, data)
       }
       if (context?.affectedLogId && context.previousDetail !== undefined) {
-        queryClient.setQueryData(logKeys.detail(context.affectedLogId), context.previousDetail)
+        queryClient.setQueryData(
+          logKeys.detail(context.affectedWorkspaceId, context.affectedLogId),
+          context.previousDetail
+        )
       }
     },
     onSettled: () => {

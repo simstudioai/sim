@@ -26,8 +26,8 @@ export const inboxKeys = {
   senders: () => [...inboxKeys.all, 'sender'] as const,
   senderList: (workspaceId: string) => [...inboxKeys.senders(), workspaceId] as const,
   tasks: () => [...inboxKeys.all, 'task'] as const,
-  taskList: (workspaceId: string, status?: string) =>
-    [...inboxKeys.tasks(), workspaceId, status ?? 'all'] as const,
+  taskList: (workspaceId: string, status?: string, cursor?: string, limit?: number) =>
+    [...inboxKeys.tasks(), workspaceId, status ?? 'all', cursor ?? '', limit ?? ''] as const,
 }
 
 type InboxTaskStatusFilter = InboxTaskStatus
@@ -88,7 +88,7 @@ export function useInboxTasks(
   opts: { status?: InboxTaskStatusFilter; cursor?: string; limit?: number } = {}
 ) {
   return useQuery({
-    queryKey: inboxKeys.taskList(workspaceId, opts.status),
+    queryKey: inboxKeys.taskList(workspaceId, opts.status, opts.cursor, opts.limit),
     queryFn: ({ signal }) => fetchInboxTasks(workspaceId, opts, signal),
     enabled: Boolean(workspaceId),
     staleTime: 15 * 1000,

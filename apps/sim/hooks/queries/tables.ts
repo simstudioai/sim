@@ -265,6 +265,7 @@ export function useTablesList(
  * Fetch a single table by id.
  */
 export function useTable(workspaceId: string | undefined, tableId: string | undefined) {
+  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.detail(tableId ?? ''),
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),

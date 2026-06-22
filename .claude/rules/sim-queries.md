@@ -25,6 +25,8 @@ export const entityKeys = {
 
 Never use inline query keys — always use the factory.
 
+**Every identifier the `queryFn` uses MUST appear in the `queryKey`.** If the fetch is scoped by `workspaceId`, `cursor`, `limit`, an org id, etc., those values must be part of the key — otherwise distinct fetch args share one cache entry (a cross-tenant / per-param cache collision). The lone exception is a globally-unique id used as the key while a second fetch arg is only an authz scope that cannot collide; annotate those with `// rq-lint-allow: <reason>`. Enforced by the `key-fetch-arg-drift` check in `scripts/check-react-query-patterns.ts`.
+
 ## File Structure
 
 ```typescript
@@ -142,4 +144,4 @@ const handler = useCallback(() => {
 
 ## Enforcement
 
-`scripts/check-react-query-patterns.ts` (`bun run check:react-query`, run in CI) statically enforces these conventions: every `useQuery`/`useInfiniteQuery`/`useSuspenseQuery` declares an explicit `staleTime`, inline `queryFn`s destructure `signal`, `queryKey`s reference a colocated factory rather than an inline literal, and every `*Keys` factory in `hooks/queries/**` exposes an `all` root key. `hooks/queries/**` is a zero-tolerance zone; the rest of `apps/sim/**` is ratcheted against `scripts/check-react-query-patterns.baseline.json`. For a genuine exception, put `// rq-lint-allow: <reason>` on the line directly above the flagged construct.
+`scripts/check-react-query-patterns.ts` (`bun run check:react-query`, run in CI) statically enforces these conventions: every `useQuery`/`useInfiniteQuery`/`useSuspenseQuery` declares an explicit `staleTime`, inline `queryFn`s destructure `signal`, `queryKey`s reference a colocated factory rather than an inline literal, every `*Keys` factory in `hooks/queries/**` exposes an `all` root key, and every identifier the `queryFn` forwards into the fetch also appears in the `queryKey` (`key-fetch-arg-drift`). `hooks/queries/**` is a zero-tolerance zone; the rest of `apps/sim/**` is ratcheted against `scripts/check-react-query-patterns.baseline.json`. For a genuine exception, put `// rq-lint-allow: <reason>` on the line directly above the flagged construct.
