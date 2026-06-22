@@ -2,13 +2,13 @@ import { createLogger } from '@sim/logger'
 import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { requestJson } from '@/lib/api/client/request'
-import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
@@ -98,8 +98,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }))
 
         try {
-          const { data: workflowData } = await requestJson(getWorkflowStateContract, {
-            params: { id: workflowId },
+          const workflowData = await getQueryClient().fetchQuery({
+            queryKey: workflowKeys.state(workflowId),
+            queryFn: ({ signal }) => fetchWorkflowEnvelope(workflowId, signal),
+            staleTime: 0,
           })
 
           const deployedAt = workflowData.deployedAt ? workflowData.deployedAt.toISOString() : null

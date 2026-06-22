@@ -1,32 +1,17 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listCreatorOrganizationsContract } from '@/lib/api/contracts/organizations'
 import { client } from '@/lib/auth/auth-client'
-import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
-
-export type AppSession = {
-  user: {
-    id: string
-    email: string
-    emailVerified?: boolean
-    name?: string | null
-    image?: string | null
-    role?: string
-    createdAt?: Date
-    updatedAt?: Date
-  } | null
-  session?: {
-    id?: string
-    userId?: string
-    activeOrganizationId?: string
-    impersonatedBy?: string | null
-  }
-} | null
+import {
+  type AppSession,
+  extractSessionDataFromAuthClientResult,
+} from '@/lib/auth/session-response'
+import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
 
 export type SessionHookResult = {
   data: AppSession
@@ -40,56 +25,56 @@ export const SessionContext = createContext<SessionHookResult | null>(null)
 const logger = createLogger('SessionProvider')
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<AppSession>(null)
-  const [isPending, setIsPending] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
   const queryClient = useQueryClient()
-
-  const loadSession = useCallback(async (bypassCache = false) => {
-    try {
-      setIsPending(true)
-      setError(null)
-      const res = bypassCache
-        ? await client.getSession({ query: { disableCookieCache: true } })
-        : await client.getSession()
-      const session = extractSessionDataFromAuthClientResult(res) as AppSession
-      setData(session)
-      return session
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error('Failed to fetch session'))
-      return null
-    } finally {
-      setIsPending(false)
-    }
-  }, [])
+  const query = useSessionQuery()
+  const { data, isPending, error, refetch } = query
 
   useEffect(() => {
     let isCancelled = false
 
-    // Check if user was redirected after plan upgrade
     const params = new URLSearchParams(window.location.search)
     const wasUpgraded = params.get('upgraded') === 'true'
 
-    if (wasUpgraded) {
-      params.delete('upgraded')
-      const newUrl = params.toString()
-        ? `${window.location.pathname}?${params.toString()}`
-        : window.location.pathname
-      window.history.replaceState({}, '', newUrl)
+    if (!wasUpgraded) {
+      return
+    }
+
+    params.delete('upgraded')
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    window.history.replaceState({}, '', newUrl)
+
+    const refreshAfterUpgrade = async () => {
+      const res = await client.getSession({ query: { disableCookieCache: true } })
+      const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
+
+      if (isCancelled) return null
+
+      await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
+      queryClient.setQueryData(sessionKeys.detail(), fresh)
+      return fresh
     }
 
     const initializeSession = async () => {
-      const session = await loadSession(wasUpgraded)
+      let session: AppSession = null
+      try {
+        session = await refreshAfterUpgrade()
+      } catch (e) {
+        logger.warn('Failed to refresh session after subscription upgrade', { error: e })
+      }
 
-      if (!wasUpgraded || isCancelled) {
+      if (isCancelled) {
         return
       }
 
+      // Refresh the plan surfaces even if the cookie-bypass read above failed: they
+      // query server truth (not the session cookie cache), so they still reconcile.
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
 
       const activeOrganizationId = session?.session?.activeOrganizationId ?? null
-      if (activeOrganizationId) {
+      if (!session || activeOrganizationId) {
         return
       }
 
@@ -106,7 +91,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         await client.organization.setActive({ organizationId })
 
         if (!isCancelled) {
-          await loadSession(true)
+          const res = await client.getSession({ query: { disableCookieCache: true } })
+          const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
+          if (!isCancelled) {
+            await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
+            queryClient.setQueryData(sessionKeys.detail(), fresh)
+          }
         }
       } catch (error) {
         logger.warn('Failed to activate organization after subscription upgrade', { error })
@@ -118,7 +108,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isCancelled = true
     }
-  }, [loadSession, queryClient])
+  }, [queryClient])
 
   useEffect(() => {
     if (isPending) return
@@ -150,12 +140,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {})
   }, [data, isPending])
 
-  const refetch = useCallback(async () => {
-    await loadSession()
-  }, [loadSession])
-
   const value = useMemo<SessionHookResult>(
-    () => ({ data, isPending, error, refetch }),
+    () => ({
+      data: data ?? null,
+      isPending,
+      error,
+      refetch: async () => {
+        await refetch()
+      },
+    }),
     [data, isPending, error, refetch]
   )
 
