@@ -91,6 +91,11 @@ export interface PostHogEventMap {
     membership_intent?: string
   }
 
+  workspace_member_added: {
+    workspace_id: string
+    member_role: string
+  }
+
   workspace_member_removed: {
     workspace_id: string
     is_self_removal: boolean
@@ -569,8 +574,11 @@ export interface PostHogEventMap {
       | 'docs'
       | 'connected_account'
       | 'integration'
+      | 'action'
     query_length: number
     workspace_id: string
+    /** Present when `result_type` is `action`; the id of the action that ran. */
+    action_id?: string
   }
 
   /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */

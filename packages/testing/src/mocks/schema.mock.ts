@@ -941,7 +941,9 @@ export const schemaMock = {
     executionId: 'executionId',
     createdAt: 'createdAt',
   },
-  credentialTypeEnum: 'credentialTypeEnum',
+  credentialTypeEnum: {
+    enumValues: ['oauth', 'env_workspace', 'env_personal', 'service_account'] as const,
+  },
   credential: {
     id: 'id',
     workspaceId: 'workspaceId',
@@ -1024,11 +1026,20 @@ export const schemaMock = {
     createdBy: 'createdBy',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
-    autoAddNewMembers: 'autoAddNewMembers',
+    isDefault: 'isDefault',
+    appliesToAllWorkspaces: 'appliesToAllWorkspaces',
+  },
+  permissionGroupWorkspace: {
+    id: 'id',
+    permissionGroupId: 'permissionGroupId',
+    workspaceId: 'workspaceId',
+    organizationId: 'organizationId',
+    createdAt: 'createdAt',
   },
   permissionGroupMember: {
     id: 'id',
     permissionGroupId: 'permissionGroupId',
+    organizationId: 'organizationId',
     userId: 'userId',
     assignedBy: 'assignedBy',
     assignedAt: 'assignedAt',

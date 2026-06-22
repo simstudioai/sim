@@ -2,7 +2,7 @@ import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 

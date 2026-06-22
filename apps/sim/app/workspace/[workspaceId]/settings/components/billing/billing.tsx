@@ -1,6 +1,7 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
@@ -176,7 +177,7 @@ export function Billing() {
   const isBlocked = Boolean(subscriptionData?.data?.billingBlocked)
 
   const userRole = subscriptionData?.data?.organization?.role ?? 'member'
-  const isTeamAdmin = ['owner', 'admin'].includes(userRole)
+  const isTeamAdmin = isOrgAdminRole(userRole)
   const shouldUseOrganizationBillingContext = subscription.isOrgScoped && isTeamAdmin
 
   const { data: invoicesData } = useInvoices({

@@ -1,6 +1,6 @@
 import type { SalesforceGetCasesParams, SalesforceGetCasesResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceGetCasesTool: ToolConfig<
@@ -52,9 +52,10 @@ export const salesforceGetCasesTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.caseId) {
+        const caseId = requireId(params.caseId, 'Case ID')
         const fields =
           params.fields || 'Id,CaseNumber,Subject,Status,Priority,Origin,ContactId,AccountId'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Case/${params.caseId}?fields=${fields}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Case/${caseId}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields =
@@ -72,7 +73,8 @@ export const salesforceGetCasesTool: ToolConfig<
 
   transformResponse: async (response, params?) => {
     const data = await response.json()
-    if (!response.ok) throw new Error(data[0]?.message || data.message || 'Failed to fetch cases')
+    if (!response.ok)
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to fetch cases'))
     if (params?.caseId) {
       return {
         success: true,

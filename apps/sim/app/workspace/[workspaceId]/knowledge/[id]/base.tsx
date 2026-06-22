@@ -6,12 +6,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
   ChipConfirmModal,
+  type ChipConfirmTextSegment,
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
@@ -30,7 +32,6 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
-import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -47,8 +48,7 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
 import {
   ActionBar,
   AddConnectorModal,
@@ -58,10 +58,20 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import {
+  addConnectorParam,
+  DEFAULT_KB_SORT_COLUMN,
+  DEFAULT_KB_SORT_DIRECTION,
+  documentFiltersParsers,
+  documentFiltersUrlKeys,
+  type KbSortColumn,
+  pageParam,
+  pageUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -80,6 +90,7 @@ import {
   useUpdateDocument,
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
@@ -208,9 +219,10 @@ export function KnowledgeBase({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
-  const addConnectorParam = searchParams.get(ADD_CONNECTOR_SEARCH_PARAM)
+  const [addConnectorType, setAddConnectorType] = useQueryState(
+    addConnectorParam.key,
+    addConnectorParam.parser
+  )
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -236,9 +248,7 @@ export function KnowledgeBase({
   })
   const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
 
-  const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [tagFilterEntries, setTagFilterEntries] = useState<
     {
       id: string
@@ -265,11 +275,6 @@ export function KnowledgeBase({
     [tagFilterEntries]
   )
 
-  const handleSearchChange = useCallback((newQuery: string) => {
-    setSearchQuery(newQuery)
-    setCurrentPage(1)
-  }, [])
-
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(() => new Set())
   const [isSelectAllMode, setIsSelectAllMode] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -278,32 +283,64 @@ export function KnowledgeBase({
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+  const [currentPage, setCurrentPage] = useQueryState(pageParam.key, {
+    ...pageParam.parser,
+    ...pageUrlKeys,
+  })
+
+  const [
+    { q: searchQuery, enabled: enabledFilter, sort: sortColumn, dir: sortDirection },
+    setDocumentFilters,
+  ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The document query below reads a debounced value so it
+   * doesn't refetch on every keystroke. Changing the search resets pagination.
+   */
+  const handleSearchChange = useCallback(
+    (newQuery: string) => {
+      const trimmed = newQuery.trim()
+      const next = trimmed.length > 0 ? trimmed : null
+      setDocumentFilters(
+        { q: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(300) }
+      )
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_KB_SORT_COLUMN && sortDirection === DEFAULT_KB_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setEnabledFilter = useCallback(
+    (value: 'all' | 'enabled' | 'disabled') => {
+      setDocumentFilters({ enabled: value })
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
-  const showAddConnectorModal = addConnectorParam != null
-  const searchParamsRef = useRef(searchParams)
-  searchParamsRef.current = searchParams
+  const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
-      const current = searchParamsRef.current
-      const currentValue = current.get(ADD_CONNECTOR_SEARCH_PARAM)
-      if (value === currentValue || (value === null && currentValue === null)) return
-      const next = new URLSearchParams(current.toString())
-      if (value === null) {
-        next.delete(ADD_CONNECTOR_SEARCH_PARAM)
-      } else {
-        next.set(ADD_CONNECTOR_SEARCH_PARAM, value)
-      }
-      const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      void setAddConnectorType(value, { history: 'replace', scroll: false })
     },
-    [pathname, router]
+    [setAddConnectorType]
   )
   const setShowAddConnectorModal = useCallback(
     (open: boolean) => updateAddConnectorParam(open ? '' : null),
@@ -320,7 +357,6 @@ export function KnowledgeBase({
 
   const {
     knowledgeBase,
-    isLoading: isLoadingKnowledgeBase,
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
@@ -333,19 +369,17 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
-    isLoading: isLoadingDocuments,
-    isFetching: isFetchingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     hasProcessingDocuments,
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
-    search: searchQuery || undefined,
+    search: debouncedSearchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
-    sortBy: (activeSort?.column ?? 'uploadedAt') as DocumentSortField,
-    sortOrder: (activeSort?.direction ?? 'desc') as SortOrder,
+    sortBy: sortColumn as DocumentSortField,
+    sortOrder: sortDirection as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
       const hasPending = data?.documents?.some(
@@ -371,6 +405,12 @@ export function KnowledgeBase({
   }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
+  /**
+   * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
+   * the name loads (mirroring loading.tsx) instead of duplicating the root
+   * "Knowledge Base" crumb.
+   */
+  const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
@@ -786,16 +826,6 @@ export function KnowledgeBase({
     setContextMenuDocument(null)
   }, [closeContextMenu])
 
-  const prevKnowledgeBaseIdRef = useRef<string>(id)
-  const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
-
-  if (knowledgeBase && knowledgeBase.id === id) {
-    prevKnowledgeBaseIdRef.current = id
-  }
-
-  const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
-  const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
-
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Knowledge Base',
@@ -803,7 +833,7 @@ export function KnowledgeBase({
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
     {
-      label: knowledgeBaseName,
+      label: knowledgeBaseCrumbLabel,
       icon: Database,
       editing: kbRename.editingId
         ? {
@@ -867,15 +897,19 @@ export function KnowledgeBase({
       ],
       active: activeSort,
       onSort: (column, direction) => {
-        setActiveSort({ column, direction })
+        setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
         setCurrentPage(1)
       },
+      /**
+       * Clearing writes the defaults back (stripped by clearOnDefault), so the
+       * sort menu reads "no active sort" again and the URL stays clean.
+       */
       onClear: () => {
-        setActiveSort(null)
+        setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
         setCurrentPage(1)
       },
     }),
-    [activeSort]
+    [activeSort, setDocumentFilters, setCurrentPage]
   )
 
   const filterContent = useMemo(
@@ -889,7 +923,6 @@ export function KnowledgeBase({
                 variant='ghost'
                 onClick={() => {
                   setEnabledFilter('all')
-                  setCurrentPage(1)
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
@@ -905,7 +938,6 @@ export function KnowledgeBase({
             onChange={(value) => {
               if (value !== 'all' && value !== 'enabled' && value !== 'disabled') return
               setEnabledFilter(value)
-              setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
             }}
@@ -933,7 +965,7 @@ export function KnowledgeBase({
     connectors.length > 0 ? (
       <>
         {connectors.map((connector) => {
-          const def = CONNECTOR_REGISTRY[connector.connectorType]
+          const def = CONNECTOR_META_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
           return (
             <button
@@ -978,7 +1010,6 @@ export function KnowledgeBase({
               label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
               onRemove: () => {
                 setEnabledFilter('all')
-                setCurrentPage(1)
                 setSelectedDocuments(new Set())
                 setIsSelectAllMode(false)
               },
@@ -1012,7 +1043,9 @@ export function KnowledgeBase({
   const documentRows: ResourceRow[] = useMemo(
     () =>
       documents.map((doc) => {
-        const ConnectorIcon = doc.connectorType ? CONNECTOR_REGISTRY[doc.connectorType]?.icon : null
+        const ConnectorIcon = doc.connectorType
+          ? CONNECTOR_META_REGISTRY[doc.connectorType]?.icon
+          : null
         const DocIcon = ConnectorIcon || getDocumentIcon(doc.mimeType, doc.filename)
 
         const tags = getDocumentTags(doc, tagDefinitions)
@@ -1116,12 +1149,6 @@ export function KnowledgeBase({
     [documents, tagDefinitions, searchQuery]
   )
 
-  const emptyMessage = searchQuery
-    ? 'No documents found'
-    : enabledFilter !== 'all' || activeTagFilters.length > 0
-      ? 'Nothing matches your filter'
-      : undefined
-
   if (error && !knowledgeBase) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -1170,19 +1197,14 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
-          sort={sortConfig}
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}
-          isLoading={
-            isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
-          }
           pagination={{
             currentPage,
             totalPages,
             onPageChange: (page) => setCurrentPage(page),
           }}
-          emptyMessage={emptyMessage}
           overlay={
             <ActionBar
               className={totalPages > 1 ? 'bottom-[72px]' : undefined}
@@ -1213,17 +1235,16 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
         title='Delete Knowledge Base'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-            <span className='text-[var(--text-error)]'>
-              The knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: knowledgeBaseName, bold: true },
+          '? ',
+          {
+            text: `The knowledge base and all ${pagination.total} document${pagination.total === 1 ? '' : 's'} within it will be removed.`,
+            error: true,
+          },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete Knowledge Base',
           onClick: handleDeleteKnowledgeBase,
@@ -1240,30 +1261,26 @@ export function KnowledgeBase({
         }}
         srTitle='Delete Document'
         title='Delete Document'
-        description={(() => {
+        text={(() => {
           const docToDelete = documents.find((doc) => doc.id === documentToDelete)
-          return (
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {docToDelete?.filename ?? 'this document'}
-              </span>
-              ?{' '}
-              {docToDelete?.connectorId ? (
-                <span className='text-[var(--text-error)]'>
-                  This document is synced from a connector. Deleting it will permanently exclude it
-                  from future syncs. To temporarily hide it from search, disable it instead.
-                </span>
-              ) : (
-                <>
-                  <span className='text-[var(--text-error)]'>
-                    This will permanently delete the document.
-                  </span>{' '}
-                  This action cannot be undone.
-                </>
-              )}
-            </>
-          )
+          const base: ChipConfirmTextSegment[] = [
+            'Are you sure you want to delete ',
+            { text: docToDelete?.filename ?? 'this document', bold: true },
+            '? ',
+          ]
+          return docToDelete?.connectorId
+            ? [
+                ...base,
+                {
+                  text: 'This document is synced from a connector. Deleting it will permanently exclude it from future syncs. To temporarily hide it from search, disable it instead.',
+                  error: true,
+                },
+              ]
+            : [
+                ...base,
+                { text: 'This will permanently delete the document.', error: true },
+                ' This action cannot be undone.',
+              ]
         })()}
         confirm={{
           label: 'Delete Document',
@@ -1276,17 +1293,14 @@ export function KnowledgeBase({
         onOpenChange={setShowBulkDeleteModal}
         srTitle='Delete Documents'
         title='Delete Documents'
-        description={
-          <>
-            Are you sure you want to delete {selectedDocuments.size} document
-            {selectedDocuments.size === 1 ? '' : 's'}?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently delete the selected document
-              {selectedDocuments.size === 1 ? '' : 's'}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          {
+            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,
@@ -1308,7 +1322,7 @@ export function KnowledgeBase({
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
-          initialConnectorType={addConnectorParam || undefined}
+          initialConnectorType={addConnectorType || undefined}
         />
       )}
 

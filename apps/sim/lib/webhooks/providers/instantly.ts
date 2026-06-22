@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -39,7 +40,7 @@ export const instantlyHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId) return true
 
-    if (!isRecord(body)) {
+    if (!isRecordLike(body)) {
       logger.warn(`[${requestId}] Instantly webhook payload was not an object`)
       return false
     }
@@ -57,7 +58,7 @@ export const instantlyHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecord(body) ? body : {}
+    const payload = isRecordLike(body) ? body : {}
 
     return {
       input: {
@@ -232,7 +233,7 @@ export const instantlyHandler: WebhookProviderHandler = {
 async function parseJsonResponse(response: Response): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecord(body) ? body : null
+    return isRecordLike(body) ? body : null
   } catch {
     return null
   }
@@ -262,8 +263,4 @@ function optionalId(value: unknown): string | undefined {
   const trimmed = value.trim()
   if (trimmed === '' || trimmed === '-') return undefined
   return trimmed
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

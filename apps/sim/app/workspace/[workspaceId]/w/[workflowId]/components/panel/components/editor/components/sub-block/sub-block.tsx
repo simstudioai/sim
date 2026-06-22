@@ -929,6 +929,7 @@ function SubBlockComponent({
       case 'file-selector':
       case 'sheet-selector':
       case 'project-selector':
+      case 'column-selector':
         return (
           <SelectorInput
             blockId={blockId}

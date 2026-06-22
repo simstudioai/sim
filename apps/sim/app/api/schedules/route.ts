@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
@@ -214,8 +214,19 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
-      parsed.data.body
+    const {
+      workspaceId,
+      title,
+      prompt,
+      cronExpression,
+      time,
+      timezone,
+      lifecycle,
+      maxRuns,
+      endsAt,
+      startDate,
+      contexts,
+    } = parsed.data.body
 
     const permission = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -230,10 +241,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       title,
       prompt,
       cronExpression,
+      time,
       timezone,
       lifecycle,
       maxRuns,
+      endsAt,
       startDate,
+      contexts,
       request: req,
     })
     if (!result.success || !result.schedule) {

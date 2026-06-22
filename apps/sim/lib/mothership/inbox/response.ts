@@ -248,7 +248,7 @@ function InboxResponseEmail({ children, chatUrl, linkLabel }: InboxResponseEmail
           { style: emailStyles.signatureText },
           'Best,',
           createElement('br'),
-          'Mothership'
+          'Sim'
         )
       )
     )

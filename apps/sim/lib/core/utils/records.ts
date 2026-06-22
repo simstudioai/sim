@@ -1,17 +1,7 @@
+import { isPlainRecord } from '@sim/utils/object'
+
 export type UnknownRecord = Record<string, unknown>
 export type StringRecord = Record<string, string>
-
-/**
- * Returns true only for object-map values, excluding arrays and null.
- */
-export function isPlainRecord(value: unknown): value is UnknownRecord {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
 
 /**
  * Normalizes optional execution context maps to the record shape expected by

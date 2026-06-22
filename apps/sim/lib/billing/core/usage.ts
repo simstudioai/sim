@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -32,7 +33,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -891,7 +892,7 @@ export async function maybeSendUsageThresholdEmail(params: {
           .where(eq(member.organizationId, params.organizationId))
 
         for (const a of admins) {
-          const isAdmin = a.role === 'owner' || a.role === 'admin'
+          const isAdmin = isOrgAdminRole(a.role)
           if (!isAdmin) continue
           if (a.enabled === false) continue
           if (!a.email) continue

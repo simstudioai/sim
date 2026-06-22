@@ -565,6 +565,7 @@ export const DaytonaBlock: BlockConfig = {
 
 export const DaytonaBlockMeta = {
   tags: ['agentic', 'cloud', 'automation'],
+  url: 'https://www.daytona.io',
   templates: [
     {
       icon: DaytonaIcon,

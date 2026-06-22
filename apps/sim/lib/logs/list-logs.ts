@@ -2,7 +2,6 @@ import { dbReplica } from '@sim/db'
 import {
   jobExecutionLogs,
   pausedExecutions,
-  permissions,
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
@@ -33,6 +32,7 @@ import type {
 import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export type ListLogsParams = z.output<typeof listLogsQuerySchema>
 
@@ -66,6 +66,11 @@ export function decodeCursor(cursor: string): CursorData | null {
  * workspace permission via the `permissions` join.
  */
 export async function listLogs(params: ListLogsParams, userId: string): Promise<ListLogsResponse> {
+  const access = await checkWorkspaceAccess(params.workspaceId, userId)
+  if (!access.hasAccess) {
+    return { data: [], nextCursor: null }
+  }
+
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeCursor(params.cursor) : null
@@ -221,14 +226,6 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
     )
     .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-    .innerJoin(
-      permissions,
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-        eq(permissions.userId, userId)
-      )
-    )
     .where(and(...workflowConditions))
     .orderBy(orderByClause(workflowSortExpr), dir(workflowExecutionLogs.id))
     .limit(fetchSize)
@@ -236,10 +233,6 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   const jobConditions: SQL[] = [eq(jobExecutionLogs.workspaceId, p.workspaceId)]
 
   if (includeJobLogs) {
-    jobConditions.push(
-      sql`EXISTS (SELECT 1 FROM ${permissions} WHERE ${permissions.entityType} = 'workspace' AND ${permissions.entityId} = ${jobExecutionLogs.workspaceId} AND ${permissions.userId} = ${userId})`
-    )
-
     if (p.level && p.level !== 'all') {
       const levels = p.level.split(',').filter(Boolean)
       const jobLevelConditions: SQL[] = []

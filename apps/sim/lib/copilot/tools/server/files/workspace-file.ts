@@ -11,7 +11,7 @@ import {
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -34,6 +34,7 @@ import {
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'
+import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -203,13 +204,13 @@ export async function compileDocForWrite(args: {
 }): Promise<CompileForWriteResult> {
   const { source, fileName, workspaceId, ownerKey, signal, fallbackMime } = args
   const docInfo = getDocumentFormatInfo(fileName)
-  const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileName) : null
+  const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileName) : null
 
   if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
     return {
       ok: false,
       message: isE2BDocEnabled
-        ? 'Excel (.xlsx) generation is currently behind a beta flag (MOTHERSHIP_BETA_FEATURES) and is not available.'
+        ? 'Excel (.xlsx) generation is currently behind the mothership-beta feature flag and is not available.'
         : 'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
     }
   }
@@ -398,9 +399,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
           })
 
+          const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
+
           return {
             success: true,
-            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)`,
+            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)${embedWarning}`,
             data: {
               id: result.id,
               name: result.name,
@@ -428,6 +431,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord: existingFile,
             existingContent: currentBuffer.toString('utf-8'),
             contentType: normalized.contentType,
@@ -456,6 +460,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             contentType: normalized.contentType,
             title: normalized.title,
@@ -601,6 +606,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             existingContent,
             edit: {

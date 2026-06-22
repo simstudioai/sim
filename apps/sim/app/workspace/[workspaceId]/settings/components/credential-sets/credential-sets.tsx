@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { Plus } from 'lucide-react'
 import {
   Avatar,
@@ -63,7 +64,7 @@ export function CredentialSets() {
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const userRole = getUserRole(activeOrganization, session?.user?.email)
-  const isAdmin = userRole === 'admin' || userRole === 'owner'
+  const isAdmin = isOrgAdminRole(userRole)
   const canManageCredentialSets = hasTeamPlan && isAdmin && !!activeOrganization?.id
 
   const { data: memberships = [], isPending: membershipsLoading } = useCredentialSetMemberships()
@@ -806,15 +807,11 @@ export function CredentialSets() {
         }}
         srTitle='Leave Polling Group'
         title='Leave Polling Group'
-        description={
-          <>
-            Are you sure you want to leave{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {leavingMembership?.name}
-            </span>
-            ? Your email account will no longer be polled in workflows using this group.
-          </>
-        }
+        text={[
+          'Are you sure you want to leave ',
+          { text: leavingMembership?.name ?? 'this group', bold: true },
+          '? Your email account will no longer be polled in workflows using this group.',
+        ]}
         confirm={{
           label: 'Leave',
           onClick: confirmLeave,
@@ -830,13 +827,11 @@ export function CredentialSets() {
         }}
         srTitle='Delete Polling Group'
         title='Delete Polling Group'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: deletingSet?.name ?? 'this group', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: confirmDelete,

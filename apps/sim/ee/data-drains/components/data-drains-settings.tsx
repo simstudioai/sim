@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import {
@@ -56,8 +57,8 @@ const SOURCE_LABELS: Record<(typeof SOURCE_TYPES)[number], string> = {
   workflow_logs: 'Workflow logs',
   job_logs: 'Job logs',
   audit_logs: 'Audit logs',
-  copilot_chats: 'Copilot chats',
-  copilot_runs: 'Copilot runs',
+  copilot_chats: 'Chats',
+  copilot_runs: 'Chat runs',
 }
 
 const DESTINATION_LABELS: Record<(typeof DESTINATION_TYPES)[number], string> = {
@@ -91,7 +92,7 @@ export function DataDrainsSettings() {
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = userRole === 'owner' || userRole === 'admin'
+  const canManage = isOrgAdminRole(userRole)
 
   const { data: drains, isLoading: drainsLoading, error: drainsError } = useDataDrains(orgId)
 
@@ -333,13 +334,11 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
         title='Delete Drain'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
-            action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: drain.name, bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleConfirmDelete,

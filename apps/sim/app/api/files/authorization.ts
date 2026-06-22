@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getFileMetadata } from '@/lib/uploads'
@@ -39,8 +40,7 @@ function workspacePermissionSatisfies(
   permission: WorkspacePermission | null,
   requireWrite: boolean
 ): boolean {
-  if (permission === null) return false
-  return requireWrite ? permission === 'write' || permission === 'admin' : true
+  return permissionSatisfies(permission, requireWrite ? 'write' : 'read')
 }
 
 /**

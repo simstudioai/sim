@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { WebflowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import { webflowConnectorMeta } from '@/connectors/webflow/meta'
 
 const logger = createLogger('WebflowConnector')
 
@@ -80,50 +80,7 @@ function extractItemTitle(item: WebflowItem): string {
 }
 
 export const webflowConnector: ConnectorConfig = {
-  id: 'webflow',
-  name: 'Webflow',
-  description:
-    'Sync CMS collection items from a Webflow site. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
-  version: '1.0.0',
-  icon: WebflowIcon,
-
-  auth: { mode: 'oauth', provider: 'webflow', requiredScopes: ['sites:read', 'cms:read'] },
-
-  configFields: [
-    {
-      id: 'siteSelector',
-      title: 'Site',
-      type: 'selector',
-      selectorKey: 'webflow.sites',
-      canonicalParamId: 'siteId',
-      mode: 'basic',
-      placeholder: 'Select a site',
-      required: true,
-    },
-    {
-      id: 'siteId',
-      title: 'Site ID',
-      type: 'short-input',
-      canonicalParamId: 'siteId',
-      mode: 'advanced',
-      placeholder: 'Your Webflow site ID',
-      required: true,
-    },
-    {
-      id: 'collectionId',
-      title: 'Collection ID',
-      type: 'short-input',
-      placeholder: 'Specific collection ID (default: all collections)',
-      required: false,
-    },
-    {
-      id: 'maxItems',
-      title: 'Max Items',
-      type: 'short-input',
-      placeholder: 'e.g. 500 (default: unlimited)',
-      required: false,
-    },
-  ],
+  ...webflowConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -132,7 +89,7 @@ export const webflowConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const siteId = sourceConfig.siteId as string
-    const collectionId = sourceConfig.collectionId as string | undefined
+    const collectionIds = parseMultiValue(sourceConfig.collectionId)
     const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : 0
 
     let cursorState: CursorState
@@ -140,7 +97,7 @@ export const webflowConnector: ConnectorConfig = {
     if (cursor) {
       cursorState = JSON.parse(cursor) as CursorState
     } else {
-      const collections = await fetchCollectionIds(accessToken, siteId, collectionId)
+      const collections = await fetchCollectionIds(accessToken, siteId, collectionIds)
       cursorState = { collectionIndex: 0, offset: 0, collections }
     }
 
@@ -195,12 +152,13 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const items = data.items || []
-    let documents: ExternalDocument[] = items.map((item) =>
+    const pageDocuments: ExternalDocument[] = items.map((item) =>
       itemToDocument(item, currentCollectionId, collectionName)
     )
 
+    let documents = pageDocuments
     if (maxItems > 0) {
-      const remaining = maxItems - totalDocsFetched
+      const remaining = Math.max(0, maxItems - totalDocsFetched)
       if (documents.length > remaining) {
         documents = documents.slice(0, remaining)
       }
@@ -214,6 +172,22 @@ export const webflowConnector: ConnectorConfig = {
     const hasMoreInCollection = cursorState.offset + pagination.limit < pagination.total
     const hasMoreCollections = cursorState.collectionIndex < cursorState.collections.length - 1
     const hitMaxItems = maxItems > 0 && totalDocsFetched + documents.length >= maxItems
+    /**
+     * When the cap stops the sync, flag the listing as capped so the sync engine
+     * skips deletion reconciliation — otherwise still-existing documents that
+     * were never listed get hard-deleted. "More" means any of: items dropped
+     * from this page (`pageDocuments.length > documents.length`), more pages in
+     * this collection, or more collections still to visit. The within-page drop
+     * is the only signal when a collection fits in a single API response.
+     */
+    const droppedWithinPage = documents.length < pageDocuments.length
+    if (
+      syncContext &&
+      hitMaxItems &&
+      (droppedWithinPage || hasMoreInCollection || hasMoreCollections)
+    ) {
+      syncContext.listingCapped = true
+    }
 
     let nextCursor: string | undefined
     if (hitMaxItems) {
@@ -279,7 +253,7 @@ export const webflowConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const siteId = sourceConfig.siteId as string
-    const collectionId = sourceConfig.collectionId as string | undefined
+    const collectionIds = parseMultiValue(sourceConfig.collectionId)
     const maxItems = sourceConfig.maxItems as string | undefined
 
     if (!siteId) {
@@ -315,7 +289,7 @@ export const webflowConnector: ConnectorConfig = {
         return { valid: false, error: `Webflow API error: ${siteResponse.status} - ${errorText}` }
       }
 
-      if (collectionId) {
+      for (const collectionId of collectionIds) {
         const collectionUrl = `${WEBFLOW_API}/collections/${collectionId}`
         const collectionResponse = await fetchWithRetry(
           collectionUrl,
@@ -346,12 +320,6 @@ export const webflowConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'collectionName', displayName: 'Collection Name', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'slug', displayName: 'Slug', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
@@ -406,10 +374,10 @@ function itemToDocument(
 async function fetchCollectionIds(
   accessToken: string,
   siteId: string,
-  collectionId?: string
+  collectionIds: string[]
 ): Promise<string[]> {
-  if (collectionId) {
-    return [collectionId]
+  if (collectionIds.length > 0) {
+    return collectionIds
   }
 
   const url = `${WEBFLOW_API}/sites/${siteId}/collections`

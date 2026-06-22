@@ -1,4 +1,4 @@
-import { copilotChats, db, mothershipInboxTask, permissions, user, workspace } from '@sim/db'
+import { copilotChats, db, mothershipInboxTask, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -16,7 +16,7 @@ import { chatPubSub } from '@/lib/copilot/chat-status'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
@@ -330,20 +330,21 @@ async function resolveUserId(
   senderEmail: string,
   ws: { id: string; ownerId: string }
 ): Promise<string> {
-  const [member] = await db
-    .select({ userId: permissions.userId })
-    .from(permissions)
-    .innerJoin(user, eq(permissions.userId, user.id))
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, ws.id),
-        sql`lower(${user.email}) = ${senderEmail.toLowerCase()}`
-      )
-    )
+  const [matchedUser] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(sql`lower(${user.email}) = ${senderEmail.toLowerCase()}`)
+    .orderBy(user.createdAt)
     .limit(1)
 
-  return member?.userId ?? ws.ownerId
+  if (matchedUser) {
+    const permission = await getUserEntityPermissions(matchedUser.id, 'workspace', ws.id)
+    if (permission !== null) {
+      return matchedUser.id
+    }
+  }
+
+  return ws.ownerId
 }
 
 /**

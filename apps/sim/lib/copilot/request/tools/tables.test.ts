@@ -12,6 +12,9 @@ const { mockGetTableById, mockReplaceTableRows } = vi.hoisted(() => ({
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
   replaceTableRows: mockReplaceTableRows,
 }))
 

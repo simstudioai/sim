@@ -1,6 +1,7 @@
+import { normalizeEmail } from '@sim/utils/string'
 import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
 import { env } from '@/lib/core/config/env'
-import { isAppConfigEnabled } from '@/lib/core/config/feature-flags'
+import { isAppConfigEnabled } from '@/lib/core/config/env-flags'
 
 /**
  * Name of the AppConfig configuration profile holding the signup/login gating
@@ -46,7 +47,7 @@ export function isEmailBlockedByAccessControl(
   config: AccessControlConfig
 ): boolean {
   if (!email) return false
-  const normalized = email.trim().toLowerCase()
+  const normalized = normalizeEmail(email)
   if (config.blockedEmails.includes(normalized)) return true
   return isEmailInDenylist(normalized, config.blockedSignupDomains)
 }

@@ -6,7 +6,7 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { hasInflightOutboxEvent } from '@/lib/core/outbox/service'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 

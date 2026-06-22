@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('InputValidation')
 
@@ -617,6 +617,27 @@ export function validateSharePointSiteId(
 export function validateJiraCloudId(
   value: string | null | undefined,
   paramName = 'cloudId'
+): ValidationResult {
+  return validatePathSegment(value, {
+    paramName,
+    allowHyphens: true,
+    allowUnderscores: false,
+    allowDots: false,
+    maxLength: 100,
+  })
+}
+
+/**
+ * Validates an Atlassian Assets workspace ID (a UUID-shaped, hyphenated
+ * alphanumeric identifier) before it is interpolated into an API path.
+ *
+ * @param value - The Assets workspace ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateAssetsWorkspaceId(
+  value: string | null | undefined,
+  paramName = 'workspaceId'
 ): ValidationResult {
   return validatePathSegment(value, {
     paramName,

@@ -1,91 +1,38 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import { Loader } from '@/components/emcn'
-import { requestJson } from '@/lib/api/client/request'
-import type { ContractJsonResponse } from '@/lib/api/contracts'
-import { unsubscribeGetContract, unsubscribePostContract } from '@/lib/api/contracts/user'
+import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
-
-type UnsubscribeData = ContractJsonResponse<typeof unsubscribeGetContract>
+import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
 function UnsubscribeContent() {
   const searchParams = useSearchParams()
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<UnsubscribeData | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [processing, setProcessing] = useState(false)
-  const [unsubscribed, setUnsubscribed] = useState(false)
-
   const email = searchParams.get('email')
   const token = searchParams.get('token')
 
-  useEffect(() => {
-    if (!email || !token) {
-      setError('Missing email or token in URL')
-      setLoading(false)
-      return
-    }
+  const hasParams = Boolean(email) && Boolean(token)
+  const query = useUnsubscribe(email ?? undefined, token ?? undefined)
+  const unsubscribe = useUnsubscribeMutation()
 
-    requestJson(unsubscribeGetContract, { query: { email, token } })
-      .then((response) => {
-        setData(response)
-      })
-      .catch((err: unknown) => {
-        const message = getErrorMessage(err, 'Failed to validate unsubscribe link')
-        setError(message)
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }, [email, token])
+  const data = query.data ?? null
+  const loading = hasParams && query.isLoading
+  const processing = unsubscribe.isPending
+  const unsubscribed = unsubscribe.isSuccess
+  const error = !hasParams
+    ? 'Missing email or token in URL'
+    : query.isError
+      ? getErrorMessage(query.error, 'Failed to validate unsubscribe link')
+      : unsubscribe.isError
+        ? getErrorMessage(unsubscribe.error, 'Failed to process unsubscribe request')
+        : null
 
-  const handleUnsubscribe = async (type: 'all' | 'marketing' | 'updates' | 'notifications') => {
+  const handleUnsubscribe = (type: UnsubscribeType) => {
     if (!email || !token) return
-
-    setProcessing(true)
-
-    try {
-      await requestJson(unsubscribePostContract, {
-        body: { email, token, type },
-      })
-
-      setUnsubscribed(true)
-      if (data) {
-        const validTypes = ['all', 'marketing', 'updates', 'notifications'] as const
-        if (validTypes.includes(type)) {
-          if (type === 'all') {
-            setData({
-              ...data,
-              currentPreferences: {
-                ...data.currentPreferences,
-                unsubscribeAll: true,
-              },
-            })
-          } else {
-            const propertyKey = `unsubscribe${type.charAt(0).toUpperCase()}${type.slice(1)}` as
-              | 'unsubscribeMarketing'
-              | 'unsubscribeUpdates'
-              | 'unsubscribeNotifications'
-            setData({
-              ...data,
-              currentPreferences: {
-                ...data.currentPreferences,
-                [propertyKey]: true,
-              },
-            })
-          }
-        }
-      }
-    } catch (err: unknown) {
-      const message = getErrorMessage(err, 'Failed to process unsubscribe request')
-      setError(message)
-    } finally {
-      setProcessing(false)
-    }
+    unsubscribe.mutate({ email, token, type })
   }
 
   if (loading) {

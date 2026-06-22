@@ -13,8 +13,17 @@ import {
   ROLE_ALLOWED_OPERATIONS,
   SOCKET_OPERATIONS,
 } from '@sim/testing'
-import { describe, expect, it } from 'vitest'
-import { checkRolePermission } from '@/middleware/permissions'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockAuthorize } = vi.hoisted(() => ({
+  mockAuthorize: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workflow', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorize,
+}))
+
+import { checkRolePermission, checkWorkflowOperationPermission } from '@/middleware/permissions'
 
 describe('checkRolePermission', () => {
   describe('admin role', () => {
@@ -277,5 +286,131 @@ describe('checkRolePermission', () => {
       const result = checkRolePermission('read', 'remove')
       expect(result.reason).toMatch(/Role '.*' not permitted to perform '.*'/)
     })
+  })
+})
+
+describe('checkWorkflowOperationPermission', () => {
+  const userId = 'user-1'
+  let workflowCounter = 0
+  let workflowId: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Unique workflowId per test so the module-level role cache never leaks across tests
+    workflowCounter += 1
+    workflowId = `wf-${workflowCounter}`
+  })
+
+  it('allows a write operation when the user still has write access', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+
+    const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+
+    expect(result.allowed).toBe(true)
+    expect(result.role).toBe('write')
+  })
+
+  it('denies all writes once workspace access has been revoked', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+
+    const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
+
+    expect(result.allowed).toBe(false)
+    expect(result.role).toBeNull()
+    expect(result.reason).toMatch(/revoked/i)
+  })
+
+  it('denies writes after a downgrade to read but still allows position updates', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
+
+    const denied = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
+    expect(denied.allowed).toBe(false)
+    expect(denied.role).toBe('read')
+
+    const allowed = await checkWorkflowOperationPermission(
+      userId,
+      workflowId,
+      'update-position',
+      'write'
+    )
+    expect(allowed.allowed).toBe(true)
+    expect(allowed.role).toBe('read')
+  })
+
+  it('caches the role within the TTL to avoid a DB read on every operation', async () => {
+    mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+
+    await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+    await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+
+    expect(mockAuthorize).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads the role after the cache TTL expires', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+      await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+
+      // Downgraded to read after the first check
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
+      vi.advanceTimersByTime(31_000)
+
+      const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
+      expect(mockAuthorize).toHaveBeenCalledTimes(2)
+      expect(result.allowed).toBe(false)
+      expect(result.role).toBe('read')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('falls back to the join-time role on a transient DB error when nothing is cached yet', async () => {
+    mockAuthorize.mockRejectedValue(new Error('db unavailable'))
+
+    const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
+
+    expect(result.allowed).toBe(true)
+    expect(result.role).toBe('write')
+  })
+
+  it('preserves a recorded revocation through a later transient DB error', async () => {
+    vi.useFakeTimers()
+    try {
+      // First check records the revocation (null) in the cache
+      mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+      const first = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'admin')
+      expect(first.allowed).toBe(false)
+      expect(first.role).toBeNull()
+
+      // TTL expires, then the DB blips on the next re-validation. The stale join-time
+      // role ('admin') must NOT resurrect access — the recorded revocation wins.
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockRejectedValue(new Error('db unavailable'))
+
+      const second = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'admin')
+      expect(second.allowed).toBe(false)
+      expect(second.role).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses the last cached role (not the join-time role) on a transient DB error', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+      await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockRejectedValue(new Error('db unavailable'))
+
+      // fallbackRole is 'read', but the last recorded decision was 'write' — use that
+      const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+      expect(result.allowed).toBe(true)
+      expect(result.role).toBe('write')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

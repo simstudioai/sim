@@ -9,7 +9,11 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { addWorkflowGroup, deleteWorkflowGroup, updateWorkflowGroup } from '@/lib/table/service'
+import {
+  addWorkflowGroup,
+  deleteWorkflowGroup,
+  updateWorkflowGroup,
+} from '@/lib/table/workflow-groups/service'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableWorkflowGroupsAPI')

@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -80,9 +81,7 @@ export function useSubscriptionUpgrade() {
             }
             throw err
           }
-          const existingOrg = orgsData.organizations?.find(
-            (org) => org.role === 'owner' || org.role === 'admin'
-          )
+          const existingOrg = orgsData.organizations?.find((org) => isOrgAdminRole(org.role))
 
           if (existingOrg) {
             const existingOrgSub = allSubscriptions.find(

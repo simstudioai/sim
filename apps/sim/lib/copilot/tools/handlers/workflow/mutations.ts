@@ -1,12 +1,18 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import {
+  buildVfsFolderPathMap,
+  decodeVfsPathSegments,
+  encodeVfsPathSegments,
+} from '@/lib/copilot/vfs/path-utils'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
@@ -306,6 +312,7 @@ import type {
   DeleteFolderParams,
   DeleteWorkflowParams,
   GenerateApiKeyParams,
+  ManageFolderParams,
   MoveFolderParams,
   MoveWorkflowParams,
   RenameFolderParams,
@@ -353,6 +360,7 @@ export async function executeCreateWorkflow(
     const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await performCreateWorkflow({
@@ -422,6 +430,7 @@ export async function executeCreateFolder(
     const parentId = params?.parentId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await assertFolderMutable(parentId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await performCreateFolder({
@@ -512,6 +521,7 @@ export async function executeSetGlobalWorkflowVariables(
       context.userId,
       'write'
     )
+    await assertWorkflowMutable(workflowId)
 
     interface WorkflowVariable {
       id: string
@@ -633,9 +643,9 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
-    assertWorkflowMutationNotAborted(context)
     const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    await assertWorkflowMutable(workflowId)
+    assertWorkflowMutationNotAborted(context)
     if (!current.workspaceId) {
       return { success: false, error: 'Workflow workspace is required' }
     }
@@ -671,6 +681,8 @@ export async function executeMoveWorkflow(
     const moved: string[] = []
     const failed: string[] = []
 
+    await assertFolderMutable(folderId)
+
     for (const workflowId of workflowIds) {
       try {
         const { workspaceId, workflow } = await ensureWorkflowAccess(
@@ -688,6 +700,7 @@ export async function executeMoveWorkflow(
             continue
           }
         }
+        await assertWorkflowMutable(workflowId)
         assertWorkflowMutationNotAborted(context)
         const result = await performUpdateWorkflow({
           workflowId,
@@ -735,6 +748,8 @@ export async function executeMoveFolder(
       return { success: false, error: 'Parent folder not found' }
     }
 
+    await assertFolderMutable(folderId)
+    await assertFolderMutable(parentId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateFolder({
       folderId,
@@ -941,6 +956,7 @@ async function executeUpdateWorkflow(
     if (!current.workspaceId) {
       return { success: false, error: 'Workflow workspace is required' }
     }
+    await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateWorkflow({
       workflowId,
@@ -984,6 +1000,7 @@ export async function executeSetBlockEnabled(
       context.userId,
       'write'
     )
+    await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
@@ -1114,6 +1131,7 @@ export async function executeDeleteWorkflow(
           context.userId,
           'write'
         )
+        await assertWorkflowMutable(workflowId)
         assertWorkflowMutationNotAborted(context)
 
         const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
@@ -1162,16 +1180,22 @@ export async function executeDeleteFolder(
 
       assertWorkflowMutationNotAborted(context)
 
-      const result = await performDeleteFolder({
-        folderId,
-        workspaceId,
-        userId: context.userId,
-        folderName: folder.folderName,
-      })
+      try {
+        await assertFolderMutable(folderId)
 
-      if (result.success) {
-        deleted.push(folderId)
-      } else {
+        const result = await performDeleteFolder({
+          folderId,
+          workspaceId,
+          userId: context.userId,
+          folderName: folder.folderName,
+        })
+
+        if (result.success) {
+          deleted.push(folderId)
+        } else {
+          failed.push(folderId)
+        }
+      } catch {
         failed.push(folderId)
       }
     }
@@ -1206,6 +1230,7 @@ async function executeRenameFolder(
       return { success: false, error: 'Folder not found' }
     }
 
+    await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateFolder({
       folderId,
@@ -1218,6 +1243,152 @@ async function executeRenameFolder(
     }
 
     return { success: true, output: { folderId, name } }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+/**
+ * Strip the `workflows/` VFS prefix from a folder path, returning the
+ * folder-relative remainder. `workflows` (or an empty path) maps to the
+ * workspace root and yields an empty string.
+ */
+function workflowFolderRelativePath(rawPath: string): string {
+  const trimmed = rawPath.trim().replace(/^\/+|\/+$/g, '')
+  if (!trimmed || trimmed === 'workflows') return ''
+  return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
+}
+
+/**
+ * Load a lookup from each folder's canonical encoded VFS path to its id by
+ * inverting the same {@link buildVfsFolderPathMap} the VFS uses to serve folder
+ * paths, so a path the agent sees via glob round-trips to the right id. Fetched
+ * once per manage_folder call and reused across target + parent resolution.
+ */
+async function loadFolderPathToIdMap(workspaceId: string): Promise<Map<string, string>> {
+  const byPath = new Map<string, string>()
+  for (const [folderId, encodedPath] of buildVfsFolderPathMap(
+    await listFolders(workspaceId)
+  ).entries()) {
+    byPath.set(encodedPath, folderId)
+  }
+  return byPath
+}
+
+function lookupFolderIdByPath(rawPath: string, byPath: Map<string, string>): string | null {
+  const relative = workflowFolderRelativePath(rawPath)
+  if (!relative) return null
+  return byPath.get(encodeVfsPathSegments(decodeVfsPathSegments(relative))) ?? null
+}
+
+/** Resolve the folder a manage_folder op targets, preferring folderId over path. */
+async function resolveManageFolderTarget(
+  params: ManageFolderParams,
+  getFolderPaths: () => Promise<Map<string, string>>
+): Promise<{ folderId: string } | { error: string }> {
+  const directId = typeof params.folderId === 'string' ? params.folderId.trim() : ''
+  if (directId) return { folderId: directId }
+  const path = typeof params.path === 'string' ? params.path.trim() : ''
+  if (!path) return { error: 'Provide the folder path (e.g. "workflows/Marketing") or folderId.' }
+  const folderId = lookupFolderIdByPath(path, await getFolderPaths())
+  if (!folderId) return { error: `Folder not found at ${path}` }
+  return { folderId }
+}
+
+/**
+ * Resolve the destination parent for move/create. parentId/destinationPath are
+ * optional; their absence (or an explicit root) targets the workspace root
+ * (parentId null).
+ */
+async function resolveManageFolderParent(
+  params: ManageFolderParams,
+  getFolderPaths: () => Promise<Map<string, string>>
+): Promise<{ parentId: string | null } | { error: string }> {
+  const directId = typeof params.parentId === 'string' ? params.parentId.trim() : ''
+  if (directId) return { parentId: directId }
+  if (params.parentId === null) return { parentId: null }
+  const dest = typeof params.destinationPath === 'string' ? params.destinationPath.trim() : ''
+  if (!dest || !workflowFolderRelativePath(dest)) return { parentId: null }
+  const parentId = lookupFolderIdByPath(dest, await getFolderPaths())
+  if (!parentId) return { error: `Destination folder not found at ${dest}` }
+  return { parentId }
+}
+
+/**
+ * Single entry point for folder CRUD (create/rename/move/delete). Resolves the
+ * VFS-path/folderId handles, then delegates to the existing folder handlers so
+ * all DB orchestration (performCreateFolder / performUpdateFolder /
+ * performDeleteFolder) stays in one place.
+ */
+export async function executeManageFolder(
+  params: ManageFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const operation = typeof params?.operation === 'string' ? params.operation.trim() : ''
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+
+    // Fetch the workspace folder list at most once, lazily — only when a path
+    // (vs an explicit id) actually needs resolving, and shared across the
+    // target + parent lookups a single move/create performs.
+    let folderPathsPromise: Promise<Map<string, string>> | undefined
+    const getFolderPaths = () => (folderPathsPromise ??= loadFolderPathToIdMap(workspaceId))
+
+    switch (operation) {
+      case 'create': {
+        let name = typeof params.name === 'string' ? params.name.trim() : ''
+        let parentId: string | null = null
+        const path = typeof params.path === 'string' ? params.path.trim() : ''
+        if (!name && path) {
+          const segments = decodeVfsPathSegments(workflowFolderRelativePath(path))
+          if (segments.length === 0) {
+            return { success: false, error: 'create requires a folder name or path' }
+          }
+          name = segments[segments.length - 1]
+          const parentSegments = segments.slice(0, -1)
+          if (parentSegments.length > 0) {
+            const resolved = lookupFolderIdByPath(
+              encodeVfsPathSegments(parentSegments),
+              await getFolderPaths()
+            )
+            if (!resolved) {
+              return { success: false, error: `Parent folder not found for ${path}` }
+            }
+            parentId = resolved
+          }
+        } else {
+          const parent = await resolveManageFolderParent(params, getFolderPaths)
+          if ('error' in parent) return { success: false, error: parent.error }
+          parentId = parent.parentId
+        }
+        if (!name) return { success: false, error: 'create requires a folder name or path' }
+        return executeCreateFolder({ name, parentId: parentId ?? undefined, workspaceId }, context)
+      }
+      case 'rename': {
+        const name = typeof params.name === 'string' ? params.name.trim() : ''
+        if (!name) return { success: false, error: 'rename requires a new name' }
+        const target = await resolveManageFolderTarget(params, getFolderPaths)
+        if ('error' in target) return { success: false, error: target.error }
+        return executeRenameFolder({ folderId: target.folderId, name }, context)
+      }
+      case 'move': {
+        const target = await resolveManageFolderTarget(params, getFolderPaths)
+        if ('error' in target) return { success: false, error: target.error }
+        const parent = await resolveManageFolderParent(params, getFolderPaths)
+        if ('error' in parent) return { success: false, error: parent.error }
+        return executeMoveFolder({ folderId: target.folderId, parentId: parent.parentId }, context)
+      }
+      case 'delete': {
+        const target = await resolveManageFolderTarget(params, getFolderPaths)
+        if ('error' in target) return { success: false, error: target.error }
+        return executeDeleteFolder({ folderIds: [target.folderId] }, context)
+      }
+      default:
+        return {
+          success: false,
+          error: `Unknown operation "${operation}". Use create, rename, move, or delete.`,
+        }
+    }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }

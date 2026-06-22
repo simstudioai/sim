@@ -51,11 +51,11 @@ packages/
 ├── auth/                   # @sim/auth — shared Better Auth verifier
 ├── db/                     # @sim/db — drizzle schema + client
 ├── logger/                 # @sim/logger
+├── platform-authz/         # @sim/platform-authz — workspace + workflow authz (subpath exports)
 ├── realtime-protocol/      # @sim/realtime-protocol — socket op constants + zod schemas
 ├── security/               # @sim/security — safeCompare
 ├── tsconfig/               # shared tsconfig presets
 ├── utils/                  # @sim/utils
-├── workflow-authz/         # @sim/workflow-authz
 ├── workflow-persistence/   # @sim/workflow-persistence
 └── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel types
 ```
@@ -367,6 +367,12 @@ export function useUpdateEntity() {
 }
 ```
 
+## URL / Query-Param State
+
+Shareable *client* view-state (active tab/panel, filters, search query, pagination, selected entity id, view mode, a deep-linked drawer/modal) lives in the URL via [`nuqs`](https://nuqs.dev) — not in a store synced with effects, and never read via `useSearchParams().get(...)` / `new URLSearchParams(window.location.search)`. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand (canvas pan/zoom, cursor, drag, resize widths, live collaborative selection).
+
+Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
+
 ## Styling
 
 Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
@@ -409,7 +415,7 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.cursor/rules/s
 
 ### Global Mocks (vitest.setup.ts)
 
-`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/workflow-authz`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
+`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
 
 ### Standard Test Pattern
 

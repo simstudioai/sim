@@ -15,7 +15,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: mockGetJobQueue,
 }))
 
-vi.mock('@sim/workflow-authz', () => ({
+vi.mock('@sim/platform-authz/workflow', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
 }))
 

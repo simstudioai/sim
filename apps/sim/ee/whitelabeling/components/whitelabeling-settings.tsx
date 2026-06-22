@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
@@ -10,7 +11,7 @@ import { Button, ChipInput, Label, Loader, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import {
@@ -127,7 +128,7 @@ export function WhitelabelingSettings() {
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = userRole === 'owner' || userRole === 'admin'
+  const canManage = isOrgAdminRole(userRole)
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 

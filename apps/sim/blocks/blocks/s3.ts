@@ -416,6 +416,7 @@ export const S3Block: BlockConfig<S3Response> = {
 
 export const S3BlockMeta = {
   tags: ['cloud', 'automation'],
+  url: 'https://aws.amazon.com/s3',
   templates: [
     {
       icon: S3Icon,

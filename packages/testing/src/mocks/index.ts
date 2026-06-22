@@ -52,13 +52,13 @@ export {
 export { encryptionMock, encryptionMockFns } from './encryption.mock'
 // Env mocks
 export { createEnvMock, createMockGetEnv, defaultMockEnv, envMock } from './env.mock'
+// Env flag mocks
+export { envFlagsMock } from './env-flags.mock'
 // Execution preprocessing mocks (for @/lib/execution/preprocessing)
 export {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from './execution-preprocessing.mock'
-// Feature flag mocks
-export { featureFlagsMock } from './feature-flags.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
 // Fetch mocks
 export {
@@ -137,7 +137,7 @@ export {
 } from './terminal-console.mock'
 // URL mocks
 export { urlsMock, urlsMockFns } from './urls.mock'
-// Workflow authz package mocks (for @sim/workflow-authz)
+// Workflow authz package mocks (for @sim/platform-authz/workflow)
 export { workflowAuthzMock, workflowAuthzMockFns } from './workflow-authz.mock'
 // Workflows API utils mocks (for @/app/api/workflows/utils)
 export { workflowsApiUtilsMock, workflowsApiUtilsMockFns } from './workflows-api-utils.mock'

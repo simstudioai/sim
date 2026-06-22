@@ -1463,6 +1463,7 @@ Return ONLY the JSON array - no explanations or markdown.`,
 
 export const MailchimpBlockMeta = {
   tags: ['email-marketing', 'marketing', 'automation'],
+  url: 'https://mailchimp.com',
   templates: [
     {
       icon: Mail,

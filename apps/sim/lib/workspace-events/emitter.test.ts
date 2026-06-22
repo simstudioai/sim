@@ -19,7 +19,7 @@ const {
   mockProcessPolledWebhookEvent: vi.fn(),
 }))
 
-vi.mock('@sim/workflow-authz', () => ({
+vi.mock('@sim/platform-authz/workflow', () => ({
   getActiveWorkflowContext: mockGetActiveWorkflowContext,
 }))
 

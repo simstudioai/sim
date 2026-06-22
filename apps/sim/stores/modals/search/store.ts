@@ -98,7 +98,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             icon: block.icon,
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
-            searchValue: `${block.name} ${block.type} block-${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
+            searchValue: `${block.name} ${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
           }
 
           if (block.category === 'blocks' && block.type !== 'starter') {

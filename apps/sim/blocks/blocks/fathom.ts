@@ -213,6 +213,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
 
 export const FathomBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://fathom.ai',
   templates: [
     {
       icon: FathomIcon,

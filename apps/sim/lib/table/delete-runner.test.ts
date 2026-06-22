@@ -27,12 +27,16 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+}))
+vi.mock('@/lib/table/jobs/service', () => ({
   getJobProgress: mockGetJobProgress,
-  selectRowIdPage: mockSelectRowIdPage,
-  deletePageByIds: mockDeletePageByIds,
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
+}))
+vi.mock('@/lib/table/rows/ordering', () => ({
+  selectRowIdPage: mockSelectRowIdPage,
+  deletePageByIds: mockDeletePageByIds,
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
@@ -75,6 +79,22 @@ describe('runTableDelete', () => {
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
+    )
+  })
+
+  it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {
+    // budget 3 with page size 2: first page fills 2, the second is capped to the remaining 1.
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b']).mockResolvedValueOnce(['c'])
+
+    await runTableDelete(basePayload({ filter: { status: 'old' }, maxRows: 3 }))
+
+    expect(mockSelectRowIdPage).toHaveBeenCalledTimes(2)
+    expect(mockSelectRowIdPage.mock.calls[0][0]).toMatchObject({ limit: 2 })
+    expect(mockSelectRowIdPage.mock.calls[1][0]).toMatchObject({ limit: 1 })
+    expect(mockDeletePageByIds).toHaveBeenCalledTimes(2)
+    expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ready', progress: 3 })
     )
   })
 

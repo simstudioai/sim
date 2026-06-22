@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
@@ -93,6 +94,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    await assertFolderMutable(parentId ?? null)
+
     const result = await performCreateFolder({
       id: clientId,
       userId: session.user.id,
@@ -123,6 +126,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
+    if (error instanceof FolderLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     logger.error('Error creating folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -9,6 +9,7 @@ import {
   createMockRequest,
   permissionsMock,
   permissionsMockFns,
+  workflowAuthzMockFns,
 } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -388,6 +389,26 @@ describe('Folders API Route', () => {
       expect(data.folder).toMatchObject({
         parentId: 'folder-1',
       })
+    })
+
+    it('should reject creating a subfolder inside a locked parent folder', async () => {
+      mockAuthenticatedUser()
+
+      const { FolderLockedError } = await import('@sim/platform-authz/workflow')
+      workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new FolderLockedError('Folder is locked')
+      )
+
+      const req = createMockRequest('POST', {
+        name: 'Subfolder',
+        workspaceId: 'workspace-123',
+        parentId: 'locked-folder',
+      })
+
+      const response = await POST(req)
+
+      expect(response.status).toBe(423)
+      expect(mockTransaction).not.toHaveBeenCalled()
     })
 
     it('should reject a parentId that does not resolve to a folder in the workspace', async () => {

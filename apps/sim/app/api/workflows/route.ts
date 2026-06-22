@@ -1,7 +1,5 @@
-import { db } from '@sim/db'
-import { permissions, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -10,12 +8,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
+import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
 
-// GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
@@ -63,65 +61,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    let workflows
-
-    /**
-     * Project only the columns declared in `workflowListItemSchema` so the
-     * wire response matches the contract shape exactly. The full row is
-     * larger (`state`, `variables`, `apiKey`, `runCount`, etc.) and would
-     * be dropped client-side by Zod parse anyway — narrowing here saves
-     * bytes over the wire. Keep this list aligned with the contract.
-     */
-    const listColumns = {
-      id: workflow.id,
-      name: workflow.name,
-      description: workflow.description,
-      workspaceId: workflow.workspaceId,
-      folderId: workflow.folderId,
-      sortOrder: workflow.sortOrder,
-      createdAt: workflow.createdAt,
-      updatedAt: workflow.updatedAt,
-      archivedAt: workflow.archivedAt,
-      locked: workflow.locked,
-    } as const
-    const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
-
-    if (workspaceId) {
-      workflows = await db
-        .select(listColumns)
-        .from(workflow)
-        .where(
-          scope === 'all'
-            ? eq(workflow.workspaceId, workspaceId)
-            : scope === 'archived'
-              ? and(eq(workflow.workspaceId, workspaceId), sql`${workflow.archivedAt} IS NOT NULL`)
-              : and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))
-        )
-        .orderBy(...orderByClause)
-    } else {
-      const workspacePermissionRows = await db
-        .select({ workspaceId: permissions.entityId })
-        .from(permissions)
-        .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
-      const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
-      if (workspaceIds.length === 0) {
-        return NextResponse.json({ data: [] }, { status: 200 })
-      }
-      workflows = await db
-        .select(listColumns)
-        .from(workflow)
-        .where(
-          scope === 'all'
-            ? inArray(workflow.workspaceId, workspaceIds)
-            : scope === 'archived'
-              ? and(
-                  inArray(workflow.workspaceId, workspaceIds),
-                  sql`${workflow.archivedAt} IS NOT NULL`
-                )
-              : and(inArray(workflow.workspaceId, workspaceIds), isNull(workflow.archivedAt))
-        )
-        .orderBy(...orderByClause)
-    }
+    const workflows = await listWorkflowsForUser({ userId, workspaceId, scope })
 
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
@@ -176,6 +116,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         { status: 403 }
       )
     }
+
+    await assertFolderMutable(folderId ?? null)
 
     const result = await performCreateWorkflow({
       id: clientId,
@@ -241,6 +183,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       subBlockValues: createdWorkflow.subBlockValues,
     })
   } catch (error) {
+    if (error instanceof FolderLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     logger.error(`[${requestId}] Error creating workflow`, error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }

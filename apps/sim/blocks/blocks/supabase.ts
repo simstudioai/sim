@@ -13,7 +13,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   description: 'Use Supabase database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
+    'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
   docsLink: 'https://docs.sim.ai/integrations/supabase',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -25,7 +25,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Database Operations
         { label: 'Get Many Rows', id: 'query' },
         { label: 'Get a Row', id: 'get_row' },
         { label: 'Create a Row', id: 'insert' },
@@ -33,12 +32,11 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Delete a Row', id: 'delete' },
         { label: 'Upsert a Row', id: 'upsert' },
         { label: 'Count Rows', id: 'count' },
-        // Advanced Database Operations
         { label: 'Full-Text Search', id: 'text_search' },
         { label: 'Vector Search', id: 'vector_search' },
         { label: 'Call RPC Function', id: 'rpc' },
+        { label: 'Invoke Edge Function', id: 'invoke_function' },
         { label: 'Introspect Schema', id: 'introspect' },
-        // Storage - File Operations
         { label: 'Storage: Upload File', id: 'storage_upload' },
         { label: 'Storage: Download File', id: 'storage_download' },
         { label: 'Storage: List Files', id: 'storage_list' },
@@ -47,7 +45,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Storage: Copy File', id: 'storage_copy' },
         { label: 'Storage: Get Public URL', id: 'storage_get_public_url' },
         { label: 'Storage: Create Signed URL', id: 'storage_create_signed_url' },
-        // Storage - Bucket Operations
         { label: 'Storage: Create Bucket', id: 'storage_create_bucket' },
         { label: 'Storage: List Buckets', id: 'storage_list_buckets' },
         { label: 'Storage: Delete Bucket', id: 'storage_delete_bucket' },
@@ -101,7 +98,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       password: true,
       required: true,
     },
-    // Data input for create/update operations
     {
       id: 'data',
       title: 'Data',
@@ -126,7 +122,14 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       condition: { field: 'operation', value: 'upsert' },
       required: true,
     },
-    // Filter for get_row, update, delete operations (required)
+    {
+      id: 'onConflict',
+      title: 'On Conflict (column)',
+      type: 'short-input',
+      placeholder: 'email (defaults to primary key)',
+      condition: { field: 'operation', value: 'upsert' },
+      mode: 'advanced',
+    },
     {
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
@@ -331,7 +334,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
         generationType: 'postgrest',
       },
     },
-    // Optional filter for query operation
     {
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
@@ -399,7 +401,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
         generationType: 'postgrest',
       },
     },
-    // Optional order by for query operation
     {
       id: 'orderBy',
       title: 'Order By',
@@ -439,7 +440,6 @@ Return ONLY the order by expression - no explanations, no extra text.`,
         placeholder: 'Describe how to sort (e.g., "newest first by created_at")...',
       },
     },
-    // Optional limit for query operation
     {
       id: 'limit',
       title: 'Limit',
@@ -454,7 +454,6 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '0',
       condition: { field: 'operation', value: 'query' },
     },
-    // Vector search operation fields
     {
       id: 'functionName',
       title: 'Function Name',
@@ -485,7 +484,6 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '10',
       condition: { field: 'operation', value: 'vector_search' },
     },
-    // RPC operation fields
     {
       id: 'functionName',
       title: 'Function Name',
@@ -501,7 +499,43 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '{\n  "param1": "value1",\n  "param2": "value2"\n}',
       condition: { field: 'operation', value: 'rpc' },
     },
-    // Introspect operation fields
+    {
+      id: 'functionName',
+      title: 'Function Name',
+      type: 'short-input',
+      placeholder: 'hello-world',
+      condition: { field: 'operation', value: 'invoke_function' },
+      required: true,
+    },
+    {
+      id: 'method',
+      title: 'HTTP Method',
+      type: 'dropdown',
+      options: [
+        { label: 'POST', id: 'POST' },
+        { label: 'GET', id: 'GET' },
+        { label: 'PUT', id: 'PUT' },
+        { label: 'PATCH', id: 'PATCH' },
+        { label: 'DELETE', id: 'DELETE' },
+      ],
+      value: () => 'POST',
+      condition: { field: 'operation', value: 'invoke_function' },
+    },
+    {
+      id: 'functionBody',
+      title: 'Request Body (JSON)',
+      type: 'code',
+      placeholder: '{\n  "name": "world"\n}',
+      condition: { field: 'operation', value: 'invoke_function' },
+    },
+    {
+      id: 'functionHeaders',
+      title: 'Headers (JSON)',
+      type: 'code',
+      placeholder: '{\n  "x-custom-header": "value"\n}',
+      condition: { field: 'operation', value: 'invoke_function' },
+      mode: 'advanced',
+    },
     {
       id: 'schema',
       title: 'Schema',
@@ -509,7 +543,6 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: 'public (leave empty for all user schemas)',
       condition: { field: 'operation', value: 'introspect' },
     },
-    // Text Search operation fields
     {
       id: 'column',
       title: 'Column to Search',
@@ -559,7 +592,6 @@ Return ONLY the order by expression - no explanations, no extra text.`,
       placeholder: '0',
       condition: { field: 'operation', value: 'text_search' },
     },
-    // Count operation fields
     {
       id: 'filter',
       title: 'Filter (PostgREST syntax)',
@@ -639,7 +671,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       value: () => 'exact',
       condition: { field: 'operation', value: 'count' },
     },
-    // Storage bucket field (for all storage operations except list_buckets)
     {
       id: 'bucket',
       title: 'Bucket Name',
@@ -662,7 +693,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       },
       required: true,
     },
-    // Storage Upload fields
     {
       id: 'fileName',
       title: 'File Name',
@@ -707,6 +737,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_upload' },
     },
     {
+      id: 'cacheControl',
+      title: 'Cache Control (seconds)',
+      type: 'short-input',
+      placeholder: '3600',
+      condition: { field: 'operation', value: 'storage_upload' },
+      mode: 'advanced',
+    },
+    {
       id: 'upsert',
       title: 'Upsert (overwrite if exists)',
       type: 'dropdown',
@@ -717,7 +755,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       value: () => 'false',
       condition: { field: 'operation', value: 'storage_upload' },
     },
-    // Storage Download fields
     {
       id: 'path',
       title: 'File Path',
@@ -733,7 +770,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       placeholder: 'my-file.jpg',
       condition: { field: 'operation', value: 'storage_download' },
     },
-    // Storage List fields
     {
       id: 'path',
       title: 'Folder Path',
@@ -763,6 +799,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
         { label: 'Name', id: 'name' },
         { label: 'Created At', id: 'created_at' },
         { label: 'Updated At', id: 'updated_at' },
+        { label: 'Last Accessed At', id: 'last_accessed_at' },
       ],
       value: () => 'name',
       condition: { field: 'operation', value: 'storage_list' },
@@ -785,7 +822,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       placeholder: 'search term',
       condition: { field: 'operation', value: 'storage_list' },
     },
-    // Storage Delete fields
     {
       id: 'paths',
       title: 'File Paths (JSON array)',
@@ -794,7 +830,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_delete' },
       required: true,
     },
-    // Storage Move fields
     {
       id: 'fromPath',
       title: 'From Path',
@@ -811,7 +846,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_move' },
       required: true,
     },
-    // Storage Copy fields
     {
       id: 'fromPath',
       title: 'From Path',
@@ -828,7 +862,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_copy' },
       required: true,
     },
-    // Storage Get Public URL fields
     {
       id: 'path',
       title: 'File Path',
@@ -848,7 +881,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       value: () => 'false',
       condition: { field: 'operation', value: 'storage_get_public_url' },
     },
-    // Storage Create Signed URL fields
     {
       id: 'path',
       title: 'File Path',
@@ -876,7 +908,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       value: () => 'false',
       condition: { field: 'operation', value: 'storage_create_signed_url' },
     },
-    // Storage Create Bucket fields
     {
       id: 'isPublic',
       title: 'Public Bucket',
@@ -915,6 +946,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_text_search',
       'supabase_vector_search',
       'supabase_rpc',
+      'supabase_invoke_function',
       'supabase_introspect',
       'supabase_storage_upload',
       'supabase_storage_download',
@@ -951,6 +983,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_vector_search'
           case 'rpc':
             return 'supabase_rpc'
+          case 'invoke_function':
+            return 'supabase_invoke_function'
           case 'introspect':
             return 'supabase_introspect'
           case 'storage_upload':
@@ -991,22 +1025,21 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           upsert,
           download,
           fileData,
+          functionBody,
+          functionHeaders,
+          method,
           ...rest
         } = params
 
-        // Normalize file input for storage_upload operation
-        // fileData is the canonical param for both basic (file) and advanced (fileContent) modes
         const normalizedFileData = normalizeFileInput(fileData, {
           single: true,
         })
 
-        // Parse JSON data if it's a string
         let parsedData
         if (data && typeof data === 'string' && data.trim()) {
           try {
             parsedData = JSON.parse(data)
           } catch (parseError) {
-            // Provide more detailed error information
             const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid JSON data format: ${errorMsg}. Please check your JSON syntax (e.g., strings must be quoted like "value").`
@@ -1016,13 +1049,11 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedData = data
         }
 
-        // Handle filter - just pass through PostgREST syntax
         let parsedFilter
         if (filter && typeof filter === 'string' && filter.trim()) {
           parsedFilter = filter.trim()
         }
 
-        // Handle query embedding for vector search
         let parsedQueryEmbedding
         if (queryEmbedding && typeof queryEmbedding === 'string' && queryEmbedding.trim()) {
           try {
@@ -1037,7 +1068,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedQueryEmbedding = queryEmbedding
         }
 
-        // Handle RPC params
         let parsedRpcParams
         if (rpcParams && typeof rpcParams === 'string' && rpcParams.trim()) {
           try {
@@ -1052,7 +1082,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedRpcParams = rpcParams
         }
 
-        // Handle paths array for storage delete
         let parsedPaths
         if (paths && typeof paths === 'string' && paths.trim()) {
           try {
@@ -1067,7 +1096,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedPaths = paths
         }
 
-        // Handle allowedMimeTypes array
         let parsedAllowedMimeTypes
         if (allowedMimeTypes && typeof allowedMimeTypes === 'string' && allowedMimeTypes.trim()) {
           try {
@@ -1082,12 +1110,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedAllowedMimeTypes = allowedMimeTypes
         }
 
-        // Convert string booleans to actual booleans
         const parsedUpsert = upsert === 'true' || upsert === true
         const parsedDownload = download === 'true' || download === true
         const parsedIsPublic = rest.isPublic === 'true' || rest.isPublic === true
 
-        // Build params object, only including defined values
         const result = { ...rest }
 
         if (parsedData !== undefined) {
@@ -1104,6 +1130,54 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
         if (parsedRpcParams !== undefined) {
           result.params = parsedRpcParams
+        }
+
+        if (operation === 'invoke_function') {
+          if (method !== undefined) {
+            result.method = method
+          }
+
+          if (functionBody && typeof functionBody === 'string' && functionBody.trim()) {
+            try {
+              result.body = JSON.parse(functionBody)
+            } catch (parseError) {
+              const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
+              throw new Error(
+                `Invalid Edge Function body format: ${errorMsg}. Please provide a valid JSON object.`
+              )
+            }
+          } else if (functionBody && typeof functionBody === 'object') {
+            result.body = functionBody
+          }
+
+          if (functionHeaders) {
+            let parsedHeaders
+            if (typeof functionHeaders === 'string' && functionHeaders.trim()) {
+              try {
+                parsedHeaders = JSON.parse(functionHeaders)
+              } catch (parseError) {
+                const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
+                throw new Error(
+                  `Invalid Edge Function headers format: ${errorMsg}. Please provide a valid JSON object.`
+                )
+              }
+            } else if (typeof functionHeaders === 'object') {
+              parsedHeaders = functionHeaders
+            }
+
+            if (parsedHeaders !== undefined) {
+              if (
+                typeof parsedHeaders !== 'object' ||
+                parsedHeaders === null ||
+                Array.isArray(parsedHeaders)
+              ) {
+                throw new Error(
+                  'Edge Function headers must be a JSON object of header name to value (not an array).'
+                )
+              }
+              result.headers = parsedHeaders
+            }
+          }
         }
 
         if (parsedPaths !== undefined) {
@@ -1140,38 +1214,35 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     table: { type: 'string', description: 'Database table name' },
     select: { type: 'string', description: 'Columns to return (comma-separated, defaults to *)' },
     apiKey: { type: 'string', description: 'Service role secret key' },
-    // Data for insert/update operations
     data: { type: 'json', description: 'Row data' },
-    // Filter for operations
     filter: { type: 'string', description: 'PostgREST filter syntax' },
-    // Query operation inputs
     orderBy: { type: 'string', description: 'Sort column' },
     limit: { type: 'number', description: 'Result limit' },
     offset: { type: 'number', description: 'Number of rows to skip' },
-    // Vector search operation inputs
     functionName: {
       type: 'string',
-      description: 'PostgreSQL function name for vector search or RPC',
+      description:
+        'Function name — PostgreSQL function for RPC or vector search, or Edge Function name to invoke',
     },
     queryEmbedding: { type: 'array', description: 'Query vector/embedding for similarity search' },
     matchThreshold: { type: 'number', description: 'Minimum similarity threshold (0-1)' },
     matchCount: { type: 'number', description: 'Maximum number of similar results to return' },
-    // RPC operation inputs
     params: { type: 'json', description: 'Parameters to pass to RPC function' },
-    // Text search inputs
+    method: { type: 'string', description: 'HTTP method for the Edge Function request' },
+    body: { type: 'json', description: 'Request body to send to the Edge Function' },
+    headers: { type: 'json', description: 'Additional headers for the Edge Function request' },
+    onConflict: { type: 'string', description: 'Conflict target column(s) for upsert' },
     column: { type: 'string', description: 'Column name to search in' },
     query: { type: 'string', description: 'Search query' },
     searchType: { type: 'string', description: 'Search type: plain, phrase, or websearch' },
     language: { type: 'string', description: 'Language for text search' },
-    // Count operation inputs
     countType: { type: 'string', description: 'Count type: exact, planned, or estimated' },
-    // Introspect operation inputs
     schema: { type: 'string', description: 'Database schema to introspect (e.g., public)' },
-    // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
     path: { type: 'string', description: 'File or folder path in storage' },
     fileData: { type: 'json', description: 'File data (UserFile)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
+    cacheControl: { type: 'string', description: 'Cache-Control max-age in seconds for upload' },
     fileName: { type: 'string', description: 'File name for upload or download override' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },
     download: { type: 'boolean', description: 'Whether to force download' },
@@ -1225,6 +1296,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
 export const SupabaseBlockMeta = {
   tags: ['cloud', 'data-warehouse', 'vector-search'],
+  url: 'https://supabase.com',
   templates: [
     {
       icon: SupabaseIcon,
@@ -1323,6 +1395,12 @@ export const SupabaseBlockMeta = {
       description: 'Upload a file to a Supabase Storage bucket and return a public or signed URL.',
       content:
         '# Upload a File to Supabase Storage\n\nStore a generated or received file in a bucket and hand back a shareable link.\n\n## Steps\n1. Use Storage: Upload File with the bucket name, file name, and the file reference from a previous block.\n2. Set an optional Folder Path and Content Type, and enable Upsert if you want to overwrite an existing object.\n3. For a permanent link on a public bucket use Storage: Get Public URL with the file path.\n4. For private buckets use Storage: Create Signed URL with an Expires In value such as 3600 seconds.\n\n## Output\nReturn the stored object path plus the public or signed URL so later steps can reference or share the file.',
+    },
+    {
+      name: 'invoke-edge-function',
+      description: 'Call a deployed Supabase Edge Function over HTTP and use its JSON response.',
+      content:
+        '# Invoke a Supabase Edge Function\n\nRun server-side logic deployed as a Supabase Edge Function and feed its result into the workflow.\n\n## Steps\n1. Use the Invoke Edge Function operation with the project ID, service role secret, and the function name (for example hello-world).\n2. Choose the HTTP Method (defaults to POST) and provide a JSON Request Body the function expects.\n3. Add optional custom Headers as a JSON object when the function reads specific headers.\n4. This is different from Call RPC Function, which runs a PostgreSQL function inside the database rather than deployed function code.\n\n## Output\nReturn the function response body as JSON so downstream steps can branch on or transform the result.',
     },
   ],
 } as const satisfies BlockMeta

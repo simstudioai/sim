@@ -1,20 +1,23 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, workspace } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, sql } from 'drizzle-orm'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
   isHosted,
   isInvitationsDisabled,
   isPublicApiDisabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -82,6 +85,13 @@ export class PublicApiNotAllowedError extends Error {
   }
 }
 
+export class PublicFileSharingNotAllowedError extends Error {
+  constructor() {
+    super('Public file sharing is not allowed based on your permission group settings')
+    this.name = 'PublicFileSharingNotAllowedError'
+  }
+}
+
 /**
  * Merges the env allowlist into a permission config.
  * If `config` is null and no env allowlist is set, returns null.
@@ -110,9 +120,114 @@ function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGrou
 }
 
 /**
+ * The permission group that governs a user in a given context, with its parsed
+ * config. Shared by the executor path and the `/api/permission-groups/user`
+ * route so resolution never drifts between the two.
+ */
+export interface ResolvedPermissionGroup {
+  permissionGroupId: string
+  groupName: string
+  config: PermissionGroupConfig
+}
+
+/** The organization's single default group (`isDefault`), or `null`. */
+async function resolveDefaultGroup(
+  organizationId: string
+): Promise<ResolvedPermissionGroup | null> {
+  const [defaultGroup] = await db
+    .select({
+      id: permissionGroup.id,
+      name: permissionGroup.name,
+      config: permissionGroup.config,
+    })
+    .from(permissionGroup)
+    .where(
+      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
+    )
+    .limit(1)
+
+  if (!defaultGroup) {
+    return null
+  }
+
+  return {
+    permissionGroupId: defaultGroup.id,
+    groupName: defaultGroup.name,
+    config: parsePermissionGroupConfig(defaultGroup.config),
+  }
+}
+
+/**
+ * Resolve the group governing `userId` in `workspaceId` (which belongs to
+ * `organizationId`). One effective group per workspace, by precedence:
+ *   1. a non-default group targeting this workspace that `userId` is an explicit
+ *      member of, else
+ *   2. a non-default group targeting this workspace that has no explicit members
+ *      — governs all members of the workspace, including external members, else
+ *   3. the organization's default group (also governs external members), else
+ *   4. `null` (unrestricted).
+ *
+ * Assignment-time conflict checks keep this unambiguous: at most one all-members
+ * group per workspace, and a user is an explicit member of at most one group per
+ * workspace. If an overlap nonetheless exists, the oldest group wins — rows are
+ * ordered by `created_at` (then `id`).
+ *
+ * Callers gate on enterprise entitlement before invoking this and merge the env
+ * allowlist afterwards.
+ */
+export async function resolveWorkspaceGroup(
+  userId: string,
+  organizationId: string,
+  workspaceId: string
+): Promise<ResolvedPermissionGroup | null> {
+  const rows = await db
+    .select({
+      id: permissionGroup.id,
+      name: permissionGroup.name,
+      config: permissionGroup.config,
+      isMember: sql<boolean>`exists (
+        select 1 from ${permissionGroupMember}
+        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
+          and ${permissionGroupMember.userId} = ${userId}
+      )`,
+      hasMembers: sql<boolean>`exists (
+        select 1 from ${permissionGroupMember}
+        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
+      )`,
+    })
+    .from(permissionGroup)
+    .innerJoin(
+      permissionGroupWorkspace,
+      and(
+        eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id),
+        eq(permissionGroupWorkspace.workspaceId, workspaceId)
+      )
+    )
+    .where(
+      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, false))
+    )
+    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
+
+  const winner = rows.find((row) => row.isMember) ?? rows.find((row) => !row.hasMembers)
+
+  if (winner) {
+    return {
+      permissionGroupId: winner.id,
+      groupName: winner.name,
+      config: parsePermissionGroupConfig(winner.config),
+    }
+  }
+
+  return resolveDefaultGroup(organizationId)
+}
+
+/**
  * Resolve the effective permission-group config for a user in the context of a
- * specific workspace. Returns `null` when the workspace isn't on an enterprise
- * plan or the user isn't a member of any permission group in that workspace.
+ * specific workspace. The workspace is mapped to its organization and the
+ * governing group is resolved with specific-over-all precedence.
+ *
+ * Returns `null` (after env merge) when the workspace has no organization, the
+ * organization isn't on an enterprise plan, or no group governs the user.
  *
  * The env-level integration allowlist is always merged last so self-hosted
  * deployments can constrain integrations without touching the DB.
@@ -125,26 +240,74 @@ export async function getUserPermissionConfig(
     return mergeEnvAllowlist(null)
   }
 
-  const isEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
+  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  if (!ws?.organizationId) {
+    return mergeEnvAllowlist(null)
+  }
+
+  const isEnterprise = await isOrganizationOnEnterprisePlan(ws.organizationId)
   if (!isEnterprise) {
     return mergeEnvAllowlist(null)
   }
 
-  const [groupMembership] = await db
-    .select({ config: permissionGroup.config })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .where(
-      and(eq(permissionGroupMember.userId, userId), eq(permissionGroup.workspaceId, workspaceId))
-    )
-    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
-    .limit(1)
+  const resolved = await resolveWorkspaceGroup(userId, ws.organizationId, workspaceId)
+  return mergeEnvAllowlist(resolved?.config ?? null)
+}
 
-  if (!groupMembership) {
+/**
+ * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
+ * group for the workspace disables public file sharing, or — when `authType` is
+ * given — if that auth mode isn't in the group's `allowedFileShareAuthTypes`
+ * allow-list (`null` allows all). No-op when access control doesn't apply
+ * (non-enterprise / disabled), so non-governed orgs are unaffected.
+ */
+export async function validatePublicFileSharing(
+  userId: string,
+  workspaceId: string,
+  authType?: ShareAuthType
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (!config) {
+    return
+  }
+  if (config.disablePublicFileSharing) {
+    throw new PublicFileSharingNotAllowedError()
+  }
+  if (
+    authType &&
+    config.allowedFileShareAuthTypes !== null &&
+    !config.allowedFileShareAuthTypes.includes(authType)
+  ) {
+    logger.warn('File share auth type blocked by permission group', {
+      userId,
+      workspaceId,
+      authType,
+    })
+    throw new PublicFileSharingNotAllowedError()
+  }
+}
+
+/**
+ * Org-addressed variant of {@link getUserPermissionConfig}. Use when only the
+ * organization is known (e.g. organization-level invitations). Non-default
+ * groups target specific workspaces and never gate organization-level actions,
+ * so this resolves the organization's default group — which governs everyone not
+ * covered by a workspace group.
+ */
+export async function getUserPermissionConfigForOrganization(
+  organizationId: string
+): Promise<PermissionGroupConfig | null> {
+  if (!isHosted && !isAccessControlEnabled) {
     return mergeEnvAllowlist(null)
   }
 
-  return mergeEnvAllowlist(parsePermissionGroupConfig(groupMembership.config))
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  if (!isEnterprise) {
+    return mergeEnvAllowlist(null)
+  }
+
+  const resolved = await resolveDefaultGroup(organizationId)
+  return mergeEnvAllowlist(resolved?.config ?? null)
 }
 
 /**
@@ -229,7 +392,7 @@ export async function validateBlockType(
   blockType: string,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (blockType === 'start_trigger') {
+  if (isBlockTypeAccessControlExempt(blockType)) {
     return
   }
 
@@ -323,12 +486,10 @@ export async function validateSkillsAllowed(
 
 /**
  * Validates if the user is allowed to send invitations. Pass one of:
- *  - `workspaceId` — workspace-scoped invite: block when the user's group in that workspace has
- *    `disableInvitations`.
+ *  - `workspaceId` — workspace-scoped invite: block when the user's governing group (explicit or
+ *    org default) for the workspace's organization has `disableInvitations`.
  *  - `organizationId` — organization-level invite (no specific workspace target): block when the
- *    user has `disableInvitations` set on their group in any organization-owned workspace. This
- *    mirrors the pre-refactor behavior where `disableInvitations` was an organization-level
- *    policy.
+ *    user's group in that organization (explicit or the org default) has `disableInvitations`.
  *  - neither — only the global feature flag is checked.
  */
 export async function validateInvitationsAllowed(
@@ -357,25 +518,11 @@ export async function validateInvitationsAllowed(
   }
 
   if (organizationId) {
-    const [row] = await db
-      .select({ id: permissionGroup.id })
-      .from(permissionGroupMember)
-      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-      .innerJoin(workspace, eq(permissionGroup.workspaceId, workspace.id))
-      .where(
-        and(
-          eq(permissionGroupMember.userId, userId),
-          eq(workspace.organizationId, organizationId),
-          sql`${permissionGroup.config} @> '{"disableInvitations": true}'::jsonb`
-        )
-      )
-      .limit(1)
-
-    if (row) {
+    const config = await getUserPermissionConfigForOrganization(organizationId)
+    if (config?.disableInvitations) {
       logger.warn('Invitations blocked by permission group (organization-wide)', {
         userId,
         organizationId,
-        permissionGroupId: row.id,
       })
       throw new InvitationsNotAllowedError()
     }
@@ -436,10 +583,10 @@ interface PermissionAssertion {
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
   const { userId, workspaceId, model, blockType, toolKind, ctx } = req
 
-  if (blockType === 'start_trigger') {
-    if (!model && !toolKind) {
-      return
-    }
+  const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
+
+  if (blockTypeExempt && !model && !toolKind) {
+    return
   }
 
   const config =
@@ -467,7 +614,7 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
     }
   }
 
-  if (blockType && blockType !== 'start_trigger') {
+  if (blockType && !blockTypeExempt) {
     if (config && config.allowedIntegrations !== null) {
       if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
         const envAllowlist = getAllowedIntegrationsFromEnv()

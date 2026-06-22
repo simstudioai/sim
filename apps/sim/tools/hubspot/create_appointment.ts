@@ -34,7 +34,7 @@ export const hubspotCreateAppointmentTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Appointment properties as JSON object (e.g., {"hs_meeting_title": "Discovery Call", "hs_meeting_start_time": "2024-01-15T10:00:00Z", "hs_meeting_end_time": "2024-01-15T11:00:00Z"})',
+        'Appointment properties as JSON object (e.g., {"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"})',
     },
     associations: {
       type: 'array',
@@ -67,8 +67,18 @@ export const hubspotCreateAppointmentTool: ToolConfig<
         }
       }
       const body: Record<string, unknown> = { properties }
-      if (params.associations && params.associations.length > 0) {
-        body.associations = params.associations
+      let associations = params.associations
+      if (typeof associations === 'string') {
+        try {
+          associations = JSON.parse(associations)
+        } catch (e) {
+          throw new Error(
+            'Invalid JSON format for associations. Please provide a valid JSON array.'
+          )
+        }
+      }
+      if (Array.isArray(associations) && associations.length > 0) {
+        body.associations = associations
       }
       return body
     },

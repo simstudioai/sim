@@ -3,7 +3,7 @@ import type {
   SalesforceUpdateTaskResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceUpdateTaskTool: ToolConfig<
@@ -66,6 +66,18 @@ export const salesforceUpdateTaskTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Due date in YYYY-MM-DD format',
     },
+    whoId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Related Contact ID (003...) or Lead ID (00Q...)',
+    },
+    whatId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Related Account ID (001...) or Opportunity ID (006...)',
+    },
     description: {
       type: 'string',
       required: false,
@@ -75,8 +87,10 @@ export const salesforceUpdateTaskTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${params.taskId}`,
+    url: (params) => {
+      const taskId = requireId(params.taskId, 'Task ID')
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${taskId}`
+    },
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -88,6 +102,8 @@ export const salesforceUpdateTaskTool: ToolConfig<
       if (params.status) body.Status = params.status
       if (params.priority) body.Priority = params.priority
       if (params.activityDate) body.ActivityDate = params.activityDate
+      if (params.whoId) body.WhoId = params.whoId.trim()
+      if (params.whatId) body.WhatId = params.whatId.trim()
       if (params.description) body.Description = params.description
       return body
     },
@@ -96,12 +112,12 @@ export const salesforceUpdateTaskTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json()
-      throw new Error(data[0]?.message || data.message || 'Failed to update task')
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to update task'))
     }
     return {
       success: true,
       output: {
-        id: params?.taskId || '',
+        id: params?.taskId?.trim() || '',
         updated: true,
       },
     }

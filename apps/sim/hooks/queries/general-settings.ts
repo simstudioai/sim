@@ -9,6 +9,7 @@ import {
   updateUserSettingsContract,
 } from '@/lib/api/contracts'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
+import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 
 const logger = createLogger('GeneralSettingsQuery')
 
@@ -34,6 +35,8 @@ export interface GeneralSettings {
   errorNotificationsEnabled: boolean
   snapToGridSize: number
   showActionBar: boolean
+  /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
+  timezone: string | null
 }
 
 /**
@@ -52,6 +55,7 @@ export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettin
     errorNotificationsEnabled: data.errorNotificationsEnabled,
     snapToGridSize: data.snapToGridSize,
     showActionBar: data.showActionBar,
+    timezone: data.timezone ?? null,
   }
 }
 
@@ -128,6 +132,16 @@ export function useBillingUsageNotifications(): boolean {
 export function useErrorNotificationsEnabled(): boolean {
   const { data } = useGeneralSettings()
   return data?.errorNotificationsEnabled ?? true
+}
+
+/**
+ * The user's effective scheduling timezone: their saved preference, or the
+ * browser-detected zone when unset. Use this wherever a task's timezone is
+ * captured so scheduling honors the account preference rather than the device.
+ */
+export function useTimezone(): string {
+  const { data } = useGeneralSettings()
+  return data?.timezone ?? getBrowserTimezone()
 }
 
 /**

@@ -875,6 +875,117 @@ describe('EdgeManager', () => {
     })
   })
 
+  describe('deactivateResumedEdge', () => {
+    it('prunes a resumed pause block error edge without firing the error target', () => {
+      // Models the HITL-resume bug: a pause block and a regular block both feed
+      // an error-notifier via `error` handles. On a fully successful run the
+      // notifier must never run.
+      const pauseId = 'pause-block'
+      const regularId = 'regular-block'
+      const notifyId = 'error-notify'
+
+      const pauseNode = createMockNode(
+        pauseId,
+        [
+          { target: 'next', sourceHandle: EDGE.SOURCE },
+          { target: notifyId, sourceHandle: EDGE.ERROR },
+        ],
+        []
+      )
+      const regularNode = createMockNode(regularId, [
+        { target: notifyId, sourceHandle: EDGE.ERROR },
+      ])
+      const notifyNode = createMockNode(notifyId, [], [pauseId, regularId])
+
+      const dag = createMockDAG(
+        new Map<string, DAGNode>([
+          [pauseId, pauseNode],
+          [regularId, regularNode],
+          [notifyId, notifyNode],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      // Resume releases the pause block's error edge as deactivated.
+      edgeManager.deactivateResumedEdge(pauseId, notifyId, EDGE.ERROR)
+
+      expect(edgeManager.getDeactivatedEdges()).toContain(
+        JSON.stringify([pauseId, notifyId, EDGE.ERROR])
+      )
+      expect(edgeManager.getNodesWithActivatedEdge()).not.toContain(notifyId)
+
+      // The regular block then completes successfully → its error edge deactivates too.
+      const readyNodes = edgeManager.processOutgoingEdges(regularNode, { result: 'ok' })
+
+      // With no error edge ever activated, the notifier is never scheduled.
+      expect(readyNodes).not.toContain(notifyId)
+      expect(edgeManager.getNodesWithActivatedEdge()).not.toContain(notifyId)
+    })
+
+    it('still fires the error target when a real upstream block errors', () => {
+      // Same topology, but here the regular block genuinely errors — the notifier
+      // must fire even though the pause block's error edge was pruned on resume.
+      const pauseId = 'pause-block'
+      const regularId = 'regular-block'
+      const notifyId = 'error-notify'
+
+      const regularNode = createMockNode(regularId, [
+        { target: notifyId, sourceHandle: EDGE.ERROR },
+      ])
+      const notifyNode = createMockNode(notifyId, [], [pauseId, regularId])
+
+      const dag = createMockDAG(
+        new Map<string, DAGNode>([
+          [regularId, regularNode],
+          [notifyId, notifyNode],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.deactivateResumedEdge(pauseId, notifyId, EDGE.ERROR)
+
+      const readyNodes = edgeManager.processOutgoingEdges(regularNode, { error: 'boom' })
+
+      expect(readyNodes).toContain(notifyId)
+      expect(edgeManager.getNodesWithActivatedEdge()).toContain(notifyId)
+    })
+
+    it('leaves a convergence join ready+activated after pruning a pause error edge', () => {
+      // Join `C` is fed by `B.source` (succeeds) and `P.error` (pause block).
+      // After B activates and P's error edge is pruned on resume, C must be both
+      // activated and ready so the engine re-queues it.
+      const sourceId = 'block-b'
+      const pauseId = 'pause-block'
+      const joinId = 'join-c'
+
+      const sourceNode = createMockNode(sourceId, [{ target: joinId, sourceHandle: EDGE.SOURCE }])
+      const pauseNode = createMockNode(pauseId, [{ target: joinId, sourceHandle: EDGE.ERROR }])
+      const joinNode = createMockNode(joinId, [], [sourceId, pauseId])
+
+      const edgeManager = new EdgeManager(
+        createMockDAG(
+          new Map<string, DAGNode>([
+            [sourceId, sourceNode],
+            [pauseId, pauseNode],
+            [joinId, joinNode],
+          ])
+        )
+      )
+
+      // Phase 1: B succeeds → activates B→C, but C still waits on the pause edge.
+      const readyAfterB = edgeManager.processOutgoingEdges(sourceNode, { result: 'ok' })
+      expect(readyAfterB).not.toContain(joinId)
+      expect(edgeManager.hasActivatedEdge(joinId)).toBe(true)
+      expect(edgeManager.isNodeReady(joinNode)).toBe(false)
+
+      // Resume: pause block's error edge is pruned → C is now ready (and stays
+      // activated), which is exactly the state the engine uses to re-queue it.
+      edgeManager.deactivateResumedEdge(pauseId, joinId, EDGE.ERROR)
+      expect(edgeManager.hasActivatedEdge(joinId)).toBe(true)
+      expect(edgeManager.isNodeReady(joinNode)).toBe(true)
+    })
+  })
+
   describe('Diamond pattern (convergent paths)', () => {
     it('should handle diamond: condition splits then converges at merge point', () => {
       const conditionId = 'condition-1'

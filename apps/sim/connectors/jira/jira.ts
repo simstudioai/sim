@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
@@ -104,59 +104,7 @@ function issueToFullDocument(issue: Record<string, unknown>, domain: string): Ex
 }
 
 export const jiraConnector: ConnectorConfig = {
-  id: 'jira',
-  name: 'Jira',
-  description: 'Sync issues from a Jira project',
-  version: '1.0.0',
-  icon: JiraIcon,
-
-  auth: { mode: 'oauth', provider: 'jira', requiredScopes: ['read:jira-work', 'offline_access'] },
-
-  configFields: [
-    {
-      id: 'domain',
-      title: 'Jira Domain',
-      type: 'short-input',
-      placeholder: 'yoursite.atlassian.net',
-      required: true,
-    },
-    {
-      id: 'projectSelector',
-      title: 'Projects',
-      type: 'selector',
-      selectorKey: 'jira.projects',
-      canonicalParamId: 'projectKey',
-      mode: 'basic',
-      multi: true,
-      dependsOn: ['domain'],
-      placeholder: 'Select one or more projects',
-      required: true,
-    },
-    {
-      id: 'projectKey',
-      title: 'Project Keys',
-      type: 'short-input',
-      canonicalParamId: 'projectKey',
-      mode: 'advanced',
-      multi: true,
-      placeholder: 'e.g. ENG, PROJ (comma-separated for multiple)',
-      required: true,
-    },
-    {
-      id: 'jql',
-      title: 'JQL Filter',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. status = "Done" AND type = Bug',
-    },
-    {
-      id: 'maxIssues',
-      title: 'Max Issues',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...jiraConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -388,15 +336,6 @@ export const jiraConnector: ConnectorConfig = {
       return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
-
-  tagDefinitions: [
-    { id: 'issueType', displayName: 'Issue Type', fieldType: 'text' },
-    { id: 'status', displayName: 'Status', fieldType: 'text' },
-    { id: 'priority', displayName: 'Priority', fieldType: 'text' },
-    { id: 'labels', displayName: 'Labels', fieldType: 'text' },
-    { id: 'assignee', displayName: 'Assignee', fieldType: 'text' },
-    { id: 'updated', displayName: 'Last Updated', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

@@ -8,12 +8,14 @@ import {
   deleteWorkspaceContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
+  getWorkspaceOwnerBillingContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
   updateWorkspaceContract,
   type Workspace,
   type WorkspaceCreationPolicy,
   type WorkspaceMember,
+  type WorkspaceOwnerBilling,
   type WorkspacePermissions,
   type WorkspaceQueryScope,
   type WorkspacesResponse,
@@ -33,6 +35,7 @@ export const workspaceKeys = {
   settings: (id: string) => [...workspaceKeys.detail(id), 'settings'] as const,
   permissions: (id: string) => [...workspaceKeys.detail(id), 'permissions'] as const,
   members: (id: string) => [...workspaceKeys.detail(id), 'members'] as const,
+  ownerBilling: (id: string) => [...workspaceKeys.detail(id), 'ownerBilling'] as const,
   adminLists: () => [...workspaceKeys.all, 'adminList'] as const,
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
@@ -105,6 +108,36 @@ export function useWorkspaceCreationPolicy(enabled = true) {
     select: (data) => data.creationPolicy,
     enabled,
     staleTime: 30 * 1000,
+  })
+}
+
+async function fetchWorkspaceOwnerBilling(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceOwnerBilling> {
+  return requestJson(getWorkspaceOwnerBillingContract, {
+    params: { id: workspaceId },
+    signal,
+  })
+}
+
+/**
+ * Subscription access state of the workspace's billed account (its owner's
+ * rolled-up plan) — the workspace-scoped counterpart to `useSubscriptionData`.
+ * Feed the result to `getSubscriptionAccessState` to gate workspace features on
+ * the owner's plan rather than the viewer's, so a free member of a paid workspace
+ * isn't gated.
+ *
+ * `staleTime: 0` so consumers (e.g. the deploy modal) refetch on mount: a plan
+ * change happens outside this query's invalidation graph, and the cached value is
+ * shown during the background refetch (no flash), so gates self-heal on reopen.
+ */
+export function useWorkspaceOwnerBilling(workspaceId?: string) {
+  return useQuery({
+    queryKey: workspaceKeys.ownerBilling(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchWorkspaceOwnerBilling(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 0,
   })
 }
 

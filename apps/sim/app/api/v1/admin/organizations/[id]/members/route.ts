@@ -39,7 +39,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {

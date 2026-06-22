@@ -3,7 +3,15 @@
  */
 
 import { generateShortId } from '@sim/utils/id'
-import type { Filter, FilterRule, JsonValue, Sort, SortDirection, SortRule } from '../types'
+import { isRecordLike } from '@sim/utils/object'
+import type {
+  Filter,
+  FilterRule,
+  JsonValue,
+  Sort,
+  SortDirection,
+  SortRule,
+} from '@/lib/table/types'
 
 /** Converts UI filter rules to a Filter object for API queries. */
 export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
@@ -13,14 +21,20 @@ export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
   let currentGroup: Filter = {}
 
   for (const rule of rules) {
+    // Honor the OR boundary before skipping incomplete rows, so an incomplete
+    // `or` row between two valid conditions still starts a new group.
     const isOr = rule.logicalOperator === 'or'
-    const ruleValue = toRuleValue(rule.operator, rule.value)
-
     if (isOr && Object.keys(currentGroup).length > 0) {
       orGroups.push({ ...currentGroup })
       currentGroup = {}
     }
 
+    // Skip incomplete rows (no column selected) so a blank builder row never
+    // serializes to a `{ '': ... }` predicate. The OR boundary above is still
+    // applied; the row just contributes no condition.
+    if (!rule.column) continue
+
+    const ruleValue = toRuleValue(rule.operator, rule.value)
     const existing = currentGroup[rule.column]
     currentGroup[rule.column] =
       existing === undefined
@@ -162,7 +176,7 @@ function parseFilterGroup(group: Filter): FilterRule[] {
   for (const [column, value] of Object.entries(group)) {
     if (column === '$or' || column === '$and') continue
 
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (isRecordLike(value)) {
       for (const [op, opValue] of Object.entries(value)) {
         if (!op.startsWith('$')) continue
         // `$empty` is a valueless boolean operator — map it back to the two

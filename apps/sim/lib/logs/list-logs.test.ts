@@ -50,6 +50,17 @@ vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
+// listLogs gates workspace access at entry; the resolver is tested separately.
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: vi.fn(async () => ({
+    exists: true,
+    hasAccess: true,
+    canWrite: true,
+    canAdmin: true,
+    workspace: { id: 'ws-1', name: 'Test', ownerId: 'user-1', organizationId: null },
+  })),
+}))
+
 import type { ListLogsParams } from './list-logs'
 import { decodeCursor, listLogs } from './list-logs'
 

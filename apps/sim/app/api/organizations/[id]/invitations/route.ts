@@ -10,6 +10,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -26,6 +27,7 @@ import {
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { grantWorkspaceAccessDirectly } from '@/lib/invitations/direct-grant'
 import {
   cancelPendingInvitation,
   createPendingInvitation,
@@ -78,7 +80,7 @@ export const GET = withRouteHandler(
       }
 
       const userRole = memberEntry.role
-      if (!['owner', 'admin'].includes(userRole)) {
+      if (!isOrgAdminRole(userRole)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
@@ -148,7 +150,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      if (!['owner', 'admin'].includes(memberEntry.role)) {
+      if (!isOrgAdminRole(memberEntry.role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
@@ -188,6 +190,7 @@ export const POST = withRouteHandler(
       }
 
       const validGrants: WorkspaceGrantPayload[] = []
+      const workspaceNameById = new Map<string, string>()
       if (isBatch) {
         if (!Array.isArray(workspaceInvitations) || workspaceInvitations.length === 0) {
           return NextResponse.json(
@@ -214,6 +217,7 @@ export const POST = withRouteHandler(
           const [workspaceEntry] = await db
             .select({
               id: workspace.id,
+              name: workspace.name,
               organizationId: workspace.organizationId,
               workspaceMode: workspace.workspaceMode,
             })
@@ -241,6 +245,7 @@ export const POST = withRouteHandler(
 
           await validateInvitationsAllowed(session.user.id, wsInvitation.workspaceId)
 
+          workspaceNameById.set(workspaceEntry.id, workspaceEntry.name)
           validGrants.push({
             workspaceId: wsInvitation.workspaceId,
             permission: wsInvitation.permission,
@@ -422,65 +427,45 @@ export const POST = withRouteHandler(
         .limit(1)
       const inviterName = inviterRow?.name || inviterRow?.email || 'A user'
 
-      /**
-       * Organization invitations (new emails, all selected grants) and
-       * workspace invitations (existing members, only the grants they lack)
-       * share one create/send/rollback pipeline; they differ only in `kind`,
-       * grants, and audit treatment.
-       */
-      const pendingSends = [
-        ...emailsToInvite.map((email) => ({
-          kind: 'organization' as const,
-          email,
-          grants: validGrants,
-        })),
-        ...memberWorkspaceInvites.map((memberInvite) => ({
-          kind: 'workspace' as const,
-          email: memberInvite.email,
-          grants: memberInvite.grants,
-        })),
-      ]
-
-      const sentInvitations: Array<{
-        id: string
-        email: string
-        kind: 'organization' | 'workspace'
-        workspaceIds: string[]
-      }> = []
       const failedInvitations: Array<{ email: string; error: string }> = []
 
-      for (const send of pendingSends) {
-        const sendRole = send.kind === 'organization' ? role : 'member'
+      /**
+       * Brand-new emails receive an organization invitation (with all selected
+       * workspace grants) that still requires acceptance — accepting is what
+       * joins them to the org and consumes a seat.
+       */
+      const sentInvitations: Array<{ id: string; email: string; workspaceIds: string[] }> = []
+
+      for (const email of emailsToInvite) {
         try {
           const { invitationId, token } = await createPendingInvitation({
-            kind: send.kind,
-            email: send.email,
+            kind: 'organization',
+            email,
             inviterId: session.user.id,
             organizationId,
             membershipIntent: 'internal',
-            role: sendRole,
-            grants: send.grants,
+            role,
+            grants: validGrants,
           })
 
           const emailResult = await sendInvitationEmail({
             invitationId,
             token,
-            kind: send.kind,
-            email: send.email,
+            kind: 'organization',
+            email,
             inviterName,
             organizationId,
-            organizationRole: sendRole,
-            grants: send.grants,
+            organizationRole: role,
+            grants: validGrants,
           })
 
           if (!emailResult.success) {
             logger.error('Failed to send invitation email', {
-              kind: send.kind,
-              email: send.email,
+              email,
               error: emailResult.error,
             })
             failedInvitations.push({
-              email: send.email,
+              email,
               error: emailResult.error || 'Unknown email delivery error',
             })
             await cancelPendingInvitation(invitationId)
@@ -489,76 +474,98 @@ export const POST = withRouteHandler(
 
           sentInvitations.push({
             id: invitationId,
-            email: send.email,
-            kind: send.kind,
-            workspaceIds: send.grants.map((grant) => grant.workspaceId),
+            email,
+            workspaceIds: validGrants.map((grant) => grant.workspaceId),
           })
         } catch (creationError) {
           logger.error('Failed to create invitation', {
-            kind: send.kind,
-            email: send.email,
+            email,
             error: creationError,
           })
           failedInvitations.push({
-            email: send.email,
+            email,
             error: getErrorMessage(creationError, 'Failed to create invitation'),
           })
         }
       }
 
-      for (const inv of sentInvitations) {
-        if (inv.kind === 'organization') {
-          recordAudit({
-            workspaceId: null,
-            actorId: session.user.id,
-            action: AuditAction.ORG_INVITATION_CREATED,
-            resourceType: AuditResourceType.ORGANIZATION,
-            resourceId: organizationId,
-            actorName: session.user.name ?? undefined,
-            actorEmail: session.user.email ?? undefined,
-            resourceName: organizationEntry.name,
-            description: `Invited ${inv.email} to organization as ${role}`,
-            metadata: {
-              invitationId: inv.id,
-              targetEmail: inv.email,
-              targetRole: role,
-              isBatch,
-              workspaceGrantCount: validGrants.length,
-              enforcedFixedSeats: enforceFixedSeats,
-              plan: orgSubscription?.plan ?? null,
-            },
-            request,
-          })
-          continue
+      /**
+       * Existing organization members are granted workspace access directly —
+       * no invitation, no acceptance step. They are already in the org, so no
+       * seat is consumed. The grant is idempotent and upgrades lower access.
+       */
+      const directlyAdded: string[] = []
+
+      for (const memberInvite of memberWorkspaceInvites) {
+        const memberUserId = memberUserIdByEmail.get(memberInvite.email)
+        if (!memberUserId) continue
+
+        let addedAny = false
+        let lastGrantError: string | null = null
+        for (const grant of memberInvite.grants) {
+          try {
+            const grantResult = await grantWorkspaceAccessDirectly({
+              userId: memberUserId,
+              email: memberInvite.email,
+              workspaceId: grant.workspaceId,
+              workspaceName: workspaceNameById.get(grant.workspaceId) ?? 'a workspace',
+              permission: grant.permission,
+              organizationId,
+              actorId: session.user.id,
+              actorName: inviterName,
+              actorEmail: session.user.email,
+              request,
+            })
+
+            if (grantResult.outcome === 'added') addedAny = true
+          } catch (grantError) {
+            logger.error('Failed to grant workspace access directly', {
+              email: memberInvite.email,
+              workspaceId: grant.workspaceId,
+              error: grantError,
+            })
+            lastGrantError = getErrorMessage(grantError, 'Failed to add member to workspace')
+          }
         }
 
-        for (const workspaceId of inv.workspaceIds) {
-          recordAudit({
-            workspaceId,
-            actorId: session.user.id,
-            action: AuditAction.MEMBER_INVITED,
-            resourceType: AuditResourceType.WORKSPACE,
-            resourceId: workspaceId,
-            actorName: session.user.name ?? undefined,
-            actorEmail: session.user.email ?? undefined,
-            resourceName: inv.email,
-            description: `Invited existing organization member ${inv.email} to workspace`,
-            metadata: {
-              invitationId: inv.id,
-              targetEmail: inv.email,
-              organizationId,
-              isBatch,
-            },
-            request,
-          })
+        if (addedAny) {
+          directlyAdded.push(memberInvite.email)
+        } else if (lastGrantError) {
+          failedInvitations.push({ email: memberInvite.email, error: lastGrantError })
         }
       }
 
-      const sentOrgInvitations = sentInvitations.filter((inv) => inv.kind === 'organization')
+      for (const inv of sentInvitations) {
+        recordAudit({
+          workspaceId: null,
+          actorId: session.user.id,
+          action: AuditAction.ORG_INVITATION_CREATED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: organizationId,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          resourceName: organizationEntry.name,
+          description: `Invited ${inv.email} to organization as ${role}`,
+          metadata: {
+            invitationId: inv.id,
+            targetEmail: inv.email,
+            targetRole: role,
+            isBatch,
+            workspaceGrantCount: validGrants.length,
+            enforcedFixedSeats: enforceFixedSeats,
+            plan: orgSubscription?.plan ?? null,
+          },
+          request,
+        })
+      }
+
       const totalInvitationsSent = sentInvitations.length
+      const totalSucceeded = totalInvitationsSent + directlyAdded.length
       const responseData = {
         invitationsSent: totalInvitationsSent,
         invitedEmails: sentInvitations.map((inv) => inv.email),
+        directlyAdded,
+        directlyAddedCount: directlyAdded.length,
         failedInvitations,
         existingMembers: membersAlreadyCovered,
         pendingInvitations: processedEmails.filter(
@@ -571,20 +578,25 @@ export const POST = withRouteHandler(
         ...(seatValidation
           ? {
               seatInfo: {
-                seatsUsed: seatValidation.currentSeats + sentOrgInvitations.length,
+                seatsUsed: seatValidation.currentSeats + totalInvitationsSent,
                 maxSeats: seatValidation.maxSeats,
-                availableSeats: seatValidation.availableSeats - sentOrgInvitations.length,
+                availableSeats: seatValidation.availableSeats - totalInvitationsSent,
               },
             }
           : {}),
       }
 
-      if (failedInvitations.length > 0 && totalInvitationsSent === 0) {
+      const summaryParts: string[] = []
+      if (totalInvitationsSent > 0) summaryParts.push(`${totalInvitationsSent} invitation(s) sent`)
+      if (directlyAdded.length > 0) summaryParts.push(`${directlyAdded.length} member(s) added`)
+      const summary = summaryParts.join(', ')
+
+      if (failedInvitations.length > 0 && totalSucceeded === 0) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Failed to send invitation emails.',
-            message: 'No invitation emails could be delivered.',
+            error: 'Failed to send invitations.',
+            message: 'No invitations could be delivered.',
             data: responseData,
           },
           { status: 502 }
@@ -595,8 +607,8 @@ export const POST = withRouteHandler(
         return NextResponse.json(
           {
             success: false,
-            error: 'Some invitation emails failed to send.',
-            message: `${totalInvitationsSent} invitation(s) sent, ${failedInvitations.length} failed`,
+            error: 'Some invitations failed.',
+            message: `${summary}, ${failedInvitations.length} failed`,
             data: responseData,
           },
           { status: 207 }
@@ -605,7 +617,7 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({
         success: true,
-        message: `${totalInvitationsSent} invitation(s) sent successfully`,
+        message: `${summary || 'No changes'} successfully`,
         data: responseData,
       })
     } catch (error) {

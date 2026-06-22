@@ -1,17 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
+import { member, permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   checkWorkspaceAccess,
@@ -114,7 +113,10 @@ export const PATCH = withRouteHandler(
       const body = parsed.data.body
 
       const workspaceRow = await db
-        .select({ billedAccountUserId: workspace.billedAccountUserId })
+        .select({
+          billedAccountUserId: workspace.billedAccountUserId,
+          organizationId: workspace.organizationId,
+        })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
         .limit(1)
@@ -124,6 +126,27 @@ export const PATCH = withRouteHandler(
       }
 
       const billedAccountUserId = workspaceRow[0].billedAccountUserId
+      const organizationId = workspaceRow[0].organizationId
+
+      if (organizationId) {
+        const targetUserIds = body.updates.map((update) => update.userId)
+        const orgAdminTargets = await db
+          .select({ userId: member.userId })
+          .from(member)
+          .where(
+            and(
+              eq(member.organizationId, organizationId),
+              inArray(member.userId, targetUserIds),
+              inArray(member.role, [...ORG_ADMIN_ROLES])
+            )
+          )
+        if (orgAdminTargets.length > 0) {
+          return NextResponse.json(
+            { error: 'Organization admins are workspace admins and their role cannot be changed' },
+            { status: 400 }
+          )
+        }
+      }
 
       const selfUpdate = body.updates.find((update) => update.userId === session.user.id)
       if (selfUpdate && selfUpdate.permissions !== 'admin') {
@@ -160,16 +183,8 @@ export const PATCH = withRouteHandler(
         existingPerms.map((p) => [p.userId, { permission: p.permissionType, email: p.email }])
       )
 
-      // Resolved before the transaction: the entitlement check reads billing
-      // tables on the global pool and must not run while the tx holds a
-      // pooled connection.
-      const hasNewMembers = body.updates.some((update) => !permLookup.has(update.userId))
-      const autoAddEntitled = hasNewMembers ? await isWorkspaceOnEnterprisePlan(workspaceId) : false
-
       await db.transaction(async (tx) => {
         for (const update of body.updates) {
-          const isNew = !permLookup.has(update.userId)
-
           await tx
             .delete(permissions)
             .where(
@@ -189,10 +204,6 @@ export const PATCH = withRouteHandler(
             createdAt: new Date(),
             updatedAt: new Date(),
           })
-
-          if (isNew) {
-            await applyWorkspaceAutoAddGroup(tx, workspaceId, update.userId, autoAddEntitled)
-          }
         }
       })
 

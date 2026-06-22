@@ -202,6 +202,7 @@ Return ONLY the date string in YYYY-MM format - no explanations, no quotes, no e
 
 export const SimilarwebBlockMeta = {
   tags: ['marketing', 'data-analytics', 'seo'],
+  url: 'https://www.similarweb.com',
   templates: [
     {
       icon: SimilarwebIcon,

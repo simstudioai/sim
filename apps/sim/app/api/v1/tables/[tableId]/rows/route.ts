@@ -31,7 +31,7 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
-import { queryRows } from '@/lib/table/service'
+import { queryRows } from '@/lib/table/rows/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {

@@ -1,16 +1,18 @@
 import { db } from '@sim/db'
+import { member, permissions, user, type WorkspaceMode, workspace } from '@sim/db/schema'
 import {
-  member,
-  permissions,
-  type permissionTypeEnum,
-  user,
-  type WorkspaceMode,
-  workspace,
-} from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+  isOrgAdminRole,
+  ORG_ADMIN_ROLES,
+  PERMISSION_RANK,
+  type PermissionType,
+  permissionSatisfies,
+  resolveEffectiveWorkspacePermission,
+} from '@sim/platform-authz/workspace'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { getOrgAdminWorkspaceRows } from '@/lib/workspaces/utils'
 
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+export type { PermissionType }
 export interface WorkspaceBasic {
   id: string
 }
@@ -29,6 +31,7 @@ export interface WorkspaceAccess {
   exists: boolean
   hasAccess: boolean
   canWrite: boolean
+  canAdmin: boolean
   workspace: WorkspaceWithOwner | null
 }
 
@@ -103,10 +106,31 @@ export async function getWorkspaceWithOwner(
 }
 
 /**
+ * Resolve the effective workspace permission for a user under the governance
+ * inheritance model: the owners/admins of the organization that owns the
+ * workspace are derived workspace admins. Returns the higher of any explicit
+ * grant and the org-admin derivation. The workspace owner is not special-cased —
+ * they always hold an explicit `admin` row, so the resolver's lookup covers them.
+ *
+ * Delegates to the shared resolver in `@sim/platform-authz/workspace` so the
+ * rule has a single source of truth shared with the realtime server.
+ *
+ * @param userId - The user to resolve the permission for
+ * @param ws - The workspace (organization already loaded)
+ */
+export async function getEffectiveWorkspacePermission(
+  userId: string,
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
+): Promise<PermissionType | null> {
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
+}
+
+/**
  * Check workspace access for a user
  *
  * Verifies the workspace exists and the user has access to it.
- * Returns access level (read/write) based on ownership and permissions.
+ * Returns access level (read/write) based on ownership, explicit permissions,
+ * and organization-admin inheritance.
  *
  * @param workspaceId - The workspace ID to check
  * @param userId - The user ID to check access for
@@ -119,33 +143,15 @@ export async function checkWorkspaceAccess(
   const ws = await getWorkspaceWithOwner(workspaceId)
 
   if (!ws) {
-    return { exists: false, hasAccess: false, canWrite: false, workspace: null }
+    return { exists: false, hasAccess: false, canWrite: false, canAdmin: false, workspace: null }
   }
 
-  if (ws.ownerId === userId) {
-    return { exists: true, hasAccess: true, canWrite: true, workspace: ws }
-  }
+  const permission = await getEffectiveWorkspacePermission(userId, ws)
+  const hasAccess = permission !== null
+  const canWrite = permissionSatisfies(permission, 'write')
+  const canAdmin = permissionSatisfies(permission, 'admin')
 
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  if (!permissionRow) {
-    return { exists: true, hasAccess: false, canWrite: false, workspace: ws }
-  }
-
-  const canWrite =
-    permissionRow.permissionType === 'write' || permissionRow.permissionType === 'admin'
-
-  return { exists: true, hasAccess: true, canWrite, workspace: ws }
+  return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws }
 }
 
 /**
@@ -194,10 +200,11 @@ export async function getUserEntityPermissions(
   entityId: string
 ): Promise<PermissionType | null> {
   if (entityType === 'workspace') {
-    const activeWorkspace = await workspaceExists(entityId)
-    if (!activeWorkspace) {
+    const ws = await getWorkspaceWithOwner(entityId)
+    if (!ws) {
       return null
     }
+    return getEffectiveWorkspacePermission(userId, ws)
   }
 
   const result = await db
@@ -215,38 +222,13 @@ export async function getUserEntityPermissions(
     return null
   }
 
-  const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
   const highestPermission = result.reduce((highest, current) => {
-    return permissionOrder[current.permissionType] > permissionOrder[highest.permissionType]
+    return PERMISSION_RANK[current.permissionType] > PERMISSION_RANK[highest.permissionType]
       ? current
       : highest
   })
 
   return highestPermission.permissionType
-}
-
-/**
- * Check if a user has admin permission for a specific workspace
- *
- * @param userId - The ID of the user to check
- * @param workspaceId - The ID of the workspace to check
- * @returns Promise<boolean> - True if the user has admin permission for the workspace, false otherwise
- */
-export async function hasAdminPermission(userId: string, workspaceId: string): Promise<boolean> {
-  const result = await db
-    .select({ id: permissions.id })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId),
-        eq(permissions.permissionType, 'admin')
-      )
-    )
-    .limit(1)
-
-  return result.length > 0
 }
 
 /**
@@ -261,18 +243,30 @@ export async function hasAdminPermission(userId: string, workspaceId: string): P
  * @param workspaceId - The ID of the workspace to retrieve user permissions for.
  * @returns A promise that resolves to an array of user objects, each containing user details and their permission type.
  */
-export async function getUsersWithPermissions(workspaceId: string): Promise<
-  Array<{
-    userId: string
-    email: string
-    name: string
-    image: string | null
-    permissionType: PermissionType
-    isExternal: boolean
-    joinedAt: string
-  }>
-> {
-  const usersWithPermissions = await db
+export type MemberRoleSource = 'owner' | 'explicit' | 'org-admin'
+
+export interface WorkspaceMemberWithRole {
+  userId: string
+  email: string
+  name: string
+  image: string | null
+  permissionType: PermissionType
+  isExternal: boolean
+  joinedAt: string
+  /**
+   * Where the effective role comes from. `org-admin` and `owner` roles are
+   * derived and cannot be changed through the member UI.
+   */
+  roleSource: MemberRoleSource
+}
+
+export async function getUsersWithPermissions(
+  workspaceId: string
+): Promise<WorkspaceMemberWithRole[]> {
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws) return []
+
+  const explicitRows = await db
     .select({
       userId: user.id,
       email: user.email,
@@ -280,33 +274,72 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       image: user.image,
       permissionType: permissions.permissionType,
       joinedAt: permissions.createdAt,
-      workspaceOrganizationId: workspace.organizationId,
-      workspaceOwnerId: workspace.ownerId,
       userOrganizationId: member.organizationId,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
     .leftJoin(member, eq(member.userId, user.id))
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId),
-        isNull(workspace.archivedAt)
-      )
-    )
-    .orderBy(user.email)
+    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
 
-  return usersWithPermissions.map((row) => ({
-    userId: row.userId,
-    email: row.email,
-    name: row.name,
-    image: row.image ?? null,
-    permissionType: row.permissionType,
-    isExternal:
-      row.userId !== row.workspaceOwnerId && row.userOrganizationId !== row.workspaceOrganizationId,
-    joinedAt: row.joinedAt.toISOString(),
-  }))
+  const byUser = new Map<string, WorkspaceMemberWithRole>()
+
+  for (const row of explicitRows) {
+    const isOwner = row.userId === ws.ownerId
+    byUser.set(row.userId, {
+      userId: row.userId,
+      email: row.email,
+      name: row.name,
+      image: row.image ?? null,
+      permissionType: row.permissionType,
+      isExternal: !isOwner && row.userOrganizationId !== ws.organizationId,
+      joinedAt: row.joinedAt.toISOString(),
+      roleSource: isOwner ? 'owner' : 'explicit',
+    })
+  }
+
+  if (ws.organizationId) {
+    const orgAdmins = await db
+      .select({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+        joinedAt: member.createdAt,
+      })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(
+        and(
+          eq(member.organizationId, ws.organizationId),
+          inArray(member.role, [...ORG_ADMIN_ROLES])
+        )
+      )
+
+    for (const row of orgAdmins) {
+      const isOwner = row.userId === ws.ownerId
+      const existing = byUser.get(row.userId)
+      if (existing) {
+        existing.permissionType = 'admin'
+        existing.isExternal = false
+        if (existing.roleSource !== 'owner') {
+          existing.roleSource = isOwner ? 'owner' : 'org-admin'
+        }
+      } else {
+        byUser.set(row.userId, {
+          userId: row.userId,
+          email: row.email,
+          name: row.name,
+          image: row.image ?? null,
+          permissionType: 'admin',
+          isExternal: false,
+          joinedAt: row.joinedAt.toISOString(),
+          roleSource: isOwner ? 'owner' : 'org-admin',
+        })
+      }
+    }
+  }
+
+  return Array.from(byUser.values()).sort((a, b) => a.email.localeCompare(b.email))
 }
 
 /** Lightweight profile data for workspace member display (avatars, owner cells). */
@@ -360,28 +393,45 @@ export async function hasWorkspaceAdminAccess(
     return false
   }
 
-  if (ws.ownerId === userId) {
-    return true
-  }
-
-  if (await hasAdminPermission(userId, workspaceId)) {
-    return true
-  }
-
-  return await isOrganizationAdminOrOwnerOfWorkspace(userId, ws)
+  return (await getEffectiveWorkspacePermission(userId, ws)) === 'admin'
 }
 
-async function isOrganizationAdminOrOwnerOfWorkspace(
+/**
+ * Check whether a user is an owner or admin of a specific organization.
+ *
+ * @param userId - The ID of the user to check
+ * @param organizationId - The ID of the organization to check
+ * @returns Promise<boolean> - True when the user is the organization owner or an admin
+ */
+export async function isOrganizationAdminOrOwner(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'organizationId'>
+  organizationId: string
 ): Promise<boolean> {
-  if (!ws.organizationId) return false
   const [row] = await db
     .select({ role: member.role })
     .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, ws.organizationId)))
+    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
     .limit(1)
-  return row?.role === 'owner' || row?.role === 'admin'
+  return isOrgAdminRole(row?.role)
+}
+
+/**
+ * Check whether a user is a member (any role) of a specific organization.
+ *
+ * @param userId - The ID of the user to check
+ * @param organizationId - The ID of the organization to check
+ * @returns Promise<boolean> - True when the user has an organization membership row
+ */
+export async function isOrganizationMember(
+  userId: string,
+  organizationId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+    .limit(1)
+  return !!row
 }
 
 /**
@@ -429,13 +479,26 @@ export async function getManageableWorkspaces(userId: string): Promise<
       )
     )
 
+  const orgAdminWorkspaces = (await getOrgAdminWorkspaceRows(userId, 'active')).map((ws) => ({
+    id: ws.id,
+    name: ws.name,
+    ownerId: ws.ownerId,
+  }))
+
   const ownedSet = new Set(ownedWorkspaces.map((w) => w.id))
-  const combined = [
-    ...ownedWorkspaces.map((ws) => ({ ...ws, accessType: 'owner' as const })),
-    ...adminWorkspaces
-      .filter((ws) => !ownedSet.has(ws.id))
-      .map((ws) => ({ ...ws, accessType: 'direct' as const })),
-  ]
+  const seen = new Set(ownedSet)
+  const combined: Array<{
+    id: string
+    name: string
+    ownerId: string
+    accessType: 'direct' | 'owner'
+  }> = ownedWorkspaces.map((ws) => ({ ...ws, accessType: 'owner' as const }))
+
+  for (const ws of [...adminWorkspaces, ...orgAdminWorkspaces]) {
+    if (seen.has(ws.id)) continue
+    seen.add(ws.id)
+    combined.push({ ...ws, accessType: 'direct' as const })
+  }
 
   return combined
 }

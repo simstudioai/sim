@@ -31,17 +31,11 @@ export const salesforceListReportsTool: ToolConfig<
     accessToken: { type: 'string', required: true, visibility: 'hidden' },
     idToken: { type: 'string', required: false, visibility: 'hidden' },
     instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
-    folderName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter reports by folder name (case-insensitive partial match)',
-    },
     searchTerm: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter reports by name or description',
+      description: 'Filter reports by name (case-insensitive partial match)',
     },
   },
 
@@ -69,21 +63,15 @@ export const salesforceListReportsTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
-    let reports = data || []
+    // GET /analytics/reports returns a bare top-level array of report objects,
+    // each with name, id, url, describeUrl, and instancesUrl.
+    let reports = Array.isArray(data) ? data : []
 
-    // Filter by folder name if provided
-    if (params?.folderName) {
-      reports = reports.filter((report: any) =>
-        report.folderName?.toLowerCase().includes(params.folderName!.toLowerCase())
-      )
-    }
-
-    // Filter by search term if provided
+    // The list resource only returns the report name (no folder/description),
+    // so searchTerm can only match against the report name.
     if (params?.searchTerm) {
-      reports = reports.filter(
-        (report: any) =>
-          report.name?.toLowerCase().includes(params.searchTerm!.toLowerCase()) ||
-          report.description?.toLowerCase().includes(params.searchTerm!.toLowerCase())
+      reports = reports.filter((report: any) =>
+        report.name?.toLowerCase().includes(params.searchTerm!.toLowerCase())
       )
     }
 

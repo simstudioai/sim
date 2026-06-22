@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { normalizeEmail } from '@/lib/invitations/core'
 import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,
@@ -61,6 +61,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     const successful: string[] = []
+    const added: string[] = []
     const failed: BatchInvitationFailure[] = []
     const invitations: WorkspaceInvitationResult[] = []
     const seenEmails = new Set<string>()
@@ -83,7 +84,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           permission: item.permission,
           request: req,
         })
-        successful.push(invitation.email)
+        if (invitation.instantAdd) {
+          // Only report an actual insertion; an `unchanged` outcome means the
+          // user already had access (rare race) and is a silent no-op.
+          if (invitation.outcome === 'added') added.push(invitation.email)
+        } else {
+          successful.push(invitation.email)
+        }
         invitations.push(invitation)
       } catch (error) {
         if (error instanceof WorkspaceInvitationError) {
@@ -102,6 +109,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({
       success: failed.length === 0,
       successful,
+      added,
       failed,
       invitations,
     })

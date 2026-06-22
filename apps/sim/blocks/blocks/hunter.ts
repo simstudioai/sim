@@ -411,6 +411,7 @@ Return ONLY the search query text - no explanations.`,
 
 export const HunterBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://hunter.io',
   templates: [
     {
       icon: HunterIOIcon,

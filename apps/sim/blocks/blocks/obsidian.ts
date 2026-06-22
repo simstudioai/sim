@@ -272,6 +272,7 @@ export const ObsidianBlock: BlockConfig = {
 
 export const ObsidianBlockMeta = {
   tags: ['note-taking', 'knowledge-base'],
+  url: 'https://obsidian.md',
   templates: [
     {
       icon: ObsidianIcon,

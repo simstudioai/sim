@@ -21,6 +21,13 @@ import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/per
 
 const logger = createLogger('WorkspaceBYOKKeysAPI')
 
+/**
+ * Bounds the per-provider BYOK advisory-lock wait so a stuck holder fails fast
+ * (SQLSTATE 55P03) rather than hanging, even if the deployment lacks a
+ * server-side `lock_timeout`. Transaction-scoped via `set_config(..., true)`.
+ */
+const WORKSPACE_BYOK_LOCK_TIMEOUT_MS = 5_000
+
 function maskApiKey(key: string): string {
   if (key.length <= 8) {
     return '•'.repeat(8)
@@ -203,7 +210,10 @@ export const POST = withRouteHandler(
 
       const newKey = await db.transaction(async (tx) => {
         await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext(${`byok:${workspaceId}:${providerId}`}))`
+          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_BYOK_LOCK_TIMEOUT_MS}ms`}, true)`
+        )
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`byok:${workspaceId}:${providerId}`}, 0))`
         )
 
         const [{ keyCount }] = await tx

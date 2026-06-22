@@ -204,6 +204,7 @@ export const GoogleBooksBlock: BlockConfig = {
 
 export const GoogleBooksBlockMeta = {
   tags: ['google-workspace', 'knowledge-base', 'content-management'],
+  url: 'https://books.google.com',
   templates: [
     {
       icon: GoogleBooksIcon,

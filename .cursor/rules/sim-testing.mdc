@@ -22,7 +22,7 @@ These modules are mocked globally — do NOT re-mock them in test files unless y
 - `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
 - `@/blocks/registry`
 - `@trigger.dev/sdk`
-- `@sim/workflow-authz` → `workflowAuthzMock`
+- `@sim/platform-authz/workflow` → `workflowAuthzMock`
 
 ## Structure
 
@@ -150,7 +150,7 @@ vi.useFakeTimers()
 | `@/lib/auth/hybrid` | `hybridAuthMock`, `hybridAuthMockFns` | `vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)` |
 | `@/lib/copilot/request/http` | `copilotHttpMock`, `copilotHttpMockFns` | `vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)` |
 | `@/lib/core/config/env` | `envMock`, `createEnvMock(overrides)` | `vi.mock('@/lib/core/config/env', () => envMock)` |
-| `@/lib/core/config/feature-flags` | `featureFlagsMock` | `vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)` |
+| `@/lib/core/config/env-flags` | `featureFlagsMock` | `vi.mock('@/lib/core/config/env-flags', () => featureFlagsMock)` |
 | `@/lib/core/config/redis` | `redisConfigMock`, `redisConfigMockFns` | `vi.mock('@/lib/core/config/redis', () => redisConfigMock)` |
 | `@/lib/core/security/encryption` | `encryptionMock`, `encryptionMockFns` | `vi.mock('@/lib/core/security/encryption', () => encryptionMock)` |
 | `@/lib/core/security/input-validation.server` | `inputValidationMock`, `inputValidationMockFns` | `vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)` |

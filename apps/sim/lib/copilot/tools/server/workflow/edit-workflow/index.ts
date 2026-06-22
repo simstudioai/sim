@@ -1,8 +1,11 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+} from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -105,6 +108,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     if (!authorization.allowed) {
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
+
+    await assertWorkflowMutable(workflowId)
 
     const workspaceId = authorization.workflow?.workspaceId ?? undefined
     const workflowName = authorization.workflow?.name ?? undefined

@@ -1,10 +1,12 @@
 import { PagerDutyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const PagerDutyBlock: BlockConfig = {
   type: 'pagerduty',
   name: 'PagerDuty',
   description: 'Manage incidents and on-call schedules with PagerDuty',
+  triggerAllowed: true,
   longDescription:
     'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
   docsLink: 'https://docs.sim.ai/integrations/pagerduty',
@@ -315,6 +317,12 @@ export const PagerDutyBlock: BlockConfig = {
         generationType: 'timestamp',
       },
     },
+    ...getTrigger('pagerduty_incident_triggered').subBlocks,
+    ...getTrigger('pagerduty_incident_acknowledged').subBlocks,
+    ...getTrigger('pagerduty_incident_resolved').subBlocks,
+    ...getTrigger('pagerduty_incident_escalated').subBlocks,
+    ...getTrigger('pagerduty_incident_reassigned').subBlocks,
+    ...getTrigger('pagerduty_webhook').subBlocks,
   ],
 
   tools: {
@@ -481,10 +489,23 @@ export const PagerDutyBlock: BlockConfig = {
       description: 'Array of on-call entries (list_oncalls)',
     },
   },
+
+  triggers: {
+    enabled: true,
+    available: [
+      'pagerduty_incident_triggered',
+      'pagerduty_incident_acknowledged',
+      'pagerduty_incident_resolved',
+      'pagerduty_incident_escalated',
+      'pagerduty_incident_reassigned',
+      'pagerduty_webhook',
+    ],
+  },
 }
 
 export const PagerDutyBlockMeta = {
   tags: ['incident-management', 'monitoring'],
+  url: 'https://www.pagerduty.com',
   templates: [
     {
       icon: PagerDutyIcon,

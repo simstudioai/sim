@@ -1,4 +1,5 @@
 export {
+  ActionsGroup,
   BlocksGroup,
   ChatsGroup,
   ConnectedAccountsGroup,

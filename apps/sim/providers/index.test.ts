@@ -18,7 +18,7 @@ vi.mock('@/providers/registry', () => ({
   }),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   getCostMultiplier: vi.fn(() => 1),
 }))
 

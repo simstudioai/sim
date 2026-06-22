@@ -22,8 +22,11 @@ vi.mock('@sim/utils/id', () => ({
 // streaming multipart + CSV pipeline is exercised end-to-end.
 vi.mock('@/lib/table/service', () => ({
   createTable: mockCreateTable,
-  batchInsertRows: mockBatchInsertRows,
   deleteTable: mockDeleteTable,
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  batchInsertRows: mockBatchInsertRows,
 }))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {
@@ -36,6 +39,12 @@ vi.mock('@/app/api/table/utils', async () => {
         { error: error.message },
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
       ),
+    rowWriteErrorResponse: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      return message.includes('row limit')
+        ? NextResponse.json({ error: message }, { status: 400 })
+        : null
+    },
   }
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
@@ -170,6 +179,17 @@ describe('POST /api/table/import-csv', () => {
     const response = await POST(makeRequest([{ name: 'workspaceId', value: 'workspace-1' }]))
     expect(response.status).toBe(400)
     expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 with the reason when an insert exceeds the plan row limit', async () => {
+    mockBatchInsertRows.mockRejectedValueOnce(
+      new Error('This table has reached its row limit (1,000 rows) on your current plan.')
+    )
+    const response = await POST(makeRequest(uploadParts(csvWithRows(250))))
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data.error).toMatch(/row limit/)
   })
 
   it('rolls back the created table when a batch insert fails mid-stream', async () => {

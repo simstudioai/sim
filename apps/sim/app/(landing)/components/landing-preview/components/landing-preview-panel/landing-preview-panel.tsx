@@ -34,7 +34,7 @@ const EDITOR_BLOCK_ICONS: Record<string, React.ComponentType<{ className?: strin
 }
 
 const TABS_WITH_TOOLBAR: { id: PanelTab | 'toolbar'; label: string; disabled?: boolean }[] = [
-  { id: 'copilot', label: 'Copilot' },
+  { id: 'copilot', label: 'Chat' },
   { id: 'toolbar', label: 'Toolbar', disabled: true },
   { id: 'editor', label: 'Editor' },
 ]
@@ -68,10 +68,10 @@ interface LandingPreviewPanelProps {
 }
 
 /**
- * Workspace panel replica with switchable Copilot / Editor tabs.
+ * Workspace panel replica with switchable Chat / Editor tabs.
  *
  * On every workflow switch (`animationKey` change):
- *  1. Resets to Copilot tab.
+ *  1. Resets to Chat tab.
  *  2. Waits for blocks + edges to finish animating.
  *  3. Slides the tab indicator to Editor and types the agent's prompt.
  *  4. Highlights the agent block with the blue ring on the canvas.

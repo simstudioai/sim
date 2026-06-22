@@ -11,7 +11,8 @@ import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
-import { getTableById, replaceTableRows } from '@/lib/table/service'
+import { replaceTableRows } from '@/lib/table/rows/service'
+import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
 

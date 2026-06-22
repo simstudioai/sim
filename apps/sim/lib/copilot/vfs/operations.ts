@@ -108,8 +108,11 @@ function splitLinesForGrep(content: string): string[] {
  * (including `[`, `{`, spaces) use directory-prefix logic so literal VFS path segments are not
  * parsed as glob syntax. Trailing slashes are stripped so `files/` and `files` both scope under
  * `files/...`.
+ *
+ * Exported so the lazy VFS can resolve exactly the lazy artifacts a scoped grep will consider,
+ * keeping "what we materialize" identical to "what grep filters in".
  */
-function pathWithinGrepScope(filePath: string, scope: string): boolean {
+export function pathWithinGrepScope(filePath: string, scope: string): boolean {
   const scopeUsesStarOrQuestionGlob = /[*?]/.test(scope)
   if (scopeUsesStarOrQuestionGlob) {
     return micromatch.isMatch(filePath, scope, VFS_GLOB_OPTIONS)

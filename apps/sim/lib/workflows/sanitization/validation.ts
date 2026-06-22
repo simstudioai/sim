@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { getBlock } from '@/blocks/registry'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -7,28 +8,24 @@ import { getTool } from '@/tools/utils'
 
 const logger = createLogger('WorkflowValidation')
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 /**
  * Checks if a custom tool has a valid inline schema
  */
 function isValidCustomToolSchema(tool: unknown): boolean {
   try {
-    if (!isRecord(tool)) return false
+    if (!isRecordLike(tool)) return false
     if (tool.type !== 'custom-tool') return true // non-custom tools are validated elsewhere
 
     const schema = tool.schema
-    if (!isRecord(schema)) return false
+    if (!isRecordLike(schema)) return false
     const fn = schema.function
-    if (!isRecord(fn)) return false
+    if (!isRecordLike(fn)) return false
     if (!fn.name || typeof fn.name !== 'string') return false
 
     const params = fn.parameters
-    if (!isRecord(params)) return false
+    if (!isRecordLike(params)) return false
     if (params.type !== 'object') return false
-    if (!isRecord(params.properties)) return false
+    if (!isRecordLike(params.properties)) return false
 
     return true
   } catch (_err) {
@@ -41,7 +38,7 @@ function isValidCustomToolSchema(tool: unknown): boolean {
  */
 function isValidCustomToolReference(tool: unknown): boolean {
   try {
-    if (!isRecord(tool)) return false
+    if (!isRecordLike(tool)) return false
     if (tool.type !== 'custom-tool') return false
 
     // Reference format: has customToolId but no inline schema/code
@@ -97,7 +94,7 @@ export function sanitizeAgentToolsInBlocks(blocks: Record<string, BlockState>): 
       const cleaned = value
         .filter((tool: unknown) => {
           // Allow non-custom tools to pass through as-is
-          if (!isRecord(tool)) return false
+          if (!isRecordLike(tool)) return false
           if (tool.type !== 'custom-tool') return true
 
           // Check if it's a valid reference-only format (new format)
@@ -118,7 +115,7 @@ export function sanitizeAgentToolsInBlocks(blocks: Record<string, BlockState>): 
           return ok
         })
         .map((tool: unknown) => {
-          if (isRecord(tool) && tool.type === 'custom-tool') {
+          if (isRecordLike(tool) && tool.type === 'custom-tool') {
             // For reference-only tools, ensure usageControl default
             if (!tool.usageControl) {
               tool.usageControl = 'auto'

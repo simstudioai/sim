@@ -1,11 +1,12 @@
 import { db, dbReplica } from '@sim/db'
-import { knowledgeBase } from '@sim/db/schema'
+import { knowledgeBase, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
-} from '@sim/workflow-authz'
-import { and, eq, isNull } from 'drizzle-orm'
+} from '@sim/platform-authz/workflow'
+import { and, eq, isNull, ne } from 'drizzle-orm'
+import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
@@ -16,7 +17,7 @@ import {
   encodeVfsPathSegments,
   encodeVfsSegment,
 } from '@/lib/copilot/vfs/path-utils'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -163,6 +164,16 @@ export async function processContextsServer(
         if (!result) return null
         return {
           type: 'filefolder',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+          path: result.path,
+        }
+      }
+      if (ctx.kind === 'scheduledtask' && ctx.scheduleId && currentWorkspaceId) {
+        const result = await resolveScheduledTaskResource(ctx.scheduleId, currentWorkspaceId)
+        if (!result) return null
+        return {
+          type: 'active_resource',
           tag: ctx.label ? `@${ctx.label}` : '@',
           content: result.content,
           path: result.path,
@@ -695,6 +706,9 @@ export async function resolveActiveResourceContext(
       case 'filefolder': {
         return await resolveFileFolderResource(resourceId, workspaceId)
       }
+      case 'scheduledtask': {
+        return await resolveScheduledTaskResource(resourceId, workspaceId)
+      }
       default:
         return null
     }
@@ -715,6 +729,38 @@ async function resolveTableResource(
     tag: '@active_resource',
     content: '',
     path: canonicalTableVfsPath(table.name),
+  }
+}
+
+async function resolveScheduledTaskResource(
+  scheduleId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  const [row] = await db
+    .select({ id: workflowSchedule.id, jobTitle: workflowSchedule.jobTitle })
+    .from(workflowSchedule)
+    .where(
+      and(
+        eq(workflowSchedule.id, scheduleId),
+        eq(workflowSchedule.sourceWorkspaceId, workspaceId),
+        eq(workflowSchedule.sourceType, 'job'),
+        isNull(workflowSchedule.archivedAt),
+        // Mirror the VFS materializer (workspace-vfs `materializeJobs`), which
+        // excludes completed jobs — otherwise we'd point at a meta.json it never
+        // wrote and the agent's read would dangle.
+        ne(workflowSchedule.status, 'completed')
+      )
+    )
+    .limit(1)
+  if (!row) return null
+  // The VFS materializes jobs at `jobs/{sanitized title}/meta.json` (see
+  // workspace-vfs `materializeJobs`); emit the same lightweight path pointer so
+  // the agent reads it via the VFS instead of us inlining the (heavy) row.
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: '',
+    path: `jobs/${normalizeVfsSegment(row.jobTitle || row.id)}/meta.json`,
   }
 }
 

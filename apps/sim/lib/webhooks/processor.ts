@@ -9,9 +9,15 @@ import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscri
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { isProd } from '@/lib/core/config/feature-flags'
+import { isProd } from '@/lib/core/config/env-flags'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -71,19 +77,33 @@ async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
   return { valid: true }
 }
 
+const WEBHOOK_BODY_LABEL = 'Webhook request body'
+
 export async function parseWebhookBody(
   request: NextRequest,
   requestId: string
 ): Promise<{ body: unknown; rawBody: string } | NextResponse> {
   let rawBody: string | null = null
   try {
-    const requestClone = request.clone()
-    rawBody = await requestClone.text()
+    assertContentLengthWithinLimit(request.headers, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_BODY_LABEL)
+
+    const buffer = await readStreamToBufferWithLimit(request.clone().body, {
+      maxBytes: WEBHOOK_MAX_BODY_BYTES,
+      label: WEBHOOK_BODY_LABEL,
+    })
+    rawBody = new TextDecoder().decode(buffer)
 
     if (!rawBody || rawBody.length === 0) {
       return { body: {}, rawBody: '' }
     }
   } catch (bodyError) {
+    if (isPayloadSizeLimitError(bodyError)) {
+      logger.warn(`[${requestId}] Rejected oversized webhook body`, {
+        maxBytes: WEBHOOK_MAX_BODY_BYTES,
+        observedBytes: bodyError.observedBytes,
+      })
+      return new NextResponse('Request body too large', { status: 413 })
+    }
     logger.error(`[${requestId}] Failed to read request body`, {
       error: toError(bodyError).message,
     })

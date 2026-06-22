@@ -8,6 +8,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
@@ -300,9 +301,7 @@ async function sendPaymentFailureEmails(
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
 
-      const ownerAdminIds = members
-        .filter((m) => m.role === 'owner' || m.role === 'admin')
-        .map((m) => m.userId)
+      const ownerAdminIds = members.filter((m) => isOrgAdminRole(m.role)).map((m) => m.userId)
 
       if (ownerAdminIds.length > 0) {
         const users = await db
@@ -457,19 +456,32 @@ export async function resetUsageForSubscription(sub: {
           .limit(1)
       }
 
-      await tx
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, sub.referenceId))
-        .for('update')
-        .limit(1)
-
       const membersRows = await tx
         .select({ userId: member.userId })
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
 
       const memberIds = membersRows.map((row) => row.userId)
+
+      // Lock every member's userStats before the organization row so this path
+      // follows the canonical userStats → organization order shared by the
+      // join, remove, threshold-billing, and storage-transfer paths. Locking
+      // organization first would invert against them and risk an AB-BA
+      // deadlock. The per-member UPDATE below re-locks these rows (no-op).
+      if (memberIds.length > 0) {
+        await tx
+          .select({ userId: userStats.userId })
+          .from(userStats)
+          .where(inArray(userStats.userId, memberIds))
+          .for('update')
+      }
+
+      await tx
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, sub.referenceId))
+        .for('update')
+        .limit(1)
       if (memberIds.length > 0) {
         const memberStatsRows = await tx
           .select({
@@ -709,9 +721,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
           .from(member)
           .where(eq(member.organizationId, entityId))
 
-        const ownerAdminIds = members
-          .filter((m) => m.role === 'owner' || m.role === 'admin')
-          .map((m) => m.userId)
+        const ownerAdminIds = members.filter((m) => isOrgAdminRole(m.role)).map((m) => m.userId)
 
         if (ownerAdminIds.length > 0) {
           recipients = await db

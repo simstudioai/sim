@@ -1,12 +1,10 @@
-import { createLogger } from '@sim/logger'
 import type {
   SalesforceUpdateAccountParams,
   SalesforceUpdateAccountResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('SalesforceUpdateAccount')
 
 export const salesforceUpdateAccountTool: ToolConfig<
   SalesforceUpdateAccountParams,
@@ -126,41 +124,10 @@ export const salesforceUpdateAccountTool: ToolConfig<
 
   request: {
     url: (params) => {
-      let instanceUrl = params.instanceUrl
+      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
+      const accountId = requireId(params.accountId, 'Account ID')
 
-      if (!instanceUrl && params.idToken) {
-        try {
-          const base64Url = params.idToken.split('.')[1]
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-          const jsonPayload = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
-              .join('')
-          )
-          const decoded = JSON.parse(jsonPayload)
-
-          if (decoded.profile) {
-            const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-            if (match) {
-              instanceUrl = match[1]
-            }
-          } else if (decoded.sub) {
-            const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-            if (match && match[1] !== 'https://login.salesforce.com') {
-              instanceUrl = match[1]
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to decode Salesforce idToken', { error })
-        }
-      }
-
-      if (!instanceUrl) {
-        throw new Error('Salesforce instance URL is required but not provided')
-      }
-
-      return `${instanceUrl}/services/data/v59.0/sobjects/Account/${params.accountId}`
+      return `${instanceUrl}/services/data/v59.0/sobjects/Account/${accountId}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -198,14 +165,15 @@ export const salesforceUpdateAccountTool: ToolConfig<
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
       const data = await response.json()
-      logger.error('Salesforce API request failed', { data, status: response.status })
-      throw new Error(data[0]?.message || data.message || 'Failed to update account in Salesforce')
+      throw new Error(
+        extractErrorMessage(data, response.status, 'Failed to update account in Salesforce')
+      )
     }
 
     return {
       success: true,
       output: {
-        id: params?.accountId || '',
+        id: params?.accountId?.trim() || '',
         updated: true,
       },
     }

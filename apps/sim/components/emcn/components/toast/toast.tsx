@@ -14,11 +14,15 @@ import {
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
-import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/emcn/components/button/button'
 import { Chip } from '@/components/emcn/components/chip/chip'
+import {
+  chipContentIconClass,
+  chipFilledFillTokens,
+} from '@/components/emcn/components/chip/chip-chrome'
 import { Bell } from '@/components/emcn/icons/bell'
 import { CircleAlert } from '@/components/emcn/icons/circle-alert'
 import { CircleCheck } from '@/components/emcn/icons/circle-check'
@@ -28,10 +32,6 @@ import { X } from '@/components/emcn/icons/x'
 import { cn } from '@/lib/core/utils/cn'
 
 const AUTO_DISMISS_MS = 5000
-/** Whole-stack auto-dismiss window once the dismiss-all control appears (2+ toasts). */
-const STACK_DISMISS_MS = 6000
-/** Toast count at which the dismiss-all control and stack countdown take over. */
-const STACK_DISMISS_THRESHOLD = 2
 
 /** Card width; tracks the workflow-panel inset on narrow viewports. */
 const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
@@ -62,22 +62,13 @@ const CONCENTRIC_RADIUS_PX = 16
 
 type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'error'
 
-/** Leading icon per variant; the shape signals intent, {@link VARIANT_ICON_COLOR} tints it. */
+/** Leading icon per variant; the shape alone signals intent, tinted with the canonical chip icon color. */
 const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
   default: Bell,
   info: CircleInfo,
   success: CircleCheck,
   warning: TriangleAlert,
   error: CircleAlert,
-}
-
-/** Per-variant icon tint from the shared badge intent palette; `default` stays neutral. */
-const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
-  default: 'text-[var(--text-icon)]',
-  info: 'text-[var(--badge-blue-text)]',
-  success: 'text-[var(--badge-success-text)]',
-  warning: 'text-[var(--badge-amber-text)]',
-  error: 'text-[var(--badge-error-text)]',
 }
 
 interface ToastAction {
@@ -330,33 +321,20 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     >
       <div ref={contentRef} className='flex flex-col gap-2 p-2'>
         <div className='flex items-start gap-2'>
-          <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+          <div className='min-w-0 flex-1'>
             <RevealText
               text={t.message}
               expanded={hovered}
               clampLines={2}
               lineHeightPx={20}
               leadingIcon={
-                <Icon
-                  className={cn(
-                    'mr-[5px] inline-block size-[14px] translate-y-[-2px] align-middle',
-                    VARIANT_ICON_COLOR[t.variant]
-                  )}
-                />
+                <span className='mr-1.5 inline-flex h-5 items-center align-top'>
+                  <Icon className={chipContentIconClass} />
+                </span>
               }
-              className='font-medium text-[14px] text-[var(--text-primary)] leading-5'
+              className='text-[var(--text-body)] text-sm leading-5'
               reduceMotion={reduceMotion}
             />
-            {t.description ? (
-              <RevealText
-                text={t.description}
-                expanded={hovered}
-                clampLines={3}
-                lineHeightPx={18}
-                className='text-[13px] text-[var(--text-secondary)] leading-[18px]'
-                reduceMotion={reduceMotion}
-              />
-            ) : null}
           </div>
           <div className='flex h-5 flex-shrink-0 items-center'>
             <Button
@@ -364,12 +342,22 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               onClick={dismiss}
               aria-label='Dismiss notification'
               title='Dismiss'
-              className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0'
+              className='size-[18px] rounded-sm p-0'
             >
-              <X className='size-[14px] text-[var(--text-icon)]' />
+              <X className='size-[16px]' />
             </Button>
           </div>
         </div>
+        {t.description ? (
+          <RevealText
+            text={t.description}
+            expanded={hovered}
+            clampLines={3}
+            lineHeightPx={18}
+            className='text-[var(--text-muted)] text-small leading-[18px]'
+            reduceMotion={reduceMotion}
+          />
+        ) : null}
         {t.action ? (
           <Chip
             fullWidth
@@ -378,117 +366,13 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               t.action!.onClick()
               dismiss()
             }}
-            className='justify-center'
+            className={cn('justify-center', chipFilledFillTokens)}
           >
             {t.action.label}
           </Chip>
         ) : null}
       </div>
     </motion.li>
-  )
-}
-
-interface StackDismissProps {
-  /** When held (stack hovered), the countdown pauses so it can't dismiss mid-read. */
-  paused: boolean
-  /**
-   * Whether the ring auto-fires. `false` when the stack holds a persistent
-   * toast, so an actionable toast can't be cleared from under the user; the
-   * control still dismisses on click.
-   */
-  autoDismiss: boolean
-  reduceMotion: boolean
-  /** Changes whenever a new toast arrives; restarts the countdown from zero. */
-  resetKey: string
-  onDismiss: () => void
-}
-
-/**
- * Dismiss-all control shown once multiple toasts pile up: a ring fills over
- * `STACK_DISMISS_MS` and clears the whole stack, hovering holds it, and clicking
- * dismisses immediately.
- */
-function StackDismiss({
-  paused,
-  autoDismiss,
-  reduceMotion,
-  resetKey,
-  onDismiss,
-}: StackDismissProps) {
-  const progress = useMotionValue(0)
-  const onDismissRef = useRef(onDismiss)
-  const controlsRef = useRef<ReturnType<typeof animate> | null>(null)
-  const [hovered, setHovered] = useState(false)
-
-  const held = paused || hovered
-  const heldRef = useRef(held)
-  useEffect(() => {
-    heldRef.current = held
-  }, [held])
-
-  useEffect(() => {
-    onDismissRef.current = onDismiss
-  }, [onDismiss])
-
-  useEffect(() => {
-    progress.set(0)
-    if (!autoDismiss) {
-      controlsRef.current = null
-      return
-    }
-    const controls = animate(progress, 1, {
-      duration: STACK_DISMISS_MS / 1000,
-      ease: 'linear',
-      onComplete: () => onDismissRef.current(),
-    })
-    controlsRef.current = controls
-    if (heldRef.current) controls.pause()
-    return () => controls.stop()
-  }, [progress, resetKey, autoDismiss])
-
-  useEffect(() => {
-    const controls = controlsRef.current
-    if (!controls) return
-    if (held) controls.pause()
-    else controls.play()
-  }, [held])
-
-  return (
-    <motion.button
-      type='button'
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={() => onDismissRef.current()}
-      aria-label='Dismiss all notifications'
-      initial={reduceMotion ? false : { opacity: 0, scale: 0.5 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={
-        reduceMotion
-          ? { opacity: 0 }
-          : { opacity: 0, scale: 0.5, transition: { duration: 0.12, ease: 'easeIn' } }
-      }
-      transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 520, damping: 24 }}
-      className='pointer-events-auto absolute bottom-[8px] left-[-30px] z-50 flex size-[22px] items-center justify-center rounded-full bg-[var(--bg)] text-[var(--text-icon)] shadow-[var(--shadow-overlay)] transition-colors hover-hover:text-[var(--text-body)]'
-    >
-      <svg
-        viewBox='0 0 22 22'
-        className='-rotate-90 absolute inset-0 size-full'
-        fill='none'
-        aria-hidden
-      >
-        <circle cx='11' cy='11' r='10' stroke='var(--border-1)' strokeWidth='1.5' />
-        <motion.circle
-          cx='11'
-          cy='11'
-          r='10'
-          stroke='currentColor'
-          strokeWidth='1.5'
-          strokeLinecap='round'
-          style={{ pathLength: progress }}
-        />
-      </svg>
-      <X className='size-[10px]' />
-    </motion.button>
   )
 }
 
@@ -513,8 +397,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  /** Monotonic arrival count; changes only on a new toast, so dismissing the front card doesn't restart the stack countdown. */
-  const [arrivalCount, setArrivalCount] = useState(0)
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   useEffect(() => {
@@ -555,7 +437,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       next.splice(evictIndex === -1 ? 0 : evictIndex, 1)
       return next
     })
-    setArrivalCount((c) => c + 1)
     return id
   }, [])
 
@@ -619,22 +500,14 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [toasts])
 
   /**
-   * A persistent toast (`duration <= 0`) pins the stack: the dismiss-all ring's
-   * auto-countdown is suppressed so the action can't be cleared from under the
-   * user. The ring still renders and dismisses on click.
-   */
-  const hasPersistentToast = toasts.some((t) => t.duration <= 0)
-
-  /**
-   * Per-toast auto-dismiss timers. The stack ring owns dismissal when it
-   * auto-fires (2+ toasts, none persistent); otherwise — a lone toast, or a
-   * stack pinned by a persistent toast — each timed toast runs its own timer so
-   * it still expires while the persistent one stays. Hover holds them.
+   * Per-toast auto-dismiss timers. Each timed toast runs its own timer so it
+   * expires independently regardless of how many toasts are stacked; persistent
+   * toasts (`duration <= 0`) never get a timer, and hovering (`expanded`) holds
+   * every timer so a toast can't be cleared mid-read.
    */
   useEffect(() => {
     const timers = timersRef.current
-    const stackAutoDismiss = toasts.length >= STACK_DISMISS_THRESHOLD && !hasPersistentToast
-    if (toasts.length === 0 || expanded || stackAutoDismiss) {
+    if (toasts.length === 0 || expanded) {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
       return
@@ -657,7 +530,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
         timers.delete(id)
       }
     }
-  }, [toasts, expanded, hasPersistentToast, dismissToast])
+  }, [toasts, expanded, dismissToast])
 
   useEffect(() => {
     const timers = timersRef.current
@@ -735,18 +608,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                     height: containerHeight,
                   }}
                 >
-                  <AnimatePresence initial={false}>
-                    {toasts.length >= STACK_DISMISS_THRESHOLD ? (
-                      <StackDismiss
-                        key='dismiss-all'
-                        paused={expanded}
-                        autoDismiss={!hasPersistentToast}
-                        reduceMotion={reduceMotion}
-                        resetKey={String(arrivalCount)}
-                        onDismiss={dismissAllToasts}
-                      />
-                    ) : null}
-                  </AnimatePresence>
                   <div
                     onMouseEnter={() => setExpanded(true)}
                     onMouseLeave={() => setExpanded(false)}

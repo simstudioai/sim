@@ -95,7 +95,7 @@ export function Copilot() {
     const isDuplicate = keys.some((k) => k.name === trimmedName)
     if (isDuplicate) {
       setCreateError(
-        `A Copilot API key named "${trimmedName}" already exists. Please choose a different name.`
+        `A Chat API key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
@@ -260,8 +260,8 @@ export function Copilot() {
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This key will allow access to Copilot features. Make sure to copy it after creation as
-            you won't be able to see it again.
+            This key will allow access to Chat features. Make sure to copy it after creation as you
+            won't be able to see it again.
           </p>
           <ChipModalField
             type='input'
@@ -340,18 +340,13 @@ export function Copilot() {
         }}
         srTitle='Delete API key'
         title='Delete API key'
-        description={
-          <>
-            Deleting{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {deleteKey?.name || 'Unnamed Key'}
-            </span>{' '}
-            <span className='text-[var(--text-error)]'>
-              will immediately revoke access for any integrations using it.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Deleting ',
+          { text: deleteKey?.name || 'Unnamed Key', bold: true },
+          ' ',
+          { text: 'will immediately revoke access for any integrations using it.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteKey,

@@ -1,0 +1,207 @@
+name: companion-pr-check
+
+# Soft, NON-BLOCKING warning: when a PR targeting staging/main declares a
+# cross-repo "Companion:" PR, surface whether that companion is merged yet, so
+# copilot and sim stay in lockstep (a change in one often needs the other).
+#
+# Declare in a PR description (repeatable; shorthand OR full URL both parse):
+#   Companion: simstudioai/sim#1234
+#   Companion: https://github.com/simstudioai/sim/pull/1234
+#
+# Requires a CROSS_REPO_TOKEN secret (fine-grained PAT with pull-requests:read on
+# BOTH repos) to read the other repo's PR state. Without it the check still
+# surfaces the declared link but reports "couldn't verify".
+
+on:
+  # PR-driven only: runs on the one PR being opened/edited/synced — no periodic
+  # bulk scan. We assume companions are declared on BOTH sides, so the per-PR
+  # trigger keeps each side's status fresh; to refresh after a companion merges,
+  # re-edit the PR (or run this workflow manually via the Actions tab).
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [staging, main]
+  workflow_dispatch: {}
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  companion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        with:
+          script: |
+            const STICKY = '<!-- companion-pr-check -->';
+            const { owner, repo } = context.repo;
+            // Directional label: copilot/mothership PRs get "requires-sim-merge",
+            // sim PRs get "requires-mothership-merge". Applied whenever the PR
+            // declares a companion; removed when it declares none.
+            const otherSide = repo === 'sim' ? 'mothership/copilot' : 'sim';
+            const LABEL = repo === 'sim' ? 'requires-mothership-merge' : 'requires-sim-merge';
+            const LABEL_DESC = `Has a companion PR on the ${otherSide} side — merge in lockstep`;
+            const crossToken = process.env.CROSS_REPO_TOKEN;
+            // Read the OTHER repo's PR via a plain REST fetch with the PAT in the
+            // header — keeps the PAT strictly READ-ONLY and avoids re-instantiating
+            // Octokit inside github-script (which can't require('@actions/github')).
+            // Commenting/labeling uses the default GITHUB_TOKEN via `github`.
+            async function crossGetPR(c) {
+              const res = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/pulls/${c.number}`, {
+                headers: {
+                  authorization: `Bearer ${crossToken}`,
+                  accept: 'application/vnd.github+json',
+                  'x-github-api-version': '2022-11-28',
+                  'user-agent': 'companion-pr-check',
+                },
+              });
+              if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.status = res.status; throw e; }
+              return res.json();
+            }
+
+            // Two ways to declare a companion (either works; both feed this warning):
+            //   1) a trailer anywhere:  Companion: owner/repo#N   (or a full PR URL)
+            //   2) refs in a task list under a "## Companion..." heading — which ALSO
+            //      renders a native live badge + progress bar on the PR (the "both" path):
+            //        ## Companion PRs
+            //        - [ ] owner/repo#N
+            // Regexes are local + matchAll, so there's no shared lastIndex state to leak
+            // between calls (stateless by construction).
+            function parseCompanions(body) {
+              body = body || '';
+              const TRAILER = /Companion:\s*(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/gi;
+              const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
+              const out = [];
+              const seen = new Set();
+              const add = (o, r, n) => {
+                const ref = `${o}/${r}#${n}`;
+                if (seen.has(ref)) return;
+                seen.add(ref);
+                out.push({ owner: o, repo: r, number: Number(n), ref });
+              };
+              // (1) "Companion:" trailers anywhere in the body.
+              for (const m of body.matchAll(TRAILER)) add(m[1], m[2], m[3]);
+              // (2) refs in a task list under a "## Companion..." heading, until the next heading.
+              let inSection = false;
+              for (const line of body.split(/\r?\n/)) {
+                if (/^#{1,6}\s/.test(line)) { inSection = /^#{1,6}\s*companion/i.test(line); continue; }
+                if (!inSection) continue;
+                for (const mm of line.matchAll(REF)) add(mm[1], mm[2], mm[3]);
+              }
+              return out;
+            }
+
+            async function findSticky(prNumber) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              return comments.find((c) => (c.body || '').includes(STICKY));
+            }
+            async function upsert(prNumber, body) {
+              const ex = await findSticky(prNumber);
+              if (ex) await github.rest.issues.updateComment({ owner, repo, comment_id: ex.id, body });
+              else await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+            async function clear(prNumber) {
+              const ex = await findSticky(prNumber);
+              if (ex) await github.rest.issues.deleteComment({ owner, repo, comment_id: ex.id });
+              // Drop the label too, so a PR edited to remove all companions doesn't
+              // keep a stale badge. 404 (not present) is expected; surface anything else.
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: LABEL }); }
+              catch (e) { if (e.status !== 404) core.warning(`companion: removeLabel ${LABEL} on #${prNumber} failed (${e.status || e.message})`); }
+            }
+            async function ensureLabel() {
+              try { await github.rest.issues.getLabel({ owner, repo, name: LABEL }); return; }
+              catch (e) { if (e.status && e.status !== 404) { core.warning(`companion: getLabel ${LABEL} failed (${e.status})`); return; } }
+              // 404 → label doesn't exist yet, create it. 422 = another run beat us (fine).
+              try { await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'd93f0b', description: LABEL_DESC }); }
+              catch (e) { if (e.status !== 422) core.warning(`companion: createLabel ${LABEL} failed (${e.status || e.message})`); }
+            }
+
+            // staging PRs are a single feature → just this PR's body ("the one").
+            // main (prod) release PRs bundle MANY feature PRs → aggregate the
+            // companions declared on each squashed feature PR too, so "does any
+            // commit in this release have a companion?" is answered.
+            async function collectCompanions(pr) {
+              const companions = parseCompanions(pr.body);
+              const seen = new Set(companions.map((c) => c.ref));
+              if (pr.base.ref === 'main') {
+                let commits = [];
+                try {
+                  commits = await github.paginate(github.rest.pulls.listCommits, {
+                    owner, repo, pull_number: pr.number, per_page: 100,
+                  });
+                } catch {}
+                const featurePRs = new Set();
+                const SQUASH = /\(#(\d+)\)/g; // squash-merge refs like "...(#306)"
+                for (const c of commits) {
+                  const msg = (c.commit && c.commit.message) || '';
+                  let m;
+                  SQUASH.lastIndex = 0;
+                  while ((m = SQUASH.exec(msg)) !== null) featurePRs.add(Number(m[1]));
+                }
+                for (const n of featurePRs) {
+                  if (n === pr.number) continue;
+                  try {
+                    const { data: fpr } = await github.rest.pulls.get({ owner, repo, pull_number: n });
+                    for (const c of parseCompanions(fpr.body)) {
+                      if (!seen.has(c.ref)) { seen.add(c.ref); companions.push(c); }
+                    }
+                  } catch {}
+                }
+              }
+              return companions;
+            }
+
+            async function checkPR(pr) {
+              const companions = await collectCompanions(pr);
+              if (companions.length === 0) { await clear(pr.number); return; }
+              await ensureLabel();
+              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [LABEL] }); }
+              catch (e) { core.warning(`companion: addLabels ${LABEL} on #${pr.number} failed (${e.status || e.message})`); }
+
+              const base = pr.base.ref;
+              const lines = [];
+              let warn = false;
+              for (const c of companions) {
+                if (!crossToken) {
+                  lines.push(`- ❓ \`${c.ref}\` — set the **CROSS_REPO_TOKEN** secret to verify merge status`);
+                  warn = true;
+                  continue;
+                }
+                try {
+                  const cp = await crossGetPR(c);
+                  const title = (cp.title || '').slice(0, 80);
+                  if (cp.merged) {
+                    const tierOk = cp.base.ref === base;
+                    lines.push(`- ${tierOk ? '✅' : '⚠️'} [\`${c.ref}\`](${cp.html_url}) — merged into \`${cp.base.ref}\`${tierOk ? '' : ` (this PR targets \`${base}\`)`} — ${title}`);
+                    if (!tierOk) warn = true;
+                  } else {
+                    lines.push(`- ❌ [\`${c.ref}\`](${cp.html_url}) — **${String(cp.state).toUpperCase()}, not merged** (targets \`${cp.base.ref}\`) — ${title}`);
+                    warn = true;
+                  }
+                } catch (e) {
+                  lines.push(`- ❓ \`${c.ref}\` — couldn't read (${e.status || e.message}); check CROSS_REPO_TOKEN scope`);
+                  warn = true;
+                }
+              }
+              const heading = warn ? '## ⚠️ Cross-repo companion check' : '## ✅ Cross-repo companion check';
+              const scope = base === 'main' ? ' (aggregated across the feature PRs in this release)' : '';
+              const note = warn
+                ? `One or more companion PRs aren't merged into \`${base}\` yet${scope}. Merging this without them will leave copilot and sim out of sync — merge them in lockstep.`
+                : `All declared companion PRs are merged into \`${base}\`${scope}.`;
+              await upsert(pr.number, `${STICKY}\n${heading}\n\n${note}\n\n${lines.join('\n')}`);
+            }
+
+            if (context.eventName === 'pull_request') {
+              await checkPR(context.payload.pull_request);
+            } else {
+              // workflow_dispatch only: manual full re-scan of open staging/main PRs.
+              for (const b of ['staging', 'main']) {
+                const prs = await github.paginate(github.rest.pulls.list, { owner, repo, base: b, state: 'open', per_page: 100 });
+                for (const pr of prs) await checkPR(pr);
+              }
+            }

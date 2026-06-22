@@ -6,6 +6,7 @@ import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import {
   MothershipStreamV1EventType,
@@ -14,7 +15,7 @@ import {
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import {
@@ -22,6 +23,7 @@ import {
   getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
+import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
 
@@ -102,6 +104,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId: providedMessageId,
       requestId: providedRequestId,
       fileAttachments,
+      contexts,
       workflowId,
       executionId,
       userMetadata,
@@ -135,12 +138,28 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const [workspaceContext, integrationTools, userSkillTool, userPermission] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      buildUserSkillTool(workspaceId),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-    ])
+    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
+    // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
+    const agentMentions = contexts as unknown as ChatContext[] | undefined
+    const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildUserSkillTool(workspaceId),
+        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+        processContextsServer(
+          agentMentions,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch((error) => {
+          reqLogger.warn('Failed to resolve agent contexts for execution', {
+            error: toError(error).message,
+          })
+          return []
+        }),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -159,6 +178,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
+      ...(agentContexts.length > 0 ? { contexts: agentContexts } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
@@ -255,7 +275,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               allowExplicitAbort = false
 
               if (lifecycleAbortController.signal.aborted) {
-                send({ type: 'error', error: 'Mothership execution aborted' })
+                send({ type: 'error', error: 'Sim execution aborted' })
                 return
               }
 
@@ -274,7 +294,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 )
                 send({
                   type: 'error',
-                  error: result.error || 'Mothership execution failed',
+                  error: result.error || 'Sim execution failed',
                   content: result.content || '',
                 })
                 return
@@ -296,7 +316,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     : 'Mothership execute aborted',
                   { requestId }
                 )
-                send({ type: 'error', error: 'Mothership execution aborted' })
+                send({ type: 'error', error: 'Sim execution aborted' })
                 return
               }
 
@@ -350,7 +370,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       if (lifecycleAbortController.signal.aborted || req.signal.aborted) {
         reqLogger.info('Mothership execute aborted after lifecycle completion')
-        return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+        return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
       }
 
       if (!result.success) {
@@ -368,7 +388,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
         return NextResponse.json(
           {
-            error: result.error || 'Mothership execution failed',
+            error: result.error || 'Sim execution failed',
             content: result.content || '',
           },
           { status: 500 }
@@ -394,7 +414,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         }
       )
 
-      return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+      return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
     }
 
     if (isWorkspaceAccessDeniedError(error)) {

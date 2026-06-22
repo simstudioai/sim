@@ -5,33 +5,56 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreate,
+  openAIArgs,
+  mockOpenAI,
   mockExecuteTool,
   mockPrepareTools,
   mockCheckForced,
   mockCreateStream,
+  mockValidateUrlWithDNS,
+  mockCreatePinnedFetch,
+  pinnedFetchFn,
   envState,
-} = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
-  mockPrepareTools: vi.fn(),
-  mockCheckForced: vi.fn(),
-  mockCreateStream: vi.fn(),
-  envState: {
-    VLLM_BASE_URL: 'http://localhost:8000',
-    VLLM_API_KEY: undefined as string | undefined,
-  },
-}))
-
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
+} = vi.hoisted(() => {
+  const openAIArgs: Array<Record<string, unknown>> = []
+  const mockCreate = vi.fn()
+  const pinnedFetchFn = vi.fn()
+  class MockOpenAI {
+    chat = { completions: { create: mockCreate } }
+    constructor(opts: Record<string, unknown>) {
+      openAIArgs.push(opts)
     }
-  ),
-}))
+  }
+  return {
+    mockCreate,
+    openAIArgs,
+    mockOpenAI: MockOpenAI,
+    mockExecuteTool: vi.fn(),
+    mockPrepareTools: vi.fn(),
+    mockCheckForced: vi.fn(),
+    mockCreateStream: vi.fn(),
+    mockValidateUrlWithDNS: vi.fn(),
+    mockCreatePinnedFetch: vi.fn(() => pinnedFetchFn),
+    pinnedFetchFn,
+    envState: {
+      VLLM_BASE_URL: 'http://localhost:8000',
+      VLLM_API_KEY: undefined as string | undefined,
+    },
+  }
+})
+
+vi.mock('openai', () => ({ default: mockOpenAI }))
 vi.mock('@/lib/core/config/env', () => ({ env: envState }))
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  validateUrlWithDNS: mockValidateUrlWithDNS,
+  createPinnedFetch: mockCreatePinnedFetch,
+}))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn(() => []),
   getProviderDefaultModel: vi.fn(() => 'vllm/generic'),
 }))
@@ -56,6 +79,7 @@ vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
 }))
 
+import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import type { ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm/index'
 
@@ -94,6 +118,8 @@ const createPayload = (callIndex: number) => mockCreate.mock.calls[callIndex][0]
 describe('vllmProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearProviderClientCacheForTests()
+    openAIArgs.length = 0
     envState.VLLM_BASE_URL = 'http://localhost:8000'
     envState.VLLM_API_KEY = undefined
     mockPrepareTools.mockReturnValue({
@@ -105,6 +131,78 @@ describe('vllmProvider', () => {
     mockCheckForced.mockReturnValue({ hasUsedForcedTool: false, usedForcedTools: [] })
     mockCreateStream.mockReturnValue(new ReadableStream({ start: (c) => c.close() }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockCreatePinnedFetch.mockReturnValue(pinnedFetchFn)
+  })
+
+  describe('endpoint SSRF protection', () => {
+    it('does not validate or pin when no endpoint is supplied (uses env base URL)', async () => {
+      mockCreate.mockResolvedValueOnce(chatResponse('hi'))
+
+      await vllmProvider.executeRequest({
+        model: 'vllm/llama-3',
+        messages: [{ role: 'user', content: 'hi' }],
+      })
+
+      expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+      expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+      expect(openAIArgs[0].baseURL).toBe('http://localhost:8000/v1')
+      expect(openAIArgs[0].fetch).toBeUndefined()
+    })
+
+    it('validates a user-supplied endpoint and pins the connection to the resolved IP', async () => {
+      mockCreate.mockResolvedValueOnce(chatResponse('hi'))
+
+      await vllmProvider.executeRequest({
+        model: 'vllm/llama-3',
+        messages: [{ role: 'user', content: 'hi' }],
+        azureEndpoint: 'https://my-vllm.example.com',
+      })
+
+      expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+        'https://my-vllm.example.com',
+        'vLLM endpoint',
+        { allowHttp: true }
+      )
+      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
+      expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
+    })
+
+    it('rejects a user-supplied endpoint that fails SSRF validation without issuing a request', async () => {
+      mockValidateUrlWithDNS.mockResolvedValueOnce({
+        isValid: false,
+        error: 'vLLM endpoint resolves to a blocked IP address',
+      })
+
+      await expect(
+        vllmProvider.executeRequest({
+          model: 'vllm/llama-3',
+          messages: [{ role: 'user', content: 'hi' }],
+          azureEndpoint: 'http://169.254.169.254',
+        })
+      ).rejects.toThrow('Invalid vLLM endpoint')
+
+      expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+      expect(openAIArgs).toHaveLength(0)
+      expect(mockCreate).not.toHaveBeenCalled()
+    })
+
+    it('rejects a validated endpoint that did not resolve to a pinnable IP', async () => {
+      mockValidateUrlWithDNS.mockResolvedValueOnce({ isValid: true })
+
+      await expect(
+        vllmProvider.executeRequest({
+          model: 'vllm/llama-3',
+          messages: [{ role: 'user', content: 'hi' }],
+          azureEndpoint: 'https://my-vllm.example.com',
+        })
+      ).rejects.toThrow('could not resolve a pinnable IP address')
+
+      expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+      expect(openAIArgs).toHaveLength(0)
+      expect(mockCreate).not.toHaveBeenCalled()
+    })
   })
 
   it('builds a chat payload with the vllm/ prefix stripped and messages assembled in order', async () => {

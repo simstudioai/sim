@@ -15,7 +15,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
-import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+import { assertChatEmbedAllowed, setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatIdentifierAPI')
@@ -133,6 +133,9 @@ export const POST = withRouteHandler(
 
         return createErrorResponse('This chat is currently unavailable', 403)
       }
+
+      const embedBlock = await assertChatEmbedAllowed(request, deployment.workflowId, requestId)
+      if (embedBlock) return embedBlock
 
       const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
       if (!authResult.authorized) {
@@ -353,6 +356,9 @@ export const GET = withRouteHandler(
         return createErrorResponse('This chat is currently unavailable', 403)
       }
 
+      const embedBlock = await assertChatEmbedAllowed(request, deployment.workflowId, requestId)
+      if (embedBlock) return embedBlock
+
       const cookieName = `chat_auth_${deployment.id}`
       const authCookie = request.cookies.get(cookieName)
 
@@ -360,7 +366,7 @@ export const GET = withRouteHandler(
         deployment.authType !== 'public' &&
         deployment.authType !== 'sso' &&
         authCookie &&
-        validateAuthToken(authCookie.value, deployment.id, deployment.password)
+        validateAuthToken(authCookie.value, deployment.id, deployment.authType, deployment.password)
       ) {
         return createSuccessResponse(toChatConfigResponse(deployment))
       }

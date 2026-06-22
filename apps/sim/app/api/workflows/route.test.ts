@@ -7,6 +7,7 @@ import {
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
+  workflowAuthzMockFns,
   workflowsApiUtilsMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -80,9 +81,28 @@ describe('Workflows API Route - POST ordering', () => {
       userEmail: 'test@example.com',
     })
     mockGetUserEntityPermissions.mockResolvedValue('write')
+    workflowAuthzMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
     workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables.mockResolvedValue({
       success: true,
     })
+  })
+
+  it('rejects creating a workflow inside a locked folder', async () => {
+    const { FolderLockedError } = await import('@sim/platform-authz/workflow')
+    workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+      new FolderLockedError('Folder is locked')
+    )
+
+    const req = createMockRequest('POST', {
+      name: 'New Workflow',
+      description: 'desc',
+      workspaceId: 'workspace-123',
+      folderId: 'locked-folder',
+    })
+
+    const response = await POST(req)
+    expect(response.status).toBe(423)
+    expect(mockDbInsert).not.toHaveBeenCalled()
   })
 
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {

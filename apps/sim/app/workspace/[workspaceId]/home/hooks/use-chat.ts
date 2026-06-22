@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -57,10 +66,10 @@ import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
+  applyTurnTerminal,
   createStreamLoopContext,
   dispatchStreamEvent,
   finalizeResidualToolCalls,
-  isRecord,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import {
   fetchMothershipChatHistory,
@@ -255,7 +264,7 @@ async function sleepWithAbort(ms: number, signal?: AbortSignal) {
 }
 
 function isFileAttachmentForApi(value: unknown): value is FileAttachmentForApi {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.id === 'string' &&
     typeof value.key === 'string' &&
@@ -268,7 +277,7 @@ function isFileAttachmentForApi(value: unknown): value is FileAttachmentForApi {
 }
 
 function isChatContext(value: unknown): value is ChatContext {
-  if (!isRecord(value) || typeof value.kind !== 'string' || typeof value.label !== 'string') {
+  if (!isRecordLike(value) || typeof value.kind !== 'string' || typeof value.label !== 'string') {
     return false
   }
 
@@ -294,6 +303,8 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.folderId === 'string'
     case 'filefolder':
       return typeof value.fileFolderId === 'string'
+    case 'scheduledtask':
+      return typeof value.scheduleId === 'string'
     case 'docs':
       return true
     case 'slash_command':
@@ -486,14 +497,14 @@ function isStreamSchemaValidationError(error: unknown): error is StreamSchemaVal
 }
 
 function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
-  if (!isRecord(value)) {
+  if (!isRecordLike(value)) {
     throw new Error('Invalid stream batch response')
   }
 
   const rawEvents = Array.isArray(value.events) ? value.events : []
   const events: StreamBatchEvent[] = []
   for (const [index, entry] of rawEvents.entries()) {
-    if (!isRecord(entry)) {
+    if (!isRecordLike(entry)) {
       throw createBatchSchemaValidationError(`Reconnect batch event ${index + 1} is not an object.`)
     }
     if (
@@ -984,6 +995,17 @@ export interface UseChatOptions {
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
   initialActiveResourceId?: string | null
+  /**
+   * Controlled binding for the active resource id, supplied as a
+   * `[value, setValue]` tuple (e.g. a URL-backed nuqs `useQueryState`). When
+   * provided, it is the single source of truth for the selected resource — the
+   * hook reads and writes it directly instead of owning the state internally,
+   * so no effect-sync mirror is needed. When omitted, `useChat` owns the state
+   * via local `useState` (seeded from `initialActiveResourceId`); this is the
+   * mode used by the socket-synced workflow editor copilot, whose resource
+   * selection intentionally stays out of the URL.
+   */
+  activeResourceState?: [string | null, Dispatch<SetStateAction<string | null>>]
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
@@ -1003,7 +1025,11 @@ interface StopGenerationOptions {
 export function getMothershipUseChatOptions(
   options: Pick<
     UseChatOptions,
-    'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId' | 'onRequestStarted'
+    | 'onResourceEvent'
+    | 'onStreamEnd'
+    | 'initialActiveResourceId'
+    | 'activeResourceState'
+    | 'onRequestStarted'
   > = {}
 ): UseChatOptions {
   return {
@@ -1041,9 +1067,16 @@ export function useChat(
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [queuedHandoffRecoveryEpoch, setQueuedHandoffRecoveryEpoch] = useState(0)
   const [resources, setResources] = useState<MothershipResource[]>([])
-  const [activeResourceId, setActiveResourceId] = useState<string | null>(
+  const internalActiveResourceState = useState<string | null>(
     options?.initialActiveResourceId ?? null
   )
+  /**
+   * Prefer a caller-supplied controlled binding (URL-backed nuqs on the home/Chat
+   * surface) so the URL is the single source of truth; fall back to internal state
+   * for the workflow editor copilot, which keeps resource selection out of the URL.
+   */
+  const [activeResourceId, setActiveResourceId] =
+    options?.activeResourceState ?? internalActiveResourceState
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
@@ -2008,9 +2041,7 @@ export function useChat(
           if (parsed.stream?.streamId) {
             streamIdRef.current = parsed.stream.streamId
           }
-          const eventCursor =
-            parsed.stream?.cursor ??
-            (typeof parsed.seq === 'number' ? String(parsed.seq) : undefined)
+          const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
           if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
             continue
           }
@@ -2023,7 +2054,7 @@ export function useChat(
         }
       } finally {
         if (state.sawStreamError && !state.sawCompleteEvent) {
-          finalizeResidualToolCalls(state.blocks, 'error')
+          applyTurnTerminal(state.model, 'error')
           ops.flush()
         }
         if (state.scheduledTextFlushFrame !== null) {
@@ -2912,6 +2943,36 @@ export function useChat(
   const finalize = useCallback(
     (options?: { error?: boolean; targetChatId?: string }) => {
       const isError = !!options?.error
+      if (isError) {
+        const blocks = streamingBlocksRef.current
+        if (blocks.some((block) => block.toolCall?.status === 'executing')) {
+          finalizeResidualToolCalls(blocks, 'error')
+          const assistantId =
+            activeTurnRef.current?.assistantMessageId ??
+            (streamIdRef.current ? getLiveAssistantMessageId(streamIdRef.current) : undefined)
+          const activeChatId = options?.targetChatId ?? chatIdRef.current
+          if (assistantId && activeChatId) {
+            const snapshot = buildAssistantSnapshotMessage({
+              id: assistantId,
+              content: streamingContentRef.current,
+              contentBlocks: blocks,
+              ...(streamRequestIdRef.current ? { requestId: streamRequestIdRef.current } : {}),
+            })
+            upsertChatHistory(activeChatId, (current) => ({
+              ...current,
+              messages: current.messages.map((message) =>
+                message.id === assistantId ? snapshot : message
+              ),
+            }))
+          } else if (assistantId) {
+            setPendingMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId ? { ...message, contentBlocks: [...blocks] } : message
+              )
+            )
+          }
+        }
+      }
       const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
       const hasQueuedFollowUp = !isError && (queue?.length ?? 0) > 0
       reconcileTerminalPreviewSessions()
@@ -2932,6 +2993,7 @@ export function useChat(
       notifyTurnEnded,
       reconcileTerminalPreviewSessions,
       setTransportIdle,
+      upsertChatHistory,
     ]
   )
   finalizeRef.current = finalize
@@ -3761,21 +3823,21 @@ export function useChat(
               }),
             })
             const payload: unknown = await res.json().catch(() => null)
-            if (isRecord(payload) && payload.aborted === true) {
+            if (isRecordLike(payload) && payload.aborted === true) {
               abortSucceeded = true
             }
             if (!res.ok) {
-              if (isRecord(payload) && payload.settled === false) {
+              if (isRecordLike(payload) && payload.settled === false) {
                 return false
               }
               throw new Error(
-                isRecord(payload) && typeof payload.error === 'string'
+                isRecordLike(payload) && typeof payload.error === 'string'
                   ? payload.error
                   : 'Failed to abort previous response'
               )
             }
             abortSucceeded = true
-            return isRecord(payload) && payload.settled === true
+            return isRecordLike(payload) && payload.settled === true
           }
           const abortPromise = sid
             ? postAbortRequest(resolvedChatId).then((settled) => {
