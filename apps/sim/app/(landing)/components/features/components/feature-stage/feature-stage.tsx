@@ -45,24 +45,27 @@ export function FeatureStage({
     <div>
       <div className='max-w-[560px]'>
         <span className='text-[13px] text-[var(--text-muted)]'>{eyebrow}</span>
-        <h3 className='mt-2 text-balance text-[28px] text-[var(--text-primary)] leading-[1.2]'>
+        <h3 className='mt-2 text-balance text-[28px] text-[var(--text-primary)] leading-[1.2] max-sm:text-[22px]'>
           {title}
         </h3>
-        <p className='mt-3 text-pretty text-[18px] text-[var(--text-body)] leading-[1.5]'>
+        <p className='mt-3 text-pretty text-[18px] text-[var(--text-body)] leading-[1.5] max-sm:text-[16px]'>
           {description}
         </p>
       </div>
 
-      <div className='relative mt-20'>
+      <div className='relative mt-20 max-sm:mt-8 max-lg:mt-14'>
         <div
           className={cn(
             'relative overflow-hidden rounded-xl border border-[var(--border-1)]',
-            BACKDROP_MASK
+            BACKDROP_MASK,
+            // On phones the floating callout is hidden, so drop the edge masks
+            // (which were carved out behind/around it) and show the full preview.
+            'max-md:![mask-image:none] max-md:![-webkit-mask-image:none]'
           )}
         >
           <LandingPreviewMount autoplay={false} view={view} workflowId={workflowId} />
         </div>
-        <div className='absolute -top-6 left-10 z-10'>{callout}</div>
+        <div className='-top-6 absolute left-10 z-10 max-md:hidden'>{callout}</div>
       </div>
     </div>
   )

@@ -1,5 +1,4 @@
 export { Cta } from './cta/cta'
-export { Ethos } from './ethos/ethos'
 export { Features } from './features'
 export { Footer } from './footer'
 export { Hero } from './hero'
@@ -23,4 +22,3 @@ export type {
   SolutionsPillCta,
 } from './solutions-page'
 export { SolutionsPage } from './solutions-page'
-export { Testimonials } from './testimonials'

@@ -80,7 +80,7 @@ export function Logos({ layout }: LogosProps) {
         'items-center',
         LOGO_GAP_X,
         layout === 'grid'
-          ? 'grid grid-cols-[repeat(3,max-content)] gap-y-12'
+          ? 'grid grid-cols-[repeat(3,max-content)] gap-y-12 max-sm:gap-x-10 max-sm:gap-y-8 max-lg:gap-x-16'
           : 'flex flex-wrap justify-center gap-y-12'
       )}
     >

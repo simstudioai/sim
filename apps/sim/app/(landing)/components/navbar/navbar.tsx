@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ChipLink } from '@/components/emcn'
 import { GitHubChip } from '@/app/(landing)/components/navbar/components/github-chip'
 import { LogoMark } from '@/app/(landing)/components/navbar/components/logo-mark'
+import { MobileNav } from '@/app/(landing)/components/navbar/components/mobile-nav'
 import { NavMenuChip } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import { NavbarShell } from '@/app/(landing)/components/navbar/components/navbar-shell'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
@@ -43,7 +44,7 @@ export function Navbar({ stars }: NavbarProps) {
         aria-label='Primary navigation'
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
-        className='mx-auto flex w-full max-w-[1446px] items-center gap-3.5 px-12 py-4'
+        className='relative mx-auto flex w-full max-w-[1446px] items-center gap-3.5 px-12 py-4 max-sm:px-5 max-lg:px-8'
       >
         <Link href='/' aria-label='Sim home' itemProp='url' className='flex h-[30px] items-center'>
           <span itemProp='name' className='sr-only'>
@@ -54,7 +55,7 @@ export function Navbar({ stars }: NavbarProps) {
           </LogoMark>
         </Link>
 
-        <div className='flex items-center gap-1'>
+        <div className='hidden items-center gap-1 lg:flex'>
           <NavMenuChip label='Platform' />
           <NavMenuChip label='Resources' />
           <NavMenuChip label='Solutions' />
@@ -64,7 +65,7 @@ export function Navbar({ stars }: NavbarProps) {
           <GitHubChip stars={stars} />
         </div>
 
-        <div className='ml-auto flex items-center gap-1'>
+        <div className='ml-auto hidden items-center gap-1 lg:flex'>
           <ChipLink href='/login'>Log in</ChipLink>
           <ChipLink href='/contact' className='border border-[var(--border-1)]'>
             Contact sales
@@ -73,6 +74,8 @@ export function Navbar({ stars }: NavbarProps) {
             Sign up
           </ChipLink>
         </div>
+
+        <MobileNav stars={stars} />
       </nav>
     </NavbarShell>
   )

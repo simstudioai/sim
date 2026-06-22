@@ -1,7 +1,6 @@
 'use client'
 
-import { type RefObject, useLayoutEffect, useRef, useState } from 'react'
-import { ThinkingLoader } from '@/components/emcn'
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
@@ -15,11 +14,25 @@ import {
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
- * What the Mothership chat is showing right now. `block` is the terminal beat:
- * the card morphs into the first workflow block (the chat shell resizes and its
- * content becomes the block's), handing off seamlessly to the workflow stage.
+ * What the Mothership chat is showing right now. The travelling thinking loader
+ * itself lives at the hero root (so it can outlive these layers and track its
+ * target through the camera zoom + pan); this stage only lays out the card and
+ * exposes the send button and reply slot as the loader's ref targets.
+ *
+ * - `compose` — greeting + prompt input (the typewriter).
+ * - `morphing` — the instant after send: the disc morphs into the loader while
+ *   the typed prompt fades. The card holds its compose height (the input stays in
+ *   flow, just fading) so it never reshapes mid-morph — the disc just becomes the
+ *   loader in place.
+ * - `sending` — the morph is done; the prompt is now a user bubble that animates
+ *   in above the loader, growing the card, while the camera holds zoomed in.
+ * - `thinking` — conversation layout (user bubble + an empty reply slot whose
+ *   height the loader will occupy), shown as the loader slides/docks there.
+ * - `answering` — the typed reply fills the reply slot.
+ * - `block` — the card morphs into the first workflow block (the chat shell
+ *   resizes and its content becomes the block's), handing off to the workflow.
  */
-export type HomeMode = 'compose' | 'thinking' | 'answering' | 'block'
+export type HomeMode = 'compose' | 'morphing' | 'sending' | 'thinking' | 'answering' | 'block'
 
 /** The first workflow block, shown inside the card during the morph. */
 const FIRST_BLOCK = BLOCKS[0]
@@ -44,16 +57,27 @@ interface StageHomeProps {
   answerTypedCount: number
   /** The prompt text region — the root cursor targets this for its "click in". */
   inputRef: RefObject<HTMLDivElement | null>
-  /** The send button — the root cursor targets this to "send". */
+  /** The send button — the root cursor + travelling loader target this to "send". */
   sendRef: RefObject<HTMLDivElement | null>
-  /** Hide the send button's arrow (used during the zoom-reveal beat). */
-  arrowHidden?: boolean
+  /** The dock — an invisible spot at the LEFT of the send-button row that the
+   * loader slides to (same row, so the slide is purely horizontal and the card
+   * never has to resize for it). */
+  dockRef: RefObject<HTMLDivElement | null>
   /**
-   * Reveal the greeting headline. Held back during the boot zoom-in/out so it
-   * doesn't show prematurely, then shimmers in once the input has settled. Its
-   * space is always reserved, so revealing it never shifts the layout.
+   * The white card element. The parent measures it and, during the send beat
+   * (`sending`), drives its height per-frame via the `--hero-card-h` CSS variable
+   * — in lockstep with the camera pan — so the grow-to-fit-the-bubble can't shake
+   * the card the way a CSS height transition fighting the rAF loop would.
+   */
+  cardRef: RefObject<HTMLDivElement | null>
+  /**
+   * Reveal the greeting headline. Held back until the input is being composed,
+   * then shimmers in. Its space is always reserved, so revealing it never shifts
+   * the layout.
    */
   showGreeting?: boolean
+  /** Press the send button (scale it down) — driven by the click beat. */
+  pressed?: boolean
 }
 
 /** Staggered enter for a chat bubble — translateY + opacity + blur, interruptible. */
@@ -108,27 +132,53 @@ export function StageHome({
   answerTypedCount,
   inputRef,
   sendRef,
-  arrowHidden = false,
+  dockRef,
+  cardRef,
   showGreeting = false,
+  pressed = false,
 }: StageHomeProps) {
   const isCompose = mode === 'compose'
+  const isMorphing = mode === 'morphing'
   const isBlock = mode === 'block'
-  const convoShown = mode === 'thinking' || mode === 'answering'
-  const composeRef = useRef<HTMLDivElement>(null)
-  const convoRef = useRef<HTMLDivElement>(null)
-  const [cardHeight, setCardHeight] = useState(80)
+  const isAnswering = mode === 'answering'
+  // The prompt input holds the card's compose height through the disc→loader morph
+  // (`compose`/`morphing`), then fades to a right-aligned bubble once send lands.
+  const inputInFlow = isCompose || isMorphing
+  // The typed prompt is a right-aligned chat bubble from the moment send is hit
+  // (`sending`) onward.
+  const showBubble = !isCompose && !isMorphing && !isBlock
+  // While the bubble first appears (`sending`), the PARENT drives the card height
+  // per-frame (via `--hero-card-h`) in lockstep with the camera, so the grow can't
+  // shake. Every other beat lets the card own + CSS-transition its own height.
+  const growControlled = mode === 'sending'
+  const contentRef = useRef<HTMLDivElement>(null)
+  // Seeded at the natural compose height so the send button is never clipped on
+  // the very first paint; the observer below keeps it exact from then on.
+  const [cardHeight, setCardHeight] = useState(96)
 
-  // Hug the active layer: measure its natural height and animate the card to it.
-  // Re-runs as the prompt/answer type out, so the card grows line by line. In
-  // block mode the card takes a fixed height (matching the focused workflow
-  // block), so skip measuring there.
+  // Hug the chat column: measure its natural height and animate the card to it.
+  // Guard against a collapsed/unpainted layout (width ~0) measuring a
+  // wildly-wrapped height and poisoning the card size.
+  const measure = useCallback(() => {
+    const el = contentRef.current
+    if (el && el.offsetWidth > 120) setCardHeight(el.offsetHeight)
+  }, [])
+  // Synchronous, pre-paint, on every beat that reshapes the content (prompt typing
+  // out, input→bubble swap, reply filling in) — so the card grows in lockstep with
+  // no lag. In block mode the card takes a fixed height (`isBlock` branch on the
+  // style), so the measured value is simply ignored there.
   useLayoutEffect(() => {
-    if (isBlock) return
-    const active = isCompose ? composeRef.current : convoRef.current
-    // Guard against a collapsed/unpainted layout (width ~0) measuring a
-    // wildly-wrapped height and poisoning the card size.
-    if (active && active.offsetWidth > 120) setCardHeight(active.offsetHeight)
-  }, [isBlock, isCompose, mode, typedCount, answerTypedCount])
+    measure()
+  }, [measure, mode, typedCount, answerTypedCount])
+  // Robust backstop: also re-fit on first-paint layout, font load, or any other
+  // reflow the beat-driven pass can't see — so the send button is never clipped.
+  useLayoutEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [measure])
 
   const visible = PROMPT_ATOMS.slice(0, typedCount)
   const isEmpty = typedCount === 0
@@ -137,18 +187,26 @@ export function StageHome({
   return (
     <div className='flex h-full w-full flex-col items-center justify-center px-10'>
       <div className='flex w-full max-w-[460px] flex-col gap-5'>
-        {/* Greeting — collapses as the conversation takes over. */}
+        {/* Greeting — visible while composing, then fades. Its SPACE is held
+            through the sending/thinking scene so collapsing it never re-centres
+            the column and shifts the card the camera is locked onto; it only
+            truly collapses once the reply takes over (answering) or the card
+            morphs to a block. */}
         <div
           className={cn(
             'overflow-hidden text-center transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
-            isCompose ? 'h-[40px] opacity-100' : 'h-0 opacity-0'
+            mode === 'compose'
+              ? 'h-[40px] opacity-100'
+              : mode === 'sending' || mode === 'thinking'
+                ? 'h-[40px] opacity-0'
+                : 'h-0 opacity-0'
           )}
         >
           {showGreeting ? (
             <p
               className={cn(
                 'font-season text-[30px] leading-[40px]',
-                '[-webkit-background-clip:text] bg-clip-text text-transparent [background-image:linear-gradient(90deg,var(--text-primary)_40%,var(--text-subtle)_50%,var(--text-primary)_60%)] [background-size:200%_100%] animate-hero-greeting-reveal motion-reduce:animate-none motion-reduce:[-webkit-background-clip:border-box] motion-reduce:bg-clip-border motion-reduce:[background-image:none] motion-reduce:text-[var(--text-primary)]'
+                'animate-hero-greeting-reveal bg-clip-text text-transparent [-webkit-background-clip:text] [background-image:linear-gradient(90deg,var(--text-primary)_40%,var(--text-subtle)_50%,var(--text-primary)_60%)] [background-size:200%_100%] motion-reduce:animate-none motion-reduce:bg-clip-border motion-reduce:text-[var(--text-primary)] motion-reduce:[-webkit-background-clip:border-box] motion-reduce:[background-image:none]'
               )}
             >
               {HOME_GREETING}
@@ -156,55 +214,132 @@ export function StageHome({
           ) : null}
         </div>
 
-        {/* White card — the SAME shell throughout: it hugs the active chat layer,
+        {/* White card — the SAME shell throughout: it hugs the active chat content,
             then resizes and rounds down to become the first workflow block (the
             chat → workflow morph happens on this one continuous element). */}
         <div
+          ref={cardRef}
           className={cn(
             // The chat input's aesthetic (rounded-2xl, border, soft shadow) is
             // kept THROUGHOUT — including once morphed into the workflow block —
             // so it stays the same white card, just resized.
-            'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm transition-[width,height,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+            'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
+            // While the parent drives the height per-frame (the send-bubble grow),
+            // do NOT CSS-transition height — the per-frame writes ARE the animation;
+            // a transition would lag behind them and fight the camera. Every other
+            // beat eases width/height/transform with the shared curve.
+            growControlled
+              ? 'transition-[width,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+              : 'transition-[width,height,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
             // Nudge up to cancel the chat column's greeting+gap offset, so the
             // card centers exactly where the focused workflow block lands.
             isBlock && '-translate-y-[10px]'
           )}
           style={{
             width: isBlock ? BLOCK_CARD_WIDTH : CHAT_CARD_WIDTH,
-            height: isBlock ? BLOCK_CARD_HEIGHT : cardHeight,
+            // During the grow, follow the parent-driven variable (seeded to the
+            // compose height so there's never a collapsed first frame).
+            height: isBlock
+              ? BLOCK_CARD_HEIGHT
+              : growControlled
+                ? 'var(--hero-card-h, 96px)'
+                : cardHeight,
           }}
         >
-          {/* Compose layer: the prompt input + send button. */}
+          {/* Chat content — ONE column: the user message (the typewriter input,
+              then the sent bubble) over an action row (the send button + the
+              loader's dock, then the reply). While the bubble grows the card in
+              (`sending`), the column is anchored to the BOTTOM so the send button /
+              loader stays put and the card expands UPWARD to reveal the bubble —
+              the bottom edge never moves. Every other beat is top-anchored (the
+              content fills the card, so it reads the same either way), which keeps
+              the block-morph and the reply grow behaving as before. */}
           <div
-            ref={composeRef}
+            ref={contentRef}
             className={cn(
-              'absolute inset-x-0 top-0 px-2.5 py-2 transition-opacity duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
-              isCompose ? 'opacity-100' : 'pointer-events-none opacity-0'
+              'absolute inset-x-0 flex flex-col gap-2 p-3.5 transition-opacity duration-[220ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
+              growControlled ? 'bottom-0' : 'top-0',
+              isBlock && 'pointer-events-none opacity-0'
             )}
           >
-            <div
-              ref={inputRef}
-              className='min-h-[24px] px-1 py-1 font-body text-[15px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em]'
-            >
-              {isEmpty ? (
-                <span className='text-[var(--text-subtle)]'>Ask Sim to build an agent…</span>
-              ) : (
-                <>
-                  <PromptAtoms atoms={visible} />
-                  <Caret />
-                </>
-              )}
+            {/* Message: the typewriter input while composing + morphing, then it
+                fades and a right-aligned user bubble animates in once `sending`
+                begins. The input stays in flow (holding the compose height) right
+                through the morph, so the card never reshapes as the disc becomes
+                the loader; the bubble takes over the flow only after, growing the
+                card in one clean transition. */}
+            <div className='relative'>
+              <div
+                ref={inputRef}
+                className={cn(
+                  'min-h-[24px] px-1 py-1 font-body text-[15px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]',
+                  isCompose ? 'opacity-100' : 'opacity-0',
+                  !inputInFlow && 'pointer-events-none absolute inset-x-0 top-0'
+                )}
+              >
+                {isEmpty ? (
+                  <span className='text-[var(--text-subtle)]'>Ask Sim to build an agent…</span>
+                ) : (
+                  <>
+                    <PromptAtoms atoms={visible} />
+                    <Caret />
+                  </>
+                )}
+              </div>
+              <div
+                className={cn(
+                  'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
+                  ENTER_BASE,
+                  // Hold the bubble's fade-in until the card has finished growing
+                  // upward to make room for it. The bubble is already in flow (so
+                  // the card measures the right height and expands to fit), but its
+                  // opacity/translate/blur reveal waits out the parent-driven grow
+                  // (GROW_MS) plus a short beat — so the card settles fully before
+                  // the bubble appears, instead of racing the expanding edge.
+                  mode === 'sending' && 'delay-[700ms]',
+                  showBubble
+                    ? enterState(true)
+                    : cn('pointer-events-none absolute top-0 right-0', enterState(false))
+                )}
+              >
+                <PromptAtoms atoms={PROMPT_ATOMS} />
+              </div>
             </div>
-            <div className='mt-1 flex items-center justify-end'>
+
+            {/* Action row: the loader's dock (left) and the send button (right).
+                The dock is the loader's slide target; once answering, the reply
+                types out from that same left edge as the loader fades, so the
+                docked loader reads as the start of the reply. */}
+            <div className='flex items-start justify-between gap-2'>
+              <div className='min-w-0 flex-1'>
+                {isAnswering ? (
+                  <p className='px-1 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]'>
+                    {answer}
+                    <Caret />
+                  </p>
+                ) : (
+                  <div ref={dockRef} aria-hidden='true' className='size-[28px]' />
+                )}
+              </div>
               <div
                 ref={sendRef}
                 aria-hidden='true'
-                className='flex size-[28px] items-center justify-center rounded-full bg-[#383838]'
+                className={cn(
+                  'flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-[opacity,transform,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
+                  // Visible only while composing; once send is hit the root loader's
+                  // settled orb takes its place (it stays laid out as the loader's
+                  // measure + slide-from target).
+                  isCompose ? 'opacity-100' : 'opacity-0',
+                  // Subtle interaction: lighten on hover, dip in size on press —
+                  // both for a real cursor and for the animation's click beat.
+                  isCompose && 'hover:bg-[#484848] active:scale-90',
+                  pressed && 'scale-90'
+                )}
               >
                 {/* Up-arrow that draws itself on (shaft then head) via
                     stroke-dashoffset — `pathLength={1}` normalizes the dash so
-                    one offset value covers the whole glyph. Reveals as the orb
-                    settles into this button, instead of a flat fade. */}
+                    one offset value covers the whole glyph. Retracts as send is
+                    hit so the disc is clean when the loader takes it over. */}
                 <svg viewBox='0 0 24 24' fill='none' className='size-4' aria-hidden='true'>
                   <path
                     d='M12 19V5M5 12l7-7 7 7'
@@ -214,49 +349,12 @@ export function StageHome({
                     strokeLinecap='round'
                     strokeLinejoin='round'
                     className={cn(
-                      '[stroke-dasharray:1] transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
-                      arrowHidden ? '[stroke-dashoffset:1]' : '[stroke-dashoffset:0]'
+                      'transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)] [stroke-dasharray:1]',
+                      isCompose ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
                     )}
                   />
                 </svg>
               </div>
-            </div>
-          </div>
-
-          {/* Conversation layer: user bubble + Mothership reply, top-anchored.
-              On morph it fades out FIRST (fast), so the block content fades in
-              only once the chat content is gone — a clean swap, not a crossfade. */}
-          <div
-            ref={convoRef}
-            className={cn(
-              'pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 p-3.5 transition-opacity duration-[220ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
-              isBlock && 'opacity-0'
-            )}
-          >
-            <div
-              className={cn(
-                'max-w-[82%] self-end rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em] [transition-delay:80ms]',
-                ENTER_BASE,
-                enterState(convoShown)
-              )}
-            >
-              <PromptAtoms atoms={PROMPT_ATOMS} />
-            </div>
-            <div
-              className={cn(
-                'max-w-[88%] self-start px-1 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em] [transition-delay:160ms]',
-                ENTER_BASE,
-                enterState(convoShown)
-              )}
-            >
-              {mode === 'thinking' ? (
-                <ThinkingLoader phase startVariant='corners' size={22} />
-              ) : (
-                <p>
-                  {answer}
-                  <Caret />
-                </p>
-              )}
             </div>
           </div>
 

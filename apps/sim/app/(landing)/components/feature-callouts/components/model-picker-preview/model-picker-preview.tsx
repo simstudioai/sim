@@ -85,7 +85,7 @@ export function ModelPickerPreview() {
                 )}
               >
                 <span className='text-[var(--text-body)] text-sm'>{model.name}</span>
-                <span className='rounded bg-[var(--surface-5)] px-1 py-px text-[var(--text-muted)] text-[11px] leading-none'>
+                <span className='rounded bg-[var(--surface-5)] px-1 py-px text-[11px] text-[var(--text-muted)] leading-none'>
                   {model.context}
                 </span>
               </div>

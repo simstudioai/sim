@@ -63,7 +63,7 @@ export function LandingPreviewChatInput({
         placeholder={placeholder}
         rows={1}
         readOnly={readOnly}
-        className='m-0 block max-h-[200px] min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 font-body text-[15px] text-[#121212] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#5f5f5f] focus-visible:ring-0'
+        className='m-0 block max-h-[200px] min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 font-body text-[#121212] text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#5f5f5f] focus-visible:ring-0'
         style={{ caretColor: caretHidden ? 'transparent' : '#121212' }}
       />
 

@@ -33,9 +33,16 @@ import { Logos } from '@/app/(landing)/components/logos'
  * The right-hand visual panel holds the {@link HeroVisual} — a looping,
  * `aria-hidden` product demo and the page's only client island. It is absolutely
  * positioned against the section: its left edge sits at the screen center
- * (`left-1/2`), its right edge at the hero's right padding (`right-12`), inset a
- * uniform 32px from top and bottom (`top-8 bottom-8`). Chrome is `rounded-lg`
- * over a subtle `--surface-1` fill; `overflow-hidden` clips the visual to the radius.
+ * (`left-1/2`) and its right edge at the hero's right padding (`right-12`), so
+ * its width is the right half. Vertically it is inset `top-[112px] bottom-[112px]`
+ * — matching the headline's `pt-[112px]` top and the logos' 112px-from-bottom
+ * resting line — so the panel's top edge aligns with the top of the hero text
+ * and its bottom edge aligns with the bottom of the customer logos, framing the
+ * exact vertical extent of the left content column. Below `xl` the split
+ * collapses and the panel goes in-flow (`max-xl:static`) with a stable aspect
+ * ratio so the stacked hero never shifts. Chrome is a `rounded-lg` panel over a
+ * subtle `--surface-1` fill; `overflow-hidden` clips the future video to the
+ * radius.
  *
  * The shared {@link Logos} grid (the same logo set every platform and solutions
  * page uses) sits in a bottom-anchored panel that mirrors the visual panel on
@@ -52,7 +59,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left'
+      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-xl:min-h-0 max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -63,14 +70,14 @@ export function Hero() {
 
       <h1
         id='hero-heading'
-        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] '
+        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-[40px]'
       >
         Your workflow agent for
         <br />
         solving automations.
       </h1>
 
-      <p className='text-[20px] text-[var(--text-body)] leading-[1.5]'>
+      <p className='text-[20px] text-[var(--text-body)] leading-[1.5] max-sm:text-[16px] [&>br]:max-sm:hidden'>
         Sim is the collaborative workspace to build, deploy, <br /> and manage AI agents and
         workflows.
       </p>
@@ -79,12 +86,12 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[var(--surface-1)]'
+        className='absolute top-[112px] right-12 bottom-[112px] left-1/2 overflow-hidden rounded-lg bg-[var(--surface-1)] max-sm:mt-3 max-sm:aspect-[5/4] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full'
       >
         <HeroVisual />
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20'>
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0'>
         <Logos layout='grid' />
       </div>
     </section>

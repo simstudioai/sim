@@ -1,4 +1,4 @@
-import { Cta, Ethos, Features, Hero, LandingShell, Mothership } from '@/app/(landing)/components'
+import { Cta, Features, Hero, LandingShell, Mothership } from '@/app/(landing)/components'
 
 /**
  * Landing page root — owns the section order and the `<main>` content region.
@@ -16,11 +16,10 @@ import { Cta, Ethos, Features, Hero, LandingShell, Mothership } from '@/app/(lan
 export default function Landing() {
   return (
     <LandingShell>
-      <main id='main-content' className='flex flex-col gap-[120px]'>
+      <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
         <Hero />
         <Mothership />
         <Features />
-        <Ethos />
         <Cta />
       </main>
     </LandingShell>

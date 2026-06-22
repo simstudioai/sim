@@ -37,35 +37,45 @@ import {
  * `aria-hidden`. A single pointer cursor drives a looping product demo:
  *
  * it glides into the input and clicks; the prompt types itself out
- * (`@github`/`@Jira` as inline icon-chips); it moves to send and clicks; a
- * GitHub → Agent → Jira workflow rises in (the cursor hides while the agent
- * works); then a Knowledge Base create modal opens, files drop in from "Finder",
- * the cursor returns to click Create, and an embedding map builds itself —
- * before the whole thing loops.
+ * (`@github`/`@Jira` as inline icon-chips); it moves to send and clicks; the
+ * camera smoothly zooms into the send button and HOLDS there while the disc
+ * morphs into the gooey thinking loader and cycles through several shapes; then —
+ * still zoomed — the loader slides to the reply slot on the left with the camera
+ * panning to follow it (no zoom-out), docks, and calls out the world phrases;
+ * only once the Mothership starts typing its reply does the camera zoom back out
+ * to the full chat. The card then morphs into a GitHub → Agent → Jira workflow
+ * (the cursor hides while the agent works); then a Knowledge Base create modal
+ * opens, files drop in from "Finder", the cursor returns to click Create, and an
+ * embedding map builds itself — before the whole thing loops.
  *
- * The cursor is one persistent element at this root. Each beat it measures its
- * real DOM target (the input, the send button, the Create button) relative to
- * this container and tweens there along a quadratic Bézier (control point lifted
- * perpendicular to the path) with `easeInOutCubic` — so it arcs like a hand
- * rather than sliding in a straight line. The tween is driven by
- * `requestAnimationFrame`, writing the transform imperatively to avoid per-frame
- * React renders. `prefers-reduced-motion` skips the timeline and shows a static
- * built-workflow frame.
+ * Two elements are driven imperatively (writing transforms per `requestAnimation
+ * Frame` to avoid per-frame React renders):
+ * - The cursor measures its real DOM target (input, send button, Create button)
+ *   and arcs there along a quadratic Bézier (control point lifted perpendicular)
+ *   eased with `easeInOutCubic`, so it moves like a hand, not a slide.
+ * - The thinking loader lives at THIS root (not in the card) so it can outlive the
+ *   chat layers and stay glued to its target — the send button, then the reply
+ *   slot — through the camera zoom, pan, and zoom-out, regardless of how the card
+ *   reshapes beneath it. Each frame it measures its target's on-screen rect and
+ *   matches its position and size; during the slide it lerps between the two.
+ *
+ * `prefers-reduced-motion` skips the timeline and shows a static built-workflow
+ * frame.
  */
 
 type Phase =
-  | 'boot'
-  | 'bootSettle'
-  | 'zoomReveal'
-  | 'zoomArrow'
-  | 'zoomOut'
   | 'home'
   | 'clickInput'
   | 'typing'
   | 'toSend'
+  | 'zoomSend'
   | 'clickSend'
-  | 'submit'
-  | 'thinking'
+  | 'discMorph'
+  | 'cycleHold'
+  | 'loaderSlide'
+  | 'phrases'
+  | 'phrasesOut'
+  | 'phrasesWide'
   | 'answer'
   | 'answerHold'
   | 'morph'
@@ -79,19 +89,31 @@ type Phase =
   | 'kbEmbeddings'
   | 'kbHold'
 
+/** Duration of the loader's send→reply slide; the camera pan + lerp share it. */
+const LOADER_SLIDE_MS = 1200
+/** Duration of the camera pulling back out to the whole card while the loader +
+ * phrases stay on screen (the `phrasesOut` beat). */
+const ZOOM_OUT_MS = 1300
+/** How long the card takes to grow to fit the user bubble once send is hit — eased
+ * per frame in lockstep with the camera. Shorter than the `cycleHold` beat so it
+ * settles before the slide. */
+const GROW_MS = 520
+
 const STEPS: Array<[Phase, number]> = [
-  ['boot', 2000],
-  ['bootSettle', 650],
-  ['zoomReveal', 500],
-  ['zoomArrow', 600],
-  ['zoomOut', 700],
-  ['home', 650],
+  ['home', 900],
   ['clickInput', 360],
-  ['typing', PROMPT_ATOMS.length * TYPE_MS_PER_ATOM + 300],
+  ['typing', PROMPT_ATOMS.length * TYPE_MS_PER_ATOM + 400],
   ['toSend', 700],
-  ['clickSend', 360],
-  ['submit', 620],
-  ['thinking', 1700],
+  ['zoomSend', 900],
+  // Beat 1: a quick press, then the disc morphs into the loader (compose height
+  // held). Beat 2: one cycle shape while the bubble pops in. Beat 3: slide left.
+  ['clickSend', 300],
+  ['discMorph', 560],
+  ['cycleHold', 1000],
+  ['loaderSlide', LOADER_SLIDE_MS],
+  ['phrases', 4000],
+  ['phrasesOut', ZOOM_OUT_MS],
+  ['phrasesWide', 2200],
   ['answer', ANSWER_TEXT.length * ANSWER_MS_PER_CHAR + 500],
   ['answerHold', 700],
   ['morph', 900],
@@ -107,25 +129,32 @@ const STEPS: Array<[Phase, number]> = [
 ]
 
 const HOME_PHASES = new Set<Phase>([
-  'boot',
-  'bootSettle',
-  'zoomReveal',
-  'zoomArrow',
-  'zoomOut',
   'home',
   'clickInput',
   'typing',
   'toSend',
+  'zoomSend',
   'clickSend',
-  'submit',
-  'thinking',
+  'discMorph',
+  'cycleHold',
+  'loaderSlide',
+  'phrases',
+  'phrasesOut',
+  'phrasesWide',
   'answer',
   'answerHold',
   'morph',
 ])
-/** Compose beats where the greeting headline is shown — after the boot zoom has
- * fully settled the input, never during boot/zoom. */
-const GREETING_PHASES = new Set<Phase>(['home', 'clickInput', 'typing', 'toSend', 'clickSend'])
+/** Compose beats where the greeting headline is shown — while the prompt is
+ * being composed and sent, never once the conversation/loader takes over. */
+const GREETING_PHASES = new Set<Phase>([
+  'home',
+  'clickInput',
+  'typing',
+  'toSend',
+  'zoomSend',
+  'clickSend',
+])
 const WORKFLOW_PHASES = new Set<Phase>(['blockFocus', 'cameraOut', 'workflowHold'])
 const KB_PHASES = new Set<Phase>([
   'kbOpen',
@@ -136,15 +165,16 @@ const KB_PHASES = new Set<Phase>([
   'kbHold',
 ])
 const CLICK_PHASES = new Set<Phase>(['clickInput', 'clickSend', 'kbClickCreate'])
-/** The cursor steps off-screen while the Mothership thinks, replies, and builds. */
+/** The cursor stays on the send button through the push-in and the click, then
+ * steps off-screen for the disc morph so the cycling loader reads cleanly, and
+ * stays gone while the Mothership thinks, replies, and builds. */
 const HIDE_CURSOR_PHASES = new Set<Phase>([
-  'boot',
-  'bootSettle',
-  'zoomReveal',
-  'zoomArrow',
-  'zoomOut',
-  'submit',
-  'thinking',
+  'discMorph',
+  'cycleHold',
+  'loaderSlide',
+  'phrases',
+  'phrasesOut',
+  'phrasesWide',
   'answer',
   'answerHold',
   'morph',
@@ -154,19 +184,45 @@ const HIDE_CURSOR_PHASES = new Set<Phase>([
   'kbOpen',
   'kbDrop',
 ])
+/** Beats the root thinking loader is mounted for — from the disc morph through
+ * the slide, phrases, and the pull-out to the wide card, fading out as the reply
+ * types. */
+const LOADER_PHASES = new Set<Phase>([
+  'discMorph',
+  'cycleHold',
+  'loaderSlide',
+  'phrases',
+  'phrasesOut',
+  'phrasesWide',
+  'answer',
+])
+/** Beats where the camera + loader are driven imperatively per frame (the held,
+ * slide, and pull-out beats). `answer` is excluded — there the camera is already
+ * settled wide and the loader is frozen, fading. */
+const LOADER_PAINT_PHASES = new Set<Phase>([
+  'discMorph',
+  'cycleHold',
+  'loaderSlide',
+  'phrases',
+  'phrasesOut',
+  'phrasesWide',
+])
 
 /** Cursor hotspot offset within its SVG (the arrow tip), in px at the rendered size. */
 const TIP_X = 6
 const TIP_Y = 3
 
-/** How far the boot sequence zooms into the send button before zooming out. */
-const ZOOM_SCALE = 2.6
+/** How far the camera zooms into the send button before the morph + zoom-out. */
+const ZOOM_SCALE = 2.4
+
+/** Base render size of the root loader, in px; the tracker scales it to its target. */
+const LOADER_BASE = 28
 
 /**
  * Flat `#383838` ink with no glow — the chat send button's fill. Applied to the
- * boot loader only once it settles, so its brand gradient melts into the send
- * button's color exactly as it morphs into that circle (the loader's CSS tweens
- * `stop-color`/`flood-color`). The cycling boot loader keeps its gradient.
+ * root loader while it sits settled on the send button, so its orb reads as that
+ * exact dark disc; dropped once it unsettles, and the loader's CSS tweens
+ * `stop-color`/`flood-color` back to the brand gradient as it starts cycling.
  */
 const SEND_BUTTON_INK = {
   '--tl-grad-inner': '#383838',
@@ -181,7 +237,22 @@ function kbStageFor(phase: Phase): KbStage {
 }
 
 function homeModeFor(phase: Phase): HomeMode {
-  if (phase === 'submit' || phase === 'thinking') return 'thinking'
+  // `morphing` (disc morph): compose-height layout held (the input stays in flow,
+  // fading) so the disc becomes the loader in place — no reshape mid-morph.
+  if (phase === 'discMorph') return 'morphing'
+  // `sending` (cycle hold): the morph is done; the user bubble animates in above
+  // the loader and the card grows to fit it, camera still zoomed.
+  if (phase === 'cycleHold') return 'sending'
+  // The conversation appears as the loader leaves for the reply slot, and holds
+  // through the pull-out to the wide card while the loader + phrases stay up.
+  if (
+    phase === 'loaderSlide' ||
+    phase === 'phrases' ||
+    phase === 'phrasesOut' ||
+    phase === 'phrasesWide'
+  ) {
+    return 'thinking'
+  }
   if (phase === 'answer' || phase === 'answerHold') return 'answering'
   // The card stays the GitHub block through the whole workflow pull-out — it IS
   // block 1 of the scene, never unmounting.
@@ -202,13 +273,48 @@ export function HeroVisual() {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<HTMLDivElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  // The send-bubble grow: while active (the `sending` beat), `paintFrame` eases the
+  // card's height from `h0`→`h1` per frame (writing `--hero-card-h`) and pins the
+  // camera to the freshly-measured send button in the SAME frame — so the card and
+  // the camera move in lockstep and the grow can't shake.
+  const growRef = useRef({ active: false, start: 0, h0: 0, h1: 0 })
   const createRef = useRef<HTMLSpanElement>(null)
   const cursorElRef = useRef<HTMLDivElement>(null)
   const cursorPosRef = useRef({ x: 0, y: 0 })
   const rafRef = useRef<number | undefined>(undefined)
+  const initedRef = useRef(false)
+  // Camera: the chat's zoom wrapper. `zoomSend`/`answer` drive it with React state
+  // + a CSS transition (smooth push / pull); the held + slide beats in between
+  // drive it imperatively (see `paintFrame`), locked frame-for-frame to the loader
+  // so the camera can never outrun it. The origin (un-zoomed send center) and the
+  // live translate are shared between the two regimes for a seamless handoff.
+  const cameraElRef = useRef<HTMLDivElement>(null)
   const zoomOriginRef = useRef('50% 50%')
+  const zoomOriginPxRef = useRef({ x: 0, y: 0 })
+  const zoomTranslateRef = useRef({ x: 0, y: 0 })
+  // The root loader, its per-frame target, and the on-screen anchors the slide
+  // tweens between (captured when the slide begins).
+  const loaderElRef = useRef<HTMLDivElement>(null)
+  const loaderTrackRef = useRef<{
+    kind: 'send' | 'slide' | 'reply' | 'zoomOut' | 'wide'
+    start: number
+  }>({
+    kind: 'send',
+    start: 0,
+  })
+  const slideAnchorRef = useRef({ from: { x: 0, y: 0 }, to: { x: 0, y: 0 } })
+  // The on-screen spot the loader holds while the disc morphs + cycles. Captured
+  // when the morph begins (the zoom-centred send button) so that, as the card
+  // grows to fit the user bubble above, the camera pans to keep the loader pinned
+  // here — it never drifts down with the reshaping card.
+  const sendAnchorRef = useRef({ x: 0, y: 0 })
+  // The camera translate captured when the pull-out begins; the `zoomOut` beat
+  // lerps it (and the scale) back to identity while the loader rides the dock.
+  const zoomOutFromRef = useRef({ x: 0, y: 0 })
 
-  const [phase, setPhase] = useState<Phase>('boot')
+  const [phase, setPhase] = useState<Phase>('home')
   const [typedCount, setTypedCount] = useState(0)
   const [answerTypedCount, setAnswerTypedCount] = useState(0)
   const [zoomStyle, setZoomStyle] = useState<CSSProperties | undefined>(undefined)
@@ -266,12 +372,12 @@ export function HeroVisual() {
       const cr = container.getBoundingClientRect()
 
       let point: { x: number; y: number } | null = null
-      if (target === 'boot' || target === 'bootSettle' || target === 'zoomOut') {
-        point = { x: cr.width * 0.44, y: cr.height * 0.64 }
-      } else if (target === 'home' || target === 'clickInput' || target === 'typing') {
+      if (target === 'home' || target === 'clickInput' || target === 'typing') {
         const r = inputRef.current?.getBoundingClientRect()
         if (r) point = { x: r.left - cr.left + 46, y: r.top - cr.top + r.height / 2 }
-      } else if (target === 'toSend' || target === 'clickSend' || target === 'submit') {
+      } else if (target === 'toSend' || target === 'zoomSend' || target === 'clickSend') {
+        // Measured live, so once the camera has zoomed the send button the cursor
+        // lands on it at its enlarged on-screen position.
         const r = sendRef.current?.getBoundingClientRect()
         if (r) point = { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 }
       } else if (
@@ -288,6 +394,122 @@ export function HeroVisual() {
     },
     [animateCursorTo]
   )
+
+  // One frame of the held/slide camera + loader. The loader is placed at an
+  // on-screen ANCHOR that tweens along a smooth path (its morph spot → a
+  // below-centre spot, where the reply sits under the bubble); the camera is then
+  // nudged so the loader's card target (the disc → the reply slot) sits under that
+  // anchor — so the camera follows the loader, never leading it. Because the
+  // loader rides the smooth anchor path directly, its motion never jerks even as
+  // the card grows beneath it. Measure-and-write only; called every frame and once
+  // synchronously per phase change (no first-frame flash).
+  const paintFrame = useCallback(() => {
+    const loaderEl = loaderElRef.current
+    const cameraEl = cameraElRef.current
+    const container = containerRef.current
+    if (!loaderEl || !cameraEl || !container) return
+    const cr = container.getBoundingClientRect()
+    const O = zoomOriginPxRef.current
+    const Ts = zoomTranslateRef.current
+
+    const sendEl = sendRef.current?.getBoundingClientRect()
+    const sendTarget = sendEl
+      ? { x: sendEl.left - cr.left + sendEl.width / 2, y: sendEl.top - cr.top + sendEl.height / 2 }
+      : null
+
+    const write = (
+      anchorX: number,
+      anchorY: number,
+      loaderScale: number,
+      camScale: number,
+      camX: number,
+      camY: number
+    ) => {
+      cameraEl.style.transformOrigin = `${O.x}px ${O.y}px`
+      cameraEl.style.transform = `translate(${camX}px, ${camY}px) scale(${camScale})`
+      loaderEl.style.transform = `translate(${anchorX}px, ${anchorY}px) scale(${loaderScale})`
+    }
+
+    const track = loaderTrackRef.current
+
+    // Held on the disc while it morphs + cycles: pin the loader to the spot the
+    // send button held when the morph began. As the card grows to fit the user
+    // bubble appearing above, the send button slides down within it — so pan the
+    // camera to cancel that drift, keeping the loader (and the disc under it) fixed
+    // on screen. The bubble then reads as expanding the card upward from the loader.
+    if (track.kind === 'send') {
+      // Drive the card height FIRST (the send-bubble grow), so the send button we
+      // measure next reflects this frame's exact height — no CSS-transition lag for
+      // the camera to chase. The grow is eased here; the height write + the camera
+      // pin happen in the same frame, so they stay locked together (no shake).
+      const grow = growRef.current
+      if (grow.active) {
+        const gt = easeInOutCubic(Math.min((performance.now() - grow.start) / GROW_MS, 1))
+        const h = grow.h0 + (grow.h1 - grow.h0) * gt
+        container.style.setProperty('--hero-card-h', `${h}px`)
+      }
+      const sr = sendRef.current?.getBoundingClientRect()
+      if (!sr) return
+      const sx = sr.left - cr.left + sr.width / 2
+      const sy = sr.top - cr.top + sr.height / 2
+      const anchor = sendAnchorRef.current
+      Ts.x += anchor.x - sx
+      Ts.y += anchor.y - sy
+      write(anchor.x, anchor.y, ZOOM_SCALE, ZOOM_SCALE, Ts.x, Ts.y)
+      return
+    }
+
+    // Pull-out: lerp the camera from its docked zoom back to identity (the whole
+    // card in view) while the loader keeps riding the dock — its scale tracks the
+    // camera so it stays glued to the card, shrinking with it. `wide` is the same
+    // beat pinned at the end (camera settled at identity, loader steady on the
+    // dock), so the phrases keep playing on the full-card view.
+    if (track.kind === 'zoomOut' || track.kind === 'wide') {
+      const t =
+        track.kind === 'wide'
+          ? 1
+          : easeInOutCubic(Math.min((performance.now() - track.start) / ZOOM_OUT_MS, 1))
+      const from = zoomOutFromRef.current
+      const camScale = ZOOM_SCALE + (1 - ZOOM_SCALE) * t
+      const camX = from.x * (1 - t)
+      const camY = from.y * (1 - t)
+      // Write the camera first, then measure the dock under it so the loader lands
+      // on the dock's live (shrinking) on-screen position this same frame.
+      cameraEl.style.transformOrigin = `${O.x}px ${O.y}px`
+      cameraEl.style.transform = `translate(${camX}px, ${camY}px) scale(${camScale})`
+      const dock = dockRef.current?.getBoundingClientRect()
+      if (!dock) return
+      const ax = dock.left - cr.left + dock.width / 2
+      const ay = dock.top - cr.top + dock.height / 2
+      loaderEl.style.transform = `translate(${ax}px, ${ay}px) scale(${camScale})`
+      return
+    }
+
+    // Slide / docked: traverse to the dock at the LEFT of the same row (so the
+    // move is purely horizontal — the card holds its size), the loader keeping its
+    // disc-matched size the whole way.
+    const dockEl = dockRef.current?.getBoundingClientRect()
+    if (!sendTarget || !dockEl) return
+    const dockTarget = {
+      x: dockEl.left - cr.left + dockEl.width / 2,
+      y: dockEl.top - cr.top + dockEl.height / 2,
+    }
+    const { from, to } = slideAnchorRef.current
+    const t =
+      track.kind === 'reply'
+        ? 1
+        : easeInOutCubic(Math.min((performance.now() - track.start) / LOADER_SLIDE_MS, 1))
+
+    const anchorX = from.x + (to.x - from.x) * t
+    const anchorY = from.y + (to.y - from.y) * t
+    const targetX = sendTarget.x + (dockTarget.x - sendTarget.x) * t
+    const targetY = sendTarget.y + (dockTarget.y - sendTarget.y) * t
+
+    // Pan so the loader's card target sits under its anchor — the camera follows.
+    Ts.x += anchorX - targetX
+    Ts.y += anchorY - targetY
+    write(anchorX, anchorY, ZOOM_SCALE, ZOOM_SCALE, Ts.x, Ts.y)
+  }, [])
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -313,7 +535,7 @@ export function HeroVisual() {
       setPhase(nextPhase)
       clearTyping()
 
-      if (nextPhase === 'boot' || nextPhase === 'home' || nextPhase === 'clickInput') {
+      if (nextPhase === 'home' || nextPhase === 'clickInput') {
         setTypedCount(0)
         setAnswerTypedCount(0)
       } else if (nextPhase === 'typing') {
@@ -324,8 +546,6 @@ export function HeroVisual() {
           setTypedCount(typed)
           if (typed >= PROMPT_ATOMS.length) clearTyping()
         }, TYPE_MS_PER_ATOM)
-      } else if (nextPhase === 'thinking') {
-        setAnswerTypedCount(0)
       } else if (nextPhase === 'answer') {
         let typed = 0
         typeInterval = setInterval(() => {
@@ -350,42 +570,143 @@ export function HeroVisual() {
   }, [])
 
   useLayoutEffect(() => {
-    positionCursor(phase, phase === 'boot')
+    // Snap the cursor into place on the very first paint (so it doesn't swoop in
+    // from the corner); animate every beat after.
+    positionCursor(phase, !initedRef.current)
+    initedRef.current = true
     if (!ready) setReady(true)
   }, [phase, positionCursor, ready])
 
-  // Boot zoom: hold the chat card zoomed into its send button, then zoom out to
-  // the full card. Measured ONCE at `zoomReveal` — the card is already mounted
-  // (rendered hidden during `boot`), so the send button's geometry is settled
-  // and un-zoomed at this point. `zoomArrow` keeps that same zoom (no remeasure
-  // off the already-transformed button); `zoomOut` animates back to identity
-  // about the same origin so the send button stays put as the card unfolds.
-  useLayoutEffect(() => {
-    if (phase === 'zoomReveal') {
-      const container = containerRef.current
-      const sendEl = sendRef.current
-      if (!container || !sendEl) return
+  // During the push-in, glue the cursor to the send button's live on-screen
+  // center each frame so it rides the zoom (hovering the button as the camera
+  // closes in) instead of blinking out. `clickSend` then lands on the settled
+  // button via `positionCursor`, and `discMorph` hides it for the disc morph.
+  useEffect(() => {
+    if (phase !== 'zoomSend') return
+    const container = containerRef.current
+    const el = cursorElRef.current
+    if (!container || !el) return
+    let raf = 0
+    const follow = () => {
       const cr = container.getBoundingClientRect()
-      const sr = sendEl.getBoundingClientRect()
-      // Guard an unpainted/collapsed layout (width ~0) from poisoning the zoom.
-      if (cr.width < 120) return
+      const sr = sendRef.current?.getBoundingClientRect()
+      if (sr) {
+        const x = sr.left - cr.left + sr.width / 2
+        const y = sr.top - cr.top + sr.height / 2
+        cursorPosRef.current = { x, y }
+        el.style.transform = `translate(${x - TIP_X}px, ${y - TIP_Y}px)`
+      }
+      raf = requestAnimationFrame(follow)
+    }
+    raf = requestAnimationFrame(follow)
+    return () => cancelAnimationFrame(raf)
+  }, [phase])
+
+  // The camera's two STATE-driven beats: a smooth CSS-transitioned push into the
+  // send button (`zoomSend`) and pull back out (`answer`). Everything in between
+  // (the hold + slide) is driven imperatively by `paintFrame`, so here we hand
+  // off by leaving the transform to the imperative writes (`undefined`).
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const cr = container.getBoundingClientRect()
+    if (cr.width < 120) return
+
+    if (phase === 'zoomSend') {
+      const sr = sendRef.current?.getBoundingClientRect()
+      if (!sr) return
       const px = sr.left - cr.left + sr.width / 2
       const py = sr.top - cr.top + sr.height / 2
-      const origin = `${px}px ${py}px`
-      zoomOriginRef.current = origin
+      zoomOriginRef.current = `${px}px ${py}px`
+      zoomOriginPxRef.current = { x: px, y: py }
+      const tx = cr.width / 2 - px
+      const ty = cr.height / 2 - py
+      zoomTranslateRef.current = { x: tx, y: ty }
       setZoomStyle({
-        transform: `translate(${cr.width / 2 - px}px, ${cr.height / 2 - py}px) scale(${ZOOM_SCALE})`,
-        transformOrigin: origin,
+        transform: `translate(${tx}px, ${ty}px) scale(${ZOOM_SCALE})`,
+        transformOrigin: zoomOriginRef.current,
       })
-    } else if (phase === 'zoomOut') {
+    } else if (phase === 'answer') {
       setZoomStyle({
         transform: 'translate(0px, 0px) scale(1)',
         transformOrigin: zoomOriginRef.current,
       })
-    } else if (phase !== 'zoomArrow') {
-      setZoomStyle(undefined)
     }
+    // Held + slide beats: leave `zoomStyle` as-is (last applied at zoomSend). The
+    // per-frame `paintFrame` writes overwrite the camera transform directly, and
+    // there's no re-render within a beat to re-assert the stale inline style.
   }, [phase])
+
+  // Aim the loader for the phase; on the slide, capture the on-screen anchors it
+  // tweens between (its current spot → a left-of-centre spot). Paint once
+  // synchronously so the camera + loader never flash before the rAF loop starts.
+  useLayoutEffect(() => {
+    if (phase === 'discMorph' || phase === 'cycleHold') {
+      const container = containerRef.current
+      const card = cardRef.current
+      if (phase === 'discMorph') {
+        growRef.current.active = false
+        // The send button is zoom-centred (zoomSend maps it to the container centre);
+        // pin the loader there so the bubble growing in above it can't drag it down.
+        if (container) {
+          const cr = container.getBoundingClientRect()
+          sendAnchorRef.current = { x: cr.width / 2, y: cr.height / 2 }
+        }
+        // Remember the compose height the card owns RIGHT NOW — the grow at
+        // `cycleHold` starts from here (reading it then would pick up the variable).
+        if (card) growRef.current.h0 = card.offsetHeight
+      } else if (container && card) {
+        // `cycleHold`: the bubble is now in flow. Seed the height variable to the
+        // compose height and arm the grow toward the bubble's natural height —
+        // measured from the content element itself (its own box height), since the
+        // card's `scrollHeight` won't see the content overflowing ABOVE the top
+        // while it's bottom-anchored. `paintFrame` eases from here, lockstep w/ pin.
+        const content = card.firstElementChild as HTMLElement | null
+        const h0 = growRef.current.h0 || card.offsetHeight
+        const h1 = content ? content.offsetHeight : card.scrollHeight
+        container.style.setProperty('--hero-card-h', `${h0}px`)
+        growRef.current = { active: true, start: performance.now(), h0, h1 }
+      }
+      loaderTrackRef.current = { kind: 'send', start: 0 }
+    } else if (phase === 'loaderSlide') {
+      growRef.current.active = false
+      const container = containerRef.current
+      if (container) {
+        const cr = container.getBoundingClientRect()
+        // Start the slide from where the loader has been PINNED (the zoom-centred
+        // spot), not the send button's bubble-reshaped position — so the loader
+        // never jumps as the slide begins. Dock left-of-centre at the same height,
+        // a straight sideways slide with no vertical drift.
+        const from = { ...sendAnchorRef.current }
+        slideAnchorRef.current = { from, to: { x: cr.width * 0.34, y: from.y } }
+      }
+      loaderTrackRef.current = { kind: 'slide', start: performance.now() }
+    } else if (phase === 'phrases') {
+      loaderTrackRef.current = { kind: 'reply', start: 0 }
+    } else if (phase === 'phrasesOut') {
+      // Snapshot the docked camera pan so the pull-out lerps it back to identity.
+      zoomOutFromRef.current = { ...zoomTranslateRef.current }
+      loaderTrackRef.current = { kind: 'zoomOut', start: performance.now() }
+    } else if (phase === 'phrasesWide') {
+      loaderTrackRef.current = { kind: 'wide', start: 0 }
+    }
+    if (LOADER_PAINT_PHASES.has(phase)) paintFrame()
+  }, [phase, paintFrame])
+
+  // Run the camera+loader tracker only through the held/slide beats. At `answer`
+  // the loader is frozen at its last spot and fades while the camera (state) pulls
+  // back out.
+  const loaderPainting = LOADER_PAINT_PHASES.has(phase)
+  useEffect(() => {
+    if (!loaderPainting) return
+    let raf = 0
+    const loop = () => {
+      paintFrame()
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [loaderPainting, paintFrame])
 
   useEffect(() => {
     const onResize = () => positionCursor(phase, true)
@@ -400,8 +721,6 @@ export function HeroVisual() {
     []
   )
 
-  const showBoot =
-    phase === 'boot' || phase === 'bootSettle' || phase === 'zoomReveal' || phase === 'zoomArrow'
   // The card (block 1) is mounted through the chat AND the whole workflow — it
   // never unmounts, so it continuously becomes the GitHub block.
   const showCard = HOME_PHASES.has(phase) || WORKFLOW_PHASES.has(phase)
@@ -411,6 +730,15 @@ export function HeroVisual() {
   const showKb = KB_PHASES.has(phase)
   const showCursor = ready && !HIDE_CURSOR_PHASES.has(phase)
   const clicking = CLICK_PHASES.has(phase)
+
+  // Root loader material per beat: a settled dark orb on the disc (`discMorph`),
+  // then the morph cycle with the brand gradient; phrases reveal once docked; it
+  // fades as the reply types in.
+  const loaderShown = LOADER_PHASES.has(phase)
+  const loaderSettled = phase === 'discMorph'
+  const loaderPhrases =
+    phase === 'phrases' || phase === 'phrasesOut' || phase === 'phrasesWide' || phase === 'answer'
+  const loaderFading = phase === 'answer'
 
   // The scene "camera": identity while focused on the first block (chat/morph/
   // focus), then a single scale+translate that pulls back to the whole workflow.
@@ -422,51 +750,31 @@ export function HeroVisual() {
 
   return (
     <div ref={containerRef} aria-hidden='true' className='relative h-full w-full overflow-hidden'>
-      {showBoot && (
-        <div
-          className={cn(
-            'absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
-            // Hold the loader through the zoomed-in reveal, then dissolve it at
-            // zoomArrow so the identical send-button disc underneath takes over.
-            phase === 'zoomArrow' ? 'opacity-0' : 'opacity-100'
-          )}
-        >
-          <ThinkingLoader
-            size={80}
-            startVariant='corners'
-            settle={phase !== 'boot'}
-            // Keep the brand gradient while cycling; once it settles, melt the
-            // ink into the send button's flat color as it morphs into that disc.
-            style={phase === 'boot' ? undefined : SEND_BUTTON_INK}
-          />
-        </div>
-      )}
-
       {/* The scene: ONE coordinate space holding block 1 (the persistent chat
           card) plus the workflow satellites + edges. The "camera" pull-out is a
           single transform on this whole scene, so the card is continuously the
           GitHub block. FOCUS is the identity transform (block 1 centered); only
           the pull-out animates. */}
       <div
-        className='absolute inset-0 transition-transform duration-[1700ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+        className='absolute inset-0 transform-gpu transition-transform duration-[1700ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform'
         style={{ transform: sceneTransform, transformOrigin: 'center' }}
       >
         {showCard && (
-          <div
-            className={cn(
-              'absolute inset-0 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]',
-              // Stays visible through answer → morph → workflow: the card itself
-              // becomes block 1 (no fade-out), so don't hide it here.
-              phase === 'boot' || phase === 'bootSettle'
-                ? 'opacity-0'
-                : 'translate-y-0 scale-100 opacity-100'
-            )}
-          >
+          <div className='absolute inset-0 translate-y-0 scale-100 opacity-100'>
             <div
+              ref={cameraElRef}
               className={cn(
-                'h-full w-full',
-                phase === 'zoomOut' &&
-                  'transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]'
+                // GPU-promoted so the per-frame camera transforms composite on their
+                // own layer — sub-pixel pans render smoothly instead of pixel-snapping
+                // (which reads as shake). Safe here: no card text is visible while the
+                // camera is zoomed (the input is faded, the bubble appears only once
+                // the camera is back at scale 1).
+                'h-full w-full transform-gpu will-change-transform',
+                // Only the push-in and pull-out ride a CSS transition; the held +
+                // slide beats are written imperatively (a transition here would
+                // fight the per-frame writes).
+                (phase === 'zoomSend' || phase === 'answer') &&
+                  'transition-transform duration-[850ms] ease-[cubic-bezier(0.65,0,0.35,1)]'
               )}
               style={zoomStyle}
             >
@@ -476,8 +784,10 @@ export function HeroVisual() {
                 answerTypedCount={answerTypedCount}
                 inputRef={inputRef}
                 sendRef={sendRef}
-                arrowHidden={phase === 'boot' || phase === 'bootSettle' || phase === 'zoomReveal'}
+                dockRef={dockRef}
+                cardRef={cardRef}
                 showGreeting={GREETING_PHASES.has(phase)}
+                pressed={phase === 'clickSend'}
               />
             </div>
           </div>
@@ -502,7 +812,7 @@ export function HeroVisual() {
                   stroke='var(--workflow-edge)'
                   strokeWidth={2 * WORKFLOW_FOCUS_SCALE}
                   strokeLinecap='round'
-                  className='[stroke-dasharray:1] transition-[stroke-dashoffset] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+                  className='transition-[stroke-dashoffset] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
                   style={
                     {
                       strokeDashoffset: edgesDrawn ? 0 : 1,
@@ -540,6 +850,39 @@ export function HeroVisual() {
         </div>
       )}
 
+      {/* Root thinking loader — positioned imperatively (transform written each
+          frame by `paintFrame`) so it stays glued to the send button, then the
+          reply slot, through the camera pan. The outer element carries the anchor
+          transform + scale; the inner shifts the loader by half a GLYPH (not half
+          the label row) so the GLYPH — not the phrase — centers on the anchor, and
+          the phrase flows out to its right inside the card. The fixed px offset
+          scales with the outer transform. */}
+      {loaderShown && (
+        <div
+          ref={loaderElRef}
+          aria-hidden='true'
+          className={cn(
+            // GPU-promoted: its per-frame transform writes composite on their own
+            // layer, so the slide + dock read as smooth sub-pixel motion instead of
+            // jittering as the position pixel-snaps each frame.
+            'pointer-events-none absolute top-0 left-0 z-20 transform-gpu transition-opacity duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform',
+            loaderFading ? 'opacity-0' : 'opacity-100'
+          )}
+          style={{ transformOrigin: '0 0' }}
+        >
+          <div style={{ transform: `translate(-${LOADER_BASE / 2}px, -${LOADER_BASE / 2}px)` }}>
+            <ThinkingLoader
+              size={LOADER_BASE}
+              startVariant='corners'
+              settle={loaderSettled}
+              phase={loaderPhrases}
+              labelRatio={0.5}
+              style={loaderSettled ? SEND_BUTTON_INK : undefined}
+            />
+          </div>
+        </div>
+      )}
+
       <div
         ref={cursorElRef}
         className='pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]'
@@ -548,7 +891,7 @@ export function HeroVisual() {
         {clicking && (
           <span
             key={phase}
-            className='-translate-x-1/2 -translate-y-1/2 absolute size-7 rounded-full border border-[var(--text-primary)] animate-hero-click-ring motion-reduce:animate-none'
+            className='-translate-x-1/2 -translate-y-1/2 absolute size-7 animate-hero-click-ring rounded-full border border-[var(--text-primary)] motion-reduce:animate-none'
             style={{ left: TIP_X, top: TIP_Y }}
           />
         )}

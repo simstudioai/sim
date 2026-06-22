@@ -19,15 +19,15 @@
   /* currentColor paints the squeeze ring's stroked arcs (the only non-filled
      geometry). It tracks the loader polarity — dark on light, light on dark —
      matching the gradient stops below. */
-  color: #4f4f4f;
+  color: #2c2c2c;
   flex: none;
   /* Loader fill is a radial gradient (center → edge) plus a soft white inner
      glow, per the Figma loader spec. Stops and glow opacity are theme vars,
      inherited by the gradient stops and feFlood inside the SVG, so one set of
      defs serves both themes. Light mode = the DARK-grey loader (reads on white):
-     #4F4F4F → #6F6F6F, glow white 0.6. */
-  --tl-grad-inner: #4f4f4f;
-  --tl-grad-outer: #6f6f6f;
+     #2C2C2C → #5F5F5F, glow white 0.6. */
+  --tl-grad-inner: #2c2c2c;
+  --tl-grad-outer: #5f5f5f;
   --tl-glow: rgba(255, 255, 255, 0.6);
 }
 
@@ -65,6 +65,17 @@
   --tl-grad-inner: #a7a7a7;
   --tl-grad-outer: #d6d6d6;
   --tl-glow: rgba(255, 255, 255, 0.9);
+}
+
+/* An explicit `.light` wrapper (e.g. the always-light landing) re-asserts the
+   dark-grey loader even when an outer `.dark` theme is on the document — the
+   nearer theme wins. Ordered after the `.dark` rule so on equal specificity
+   (both ancestors present) this takes precedence. */
+:global(.light) .frame {
+  color: #2c2c2c;
+  --tl-grad-inner: #2c2c2c;
+  --tl-grad-outer: #5f5f5f;
+  --tl-glow: rgba(255, 255, 255, 0.6);
 }
 
 .labelRow {

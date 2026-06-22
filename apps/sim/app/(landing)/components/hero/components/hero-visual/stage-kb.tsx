@@ -74,7 +74,7 @@ export function StageKb({ stage, createRef }: StageKbProps) {
                         key={file.name}
                         className={cn(
                           'flex items-center gap-2 rounded-md border border-[var(--border-1)] bg-[var(--surface-2)] p-2',
-                          'opacity-0 animate-hero-file-drop [animation-delay:var(--drop-delay)] motion-reduce:animate-none motion-reduce:opacity-100'
+                          'animate-hero-file-drop opacity-0 [animation-delay:var(--drop-delay)] motion-reduce:animate-none motion-reduce:opacity-100'
                         )}
                         style={{ '--drop-delay': `${120 + i * 170}ms` } as CSSProperties}
                       >
@@ -107,7 +107,7 @@ export function StageKb({ stage, createRef }: StageKbProps) {
                             key={`${a}-${b}`}
                             d={`M ${from.x} ${from.y} L ${to.x} ${to.y}`}
                             pathLength={1}
-                            className='[stroke-dasharray:1] [stroke-dashoffset:1] animate-hero-edge-draw [animation-delay:var(--pop-delay)] motion-reduce:animate-none motion-reduce:[stroke-dashoffset:0]'
+                            className='animate-hero-edge-draw [animation-delay:var(--pop-delay)] [stroke-dasharray:1] [stroke-dashoffset:1] motion-reduce:animate-none motion-reduce:[stroke-dashoffset:0]'
                             stroke='var(--text-subtle)'
                             strokeWidth={0.5}
                             style={{ '--pop-delay': `${i * 45}ms` } as CSSProperties}

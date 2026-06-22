@@ -28,8 +28,8 @@ import { ChipLink } from '@/components/emcn'
  */
 export function HeroCta() {
   return (
-    <div className='flex items-center gap-2'>
-      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3'>
+    <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
+      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3 max-sm:w-full'>
         <input
           type='email'
           aria-label='Email address'
@@ -48,7 +48,7 @@ export function HeroCta() {
       <ChipLink
         href='/signup'
         flush
-        className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+        className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
       >
         Sign up
       </ChipLink>
