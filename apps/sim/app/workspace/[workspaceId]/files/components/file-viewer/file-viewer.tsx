@@ -1,20 +1,14 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
-import { resolveFileCategory } from './file-category'
-import type { StreamingMode } from './text-editor-state'
-import { useDocPreviewBinary } from './use-doc-preview-binary'
-
-export type { StreamingMode } from './text-editor-state'
-
 import { CsvTablePreview } from './csv-table-preview'
 import { DocxPreview } from './docx-preview'
+import { resolveFileCategory } from './file-category'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
@@ -27,13 +21,17 @@ import {
   resolvePreviewError,
 } from './preview-shared'
 import { TextEditor } from './text-editor'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 import { XlsxPreview } from './xlsx-preview'
 
 const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
   ssr: false,
 })
 
-const logger = createLogger('FileViewer')
+const RichMarkdownEditor = dynamic(
+  () => import('./rich-markdown-editor/rich-markdown-editor').then((m) => m.RichMarkdownEditor),
+  { ssr: false, loading: () => <PreviewLoadingFrame className='flex flex-1 flex-col' /> }
+)
 
 /**
  * CSVs at or below this size load fully into the editor (editable, with an inline preview).
@@ -48,6 +46,15 @@ export function isTextEditable(file: { type: string; name: string }): boolean {
 
 export function isPreviewable(file: { type: string; name: string }): boolean {
   return resolvePreviewType(file.type, file.name) !== null
+}
+
+/**
+ * Markdown files render in the inline rich editor ({@link RichMarkdownEditor}) rather than
+ * the raw Monaco editor. Toolbars use this to hide the raw/split/preview mode controls,
+ * which don't apply to the single-surface editor.
+ */
+export function isMarkdownFile(file: { type: string; name: string }): boolean {
+  return resolvePreviewType(file.type, file.name) === 'markdown'
 }
 
 /**
@@ -84,7 +91,8 @@ interface FileViewerProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: StreamingMode
+  isAgentEditing?: boolean
+  streamIsIncremental?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -100,7 +108,8 @@ export function FileViewer({
   onSaveStatusChange,
   saveRef,
   streamingContent,
-  streamingMode,
+  isAgentEditing,
+  streamIsIncremental,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: FileViewerProps) {
@@ -114,12 +123,40 @@ export function FileViewer({
       if (isCsvStreamOnly(file)) {
         return <UnsupportedPreview file={file} />
       }
+      // Markdown renders through the inline rich editor (non-editable) so the public share
+      // surface matches the in-app reading experience; canEdit={false} disables autosave,
+      // the bubble menu, and every other editing affordance.
+      if (isMarkdownFile(file)) {
+        return (
+          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+        )
+      }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
     }
     // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).
     // Render a streamed, read-only preview of the first rows + an "Import as a table" path instead.
     if (isCsvStreamOnly(file)) {
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
+    }
+
+    if (isMarkdownFile(file)) {
+      return (
+        <RichMarkdownEditor
+          key={file.id}
+          file={file}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          autoFocus={autoFocus}
+          onDirtyChange={onDirtyChange}
+          onSaveStatusChange={onSaveStatusChange}
+          saveRef={saveRef}
+          streamingContent={streamingContent}
+          isAgentEditing={isAgentEditing}
+          streamIsIncremental={streamIsIncremental}
+          disableStreamingAutoScroll={disableStreamingAutoScroll}
+          previewContextKey={previewContextKey}
+        />
+      )
     }
 
     return (
@@ -133,7 +170,7 @@ export function FileViewer({
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
         streamingContent={streamingContent}
-        streamingMode={streamingMode}
+        isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />

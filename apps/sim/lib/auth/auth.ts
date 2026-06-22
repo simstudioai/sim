@@ -88,10 +88,15 @@ import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
+import { getRequestedSignInProviderId, isSignInProviderAllowed } from './constants'
 
 const logger = createLogger('Auth')
 
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  deriveMicrosoftEmailVerified,
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+} from '@/lib/oauth/microsoft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 /**
@@ -128,12 +133,14 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
     )
   }
 
+  const emailVerified = deriveMicrosoftEmailVerified(payload, email)
+
   const now = new Date()
   return {
     id: `${payload.oid || payload.sub}-${generateId()}`,
     name: (payload.name as string) || 'Microsoft User',
     email,
-    emailVerified: true,
+    emailVerified,
     createdAt: now,
     updatedAt: now,
   }
@@ -661,60 +668,21 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       requireLocalEmailVerified: false,
+      /**
+       * Only providers that verify email ownership may auto-link to an existing
+       * account during sign-in. Integration connectors are deliberately absent:
+       * they connect through the authenticated `/oauth2/link` flow, which binds
+       * to the current session user and never consults this list. `microsoft` is
+       * also excluded because it authenticates against the multi-tenant
+       * `/common/` endpoint where the email claim is attacker-controllable;
+       * leaving it trusted would bypass the email-verified check and allow
+       * nOAuth account takeover. Microsoft sign-in still works — it just links
+       * to an existing account only when the IdP asserts a verified email.
+       */
       trustedProviders: [
         'google',
         'github',
         'email-password',
-        'confluence',
-        'x',
-        'notion',
-        'microsoft',
-        'slack',
-        'reddit',
-        'webflow',
-        'asana',
-        'pipedrive',
-        'hubspot',
-        'linkedin',
-        'spotify',
-        'google-email',
-        'google-calendar',
-        'google-contacts',
-        'google-drive',
-        'google-docs',
-        'google-sheets',
-        'google-forms',
-        'google-ads',
-        'google-bigquery',
-        'google-vault',
-        'google-groups',
-        'google-meet',
-        'google-tasks',
-        'vertex-ai',
-
-        'microsoft-ad',
-        'microsoft-dataverse',
-        'microsoft-teams',
-        'microsoft-excel',
-        'microsoft-planner',
-        'outlook',
-        'onedrive',
-        'sharepoint',
-        'jira',
-        'airtable',
-        'box',
-        'dropbox',
-        'salesforce',
-        'wealthbox',
-        'zoom',
-        'wordpress',
-        'linear',
-        'monday',
-        'attio',
-        'shopify',
-        'trello',
-        'calcom',
-        'docusign',
         ...SSO_TRUSTED_PROVIDERS,
         ...additionalTrustedSsoProviders,
       ],
@@ -883,6 +851,25 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      /**
+       * Restrict the unauthenticated sign-in endpoints to first-party login
+       * providers. Better Auth registers every generic-OAuth integration
+       * connector as a social provider, so without this guard `microsoft-ad`,
+       * `salesforce`, `jira`, and the rest are reachable through
+       * `/sign-in/social` and `/sign-in/oauth2` and can mint a session for any
+       * user by email (nOAuth account takeover). Connectors are connected only
+       * through the authenticated `/oauth2/link` flow, which is unaffected.
+       */
+      if (ctx.path === '/sign-in/social' || ctx.path === '/sign-in/oauth2') {
+        const requestedProviderId = getRequestedSignInProviderId(ctx.path, ctx.body)
+        if (!isSignInProviderAllowed(requestedProviderId)) {
+          throw new APIError('FORBIDDEN', {
+            message:
+              'This provider can only be connected from a signed-in account and cannot be used to sign in.',
+          })
+        }
+      }
+
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new APIError('FORBIDDEN', {
           message: 'Registration is disabled, please contact your admin.',
@@ -1921,7 +1908,7 @@ export const auth = betterAuth({
                 id: `${(data.user_id || data.sub).toString()}-${generateId()}`,
                 name: data.name || 'Salesforce User',
                 email: data.email || `salesforce-${data.user_id}@salesforce.com`,
-                emailVerified: data.email_verified || true,
+                emailVerified: data.email_verified === true,
                 image: data.picture || undefined,
                 createdAt: new Date(),
                 updatedAt: new Date(),

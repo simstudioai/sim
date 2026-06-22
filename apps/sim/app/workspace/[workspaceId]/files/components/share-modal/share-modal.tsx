@@ -13,7 +13,7 @@ import {
   TagInput,
   type TagItem,
 } from '@/components/emcn'
-import { Link } from '@/components/emcn/icons'
+import { Send } from '@/components/emcn/icons'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -200,7 +200,7 @@ export function ShareModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} size='sm' srTitle={`Share ${fileName}`}>
-      <ChipModalHeader icon={Link} onClose={handleClose}>
+      <ChipModalHeader icon={Send} onClose={handleClose}>
         Share file
       </ChipModalHeader>
       <ChipModalBody>

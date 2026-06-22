@@ -20,6 +20,7 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
+  Tooltip,
 } from '@/components/emcn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
@@ -141,6 +142,8 @@ export function DeployModal({
   const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
+  const [mcpToolSaveDisabledReason, setMcpToolSaveDisabledReason] = useState<string | null>(null)
+  const [mcpActiveServerId, setMcpActiveServerId] = useState<string | null>(null)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
   const [a2aCanSave, setA2aCanSave] = useState(false)
   const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
@@ -668,8 +671,12 @@ export function DeployModal({
                       workflowName={workflowMetadata?.name || 'Workflow'}
                       workflowDescription={workflowMetadata?.description}
                       isDeployed={isDeployed}
+                      deployedState={deployedState}
+                      isLoadingDeployedState={isLoadingDeployedState}
                       onSubmittingChange={setMcpToolSubmitting}
                       onCanSaveChange={setMcpToolCanSave}
+                      onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
+                      onActiveServerChange={setMcpActiveServerId}
                     />
                   )}
                 </GatedTabContent>
@@ -769,18 +776,32 @@ export function DeployModal({
                 <Button
                   type='button'
                   variant='default'
-                  onClick={() => navigateToSettings({ section: 'workflow-mcp-servers' })}
+                  onClick={() =>
+                    navigateToSettings({
+                      section: 'workflow-mcp-servers',
+                      mcpServerId: mcpActiveServerId ?? undefined,
+                    })
+                  }
                 >
                   Manage
                 </Button>
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  onClick={handleMcpToolFormSubmit}
-                  disabled={mcpToolSubmitting || !mcpToolCanSave}
-                >
-                  {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
-                </Button>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span>
+                      <Button
+                        type='button'
+                        variant='tertiary'
+                        onClick={handleMcpToolFormSubmit}
+                        disabled={mcpToolSubmitting || !mcpToolCanSave}
+                      >
+                        {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
+                      </Button>
+                    </span>
+                  </Tooltip.Trigger>
+                  {mcpToolSaveDisabledReason && (
+                    <Tooltip.Content>{mcpToolSaveDisabledReason}</Tooltip.Content>
+                  )}
+                </Tooltip.Root>
               </div>
             </ModalFooter>
           )}

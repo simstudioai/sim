@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -34,6 +35,10 @@ import {
   TraceView,
 } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
+import {
+  logDetailsTabParam,
+  logDetailsTabUrlKeys,
+} from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
   DELETED_WORKFLOW_LABEL,
   formatDate,
@@ -262,23 +267,31 @@ interface LogDetailsContentProps {
 
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
-  const [prevLogId, setPrevLogId] = useState(log.id)
+  const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
+    ...logDetailsTabParam.parser,
+    ...logDetailsTabUrlKeys,
+  })
   const { copied: copiedRunId, copy: copyRunId } = useCopyToClipboard({ resetMs: 1500 })
-
-  if (prevLogId !== log.id) {
-    setPrevLogId(log.id)
-    setActiveTab('overview')
-  }
 
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const { config: permissionConfig } = usePermissionConfig()
 
+  const isInitialTabMountRef = useRef(true)
+  /**
+   * Honors a deep-linked tab on first mount; resets to overview only when
+   * switching to a different log.
+   */
   useEffect(() => {
+    if (isInitialTabMountRef.current) {
+      isInitialTabMountRef.current = false
+    } else {
+      setActiveTab('overview')
+    }
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab when switching logs
   }, [log.id])
 
   const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'

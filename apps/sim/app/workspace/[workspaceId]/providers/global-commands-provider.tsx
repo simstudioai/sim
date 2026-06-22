@@ -86,6 +86,30 @@ function matchesShortcut(e: KeyboardEvent, parsed: ParsedShortcut): boolean {
   )
 }
 
+/** Platform-resolved signature of a shortcut, so `Mod+K`, `Cmd+K`, and `Meta+K` compare equal on mac. */
+function shortcutSignature(parsed: ParsedShortcut, isMac: boolean): string {
+  const ctrl = parsed.ctrl || (parsed.mod ? !isMac : false)
+  const meta = parsed.meta || (parsed.mod ? isMac : false)
+  return `${parsed.key}|${+ctrl}|${+meta}|${+!!parsed.shift}|${+!!parsed.alt}`
+}
+
+/**
+ * Whether the focused element (or an ancestor) declares it owns `parsed` via a comma-separated
+ * `data-owned-shortcuts` attribute (e.g. a rich-text editor that binds `Mod+K` to links). Such a
+ * shortcut is left for that element to handle instead of firing the global command.
+ */
+function focusedElementOwnsShortcut(parsed: ParsedShortcut, isMac: boolean): boolean {
+  const active = document.activeElement
+  const owner = active instanceof HTMLElement ? active.closest('[data-owned-shortcuts]') : null
+  if (!owner) return false
+  const target = shortcutSignature(parsed, isMac)
+  return (owner.getAttribute('data-owned-shortcuts') ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .some((entry) => shortcutSignature(parseShortcut(entry), isMac) === target)
+}
+
 export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef<Map<string, RegistryCommand>>(new Map())
   const isMac = useMemo(() => isMacPlatform(), [])
@@ -127,6 +151,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
         }
 
         if (matchesShortcut(e, cmd.parsed)) {
+          if (focusedElementOwnsShortcut(cmd.parsed, isMac)) continue
           e.preventDefault()
           e.stopPropagation()
           try {

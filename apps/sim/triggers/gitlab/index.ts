@@ -1,0 +1,6 @@
+export { gitlabCommentTrigger } from './comment'
+export { gitlabIssueTrigger } from './issue'
+export { gitlabMergeRequestTrigger } from './merge_request'
+export { gitlabPipelineTrigger } from './pipeline'
+export { gitlabPushTrigger } from './push'
+export { gitlabWebhookTrigger } from './webhook'

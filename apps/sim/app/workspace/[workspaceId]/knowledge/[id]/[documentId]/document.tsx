@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
@@ -31,6 +32,10 @@ import {
   DeleteChunkModal,
   DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
+import {
+  documentParsers,
+  documentUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -121,8 +126,10 @@ export function Document({
 }: DocumentProps) {
   const { workspaceId } = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
+  const [{ page: currentPageFromURL, chunk: chunkFromURL }, setDocumentParams] = useQueryStates(
+    documentParsers,
+    documentUrlKeys
+  )
   const userPermissions = useUserPermissionsContext()
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
@@ -181,9 +188,18 @@ export function Document({
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
-  // Inline editor state
-  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(() =>
-    searchParams.get('chunk')
+  /**
+   * Inline editor state. The open chunk is sourced directly from the URL `chunk`
+   * param (single source of truth) so back/forward, deep links, and external
+   * navigation drive the editor; opening/closing a chunk writes the param.
+   */
+  const selectedChunkId = chunkFromURL
+  /** Opening a chunk is a destination (back closes it); clearing replaces. */
+  const setSelectedChunkId = useCallback(
+    (chunkId: string | null) => {
+      void setDocumentParams({ chunk: chunkId }, chunkId !== null ? { history: 'push' } : undefined)
+    },
+    [setDocumentParams]
   )
   const [isCreatingNewChunk, setIsCreatingNewChunk] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -224,20 +240,14 @@ export function Document({
 
   const goToPage = useCallback(
     async (page: number) => {
-      const params = new URLSearchParams(window.location.search)
-      if (page > 1) {
-        params.set('page', page.toString())
-      } else {
-        params.delete('page')
-      }
-      window.history.replaceState(null, '', `?${params.toString()}`)
+      await setDocumentParams({ page })
 
       if (showingSearch) {
         return
       }
       return initialGoToPage(page)
     },
-    [showingSearch, initialGoToPage]
+    [showingSearch, initialGoToPage, setDocumentParams]
   )
 
   const updateChunk = showingSearch
@@ -304,7 +314,7 @@ export function Document({
     setIsCreatingNewChunk(false)
     setIsDirty(false)
     setSaveStatus('idle')
-  }, [])
+  }, [setSelectedChunkId])
 
   const guardDirtyAction = useCallback(
     (action: () => void) => {
@@ -421,7 +431,15 @@ export function Document({
         }
       }
     },
-    [selectedChunk, currentChunkIndex, displayChunks, currentPage, totalPages, goToPage]
+    [
+      selectedChunk,
+      currentChunkIndex,
+      displayChunks,
+      currentPage,
+      totalPages,
+      goToPage,
+      setSelectedChunkId,
+    ]
   )
 
   const handleNavigateChunk = useCallback(
@@ -445,7 +463,7 @@ export function Document({
 
   const handleShowTags = useCallback(() => setShowTagsModal(true), [])
   const handleShowDeleteDoc = useCallback(() => setShowDeleteDocumentDialog(true), [])
-  const handleClearSelectedChunk = useCallback(() => setSelectedChunkId(null), [])
+  const handleClearSelectedChunk = useCallback(() => setSelectedChunkId(null), [setSelectedChunkId])
 
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
     () =>
@@ -517,7 +535,7 @@ export function Document({
       setIsDirty(false)
       setSaveStatus('idle')
     })
-  }, [guardDirtyAction])
+  }, [guardDirtyAction, setSelectedChunkId])
 
   const handleChunkCreated = useCallback(
     async (chunkId: string) => {
@@ -550,7 +568,7 @@ export function Document({
       }
       setTimeout(checkAndSelect, 0)
     },
-    [goToPage, totalPages]
+    [goToPage, totalPages, setSelectedChunkId]
   )
 
   const createAction = useMemo(
@@ -635,9 +653,12 @@ export function Document({
     [enabledFilter, goToPage]
   )
 
-  const handleChunkClick = useCallback((rowId: string) => {
-    setSelectedChunkId(rowId)
-  }, [])
+  const handleChunkClick = useCallback(
+    (rowId: string) => {
+      setSelectedChunkId(rowId)
+    },
+    [setSelectedChunkId]
+  )
 
   const handleToggleEnabled = useCallback(
     (chunkId: string) => {

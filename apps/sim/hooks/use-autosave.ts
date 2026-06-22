@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface UseAutosaveOptions {
   content: string
@@ -33,6 +33,7 @@ export function useAutosave({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const savingRef = useRef(false)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
@@ -45,6 +46,8 @@ export function useAutosave({
 
   const isDirty = content !== savedContent
   const savingStartRef = useRef(0)
+  const inFlightRef = useRef<Promise<void> | null>(null)
+  const unmountedRef = useRef(false)
   const MIN_SAVING_DISPLAY_MS = 600
 
   const save = useCallback(async () => {
@@ -57,25 +60,33 @@ export function useAutosave({
     }
     savingRef.current = true
     savingStartRef.current = Date.now()
-    setSaveStatus('saving')
-    let nextStatus: SaveStatus = 'saved'
-    try {
-      await onSaveRef.current()
-    } catch {
-      nextStatus = 'error'
-    } finally {
-      const elapsed = Date.now() - savingStartRef.current
-      const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
-      setTimeout(() => {
-        setSaveStatus(nextStatus)
-        clearTimeout(idleTimerRef.current)
-        idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-        savingRef.current = false
-        if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
-          save()
+    if (!unmountedRef.current) setSaveStatus('saving')
+    const run = (async () => {
+      let nextStatus: SaveStatus = 'saved'
+      try {
+        await onSaveRef.current()
+      } catch {
+        nextStatus = 'error'
+      } finally {
+        if (unmountedRef.current) {
+          savingRef.current = false
+        } else {
+          const elapsed = Date.now() - savingStartRef.current
+          const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
+          displayTimerRef.current = setTimeout(() => {
+            setSaveStatus(nextStatus)
+            clearTimeout(idleTimerRef.current)
+            idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            savingRef.current = false
+            if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
+              save()
+            }
+          }, remaining)
         }
-      }, remaining)
-    }
+      }
+    })()
+    inFlightRef.current = run
+    await run
   }, [])
 
   useEffect(() => {
@@ -86,16 +97,25 @@ export function useAutosave({
   }, [content, enabled, isDirty, delay, save])
 
   useEffect(() => {
+    // Reset on every (re)mount, not only set on unmount: React strict mode runs effects
+    // mount → cleanup → mount, so without this the flag would stay `true` after the dev
+    // double-invoke and permanently suppress the "saving"/"saved" status updates below.
+    unmountedRef.current = false
     return () => {
+      unmountedRef.current = true
       clearTimeout(timerRef.current)
       clearTimeout(idleTimerRef.current)
-      if (
-        enabledRef.current &&
-        contentRef.current !== savedContentRef.current &&
-        !savingRef.current
-      ) {
-        onSaveRef.current().catch(() => {})
-      }
+      clearTimeout(displayTimerRef.current)
+      if (!enabledRef.current || contentRef.current === savedContentRef.current) return
+      // Flush the latest content on unmount, but chain it AFTER any in-flight save rather than
+      // firing a concurrent PUT: the in-flight save captured an older snapshot, so writing the
+      // latest sequentially (last) prevents an out-of-order completion from clobbering it.
+      void (async () => {
+        await inFlightRef.current
+        if (contentRef.current !== savedContentRef.current) {
+          await onSaveRef.current().catch(() => {})
+        }
+      })()
     }
   }, [])
 

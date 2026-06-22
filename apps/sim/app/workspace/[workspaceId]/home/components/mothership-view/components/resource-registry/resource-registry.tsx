@@ -255,9 +255,9 @@ const RESOURCE_INVALIDATORS: Record<
   scheduledtask: (qc, wId) => {
     qc.invalidateQueries({ queryKey: scheduleKeys.list(wId) })
   },
-  log: (qc, _wId, id) => {
+  log: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: logKeys.details() })
-    qc.invalidateQueries({ queryKey: logKeys.detail(id) })
+    qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
   },
   /**
    * Integrations are sourced from the static integration catalog
