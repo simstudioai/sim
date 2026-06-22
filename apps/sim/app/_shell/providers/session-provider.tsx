@@ -65,7 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const res = await client.getSession({ query: { disableCookieCache: true } })
       const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
 
-      if (isCancelled) return fresh
+      if (isCancelled) return
 
       await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
       queryClient.setQueryData(sessionKeys.detail(), fresh)
@@ -73,23 +73,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     const initializeSession = async () => {
-      let session: AppSession
+      let session: AppSession = null
       try {
-        session = await refreshAfterUpgrade()
+        session = (await refreshAfterUpgrade()) ?? null
       } catch (e) {
         logger.warn('Failed to refresh session after subscription upgrade', { error: e })
-        return
       }
 
       if (isCancelled) {
         return
       }
 
+      // Refresh the plan surfaces even if the cookie-bypass read above failed: they
+      // query server truth (not the session cookie cache), so they still reconcile.
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
 
       const activeOrganizationId = session?.session?.activeOrganizationId ?? null
-      if (activeOrganizationId) {
+      if (!session || activeOrganizationId) {
         return
       }
 

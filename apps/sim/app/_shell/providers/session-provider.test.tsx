@@ -181,6 +181,12 @@ describe('SessionProvider', () => {
 
     mockGetSession.mockImplementation((arg?: unknown) => {
       if (isUpgradeCall(arg)) return upgrade.promise
+      // Honor the abort signal like the real fetch-backed client: cancelQueries
+      // aborts the in-flight mount read, so it rejects rather than resolving late.
+      const signal = (arg as { fetchOptions?: { signal?: AbortSignal } })?.fetchOptions?.signal
+      signal?.addEventListener('abort', () =>
+        mount.reject(new DOMException('Aborted', 'AbortError'))
+      )
       return mount.promise
     })
     // activeOrganizationId is present, so setActive / listCreatorOrganizations are not reached.
@@ -189,25 +195,65 @@ describe('SessionProvider', () => {
     await flush()
 
     // Resolve the fresh upgrade read FIRST. The cancelQueries guard runs before
-    // setQueryData, cancelling the in-flight stale mount query.
+    // setQueryData, cancelling (aborting) the in-flight stale mount query.
     await act(async () => {
       upgrade.resolve({ data: FRESH_SESSION })
       await Promise.resolve()
     })
+    await flushUntil(() => h.queryClient.getQueryData(sessionKeys.detail()) != null)
+
+    // Assert on the cache — the contended state cancelQueries + setQueryData
+    // govern. The fresh value wins; the aborted stale mount read never clobbers it.
+    expect(h.queryClient.getQueryData(sessionKeys.detail())).toEqual(FRESH_SESSION)
+    expect(h.queryClient.getQueryData(sessionKeys.detail())).not.toEqual(STALE_SESSION)
+
+    h.unmount()
+  })
+
+  it('upgrade path: a failed fresh read keeps the user signed in and still reconciles plan surfaces', async () => {
+    setSearch('?upgraded=true')
+
+    const mount = defer<{ data: AppSession }>()
+    const upgrade = defer<{ data: AppSession }>()
+    mockGetSession.mockImplementation((arg?: unknown) =>
+      isUpgradeCall(arg) ? upgrade.promise : mount.promise
+    )
+
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+    const invalidatedKeys = () =>
+      invalidateSpy.mock.calls.map(([arg]) => (arg as { queryKey?: unknown[] })?.queryKey)
+
+    const h = renderProvider()
     await flush()
 
-    // Now the stale mount query resolves LATE. Because it was cancelled, its
-    // result must NOT clobber the fresh value written to the cache.
+    // The fresh disableCookieCache read fails.
+    await act(async () => {
+      upgrade.reject(new Error('refresh failed'))
+      await Promise.resolve()
+    })
+    await flush()
+
+    // The normal cookie-cached mount query lands AFTER the failure.
     await act(async () => {
       mount.resolve({ data: STALE_SESSION })
       await Promise.resolve()
     })
-    await flushUntil(() => h.ctx()?.data != null)
+    await flushUntil(
+      () =>
+        h.queryClient.getQueryData(sessionKeys.detail()) != null &&
+        invalidatedKeys().some((k) => Array.isArray(k) && k[0] === 'subscription')
+    )
 
-    expect(h.queryClient.getQueryData(sessionKeys.detail())).toEqual(FRESH_SESSION)
-    expect(h.ctx()?.data).toEqual(FRESH_SESSION)
-    expect(h.ctx()?.data).not.toEqual(STALE_SESSION)
+    // The valid cookie-cached session is still cached — a failed upgrade refresh
+    // must not sign the user out, and it must not surface as a session error.
+    expect(h.queryClient.getQueryData(sessionKeys.detail())).toEqual(STALE_SESSION)
+    expect(h.queryClient.getQueryState(sessionKeys.detail())?.error ?? null).toBeNull()
 
+    // Plan surfaces read server truth, so they still reconcile after the failure.
+    expect(invalidatedKeys()).toContainEqual(['organizations'])
+    expect(invalidatedKeys()).toContainEqual(['subscription'])
+
+    invalidateSpy.mockRestore()
     h.unmount()
   })
 
