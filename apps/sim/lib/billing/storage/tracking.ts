@@ -8,16 +8,56 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
+import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage/limits'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageTracking')
 
+/** Format bytes as a `GB` label for usage-limit emails (2dp usage, whole-number limit). */
+function formatGb(bytes: number, decimals: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(decimals)} GB`
+}
+
+/**
+ * Best-effort storage threshold email after an increment. Re-reads the (now
+ * updated) usage and plan limit, then delegates scope resolution + dedup + send
+ * to {@link maybeNotifyLimit}. Never throws.
+ */
+async function maybeNotifyStorageLimit(userId: string, workspaceId: string): Promise<void> {
+  try {
+    const [usage, limit] = await Promise.all([
+      getUserStorageUsage(userId),
+      getUserStorageLimit(userId),
+    ])
+
+    await maybeNotifyLimit({
+      category: 'storage',
+      billedUserId: userId,
+      workspaceId,
+      currentUsage: usage,
+      limit,
+      usageLabel: formatGb(usage, 2),
+      limitLabel: formatGb(limit, 0),
+    })
+  } catch (error) {
+    logger.error('Error evaluating storage limit notification:', error)
+  }
+}
+
 /**
  * Increment storage usage after successful file upload
  * Only tracks if billing is enabled
+ *
+ * @param workspaceId - When provided, evaluates the storage usage-limit email
+ *   (80% / 100%) after the increment. Best-effort; never blocks the upload.
  */
-export async function incrementStorageUsage(userId: string, bytes: number): Promise<void> {
+export async function incrementStorageUsage(
+  userId: string,
+  bytes: number,
+  workspaceId?: string
+): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage increment')
     return
@@ -50,6 +90,11 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
   } catch (error) {
     logger.error('Error incrementing storage usage:', error)
     throw error
+  }
+
+  // Fire-and-forget (errors swallowed internally) so the email never adds upload latency.
+  if (workspaceId) {
+    void maybeNotifyStorageLimit(userId, workspaceId)
   }
 }
 

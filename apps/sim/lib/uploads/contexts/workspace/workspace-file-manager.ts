@@ -267,7 +267,7 @@ export async function uploadWorkspaceFile(
       )
 
       try {
-        await incrementStorageUsage(userId, fileBuffer.length)
+        await incrementStorageUsage(userId, fileBuffer.length, workspaceId)
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)
       }
@@ -431,7 +431,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
 
     try {
-      await incrementStorageUsage(userId, verifiedSize)
+      await incrementStorageUsage(userId, verifiedSize, workspaceId)
     } catch (storageError) {
       logger.error('Failed to update storage tracking:', storageError)
     }
@@ -935,7 +935,7 @@ export async function updateWorkspaceFileContent(
     if (sizeDiff !== 0) {
       try {
         if (sizeDiff > 0) {
-          await incrementStorageUsage(userId, sizeDiff)
+          await incrementStorageUsage(userId, sizeDiff, workspaceId)
         } else {
           await decrementStorageUsage(userId, Math.abs(sizeDiff))
         }

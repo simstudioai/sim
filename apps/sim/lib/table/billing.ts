@@ -5,12 +5,44 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getTablePlanLimits, type PlanName, type TablePlanLimits } from '@/lib/table/constants'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('TableBilling')
+
+/** Notify at 80% only — a row insert can only push the count up. */
+const TABLE_ROW_NOTIFY_PERCENT = 80
+
+/**
+ * Best-effort table row-limit email after an accepted insert. Resolves the
+ * workspace's billed account, then delegates scope resolution + dedup + send to
+ * {@link maybeNotifyLimit}. Never throws.
+ */
+async function maybeNotifyTableRowLimit(
+  workspaceId: string,
+  projectedRowCount: number,
+  limit: number
+): Promise<void> {
+  try {
+    const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+    if (!billedUserId) return
+
+    await maybeNotifyLimit({
+      category: 'tables',
+      billedUserId,
+      workspaceId,
+      currentUsage: projectedRowCount,
+      limit,
+      usageLabel: `${projectedRowCount.toLocaleString('en-US')} rows`,
+      limitLabel: `${limit.toLocaleString('en-US')} rows`,
+    })
+  } catch (error) {
+    logger.error('Error evaluating table row-limit notification:', error)
+  }
+}
 
 /**
  * Plan lookups hit billing + subscription tables (2-3 queries). Row-limit checks
@@ -142,6 +174,14 @@ export async function assertRowCapacity(params: {
   const limit = await getMaxRowsPerTable(params.workspaceId)
   if (wouldExceedRowLimit(limit, params.currentRowCount, params.addedRows)) {
     throw new TableRowLimitError(limit)
+  }
+
+  // Accepted write: warn (best-effort) once the table crosses the notify band.
+  if (limit > 0) {
+    const projected = params.currentRowCount + params.addedRows
+    if ((projected / limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
+      void maybeNotifyTableRowLimit(params.workspaceId, projected, limit)
+    }
   }
 }
 
