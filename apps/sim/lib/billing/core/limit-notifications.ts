@@ -202,7 +202,16 @@ export async function maybeSendLimitThresholdEmail(params: {
         if (!isOrgAdminRole(a.role)) continue
         if (a.enabled === false) continue
         if (!a.email) continue
-        await sendTo(a.email, a.name || undefined)
+        // Isolate per-admin failures so one bad recipient doesn't skip the rest.
+        try {
+          await sendTo(a.email, a.name || undefined)
+        } catch (sendError) {
+          logger.error('Failed to send limit email to org admin', {
+            category,
+            email: a.email,
+            error: sendError,
+          })
+        }
       }
     }
 
