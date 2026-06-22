@@ -438,20 +438,23 @@ export const sakanaProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in Sakana request:', { error })
+        throw error
       }
 
       if (request.stream) {
         logger.info('Using streaming for final Sakana response after tool processing')
 
+        // The tool loop is complete: this final pass only produces the textual answer.
+        // Force `tool_choice: 'none'` so the model cannot emit fresh tool calls that the
+        // text-only stream adapter would silently drop.
         const streamingPayload: any = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
         }
         if (deferResponseFormat && responseFormatPayload) {
           streamingPayload.response_format = responseFormatPayload
-          streamingPayload.tool_choice = 'none'
           streamingPayload.parallel_tool_calls = false
         }
 
