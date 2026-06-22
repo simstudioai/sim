@@ -600,7 +600,7 @@ export function McpDeploy({
                           [field.name]: e.target.value,
                         }))
                       }
-                      placeholder={`Describe ${field.name}`}
+                      placeholder={startBlockDescriptions[field.name] || `Describe ${field.name}`}
                     />
                   </div>
                 </div>
