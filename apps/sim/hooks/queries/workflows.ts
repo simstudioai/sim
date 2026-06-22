@@ -18,7 +18,7 @@ import {
   createWorkflowContract,
   deleteWorkflowContract,
   duplicateWorkflowContract,
-  getWorkflowStateContract,
+  type GetWorkflowResponseData,
   type ImportWorkflowAsSuperuserBody,
   type ImportWorkflowAsSuperuserResponse,
   importWorkflowAsSuperuserContract,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
+import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
@@ -49,14 +50,11 @@ const logger = createLogger('WorkflowQueries')
 
 export { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 
-async function fetchWorkflowState(
-  workflowId: string,
-  signal?: AbortSignal
-): Promise<WorkflowState | null> {
-  const { data } = await requestJson(getWorkflowStateContract, {
-    params: { id: workflowId },
-    signal,
-  })
+/**
+ * Projects the in-state slice of the workflow envelope into the canvas-facing
+ * `WorkflowState` shape consumed by preview/editor surfaces.
+ */
+function mapWorkflowState(data: GetWorkflowResponseData): WorkflowState {
   const wireState = data.state
   return {
     ...wireState,
@@ -70,11 +68,16 @@ async function fetchWorkflowState(
  * Fetches the full workflow state for a single workflow.
  * Used by workflow blocks to show a preview of the child workflow
  * and as a base query for input fields extraction.
+ *
+ * Derives the mapped `WorkflowState` from the shared envelope query via
+ * `select`, so it shares one cache entry (and one request) with the registry
+ * store's hydration and with `useWorkflowStates`.
  */
 export function useWorkflowState(workflowId: string | undefined) {
   return useQuery({
     queryKey: workflowKeys.state(workflowId),
-    queryFn: workflowId ? ({ signal }) => fetchWorkflowState(workflowId, signal) : skipToken,
+    queryFn: workflowId ? ({ signal }) => fetchWorkflowEnvelope(workflowId, signal) : skipToken,
+    select: mapWorkflowState,
     staleTime: 30 * 1000,
   })
 }
@@ -93,7 +96,8 @@ export function useWorkflowStates(
   const results = useQueries({
     queries: uniqueIds.map((id) => ({
       queryKey: workflowKeys.state(id),
-      queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowState(id, signal),
+      queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowEnvelope(id, signal),
+      select: mapWorkflowState,
       staleTime: 30 * 1000,
     })),
   })
