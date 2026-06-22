@@ -9,6 +9,7 @@
     "workflows/branching",
     "workflows/loops",
     "workflows/subworkflows",
+    "workflows/deployment",
     "---Agents---",
     "agents/intro",
     "---Tables---",
