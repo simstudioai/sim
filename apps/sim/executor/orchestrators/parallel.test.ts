@@ -260,8 +260,8 @@ describe('ParallelOrchestrator', () => {
   it.each([
     ['oversized numeric batch size', 999, DEFAULTS.MAX_PARALLEL_BRANCHES],
     ['negative batch size', -1, 1],
-    ['undefined batch size', undefined, 20],
-    ['nonnumeric batch size', 'not-a-number', 20],
+    ['undefined batch size', undefined, DEFAULT_PARALLEL_BATCH_SIZE],
+    ['nonnumeric batch size', 'not-a-number', DEFAULT_PARALLEL_BATCH_SIZE],
   ])('normalizes %s', async (_name, batchSize, expectedBatchSize) => {
     const dag = createDag()
     const parallelConfig = dag.parallelConfigs.get('parallel-1')!
