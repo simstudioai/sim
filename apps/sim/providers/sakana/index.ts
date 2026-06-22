@@ -86,18 +86,19 @@ export const sakanaProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
-      if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'response_schema',
-            schema: request.responseFormat.schema || request.responseFormat,
-            strict: request.responseFormat.strict !== false,
-          },
-        }
-      }
+      const responseFormatPayload = request.responseFormat
+        ? {
+            type: 'json_schema' as const,
+            json_schema: {
+              name: request.responseFormat.name || 'response_schema',
+              schema: request.responseFormat.schema || request.responseFormat,
+              strict: request.responseFormat.strict !== false,
+            },
+          }
+        : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+      let hasActiveTools = false
 
       if (tools?.length) {
         preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
@@ -106,6 +107,7 @@ export const sakanaProvider: ProviderConfig = {
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
           payload.tool_choice = toolChoice
+          hasActiveTools = true
 
           logger.info('Sakana request configuration:', {
             toolCount: filteredTools.length,
@@ -118,6 +120,14 @@ export const sakanaProvider: ProviderConfig = {
             model: request.model,
           })
         }
+      }
+
+      // Structured output and tool calling cannot be sent together — OpenAI-compatible
+      // backends reject a request that carries both `response_format` and active
+      // `tools`/`tool_choice`. Defer the schema until after the tool loop completes.
+      const deferResponseFormat = !!responseFormatPayload && hasActiveTools
+      if (responseFormatPayload && !deferResponseFormat) {
+        payload.response_format = responseFormatPayload
       }
 
       if (request.stream && (!tools || tools.length === 0)) {
@@ -430,18 +440,19 @@ export const sakanaProvider: ProviderConfig = {
         logger.error('Error in Sakana request:', { error })
       }
 
-      const providerEndTime = Date.now()
-      const providerEndTimeISO = new Date(providerEndTime).toISOString()
-      const totalDuration = providerEndTime - providerStartTime
-
       if (request.stream) {
         logger.info('Using streaming for final Sakana response after tool processing')
 
-        const streamingPayload = {
+        const streamingPayload: any = {
           ...payload,
           messages: currentMessages,
           tool_choice: 'auto',
           stream: true,
+        }
+        if (deferResponseFormat && responseFormatPayload) {
+          streamingPayload.response_format = responseFormatPayload
+          streamingPayload.tool_choice = 'none'
+          streamingPayload.parallel_tool_calls = false
         }
 
         const streamResponse = await sakana.chat.completions.create(
@@ -508,6 +519,58 @@ export const sakanaProvider: ProviderConfig = {
 
         return streamingResult
       }
+
+      // Tools were active, so `response_format` was withheld from the loop. Make one final
+      // tool-free call to obtain the structured response now that the tool work is done.
+      if (deferResponseFormat && responseFormatPayload) {
+        logger.info('Applying deferred JSON schema response format after tool processing')
+
+        const finalFormatStartTime = Date.now()
+        const finalPayload: any = {
+          ...payload,
+          messages: currentMessages,
+          response_format: responseFormatPayload,
+          tool_choice: 'none',
+          parallel_tool_calls: false,
+        }
+
+        currentResponse = await sakana.chat.completions.create(
+          finalPayload,
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
+
+        const finalFormatEndTime = Date.now()
+        timeSegments.push({
+          type: 'model',
+          name: request.model,
+          startTime: finalFormatStartTime,
+          endTime: finalFormatEndTime,
+          duration: finalFormatEndTime - finalFormatStartTime,
+        })
+        modelTime += finalFormatEndTime - finalFormatStartTime
+
+        const formattedContent = currentResponse.choices[0]?.message?.content
+        if (formattedContent) {
+          content = formattedContent
+        }
+
+        if (currentResponse.usage) {
+          tokens.input += currentResponse.usage.prompt_tokens || 0
+          tokens.output += currentResponse.usage.completion_tokens || 0
+          tokens.total += currentResponse.usage.total_tokens || 0
+        }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'sakana' }
+        )
+      }
+
+      const providerEndTime = Date.now()
+      const providerEndTimeISO = new Date(providerEndTime).toISOString()
+      const totalDuration = providerEndTime - providerStartTime
 
       return {
         content,
