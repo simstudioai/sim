@@ -122,6 +122,12 @@ export async function maybeSendLimitThresholdEmail(params: {
    * suppressed. Omit when only the post-mutation usage is observable.
    */
   priorUsage?: number
+  /**
+   * When true, only the re-arm is evaluated and no email is ever sent. Used by
+   * usage-decrease paths (e.g. a storage shrink) where usage can still be above
+   * a threshold but the change is a drop, not a fresh crossing.
+   */
+  rearmOnly?: boolean
   userId?: string
   userEmail?: string
   userName?: string
@@ -149,7 +155,8 @@ export async function maybeSendLimitThresholdEmail(params: {
       await rearmThreshold(scope, stateId, category)
     }
 
-    if (desired === 0) return
+    // Usage-decrease callers re-arm only — a drop is never a fresh crossing to email.
+    if (params.rearmOnly || desired === 0) return
 
     if (!(await claimThreshold(scope, stateId, category, desired))) return
 
@@ -253,6 +260,8 @@ export async function maybeNotifyLimit(params: {
   limitLabel: string
   /** Usage before the mutation, when known — see {@link maybeSendLimitThresholdEmail}. */
   priorUsage?: number
+  /** Re-arm only, never send — for usage-decrease callers. See {@link maybeSendLimitThresholdEmail}. */
+  rearmOnly?: boolean
 }): Promise<void> {
   try {
     const sub = await getHighestPrioritySubscription(params.billedUserId)
@@ -279,6 +288,7 @@ export async function maybeNotifyLimit(params: {
       usageLabel: params.usageLabel,
       limitLabel: params.limitLabel,
       priorUsage: params.priorUsage,
+      rearmOnly: params.rearmOnly,
       userId: params.billedUserId,
       userEmail,
       userName,

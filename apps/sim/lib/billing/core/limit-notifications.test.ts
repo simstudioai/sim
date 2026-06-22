@@ -99,6 +99,19 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(subjectMock).toHaveBeenCalledWith('storage', 'reached')
   })
 
+  it('never sends in rearmOnly mode, even when usage is above a threshold', async () => {
+    // A storage shrink that still leaves usage at 90% must only re-arm, not send,
+    // even if the stored threshold is 0 (claim would otherwise win).
+    await maybeSendLimitThresholdEmail({
+      ...baseUserParams,
+      currentUsage: 4.5,
+      limit: 5,
+      rearmOnly: true,
+    })
+    expect(mockClaim).not.toHaveBeenCalled()
+    expect(sendEmailSpy).not.toHaveBeenCalled()
+  })
+
   it('does not send when the atomic claim is lost (already notified)', async () => {
     mockClaim.mockReturnValue([]) // someone else already advanced the threshold
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })

@@ -21,11 +21,18 @@ function formatGb(bytes: number, decimals: number): string {
 }
 
 /**
- * Best-effort storage threshold email after an increment. Re-reads the (now
- * updated) usage and plan limit, then delegates scope resolution + dedup + send
- * to {@link maybeNotifyLimit}. Never throws.
+ * Best-effort storage threshold evaluation after a usage change. Re-reads the
+ * (now updated) usage and plan limit, then delegates scope resolution + dedup +
+ * send to {@link maybeNotifyLimit}. Never throws.
+ *
+ * @param rearmOnly - True on decrements, so a shrink that leaves usage above a
+ *   threshold re-arms but never sends (a drop is not a fresh crossing).
  */
-async function maybeNotifyStorageLimit(userId: string, workspaceId: string): Promise<void> {
+async function maybeNotifyStorageLimit(
+  userId: string,
+  workspaceId: string,
+  rearmOnly = false
+): Promise<void> {
   try {
     const [usage, limit] = await Promise.all([
       getUserStorageUsage(userId),
@@ -40,6 +47,7 @@ async function maybeNotifyStorageLimit(userId: string, workspaceId: string): Pro
       limit,
       usageLabel: formatGb(usage, 2),
       limitLabel: formatGb(limit, 0),
+      rearmOnly,
     })
   } catch (error) {
     logger.error('Error evaluating storage limit notification:', error)
@@ -145,7 +153,8 @@ export async function decrementStorageUsage(
     throw error
   }
 
+  // Re-arm only: usage dropped, so this never sends.
   if (workspaceId) {
-    void maybeNotifyStorageLimit(userId, workspaceId)
+    void maybeNotifyStorageLimit(userId, workspaceId, true)
   }
 }
