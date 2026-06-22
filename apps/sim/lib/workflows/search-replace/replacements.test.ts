@@ -1658,14 +1658,14 @@ describe('buildWorkflowSearchReplacePlan', () => {
       blocks: workflow.blocks,
       matches,
       selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: '25',
+      defaultReplacement: '101',
     })
 
     expect(plan.subflowUpdates).toEqual([])
     expect(plan.conflicts).toEqual([
       {
         matchId: 'subflow-text:parallel-1:subflowBatchSize:0:0',
-        reason: 'Parallel batch size must be between 1 and 20',
+        reason: 'Parallel batch size must be between 1 and 100',
       },
     ])
   })

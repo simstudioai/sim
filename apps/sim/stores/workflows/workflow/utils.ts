@@ -7,7 +7,7 @@ import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/typ
 
 const DEFAULT_LOOP_ITERATIONS = 5
 const DEFAULT_PARALLEL_BATCH_SIZE = 20
-const MAX_PARALLEL_BATCH_SIZE = 20
+const MAX_PARALLEL_BATCH_SIZE = 100
 
 export function clampParallelBatchSize(batchSize: unknown): number {
   const parsed = typeof batchSize === 'number' ? batchSize : Number.parseInt(String(batchSize), 10)

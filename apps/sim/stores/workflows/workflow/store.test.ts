@@ -603,7 +603,7 @@ describe('workflow store', () => {
       expect(state.blocks.parallel1?.data?.count).toBe(1)
     })
 
-    it('should clamp parallel batch size between 1 and 20', () => {
+    it('should clamp parallel batch size between 1 and 100', () => {
       const { updateParallelBatchSize } = useWorkflowStore.getState()
 
       addBlock(
@@ -625,7 +625,13 @@ describe('workflow store', () => {
 
       updateParallelBatchSize('parallel1', 50)
       state = useWorkflowStore.getState()
-      expect(state.blocks.parallel1?.data?.batchSize).toBe(20)
+      expect(state.blocks.parallel1?.data?.batchSize).toBe(50)
+      expect(state.parallels.parallel1.batchSize).toBe(50)
+
+      updateParallelBatchSize('parallel1', 101)
+      state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.batchSize).toBe(100)
+      expect(state.parallels.parallel1.batchSize).toBe(100)
 
       updateParallelBatchSize('parallel1', 0)
       state = useWorkflowStore.getState()

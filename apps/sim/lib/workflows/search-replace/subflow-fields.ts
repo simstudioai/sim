@@ -169,7 +169,7 @@ export function parseWorkflowSearchSubflowReplacement({
   }
 
   const count = Number.parseInt(trimmed, 10)
-  const maxBatchSize = 20
+  const maxBatchSize = 100
   if (
     count < 1 ||
     (fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize && count > maxBatchSize)
