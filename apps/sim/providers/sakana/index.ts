@@ -130,13 +130,14 @@ export const sakanaProvider: ProviderConfig = {
         payload.response_format = responseFormatPayload
       }
 
-      if (request.stream && (!tools || tools.length === 0)) {
+      if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
         logger.info('Using streaming response for Sakana request (no tools)')
 
         const streamResponse = await sakana.chat.completions.create(
           {
             ...payload,
             stream: true,
+            stream_options: { include_usage: true },
           },
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
@@ -452,6 +453,7 @@ export const sakanaProvider: ProviderConfig = {
           messages: currentMessages,
           tool_choice: 'none',
           stream: true,
+          stream_options: { include_usage: true },
         }
         if (deferResponseFormat && responseFormatPayload) {
           streamingPayload.response_format = responseFormatPayload
