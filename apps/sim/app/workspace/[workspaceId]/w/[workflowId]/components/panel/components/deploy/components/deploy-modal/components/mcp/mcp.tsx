@@ -58,6 +58,7 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
+  onSaveDisabledReasonChange?: (reason: string | null) => void
   onActiveServerChange?: (serverId: string | null) => void
 }
 
@@ -128,6 +129,7 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
+  onSaveDisabledReasonChange,
   onActiveServerChange,
 }: McpDeployProps) {
   const params = useParams()
@@ -280,9 +282,23 @@ export function McpDeploy({
     hasServerSelectionChanges ||
     (hasToolConfigurationChanges && selectedServerIdsForForm.length > 0)
 
+  // Explain the greyed Save when the tool name is valid but no server is chosen (and none is saved
+  // to remove) — the one disabled state with no inline guidance beside the field.
+  const saveDisabledReason = useMemo(() => {
+    if (!toolName.trim() || toolNameError) return null
+    if (selectedServerIdsForForm.length === 0 && selectedServerIds.length === 0) {
+      return 'Select a server to save this tool'
+    }
+    return null
+  }, [toolName, toolNameError, selectedServerIdsForForm, selectedServerIds])
+
   useEffect(() => {
     onCanSaveChange?.(hasChanges && !!toolName.trim() && !toolNameError)
   }, [hasChanges, toolName, toolNameError, onCanSaveChange])
+
+  useEffect(() => {
+    onSaveDisabledReasonChange?.(saveDisabledReason)
+  }, [saveDisabledReason, onSaveDisabledReasonChange])
 
   useEffect(() => {
     onActiveServerChange?.(selectedServerIdsForForm[0] ?? null)
