@@ -14,7 +14,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { getMeaningfulWorkflowDescription, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -52,6 +52,7 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
+  onActiveServerChange?: (serverId: string | null) => void
 }
 
 function haveSameServerSelection(a: string[], b: string[]): boolean {
@@ -60,14 +61,29 @@ function haveSameServerSelection(a: string[], b: string[]): boolean {
   return a.every((id) => bSet.has(id))
 }
 
-function haveSameParameterDescriptions(
-  a: Record<string, string>,
-  b: Record<string, string>
-): boolean {
+function haveSameOverrides(a: Record<string, string>, b: Record<string, string>): boolean {
   const aKeys = Object.keys(a)
   const bKeys = Object.keys(b)
   if (aKeys.length !== bKeys.length) return false
   return aKeys.every((key) => a[key] === b[key])
+}
+
+/**
+ * Reduce the edited descriptions to the sparse set that actually overrides the Start-block
+ * defaults: a real, non-empty value that differs from the field's Start-block description.
+ */
+function computeDescriptionOverrides(
+  descriptions: Record<string, string>,
+  startBlockDescriptions: Record<string, string>
+): Record<string, string> {
+  const overrides: Record<string, string> = {}
+  for (const [name, value] of Object.entries(descriptions)) {
+    const trimmed = value.trim()
+    if (trimmed && trimmed !== (startBlockDescriptions[name] ?? '').trim()) {
+      overrides[name] = trimmed
+    }
+  }
+  return overrides
 }
 
 /**
@@ -102,6 +118,7 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
+  onActiveServerChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -142,23 +159,26 @@ export function McpDeploy({
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
-  const [toolDescription, setToolDescription] = useState(() => {
-    const normalizedDesc = workflowDescription?.toLowerCase().trim()
-    const isDefaultDescription =
-      !workflowDescription ||
-      workflowDescription === workflowName ||
-      normalizedDesc === 'new workflow' ||
-      normalizedDesc === 'your first workflow - start building here!'
-
-    return isDefaultDescription ? '' : workflowDescription
-  })
+  const [toolDescription, setToolDescription] = useState('')
+  const workflowDescriptionFallback = getMeaningfulWorkflowDescription(
+    workflowDescription,
+    workflowName
+  )
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(() => new Set())
   const [saveErrors, setSaveErrors] = useState<string[]>([])
 
-  const parameterSchema = useMemo(
-    () => generateParameterSchema(inputFormat, parameterDescriptions),
-    [inputFormat, parameterDescriptions]
+  const startBlockDescriptions = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const field of inputFormat) {
+      map[field.name] = field.description?.trim() ?? ''
+    }
+    return map
+  }, [inputFormat])
+
+  const parameterDescriptionOverrides = useMemo(
+    () => computeDescriptionOverrides(parameterDescriptions, startBlockDescriptions),
+    [parameterDescriptions, startBlockDescriptions]
   )
 
   const toolNameError = useMemo(() => {
@@ -207,7 +227,7 @@ export function McpDeploy({
   const [savedValues, setSavedValues] = useState<{
     toolName: string
     toolDescription: string
-    parameterDescriptions: Record<string, string>
+    overrides: Record<string, string>
   } | null>(null)
 
   useEffect(() => {
@@ -217,57 +237,33 @@ export function McpDeploy({
       const toolInfo = serverToolsMap[server.id]
       if (toolInfo?.tool) {
         const initialToolName = toolInfo.tool.toolName
-
-        const loadedDescription = toolInfo.tool.toolDescription || ''
-        const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
-        const isDefaultDescription =
-          !loadedDescription ||
-          loadedDescription === workflowName ||
-          normalizedLoadedDesc === 'new workflow' ||
-          normalizedLoadedDesc === 'your first workflow - start building here!'
-        const initialToolDescription = isDefaultDescription ? '' : loadedDescription
-
-        const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
-        const properties = schema?.properties as
-          | Record<string, { description?: string }>
-          | undefined
-        const initialParameterDescriptions: Record<string, string> = {}
-        if (properties) {
-          for (const [name, prop] of Object.entries(properties)) {
-            if (
-              prop.description &&
-              prop.description !== name &&
-              prop.description !== 'Array of file objects'
-            ) {
-              initialParameterDescriptions[name] = prop.description
-            }
-          }
-        }
+        const initialToolDescription = toolInfo.tool.toolDescription ?? ''
+        const initialOverrides = toolInfo.tool.parameterDescriptionOverrides ?? {}
 
         setToolName(initialToolName)
         setToolDescription(initialToolDescription)
-        setParameterDescriptions(initialParameterDescriptions)
+        setParameterDescriptions(initialOverrides)
         setSavedValues({
           toolName: initialToolName,
           toolDescription: initialToolDescription,
-          parameterDescriptions: initialParameterDescriptions,
+          overrides: computeDescriptionOverrides(initialOverrides, startBlockDescriptions),
         })
         break
       }
     }
-  }, [servers, serverToolsMap, workflowName, savedValues])
+  }, [servers, serverToolsMap, startBlockDescriptions, savedValues])
 
   const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
 
   const hasToolConfigurationChanges = useMemo(() => {
     if (!savedValues) return false
     if (toolName !== savedValues.toolName) return true
-    if (toolDescription !== savedValues.toolDescription) return true
-    if (!haveSameParameterDescriptions(parameterDescriptions, savedValues.parameterDescriptions)) {
+    if (toolDescription.trim() !== savedValues.toolDescription.trim()) return true
+    if (!haveSameOverrides(parameterDescriptionOverrides, savedValues.overrides)) {
       return true
     }
     return false
-  }, [toolName, toolDescription, parameterDescriptions, savedValues])
+  }, [toolName, toolDescription, parameterDescriptionOverrides, savedValues])
   const hasServerSelectionChanges = useMemo(
     () => !haveSameServerSelection(selectedServerIdsForForm, selectedServerIds),
     [selectedServerIdsForForm, selectedServerIds]
@@ -280,6 +276,10 @@ export function McpDeploy({
     onCanSaveChange?.(hasChanges && !!toolName.trim() && !toolNameError)
   }, [hasChanges, toolName, toolNameError, onCanSaveChange])
 
+  useEffect(() => {
+    onActiveServerChange?.(selectedServerIdsForForm[0] ?? null)
+  }, [selectedServerIdsForForm, onActiveServerChange])
+
   const handleSave = async () => {
     if (!toolName.trim() || toolNameError) return
 
@@ -290,6 +290,12 @@ export function McpDeploy({
     const shouldUpdateExisting = hasToolConfigurationChanges
 
     if (toAdd.size === 0 && toRemove.length === 0 && !shouldUpdateExisting) return
+
+    const trimmedDescription = toolDescription.trim()
+    const toolDescriptionForSave =
+      trimmedDescription && trimmedDescription !== (workflowDescriptionFallback ?? '')
+        ? trimmedDescription
+        : ''
 
     onSubmittingChange?.(true)
     setSaveErrors([])
@@ -306,8 +312,8 @@ export function McpDeploy({
             serverId,
             workflowId,
             toolName: toolName.trim(),
-            toolDescription: toolDescription.trim() || undefined,
-            parameterSchema,
+            toolDescription: toolDescriptionForSave,
+            parameterDescriptionOverrides,
           })
           addedEntries[serverId] = { tool: addedTool, isLoading: false }
           onAddedToServer?.()
@@ -362,8 +368,8 @@ export function McpDeploy({
               serverId,
               toolId: toolInfo.tool.id,
               toolName: toolName.trim(),
-              toolDescription: toolDescription.trim() || undefined,
-              parameterSchema,
+              toolDescription: toolDescriptionForSave,
+              parameterDescriptionOverrides,
             })
           } catch (error) {
             const serverName = servers.find((s) => s.id === serverId)?.name || serverId
@@ -387,7 +393,7 @@ export function McpDeploy({
         setSavedValues({
           toolName,
           toolDescription,
-          parameterDescriptions: { ...parameterDescriptions },
+          overrides: { ...parameterDescriptionOverrides },
         })
         onCanSaveChange?.(false)
       }
@@ -517,7 +523,11 @@ export function McpDeploy({
           Description
         </Label>
         <Textarea
-          placeholder='Describe what this tool does...'
+          placeholder={
+            workflowDescriptionFallback
+              ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
+              : 'Describe what this tool does...'
+          }
           className='min-h-[100px] resize-none'
           value={toolDescription}
           onChange={(e) => setToolDescription(e.target.value)}
@@ -529,6 +539,9 @@ export function McpDeploy({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Parameters ({inputFormat.length})
           </Label>
+          <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
+            Descriptions default to your Start block inputs; edit to override for this tool.
+          </p>
           <div className='flex flex-col gap-2'>
             {inputFormat.map((field) => (
               <div
@@ -549,14 +562,18 @@ export function McpDeploy({
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
                     <ChipInput
-                      value={parameterDescriptions[field.name] || ''}
+                      value={
+                        parameterDescriptions[field.name] ??
+                        startBlockDescriptions[field.name] ??
+                        ''
+                      }
                       onChange={(e) =>
                         setParameterDescriptions((prev) => ({
                           ...prev,
                           [field.name]: e.target.value,
                         }))
                       }
-                      placeholder={`Enter description for ${field.name}`}
+                      placeholder={`Describe ${field.name}`}
                     />
                   </div>
                 </div>

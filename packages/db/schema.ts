@@ -2531,6 +2531,10 @@ export const workflowMcpTool = pgTable(
     toolName: text('tool_name').notNull(),
     toolDescription: text('tool_description'),
     parameterSchema: json('parameter_schema').notNull().default('{}'),
+    parameterDescriptionOverrides: json('parameter_description_overrides')
+      .$type<Record<string, string>>()
+      .notNull()
+      .default(sql`'{}'::json`),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

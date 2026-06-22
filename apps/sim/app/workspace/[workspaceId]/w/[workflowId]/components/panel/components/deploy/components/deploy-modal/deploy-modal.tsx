@@ -141,6 +141,7 @@ export function DeployModal({
   const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
+  const [mcpActiveServerId, setMcpActiveServerId] = useState<string | null>(null)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
   const [a2aCanSave, setA2aCanSave] = useState(false)
   const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
@@ -670,6 +671,7 @@ export function DeployModal({
                       isDeployed={isDeployed}
                       onSubmittingChange={setMcpToolSubmitting}
                       onCanSaveChange={setMcpToolCanSave}
+                      onActiveServerChange={setMcpActiveServerId}
                     />
                   )}
                 </GatedTabContent>
@@ -769,7 +771,12 @@ export function DeployModal({
                 <Button
                   type='button'
                   variant='default'
-                  onClick={() => navigateToSettings({ section: 'workflow-mcp-servers' })}
+                  onClick={() =>
+                    navigateToSettings({
+                      section: 'workflow-mcp-servers',
+                      mcpServerId: mcpActiveServerId ?? undefined,
+                    })
+                  }
                 >
                   Manage
                 </Button>
