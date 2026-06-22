@@ -43,6 +43,7 @@ export const workflowMcpToolSchema = z
     toolName: z.string(),
     toolDescription: z.string().nullable(),
     parameterSchema: z.record(z.string(), z.unknown()),
+    parameterDescriptionOverrides: z.record(z.string(), z.string()).optional(),
     createdAt: dateStringSchema,
     updatedAt: dateStringSchema,
     workflowName: z.string().nullable().optional(),
@@ -96,6 +97,8 @@ export const createWorkflowMcpToolBodySchema = z
     workflowId: z.string().min(1),
     toolName: z.string().optional(),
     toolDescription: z.string().optional(),
+    parameterDescriptionOverrides: z.record(z.string(), z.string()).optional(),
+    /** Legacy full schema accepted during the override-model rollout; prefer parameterDescriptionOverrides. */
     parameterSchema: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough()
@@ -105,6 +108,8 @@ export const updateWorkflowMcpToolBodySchema = z
     workspaceId: z.string().optional(),
     toolName: z.string().optional(),
     toolDescription: z.string().nullable().optional(),
+    parameterDescriptionOverrides: z.record(z.string(), z.string()).optional(),
+    /** Legacy full schema accepted during the override-model rollout; prefer parameterDescriptionOverrides. */
     parameterSchema: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough()

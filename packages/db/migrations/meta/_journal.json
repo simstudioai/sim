@@ -1723,6 +1723,13 @@
       "when": 1781985478354,
       "tag": "0246_convert_grandfathered_all_ws_permission_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1782092169888,
+      "tag": "0247_workflow_mcp_tool_param_desc_overrides",
+      "breakpoints": true
     }
   ]
 }

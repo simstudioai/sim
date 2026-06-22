@@ -10,7 +10,12 @@ import {
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration'
 import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
-import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import {
+  applyDescriptionOverrides,
+  generateToolInputSchema,
+  getMeaningfulWorkflowDescription,
+  sanitizeToolName,
+} from '@/lib/mcp/workflow-tool-schema'
 import {
   performChatDeploy,
   performChatUndeploy,
@@ -603,22 +608,25 @@ export async function executeDeployMcp(
       params.toolName || workflowRecord.name || `workflow_${workflowId}`
     )
     const toolDescription =
-      params.toolDescription ||
-      workflowRecord.description ||
+      params.toolDescription?.trim() ||
+      getMeaningfulWorkflowDescription(workflowRecord.description, workflowRecord.name) ||
       `Execute ${workflowRecord.name} workflow`
     /**
-     * Build the parameter schema exactly as the deploy modal does: overlay the
-     * caller-supplied per-parameter descriptions onto the workflow's deployed
-     * input format, then generate the schema. Names/types/required come from the
-     * workflow's input trigger — this tool only sets descriptions.
+     * Parameter names/types come from the workflow's deployed input trigger; this tool only sets
+     * per-parameter descriptions, sent as sparse overrides. The materialized schema is echoed in the
+     * response for the model's reference.
      */
     const inputFormat = await getDeployedWorkflowInputFormat(workflowId)
-    const parameterDescriptions = Object.fromEntries(
+    const parameterDescriptionOverrides = Object.fromEntries(
       (params.parameterDescriptions ?? [])
         .filter((entry) => entry && typeof entry.name === 'string' && entry.name.trim() !== '')
-        .map((entry) => [entry.name, entry.description ?? ''])
+        .map((entry) => [entry.name.trim(), (entry.description ?? '').trim()])
+        .filter(([, description]) => description !== '')
     )
-    const parameterSchema = generateParameterSchema(inputFormat, parameterDescriptions)
+    const parameterSchema = applyDescriptionOverrides(
+      generateToolInputSchema(inputFormat),
+      parameterDescriptionOverrides
+    )
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -633,7 +641,7 @@ export async function executeDeployMcp(
         userId: context.userId,
         toolName,
         toolDescription,
-        parameterSchema,
+        parameterDescriptionOverrides,
       })
       if (!updateResult.success || !updateResult.tool) {
         return { success: false, error: updateResult.error || 'Failed to update MCP tool' }
@@ -695,7 +703,7 @@ export async function executeDeployMcp(
       workflowId,
       toolName,
       toolDescription,
-      parameterSchema,
+      parameterDescriptionOverrides,
     })
     if (!createResult.success || !createResult.tool) {
       return { success: false, error: createResult.error || 'Failed to deploy MCP tool' }
