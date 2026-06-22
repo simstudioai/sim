@@ -20,7 +20,12 @@ import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-util
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { mcpPubSub } from './pubsub'
-import { extractInputFormatFromBlocks, generateToolInputSchema } from './workflow-tool-schema'
+import {
+  applyDescriptionOverrides,
+  extractInputFormatFromBlocks,
+  generateToolInputSchema,
+  pruneOverridesToSchema,
+} from './workflow-tool-schema'
 
 const logger = createLogger('WorkflowMcpSync')
 
@@ -41,6 +46,7 @@ interface WorkflowMcpToolSyncRow {
   serverId: string
   toolName: string
   toolDescription: string | null
+  parameterDescriptionOverrides: Record<string, string>
 }
 
 interface ServerMetadataUsageState {
@@ -60,6 +66,7 @@ async function listWorkflowMcpToolSyncPage(
       serverId: workflowMcpTool.serverId,
       toolName: workflowMcpTool.toolName,
       toolDescription: workflowMcpTool.toolDescription,
+      parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
     })
     .from(workflowMcpTool)
     .where(
@@ -214,7 +221,7 @@ export async function syncMcpToolsForWorkflow(
     if (schemaLimitError) {
       throw new Error(schemaLimitError)
     }
-    const parameterSchema = generatedParameterSchema
+    const baseParameterSchema = generatedParameterSchema
 
     const affectedServerIds = new Set<string>()
     const lockedServers = await collectWorkflowMcpToolServerIds(tx, workflowId)
@@ -258,26 +265,22 @@ export async function syncMcpToolsForWorkflow(
         if (!usageState) {
           throw new Error(`Missing locked MCP server usage state for server ${serverId}`)
         }
-        const schemaToolIds: string[] = []
-        const emptySchemaToolIds: string[] = []
-
         for (const tool of serverTools) {
           const existingUsage = subtractMcpToolMetadataUsageRow(
             usageState.serverUsage,
             usageState.usageByToolId.get(tool.id)
           )
+          const prunedOverrides = pruneOverridesToSchema(
+            tool.parameterDescriptionOverrides,
+            baseParameterSchema
+          )
+          const mergedSchema = applyDescriptionOverrides(baseParameterSchema, prunedOverrides)
           const shouldUseEmptySchema = exceedsMcpServerToolMetadataBudget(existingUsage, {
             toolName: tool.toolName,
             toolDescription: tool.toolDescription,
-            parameterSchema,
+            parameterSchema: mergedSchema,
           })
-          const schemaForTool = shouldUseEmptySchema ? EMPTY_SCHEMA : parameterSchema
-
-          if (shouldUseEmptySchema) {
-            emptySchemaToolIds.push(tool.id)
-          } else {
-            schemaToolIds.push(tool.id)
-          }
+          const schemaForTool = shouldUseEmptySchema ? EMPTY_SCHEMA : mergedSchema
 
           const updatedUsageRow = createMcpToolMetadataUsageRow({
             id: tool.id,
@@ -287,26 +290,15 @@ export async function syncMcpToolsForWorkflow(
           })
           usageState.usageByToolId.set(tool.id, updatedUsageRow)
           usageState.serverUsage = addMcpToolMetadataUsageRow(existingUsage, updatedUsageRow)
-        }
 
-        if (schemaToolIds.length > 0) {
           await tx
             .update(workflowMcpTool)
             .set({
-              parameterSchema,
+              parameterSchema: schemaForTool,
+              parameterDescriptionOverrides: prunedOverrides,
               updatedAt: new Date(),
             })
-            .where(inArray(workflowMcpTool.id, schemaToolIds))
-        }
-
-        if (emptySchemaToolIds.length > 0) {
-          await tx
-            .update(workflowMcpTool)
-            .set({
-              parameterSchema: EMPTY_SCHEMA,
-              updatedAt: new Date(),
-            })
-            .where(inArray(workflowMcpTool.id, emptySchemaToolIds))
+            .where(eq(workflowMcpTool.id, tool.id))
         }
       }
 
