@@ -32,6 +32,7 @@ import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -447,6 +448,7 @@ async function dispatchViaBatchTrigger(
 ): Promise<number> {
   let dispatched = 0
   const batchIds: string[] = []
+  const region = await resolveTriggerRegion()
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
     try {
@@ -462,6 +464,7 @@ async function dispatchViaBatchTrigger(
               `knowledgeBaseId:${payload.knowledgeBaseId}`,
               `documentId:${payload.documentId}`,
             ],
+            region,
           },
         }))
       )

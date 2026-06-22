@@ -19,6 +19,7 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
   assertContentLengthWithinLimit,
@@ -234,6 +235,7 @@ export const POST = withRouteHandler(async (req: Request) => {
           { taskId },
           {
             tags: [`workspaceId:${result.id}`, `taskId:${taskId}`],
+            region: await resolveTriggerRegion(),
           }
         )
         await db
