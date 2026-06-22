@@ -32,8 +32,8 @@ vi.mock('posthog-js', () => ({
   },
 }))
 
+import type { AppSession } from '@/lib/auth/session-response'
 import {
-  type AppSession,
   SessionContext,
   type SessionHookResult,
   SessionProvider,

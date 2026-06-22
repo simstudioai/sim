@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
-import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
-import type { AppSession } from '@/app/_shell/providers/session-provider'
+import {
+  type AppSession,
+  extractSessionDataFromAuthClientResult,
+} from '@/lib/auth/session-response'
 
 export const sessionKeys = {
   all: ['session'] as const,
@@ -18,11 +20,16 @@ async function fetchSession(signal?: AbortSignal): Promise<AppSession> {
  *
  * This is the Better Auth client SDK (not a same-origin `requestJson` contract),
  * so a plain `useQuery` is correct — there is no boundary contract to bind.
+ *
+ * `retry: false` preserves the prior fail-fast contract: an auth failure (expired
+ * token, startup network partition) surfaces immediately rather than retrying a
+ * request that won't succeed.
  */
 export function useSessionQuery() {
   return useQuery({
     queryKey: sessionKeys.detail(),
     queryFn: ({ signal }) => fetchSession(signal),
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
 }

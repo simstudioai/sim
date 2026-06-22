@@ -7,27 +7,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listCreatorOrganizationsContract } from '@/lib/api/contracts/organizations'
 import { client } from '@/lib/auth/auth-client'
-import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
+import {
+  type AppSession,
+  extractSessionDataFromAuthClientResult,
+} from '@/lib/auth/session-response'
 import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
-
-export type AppSession = {
-  user: {
-    id: string
-    email: string
-    emailVerified?: boolean
-    name?: string | null
-    image?: string | null
-    role?: string
-    createdAt?: Date
-    updatedAt?: Date
-  } | null
-  session?: {
-    id?: string
-    userId?: string
-    activeOrganizationId?: string
-    impersonatedBy?: string | null
-  }
-} | null
 
 export type SessionHookResult = {
   data: AppSession
@@ -65,7 +49,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const res = await client.getSession({ query: { disableCookieCache: true } })
       const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
 
-      if (isCancelled) return
+      if (isCancelled) return null
 
       await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
       queryClient.setQueryData(sessionKeys.detail(), fresh)
@@ -75,7 +59,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const initializeSession = async () => {
       let session: AppSession = null
       try {
-        session = (await refreshAfterUpgrade()) ?? null
+        session = await refreshAfterUpgrade()
       } catch (e) {
         logger.warn('Failed to refresh session after subscription upgrade', { error: e })
       }
