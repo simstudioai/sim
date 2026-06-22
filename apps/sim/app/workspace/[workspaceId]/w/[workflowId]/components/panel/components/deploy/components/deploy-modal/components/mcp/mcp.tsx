@@ -14,7 +14,12 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { getMeaningfulWorkflowDescription, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import {
+  extractDescriptionOverrides,
+  generateToolInputSchema,
+  getMeaningfulWorkflowDescription,
+  sanitizeToolName,
+} from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -70,7 +75,9 @@ function haveSameOverrides(a: Record<string, string>, b: Record<string, string>)
 
 /**
  * Reduce the edited descriptions to the sparse set that actually overrides the Start-block
- * defaults: a real, non-empty value that differs from the field's Start-block description.
+ * defaults: a real value that differs from both the field name and the field's Start-block
+ * description. Mirrors the server's extractDescriptionOverrides so the deploy-modal and
+ * Settings/legacy write paths agree on what counts as an override.
  */
 function computeDescriptionOverrides(
   descriptions: Record<string, string>,
@@ -79,7 +86,7 @@ function computeDescriptionOverrides(
   const overrides: Record<string, string> = {}
   for (const [name, value] of Object.entries(descriptions)) {
     const trimmed = value.trim()
-    if (trimmed && trimmed !== (startBlockDescriptions[name] ?? '').trim()) {
+    if (trimmed && trimmed !== name && trimmed !== (startBlockDescriptions[name] ?? '').trim()) {
       overrides[name] = trimmed
     }
   }
@@ -227,7 +234,7 @@ export function McpDeploy({
   const [savedValues, setSavedValues] = useState<{
     toolName: string
     toolDescription: string
-    overrides: Record<string, string>
+    descriptions: Record<string, string>
   } | null>(null)
 
   useEffect(() => {
@@ -238,7 +245,17 @@ export function McpDeploy({
       if (toolInfo?.tool) {
         const initialToolName = toolInfo.tool.toolName
         const initialToolDescription = toolInfo.tool.toolDescription ?? ''
-        const initialOverrides = toolInfo.tool.parameterDescriptionOverrides ?? {}
+        const storedOverrides = toolInfo.tool.parameterDescriptionOverrides ?? {}
+        // Tools created before the overrides column kept custom descriptions only in the stored
+        // schema; derive them (dropping field-name and Start-block-default values) so opening and
+        // saving the form never wipes descriptions that were never migrated to the column.
+        const initialOverrides =
+          Object.keys(storedOverrides).length > 0
+            ? storedOverrides
+            : extractDescriptionOverrides(
+                toolInfo.tool.parameterSchema,
+                generateToolInputSchema(inputFormat)
+              )
 
         setToolName(initialToolName)
         setToolDescription(initialToolDescription)
@@ -246,12 +263,12 @@ export function McpDeploy({
         setSavedValues({
           toolName: initialToolName,
           toolDescription: initialToolDescription,
-          overrides: computeDescriptionOverrides(initialOverrides, startBlockDescriptions),
+          descriptions: initialOverrides,
         })
         break
       }
     }
-  }, [servers, serverToolsMap, startBlockDescriptions, savedValues])
+  }, [servers, serverToolsMap, startBlockDescriptions, inputFormat, savedValues])
 
   const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
 
@@ -259,11 +276,21 @@ export function McpDeploy({
     if (!savedValues) return false
     if (toolName !== savedValues.toolName) return true
     if (toolDescription.trim() !== savedValues.toolDescription.trim()) return true
-    if (!haveSameOverrides(parameterDescriptionOverrides, savedValues.overrides)) {
+    const savedOverrides = computeDescriptionOverrides(
+      savedValues.descriptions,
+      startBlockDescriptions
+    )
+    if (!haveSameOverrides(parameterDescriptionOverrides, savedOverrides)) {
       return true
     }
     return false
-  }, [toolName, toolDescription, parameterDescriptionOverrides, savedValues])
+  }, [
+    toolName,
+    toolDescription,
+    parameterDescriptionOverrides,
+    savedValues,
+    startBlockDescriptions,
+  ])
   const hasServerSelectionChanges = useMemo(
     () => !haveSameServerSelection(selectedServerIdsForForm, selectedServerIds),
     [selectedServerIdsForForm, selectedServerIds]
@@ -393,7 +420,7 @@ export function McpDeploy({
         setSavedValues({
           toolName,
           toolDescription,
-          overrides: { ...parameterDescriptionOverrides },
+          descriptions: { ...parameterDescriptions },
         })
         onCanSaveChange?.(false)
       }
