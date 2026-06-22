@@ -1,4 +1,4 @@
-import { LogsTablePreview } from '@/app/(landing)/components/feature-callouts/components/logs-table-preview/logs-table-preview'
+import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
 import {
   CalloutFrame,
   FeatureStage,

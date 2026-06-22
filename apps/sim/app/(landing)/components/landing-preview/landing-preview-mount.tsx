@@ -11,8 +11,8 @@ import type { SidebarView } from '@/app/(landing)/components/landing-preview/com
  * Loaded with `ssr: false` so the framer-motion/reactflow bundle never ships in
  * the server-rendered HTML, and behind a dimension-stable placeholder sized to
  * the preview's exact `aspect-[1116/615]` footprint so there is zero layout
- * shift while it streams in. The placeholder fills with the preview's own dark
- * surface (`--landing-bg-surface`) so there is no light→dark flash on mount.
+ * shift while it streams in. The placeholder fills with the canvas surface
+ * (`--surface-1`) so there is no flash as the island mounts.
  */
 const LandingPreview = dynamic(
   () =>
@@ -21,7 +21,7 @@ const LandingPreview = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <div className='aspect-[1116/615] w-full rounded bg-[#f8f8f8]' />,
+    loading: () => <div className='aspect-[1116/615] w-full rounded bg-[var(--surface-1)]' />,
   }
 )
 
