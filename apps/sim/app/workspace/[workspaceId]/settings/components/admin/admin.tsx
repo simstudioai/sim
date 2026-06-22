@@ -1,12 +1,17 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  adminParsers,
+  adminUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
 import {
   useAdminUsers,
   useBanUser,
@@ -41,9 +46,13 @@ export function Admin() {
   const impersonateUser = useImpersonateUser()
 
   const [workflowId, setWorkflowId] = useState('')
-  const [usersOffset, setUsersOffset] = useState(0)
-  const [searchInput, setSearchInput] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+
+  const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
+    adminParsers,
+    adminUrlKeys
+  )
+
+  const [searchInput, setSearchInput] = useState(searchQuery)
   const [banUserId, setBanUserId] = useState<string | null>(null)
   const [banReason, setBanReason] = useState('')
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
@@ -56,9 +65,16 @@ export function Admin() {
   } = useAdminUsers(usersOffset, PAGE_SIZE, searchQuery)
 
   const handleSearch = () => {
-    setUsersOffset(0)
-    setSearchQuery(searchInput.trim())
+    const trimmed = searchInput.trim()
+    setAdminParams({ q: trimmed.length > 0 ? trimmed : null, offset: null })
   }
+
+  const lastSyncedSearchRef = useRef(searchQuery)
+  useEffect(() => {
+    if (searchQuery === lastSyncedSearchRef.current) return
+    lastSyncedSearchRef.current = searchQuery
+    setSearchInput((current) => (current === searchQuery ? current : searchQuery))
+  }, [searchQuery])
 
   const totalPages = useMemo(
     () => Math.ceil((usersData?.total ?? 0) / PAGE_SIZE),
@@ -410,7 +426,11 @@ export function Admin() {
                       <Button
                         variant='active'
                         className='h-[28px] px-2 text-caption'
-                        onClick={() => setUsersOffset((prev) => prev - PAGE_SIZE)}
+                        onClick={() =>
+                          setAdminParams((prev) => ({
+                            offset: Math.max(0, prev.offset - PAGE_SIZE),
+                          }))
+                        }
                         disabled={usersOffset === 0 || usersLoading}
                       >
                         Previous
@@ -418,7 +438,9 @@ export function Admin() {
                       <Button
                         variant='active'
                         className='h-[28px] px-2 text-caption'
-                        onClick={() => setUsersOffset((prev) => prev + PAGE_SIZE)}
+                        onClick={() =>
+                          setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
+                        }
                         disabled={
                           usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading
                         }

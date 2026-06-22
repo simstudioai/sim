@@ -4,7 +4,6 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowUp, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChipCombobox,
@@ -21,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
+import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import {
   formatDateShort,
   type LogStatus,
@@ -29,7 +29,6 @@ import {
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { AutocompleteSearch } from './components/search'
 
@@ -181,25 +180,7 @@ export const LogsToolbar = memo(function LogsToolbar({
     setDateRange,
     clearDateRange,
     resetFilters,
-  } = useFilterStore(
-    useShallow((s) => ({
-      level: s.level,
-      setLevel: s.setLevel,
-      workflowIds: s.workflowIds,
-      setWorkflowIds: s.setWorkflowIds,
-      folderIds: s.folderIds,
-      setFolderIds: s.setFolderIds,
-      triggers: s.triggers,
-      setTriggers: s.setTriggers,
-      timeRange: s.timeRange,
-      setTimeRange: s.setTimeRange,
-      startDate: s.startDate,
-      endDate: s.endDate,
-      setDateRange: s.setDateRange,
-      clearDateRange: s.clearDateRange,
-      resetFilters: s.resetFilters,
-    }))
-  )
+  } = useLogFilters()
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)

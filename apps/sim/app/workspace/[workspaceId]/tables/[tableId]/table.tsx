@@ -3,12 +3,19 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  Sort,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
@@ -53,6 +60,11 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable, useTableEventStream } from './hooks'
+import {
+  DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
+  tableDetailParsers,
+  tableDetailUrlKeys,
+} from './search-params'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
@@ -161,8 +173,24 @@ export function Table({
     selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
-  const [queryOptions, setQueryOptions] = useState<QueryOptions>({ filter: null, sort: null })
+  const [filter, setFilter] = useState<Filter | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+
+  const [{ sort: sortColumn, dir: sortDirection }, setSortParams] = useQueryStates(
+    tableDetailParsers,
+    tableDetailUrlKeys
+  )
+
+  /** Resolved single-column sort, or `null` when no column is active. */
+  const sortQuery = useMemo<Sort | null>(
+    () => (sortColumn ? { [sortColumn]: sortDirection } : null),
+    [sortColumn, sortDirection]
+  )
+
+  const queryOptions = useMemo<QueryOptions>(
+    () => ({ filter, sort: sortQuery }),
+    [filter, sortQuery]
+  )
 
   const userPermissions = useUserPermissionsContext()
 
@@ -471,26 +499,22 @@ export function Table({
     [columns]
   )
 
-  const sortConfig = useMemo<SortConfig>(() => {
-    let active: SortConfig['active'] = null
-    if (queryOptions.sort) {
-      const entries = Object.entries(queryOptions.sort)
-      if (entries.length > 0) {
-        const [column, direction] = entries[0]
-        active = { column, direction }
-      }
-    }
-    return {
+  const sortConfig = useMemo<SortConfig>(
+    () => ({
       options: columnOptions,
-      active,
-      onSort: (column, direction) =>
-        setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } })),
-      onClear: () => setQueryOptions((prev) => ({ ...prev, sort: null })),
-    }
-  }, [columnOptions, queryOptions.sort])
+      active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
+      onSort: (column, direction) => setSortParams({ sort: column, dir: direction }),
+      /**
+       * Clearing writes the default direction (stripped by clearOnDefault) and
+       * drops the column, leaving a clean URL with no active sort.
+       */
+      onClear: () => setSortParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+    }),
+    [columnOptions, sortColumn, sortDirection, setSortParams]
+  )
 
-  const handleFilterApply = (filter: Filter | null) => {
-    setQueryOptions((prev) => ({ ...prev, filter }))
+  const handleFilterApply = (next: Filter | null) => {
+    setFilter(next)
   }
 
   const breadcrumbs = useMemo(
