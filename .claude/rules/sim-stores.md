@@ -57,7 +57,7 @@ export const useFeatureStore = create<FeatureState>()(
 
 1. Use `devtools` middleware (named stores)
 2. Use `persist` only when data should survive reload
-3. `persist` MUST use `partialize` with an explicit whitelist of the durable fields. NEVER persist transient flags (`isResizing`, drag/hover state) or `_hasHydrated`, and never spread the whole state (`{ ...state }`) — it leaks actions and transient state into storage
+3. `persist` MUST use `partialize` with an explicit whitelist of the durable fields. Exclude transient flags (`isResizing`, drag/hover state) and `_hasHydrated` from the whitelist, and never spread the whole state (`{ ...state }`) — it leaks actions and transient state into storage
 4. `_hasHydrated` pattern for persisted stores needing hydration tracking
 5. Immutable updates only
 6. `set((state) => ...)` when depending on previous state

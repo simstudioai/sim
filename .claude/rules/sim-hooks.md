@@ -63,4 +63,4 @@ if (prevOpenRef.current !== open) {
 
 Model mutually-exclusive flags as ONE `status` enum, not several contradictory booleans. `isLoading`/`isVerified`/`isInvalidOtp` describing one machine collapse to `status: 'idle' | 'verifying' | 'verified' | 'error'` (+ `errorMessage`); derive any boolean a consumer still needs (`status === 'error'`).
 
-Derive busy/success from the mutation object — never duplicate `mutation.isPending`/`mutation.isSuccess` into local `useState`. Read them directly (`mutation.isSuccess`) and reset with `mutation.reset()`.
+Derive busy/success from the mutation object — never duplicate `mutation.isPending`/`mutation.isSuccess` into local `useState`. Read them directly (`mutation.isSuccess`) and reset with `mutation.reset()`. A distinct phase the mutation doesn't cover — e.g. a pre-submit captcha/Turnstile gate that runs before `mutate()` — is not a duplicate; keep that flag.

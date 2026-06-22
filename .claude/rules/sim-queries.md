@@ -25,7 +25,7 @@ export const entityKeys = {
 
 Never use inline query keys — always use the factory.
 
-**Every identifier the `queryFn` uses MUST appear in the `queryKey`.** If the fetch is scoped by `workspaceId`, `cursor`, `limit`, an org id, etc., those values must be part of the key — otherwise distinct fetch args share one cache entry (a cross-tenant / per-param cache collision). The lone exception is a globally-unique id used as the key while a second fetch arg is only an authz scope that cannot collide; annotate those with `// rq-lint-allow: <reason>`. Enforced by the `key-fetch-arg-drift` check in `scripts/check-react-query-patterns.ts`.
+**Every identifier the `queryFn` forwards into the fetch MUST appear in the `queryKey`.** (Query-machinery identifiers — `signal`, `pageParam` — are exempt; they aren't fetch-scoping args.) If the fetch is scoped by `workspaceId`, `cursor`, `limit`, an org id, etc., those values must be part of the key — otherwise distinct fetch args share one cache entry (a cross-tenant / per-param cache collision). The lone exception is a globally-unique id used as the key while a second fetch arg is only an authz scope that cannot collide; annotate those with `// rq-lint-allow: <reason>`. Enforced by the `key-fetch-arg-drift` check in `scripts/check-react-query-patterns.ts`.
 
 ## File Structure
 
