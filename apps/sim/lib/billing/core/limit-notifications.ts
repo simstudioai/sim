@@ -129,12 +129,14 @@ export async function maybeSendLimitThresholdEmail(params: {
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
-    if (params.limit <= 0 || params.currentUsage <= 0) return
+    // A non-positive limit can't yield a percentage; a zero/negative `currentUsage`
+    // still needs to re-arm below, so it is handled by the `desired === 0` return.
+    if (params.limit <= 0) return
 
     const { category, scope } = params
-    const percent = (params.currentUsage / params.limit) * 100
+    const percent = Math.max(0, (params.currentUsage / params.limit) * 100)
     const priorPercent =
-      params.priorUsage != null && params.priorUsage > 0
+      params.priorUsage != null && params.priorUsage >= 0
         ? (params.priorUsage / params.limit) * 100
         : percent
     const desired = thresholdFor(percent)

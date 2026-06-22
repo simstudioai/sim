@@ -161,9 +161,28 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 
-  it('skips when limit or usage is non-positive', async () => {
+  it('re-arms but does not send when usage is fully cleared (zero usage)', async () => {
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 0, limit: 5 })
+    expect(dbUpdateSpy).toHaveBeenCalledTimes(1) // re-arm only
+    expect(mockClaim).not.toHaveBeenCalled()
+    expect(sendEmailSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-arms then sends on wipe-then-rebuild (priorUsage 0)', async () => {
+    // prior 0% (empty table) → current 90%: re-arm + claim + send.
+    await maybeSendLimitThresholdEmail({
+      ...baseUserParams,
+      currentUsage: 4.5,
+      limit: 5,
+      priorUsage: 0,
+    })
+    expect(dbUpdateSpy).toHaveBeenCalledTimes(2)
+    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips when the limit is non-positive', async () => {
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4, limit: 0 })
+    expect(dbUpdateSpy).not.toHaveBeenCalled()
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 })
