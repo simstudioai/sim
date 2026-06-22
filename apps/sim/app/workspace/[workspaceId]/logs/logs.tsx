@@ -505,7 +505,7 @@ export default function Logs() {
     }
   }, [contextMenuLog])
 
-  const cancelExecution = useCancelExecution()
+  const cancelExecution = useCancelExecution(workspaceId)
   const retryExecution = useRetryExecution()
 
   const handleCancelExecution = useCallback(() => {
@@ -525,7 +525,7 @@ export default function Logs() {
 
       try {
         const detailLog = await queryClient.fetchQuery({
-          queryKey: logKeys.detail(logId),
+          queryKey: logKeys.detail(workspaceId, logId),
           queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
           staleTime: 30 * 1000,
         })
