@@ -101,8 +101,17 @@ export async function incrementStorageUsage(
 /**
  * Decrement storage usage after file deletion
  * Only tracks if billing is enabled
+ *
+ * @param workspaceId - When provided, re-evaluates the storage threshold state
+ *   after the decrement. Usage only drops here, so this can only re-arm a
+ *   previously-sent threshold (it never sends), keeping the re-warning correct
+ *   after a shrink. Best-effort; never blocks the caller.
  */
-export async function decrementStorageUsage(userId: string, bytes: number): Promise<void> {
+export async function decrementStorageUsage(
+  userId: string,
+  bytes: number,
+  workspaceId?: string
+): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage decrement')
     return
@@ -134,5 +143,9 @@ export async function decrementStorageUsage(userId: string, bytes: number): Prom
   } catch (error) {
     logger.error('Error decrementing storage usage:', error)
     throw error
+  }
+
+  if (workspaceId) {
+    void maybeNotifyStorageLimit(userId, workspaceId)
   }
 }

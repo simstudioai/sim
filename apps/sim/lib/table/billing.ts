@@ -23,6 +23,7 @@ const TABLE_ROW_NOTIFY_PERCENT = 80
  */
 async function maybeNotifyTableRowLimit(
   workspaceId: string,
+  currentRowCount: number,
   projectedRowCount: number,
   limit: number
 ): Promise<void> {
@@ -38,6 +39,7 @@ async function maybeNotifyTableRowLimit(
       limit,
       usageLabel: `${projectedRowCount.toLocaleString('en-US')} rows`,
       limitLabel: `${limit.toLocaleString('en-US')} rows`,
+      priorUsage: currentRowCount,
     })
   } catch (error) {
     logger.error('Error evaluating table row-limit notification:', error)
@@ -180,7 +182,7 @@ export async function assertRowCapacity(params: {
   if (limit > 0) {
     const projected = params.currentRowCount + params.addedRows
     if ((projected / limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
-      void maybeNotifyTableRowLimit(params.workspaceId, projected, limit)
+      void maybeNotifyTableRowLimit(params.workspaceId, params.currentRowCount, projected, limit)
     }
   }
 }

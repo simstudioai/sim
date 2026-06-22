@@ -7,6 +7,7 @@ const {
   billingFlag,
   mockClaim,
   mockSelectRows,
+  dbUpdateSpy,
   sendEmailSpy,
   getEmailPreferencesMock,
   renderMock,
@@ -16,6 +17,7 @@ const {
   billingFlag: { enabled: true },
   mockClaim: vi.fn<[], unknown[]>(() => [{ id: 'u1' }]),
   mockSelectRows: vi.fn<[], unknown[]>(() => []),
+  dbUpdateSpy: vi.fn(),
   sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
   getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
   renderMock: vi.fn(() => Promise.resolve('<html></html>')),
@@ -42,7 +44,8 @@ vi.mock('@sim/db', () => {
     then: (f: (v: unknown) => unknown, r?: (e: unknown) => unknown) =>
       Promise.resolve(mockSelectRows()).then(f, r),
   }
-  return { db: { update: () => updateBuilder, select: () => selectBuilder } }
+  dbUpdateSpy.mockImplementation(() => updateBuilder)
+  return { db: { update: dbUpdateSpy, select: () => selectBuilder } }
 })
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -100,6 +103,31 @@ describe('maybeSendLimitThresholdEmail', () => {
     mockClaim.mockReturnValue([]) // someone else already advanced the threshold
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(sendEmailSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-arms then claims when a single jump crosses from below the band past 80% (priorUsage)', async () => {
+    // prior 50% (re-arm band) → current 90%: re-arm (update) + claim (update) = 2 updates, then send.
+    await maybeSendLimitThresholdEmail({
+      ...baseUserParams,
+      currentUsage: 4.5,
+      limit: 5,
+      priorUsage: 2.5,
+    })
+    expect(dbUpdateSpy).toHaveBeenCalledTimes(2)
+    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
+    expect(renderMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning' }))
+  })
+
+  it('does not re-arm when prior usage was already in-band (no spurious reset)', async () => {
+    // prior 85% and current 90%: both >= re-arm band → claim only, no re-arm update.
+    await maybeSendLimitThresholdEmail({
+      ...baseUserParams,
+      currentUsage: 4.5,
+      limit: 5,
+      priorUsage: 4.25,
+    })
+    expect(dbUpdateSpy).toHaveBeenCalledTimes(1)
+    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
   })
 
   it('does not send in the dead band (70%–80%)', async () => {

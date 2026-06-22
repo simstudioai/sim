@@ -937,7 +937,7 @@ export async function updateWorkspaceFileContent(
         if (sizeDiff > 0) {
           await incrementStorageUsage(userId, sizeDiff, workspaceId)
         } else {
-          await decrementStorageUsage(userId, Math.abs(sizeDiff))
+          await decrementStorageUsage(userId, Math.abs(sizeDiff), workspaceId)
         }
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)

@@ -115,6 +115,13 @@ export async function maybeSendLimitThresholdEmail(params: {
   usageLabel: string
   /** Pre-formatted limit for the email body, e.g. "5 GB", "10 seats". */
   limitLabel: string
+  /**
+   * Usage immediately BEFORE the mutation, when known (e.g. the pre-insert row
+   * count). Lets a single large change that jumps from below the re-arm band
+   * past a threshold still re-arm before claiming, so the re-warning isn't
+   * suppressed. Omit when only the post-mutation usage is observable.
+   */
+  priorUsage?: number
   userId?: string
   userEmail?: string
   userName?: string
@@ -126,14 +133,18 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     const { category, scope } = params
     const percent = (params.currentUsage / params.limit) * 100
+    const priorPercent =
+      params.priorUsage != null && params.priorUsage > 0
+        ? (params.priorUsage / params.limit) * 100
+        : percent
     const desired = thresholdFor(percent)
 
     const stateId = scope === 'user' ? params.userId : params.organizationId
     if (!stateId) return
 
-    if (percent < REARM_BELOW) {
+    // Re-arm if usage is (or just was) back in the low band, so a fresh climb re-notifies.
+    if (Math.min(percent, priorPercent) < REARM_BELOW) {
       await rearmThreshold(scope, stateId, category)
-      return
     }
 
     if (desired === 0) return
@@ -229,6 +240,8 @@ export async function maybeNotifyLimit(params: {
   limit: number
   usageLabel: string
   limitLabel: string
+  /** Usage before the mutation, when known — see {@link maybeSendLimitThresholdEmail}. */
+  priorUsage?: number
 }): Promise<void> {
   try {
     const sub = await getHighestPrioritySubscription(params.billedUserId)
@@ -254,6 +267,7 @@ export async function maybeNotifyLimit(params: {
       limit: params.limit,
       usageLabel: params.usageLabel,
       limitLabel: params.limitLabel,
+      priorUsage: params.priorUsage,
       userId: params.billedUserId,
       userEmail,
       userName,
