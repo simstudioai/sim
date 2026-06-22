@@ -35,6 +35,7 @@ export type AttachmentProvider =
   | 'xai'
   | 'deepseek'
   | 'cerebras'
+  | 'sakana'
 
 export interface PreparedProviderAttachment {
   file: UserFile
@@ -118,7 +119,7 @@ const BEDROCK_DOCUMENT_FORMATS = new Set([
 const BEDROCK_IMAGE_FORMATS = new Set(['png', 'jpeg', 'jpg', 'gif', 'webp'])
 const BEDROCK_VIDEO_FORMATS = new Set(['mp4', 'mov', 'mkv', 'webm'])
 
-const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>(['deepseek', 'cerebras'])
+const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>(['deepseek', 'cerebras', 'sakana'])
 
 const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   openai: 'images and documents through the Responses API input_image/input_file parts',
@@ -137,6 +138,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   xai: 'images through image_url message parts on Grok vision models',
   deepseek: 'no file attachments in the current API adapter',
   cerebras: 'no file attachments in the current API adapter',
+  sakana: 'no file attachments in the current API adapter',
 }
 
 export function getAttachmentProvider(providerId: ProviderId | string): AttachmentProvider | null {
@@ -156,6 +158,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'xai') return 'xai'
   if (providerId === 'deepseek') return 'deepseek'
   if (providerId === 'cerebras') return 'cerebras'
+  if (providerId === 'sakana') return 'sakana'
   return null
 }
 
@@ -303,6 +306,7 @@ function isMimeTypeSupportedByProvider(
       return isImageMimeType(mimeType)
     case 'deepseek':
     case 'cerebras':
+    case 'sakana':
       return false
     default: {
       const _exhaustive: never = provider

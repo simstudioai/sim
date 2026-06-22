@@ -102,3 +102,35 @@ describe('orderModelIdsByReleaseDate', () => {
     expect([...ordered].sort()).toEqual([...input].sort())
   })
 })
+
+describe('sakana provider definition', () => {
+  const sakana = PROVIDER_DEFINITIONS.sakana
+
+  it('is registered with fugu as the default model', () => {
+    expect(sakana).toBeDefined()
+    expect(sakana.id).toBe('sakana')
+    expect(sakana.defaultModel).toBe('fugu')
+    expect(sakana.modelPatterns).toEqual([/^fugu/])
+  })
+
+  it('exposes fugu and fugu-ultra with a 1M context window', () => {
+    expect(sakana.models.map((m) => m.id)).toEqual(['fugu', 'fugu-ultra'])
+    for (const model of sakana.models) {
+      expect(model.contextWindow).toBe(1000000)
+    }
+  })
+
+  it('prices both models at the documented fugu-ultra ceiling', () => {
+    for (const model of sakana.models) {
+      expect(model.pricing.input).toBe(5)
+      expect(model.pricing.output).toBe(30)
+      expect(model.pricing.cachedInput).toBe(0.5)
+    }
+  })
+
+  it('routes bare fugu model IDs to the sakana provider', () => {
+    const baseModels = getBaseModelProviders()
+    expect(baseModels.fugu).toBe('sakana')
+    expect(baseModels['fugu-ultra']).toBe('sakana')
+  })
+})
