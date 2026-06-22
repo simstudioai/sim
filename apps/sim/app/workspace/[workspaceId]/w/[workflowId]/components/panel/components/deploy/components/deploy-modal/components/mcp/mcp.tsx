@@ -223,9 +223,10 @@ export function McpDeploy({
   } | null>(null)
 
   useEffect(() => {
-    // Wait for the deployed state so the legacy migration diffs against the deployed base (what the
-    // server uses), not the live editor — otherwise unpublished Start-block edits mis-classify.
-    if (savedValues || !deployedState) return
+    // Seed once the deployed snapshot is ready — present, or its load settled without data. With the
+    // deployed base the legacy migration classifies overrides against what the server serves; on a
+    // failed fetch we still seed so existing tools stay editable instead of silently un-saveable.
+    if (savedValues || (isLoadingDeployedState && !deployedState)) return
 
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
@@ -255,7 +256,7 @@ export function McpDeploy({
         break
       }
     }
-  }, [servers, serverToolsMap, startBlockDescriptions, inputFormat, deployedState, savedValues])
+  }, [servers, serverToolsMap, inputFormat, isLoadingDeployedState, deployedState, savedValues])
 
   const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
 
