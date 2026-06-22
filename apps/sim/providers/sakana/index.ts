@@ -257,7 +257,25 @@ export const sakanaProvider: ProviderConfig = {
               const toolArgs = JSON.parse(toolCall.function.arguments)
               const tool = request.tools?.find((t) => t.id === toolName)
 
-              if (!tool) return null
+              // Every tool_call in the assistant message must be answered by a matching
+              // `tool` message, or the next request violates the OpenAI message contract.
+              // Emit an error result for an unknown tool rather than dropping it.
+              if (!tool) {
+                const toolCallEndTime = Date.now()
+                return {
+                  toolCall,
+                  toolName,
+                  toolParams: {},
+                  result: {
+                    success: false,
+                    output: undefined,
+                    error: `Tool "${toolName}" is not available`,
+                  },
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallEndTime - toolCallStartTime,
+                }
+              }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
               const result = await executeTool(toolName, executionParams, {
