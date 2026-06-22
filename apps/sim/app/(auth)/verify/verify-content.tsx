@@ -25,15 +25,18 @@ function VerificationForm({
   const {
     otp,
     email,
-    isLoading,
-    isVerified,
-    isInvalidOtp,
+    status,
+    isResending,
     errorMessage,
     isOtpComplete,
     verifyCode,
     resendCode,
     handleOtpChange,
   } = useVerification({ hasEmailService, isProduction, isEmailVerificationEnabled })
+
+  const isVerified = status === 'verified'
+  const isInvalidOtp = status === 'error'
+  const isBusy = status === 'verifying' || isResending
 
   const [countdown, setCountdown] = useState(0)
   const [isResendDisabled, setIsResendDisabled] = useState(false)
@@ -88,7 +91,7 @@ function VerificationForm({
                 maxLength={6}
                 value={otp}
                 onChange={handleOtpChange}
-                disabled={isLoading}
+                disabled={isBusy}
                 className={cn('gap-2', isInvalidOtp && 'otp-error')}
               >
                 <InputOTPGroup>
@@ -112,10 +115,10 @@ function VerificationForm({
 
           <button
             onClick={verifyCode}
-            disabled={!isOtpComplete || isLoading}
+            disabled={!isOtpComplete || isBusy}
             className={AUTH_SUBMIT_BTN}
           >
-            {isLoading ? (
+            {isBusy ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
                 Verifying…
@@ -138,7 +141,7 @@ function VerificationForm({
                   <button
                     className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
                     onClick={handleResend}
-                    disabled={isLoading || isResendDisabled}
+                    disabled={isBusy || isResendDisabled}
                   >
                     Resend
                   </button>
