@@ -107,12 +107,18 @@ function renderProvider(): Harness {
   }
 }
 
-/** Flush pending microtasks inside an act() boundary. */
+/**
+ * Flush pending work inside an act() boundary. Drains the microtask queue and
+ * then yields one macrotask tick, so React Query's notifyManager (which can
+ * schedule observer notifications on a timer) and any deferred renders settle
+ * deterministically — microtask-only flushing raced the query→render update.
+ */
 async function flush() {
   await act(async () => {
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
   })
 }
 
