@@ -13,9 +13,11 @@ import {
   Skeleton,
   Textarea,
 } from '@/components/emcn'
+import { ApiClientError } from '@/lib/api/client/errors'
 import { cn } from '@/lib/core/utils/cn'
 import {
   extractDescriptionOverrides,
+  extractInputFormatFromBlocks,
   generateToolInputSchema,
   getMeaningfulWorkflowDescription,
   sanitizeToolName,
@@ -35,6 +37,7 @@ import {
 } from '@/hooks/queries/workflow-mcp-servers'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('McpToolDeploy')
 
@@ -54,6 +57,7 @@ interface McpDeployProps {
   workflowName: string
   workflowDescription?: string | null
   isDeployed: boolean
+  deployedState?: WorkflowState | null
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
@@ -122,6 +126,7 @@ export function McpDeploy({
   workflowName,
   workflowDescription,
   isDeployed,
+  deployedState,
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
@@ -153,7 +158,7 @@ export function McpDeploy({
     (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
-  const inputFormat = useMemo((): NormalizedField[] => {
+  const liveInputFormat = useMemo((): NormalizedField[] => {
     if (!starterBlockId) return []
 
     const storeValue = subBlockValues[starterBlockId]?.inputFormat
@@ -164,6 +169,19 @@ export function McpDeploy({
     const blockValue = startBlock?.subBlocks?.inputFormat?.value
     return normalizeInputFormatValue(blockValue) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
+
+  // The served tool is built from the DEPLOYED Start block and the server materializes overrides
+  // against it, so base the form on the deployed inputs (falling back to the live editor only while
+  // the deployed state loads) to keep the modal's defaults and override classification matching what
+  // is actually served.
+  const deployedInputFormat = useMemo((): NormalizedField[] => {
+    const deployedBlocks = deployedState?.blocks
+    if (!deployedBlocks) return []
+    return (extractInputFormatFromBlocks(deployedBlocks as Record<string, unknown>) ??
+      []) as NormalizedField[]
+  }, [deployedState])
+
+  const inputFormat = deployedState ? deployedInputFormat : liveInputFormat
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState('')
@@ -238,7 +256,9 @@ export function McpDeploy({
   } | null>(null)
 
   useEffect(() => {
-    if (savedValues) return
+    // Wait for the deployed state so the legacy migration diffs against the deployed base (what the
+    // server uses), not the live editor — otherwise unpublished Start-block edits mis-classify.
+    if (savedValues || !deployedState) return
 
     for (const server of servers) {
       const toolInfo = serverToolsMap[server.id]
@@ -268,7 +288,7 @@ export function McpDeploy({
         break
       }
     }
-  }, [servers, serverToolsMap, startBlockDescriptions, inputFormat, savedValues])
+  }, [servers, serverToolsMap, startBlockDescriptions, inputFormat, deployedState, savedValues])
 
   const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
 
@@ -400,8 +420,27 @@ export function McpDeploy({
             })
           } catch (error) {
             const serverName = servers.find((s) => s.id === serverId)?.name || serverId
-            errors.push(`Failed to update on ${serverName}`)
-            logger.error(`Failed to update tool on server ${serverId}:`, error)
+            // The tool can be removed out-of-band (undeploying a workflow deletes its MCP tools), so
+            // a stale-cache update may hit a missing tool — re-create it instead of failing the save.
+            if (error instanceof ApiClientError && error.status === 404) {
+              try {
+                const recreated = await addToolMutation.mutateAsync({
+                  workspaceId,
+                  serverId,
+                  workflowId,
+                  toolName: toolName.trim(),
+                  toolDescription: toolDescriptionForSave,
+                  parameterDescriptionOverrides,
+                })
+                addedEntries[serverId] = { tool: recreated, isLoading: false }
+              } catch (recreateError) {
+                errors.push(`Failed to update on ${serverName}`)
+                logger.error(`Failed to re-add tool on server ${serverId}:`, recreateError)
+              }
+            } else {
+              errors.push(`Failed to update on ${serverName}`)
+              logger.error(`Failed to update tool on server ${serverId}:`, error)
+            }
           }
         }
       }

@@ -669,6 +669,7 @@ export function DeployModal({
                       workflowName={workflowMetadata?.name || 'Workflow'}
                       workflowDescription={workflowMetadata?.description}
                       isDeployed={isDeployed}
+                      deployedState={deployedState}
                       onSubmittingChange={setMcpToolSubmitting}
                       onCanSaveChange={setMcpToolCanSave}
                       onActiveServerChange={setMcpActiveServerId}
