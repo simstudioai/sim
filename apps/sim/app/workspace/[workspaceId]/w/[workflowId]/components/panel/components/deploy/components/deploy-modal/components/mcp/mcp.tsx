@@ -22,8 +22,6 @@ import {
   getMeaningfulWorkflowDescription,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
@@ -35,8 +33,6 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('McpToolDeploy')
@@ -141,47 +137,16 @@ export function McpDeploy({
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const updateToolMutation = useUpdateWorkflowMcpTool()
 
-  const blocks = useWorkflowStore((state) => state.blocks)
-
-  const starterBlockId = useMemo(() => {
-    for (const [blockId, block] of Object.entries(blocks)) {
-      if (!block || typeof block !== 'object') continue
-      const blockType = (block as { type?: string }).type
-      if (blockType && isInputDefinitionTrigger(blockType)) {
-        return blockId
-      }
-    }
-    return null
-  }, [blocks])
-
-  const subBlockValues = useSubBlockStore(
-    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
-  )
-
-  const liveInputFormat = useMemo((): NormalizedField[] => {
-    if (!starterBlockId) return []
-
-    const storeValue = subBlockValues[starterBlockId]?.inputFormat
-    const normalized = normalizeInputFormatValue(storeValue) as NormalizedField[]
-    if (normalized.length > 0) return normalized
-
-    const startBlock = blocks[starterBlockId]
-    const blockValue = startBlock?.subBlocks?.inputFormat?.value
-    return normalizeInputFormatValue(blockValue) as NormalizedField[]
-  }, [starterBlockId, subBlockValues, blocks])
-
-  // The served tool is built from the DEPLOYED Start block and the server materializes overrides
-  // against it, so base the form on the deployed inputs (falling back to the live editor only while
-  // the deployed state loads) to keep the modal's defaults and override classification matching what
-  // is actually served.
-  const deployedInputFormat = useMemo((): NormalizedField[] => {
+  // The MCP tool is built from the DEPLOYED Start block and the server materializes overrides
+  // against it; the form is gated on deployedState below, so it works purely off the deployed
+  // snapshot (never the live editor), keeping its defaults and override classification in lockstep
+  // with what MCP clients receive.
+  const inputFormat = useMemo((): NormalizedField[] => {
     const deployedBlocks = deployedState?.blocks
     if (!deployedBlocks) return []
     return (extractInputFormatFromBlocks(deployedBlocks as Record<string, unknown>) ??
       []) as NormalizedField[]
   }, [deployedState])
-
-  const inputFormat = deployedState ? deployedInputFormat : liveInputFormat
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
   const [toolDescription, setToolDescription] = useState('')
@@ -501,7 +466,7 @@ export function McpDeploy({
     )
   }
 
-  if (isLoadingServers) {
+  if (isLoadingServers || !deployedState) {
     return (
       <div className='-mx-1 space-y-4 px-1'>
         <div className='space-y-3'>
