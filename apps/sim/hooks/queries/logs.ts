@@ -292,7 +292,7 @@ export function useExecutionSnapshot(executionId: string | undefined) {
   })
 }
 
-export function useCancelExecution() {
+export function useCancelExecution(workspaceId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -316,7 +316,6 @@ export function useCancelExecution() {
       })
 
       let affectedLogId: string | null = null
-      let affectedWorkspaceId: string | undefined
       queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
         if (!old) return old
         return {
@@ -326,7 +325,6 @@ export function useCancelExecution() {
             logs: page.logs.map((log) => {
               if (log.executionId !== executionId) return log
               affectedLogId = log.id
-              affectedWorkspaceId = log.workflow?.workspaceId ?? undefined
               return { ...log, status: 'cancelling' }
             }),
           })),
@@ -336,20 +334,17 @@ export function useCancelExecution() {
       let previousDetail: WorkflowLogDetail | undefined
       if (affectedLogId) {
         previousDetail = queryClient.getQueryData<WorkflowLogDetail>(
-          logKeys.detail(affectedWorkspaceId, affectedLogId)
+          logKeys.detail(workspaceId, affectedLogId)
         )
         if (previousDetail) {
-          queryClient.setQueryData<WorkflowLogDetail>(
-            logKeys.detail(affectedWorkspaceId, affectedLogId),
-            {
-              ...previousDetail,
-              status: 'cancelling',
-            }
-          )
+          queryClient.setQueryData<WorkflowLogDetail>(logKeys.detail(workspaceId, affectedLogId), {
+            ...previousDetail,
+            status: 'cancelling',
+          })
         }
       }
 
-      return { previousQueries, affectedLogId, affectedWorkspaceId, previousDetail }
+      return { previousQueries, affectedLogId, previousDetail }
     },
     onError: (_err, _variables, context) => {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
@@ -357,7 +352,7 @@ export function useCancelExecution() {
       }
       if (context?.affectedLogId && context.previousDetail !== undefined) {
         queryClient.setQueryData(
-          logKeys.detail(context.affectedWorkspaceId, context.affectedLogId),
+          logKeys.detail(workspaceId, context.affectedLogId),
           context.previousDetail
         )
       }

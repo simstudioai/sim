@@ -505,7 +505,7 @@ export default function Logs() {
     }
   }, [contextMenuLog])
 
-  const cancelExecution = useCancelExecution()
+  const cancelExecution = useCancelExecution(workspaceId)
   const retryExecution = useRetryExecution()
 
   const handleCancelExecution = useCallback(() => {
