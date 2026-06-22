@@ -201,14 +201,20 @@ export function useVerification({
   }
 
   useEffect(() => {
-    if (otp.length === 6 && email && status !== 'verifying' && status !== 'verified') {
+    if (
+      otp.length === 6 &&
+      email &&
+      status !== 'verifying' &&
+      status !== 'verified' &&
+      !isResending
+    ) {
       const timeoutId = setTimeout(() => {
         verifyCode()
       }, 300)
 
       return () => clearTimeout(timeoutId)
     }
-  }, [otp, email, status])
+  }, [otp, email, status, isResending])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
