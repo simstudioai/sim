@@ -9,8 +9,9 @@ export const metadata: Metadata = {
 }
 
 /**
- * Files page entry. `Files` reads `useSearchParams`, so it must sit under a
- * Suspense boundary. The fallback renders the real chrome (header + options +
+ * Files page entry. `Files` reads URL query params via nuqs (which uses
+ * `useSearchParams` internally), so it must sit under a Suspense boundary. The
+ * fallback renders the real chrome (header + options +
  * table headers) so a suspend never shows a blank frame; the route-level
  * `loading.tsx` covers the navigation/chunk-load transition the same way.
  */

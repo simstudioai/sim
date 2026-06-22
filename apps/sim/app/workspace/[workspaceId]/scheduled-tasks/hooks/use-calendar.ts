@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSameDay } from 'date-fns'
+import { useQueryStates } from 'nuqs'
 import { zonedClockDate } from '@/lib/core/utils/timezone'
+import {
+  calendarParsers,
+  calendarUrlKeys,
+} from '@/app/workspace/[workspaceId]/scheduled-tasks/search-params'
 import {
   advanceAnchor,
   type CalendarScope,
@@ -40,43 +45,74 @@ export interface UseCalendarReturn {
 }
 
 /**
- * Owns the calendar's ephemeral view state (scope, anchor, selected slot, and
- * create-modal open state). Pure UI state — `useState`, not a store. Opens on
- * the `week` scope. "Now" (the today highlight, the anchor's initial day) is
- * resolved in `timezone` — the viewer's effective zone — so the calendar's date
- * frame matches the zone tasks are scheduled in. `today` is polled so the today
- * highlight and current-time column survive midnight without a remount; the poll
- * only re-renders when the day actually changes (the interval is resilient to
- * device sleep, unlike a one-shot timeout aimed at midnight).
+ * Owns the calendar's view state. `scope` and `anchor` live in the URL (nuqs) so
+ * the current view is shareable and survives reload / back-forward; the create
+ * modal and selected slot stay local (ephemeral UI). Opens on the `week` scope.
+ * "Now" (the today highlight, the default anchor) is resolved in `timezone` — the
+ * viewer's effective zone — so the calendar's date frame matches the zone tasks
+ * are scheduled in. The `anchor` param is date-only and nullable: a clean URL
+ * means "today", derived per-timezone here, so navigating to today clears the
+ * param. `today` is polled so the today highlight and current-time column survive
+ * midnight without a remount; the poll only re-renders when the day actually
+ * changes (the interval is resilient to device sleep, unlike a one-shot timeout
+ * aimed at midnight).
  */
 export function useCalendar(timezone: string): UseCalendarReturn {
   const timezoneRef = useRef(timezone)
   const [today, setToday] = useState<Date>(() => zonedClockDate(new Date(), timezone))
-  const [scope, setScope] = useState<CalendarScope>('week')
-  const [anchor, setAnchor] = useState<Date>(() => zonedClockDate(new Date(), timezone))
+  const [{ scope, anchor: anchorParam }, setCalendarState] = useQueryStates(
+    calendarParsers,
+    calendarUrlKeys
+  )
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const todayRef = useRef(today)
 
+  /** A clean URL (no `anchor` param) means "today", resolved in the effective zone. */
+  const anchor = anchorParam ?? today
+  const anchorRef = useRef(anchor)
+
   useEffect(() => {
     todayRef.current = today
   }, [today])
+  useEffect(() => {
+    anchorRef.current = anchor
+  }, [anchor])
+
+  const setScope = useCallback(
+    (next: CalendarScope) => {
+      void setCalendarState({ scope: next })
+    },
+    [setCalendarState]
+  )
 
   /**
-   * Re-sync to the effective zone's current day when `timezone` actually
-   * changes — e.g. when `useTimezone()` resolves from the browser fallback to
-   * the saved account zone after mount. The focused day follows only while it is
-   * still on "today", so an in-progress navigation is preserved. Owning
-   * `timezoneRef` here (instead of a separate sync effect) keeps the guard
-   * honest: the ref still reflects the previous zone when this runs.
+   * Set the focused day. Writing `today` (the default anchor) as `null` keeps the
+   * URL clean and preserves the "clean URL = today" invariant.
+   */
+  const setAnchorDate = useCallback(
+    (date: Date) => {
+      void setCalendarState({ anchor: isSameDay(date, todayRef.current) ? null : date })
+    },
+    [setCalendarState]
+  )
+
+  /**
+   * Re-sync `today` to the effective zone's current day when `timezone` actually
+   * changes — e.g. when `useTimezone()` resolves from the browser fallback to the
+   * saved account zone after mount. When the URL holds an explicit anchor that
+   * was on the previous "today", drop it so the view follows to the new today;
+   * an in-progress navigation (anchor on another day) is preserved.
    */
   useEffect(() => {
     if (timezoneRef.current === timezone) return
     timezoneRef.current = timezone
     const now = zonedClockDate(new Date(), timezone)
-    setAnchor((current) => (isSameDay(current, todayRef.current) ? now : current))
+    if (anchorRef.current && isSameDay(anchorRef.current, todayRef.current)) {
+      void setCalendarState({ anchor: null })
+    }
     setToday(now)
-  }, [timezone])
+  }, [timezone, setCalendarState])
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -86,15 +122,29 @@ export function useCalendar(timezone: string): UseCalendarReturn {
     return () => clearInterval(id)
   }, [])
 
-  const next = useCallback(() => setAnchor((current) => advanceAnchor(current, scope, 1)), [scope])
-  const prev = useCallback(() => setAnchor((current) => advanceAnchor(current, scope, -1)), [scope])
-  const goToday = useCallback(() => setAnchor(zonedClockDate(new Date(), timezoneRef.current)), [])
-  const goToDate = useCallback((date: Date) => setAnchor(date), [])
+  const next = useCallback(
+    () => setAnchorDate(advanceAnchor(anchorRef.current, scope, 1)),
+    [scope, setAnchorDate]
+  )
+  const prev = useCallback(
+    () => setAnchorDate(advanceAnchor(anchorRef.current, scope, -1)),
+    [scope, setAnchorDate]
+  )
+  const goToday = useCallback(
+    () => setAnchorDate(zonedClockDate(new Date(), timezoneRef.current)),
+    [setAnchorDate]
+  )
+  const goToDate = useCallback((date: Date) => setAnchorDate(date), [setAnchorDate])
 
-  const openDay = useCallback((date: Date) => {
-    setAnchor(date)
-    setScope('day')
-  }, [])
+  const openDay = useCallback(
+    (date: Date) => {
+      void setCalendarState({
+        anchor: isSameDay(date, todayRef.current) ? null : date,
+        scope: 'day',
+      })
+    },
+    [setCalendarState]
+  )
 
   const selectSlot = useCallback((date: Date, time?: string) => {
     setSelectedSlot({ date, time })
