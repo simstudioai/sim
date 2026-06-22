@@ -262,7 +262,7 @@ interface AddWorkflowMcpToolParams {
   workflowId: string
   toolName?: string
   toolDescription?: string
-  parameterSchema?: Record<string, unknown>
+  parameterDescriptionOverrides?: Record<string, string>
 }
 
 export function useAddWorkflowMcpTool() {
@@ -275,12 +275,12 @@ export function useAddWorkflowMcpTool() {
       workflowId,
       toolName,
       toolDescription,
-      parameterSchema,
+      parameterDescriptionOverrides,
     }: AddWorkflowMcpToolParams) => {
       const data = await requestJson(createWorkflowMcpToolContract, {
         params: { id: serverId },
         query: { workspaceId },
-        body: { workflowId, toolName, toolDescription, parameterSchema },
+        body: { workflowId, toolName, toolDescription, parameterDescriptionOverrides },
       })
 
       logger.info(`Added tool to workflow MCP server: ${serverId}`)
@@ -311,6 +311,11 @@ interface UpdateWorkflowMcpToolParams {
   toolId: string
   toolName?: string
   toolDescription?: string
+  parameterDescriptionOverrides?: Record<string, string>
+  /**
+   * Full edited schema sent by the Settings edit modal, which has no Start-block context to compute
+   * sparse overrides; the server diffs it against the deployed base to extract the overrides.
+   */
   parameterSchema?: Record<string, unknown>
 }
 

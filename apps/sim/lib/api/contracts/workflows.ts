@@ -219,6 +219,7 @@ export const workflowListItemSchema = z.object({
   updatedAt: z.string(),
   archivedAt: z.string().nullable(),
   locked: z.boolean(),
+  isDeployed: z.boolean().optional(),
 })
 
 export const createWorkflowBodySchema = z.object({

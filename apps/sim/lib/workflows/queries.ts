@@ -24,6 +24,7 @@ const listColumns = {
   updatedAt: workflow.updatedAt,
   archivedAt: workflow.archivedAt,
   locked: workflow.locked,
+  isDeployed: workflow.isDeployed,
 } as const
 
 const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
@@ -39,6 +40,7 @@ type WorkflowListRow = {
   updatedAt: Date
   archivedAt: Date | null
   locked: boolean
+  isDeployed: boolean
 }
 
 /** Normalizes timestamp columns to ISO strings to honor the `WorkflowListItem` wire contract. */

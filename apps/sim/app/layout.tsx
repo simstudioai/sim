@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript } from 'next-runtime-env'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
@@ -242,17 +243,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <HydrationErrorHandler />
-        <PostHogProvider>
-          <ThemeProvider>
-            <QueryProvider>
-              <SessionProvider>
-                <TooltipProvider>
-                  <BrandedLayout>{children}</BrandedLayout>
-                </TooltipProvider>
-              </SessionProvider>
-            </QueryProvider>
-          </ThemeProvider>
-        </PostHogProvider>
+        <NuqsAdapter>
+          <PostHogProvider>
+            <ThemeProvider>
+              <QueryProvider>
+                <SessionProvider>
+                  <TooltipProvider>
+                    <BrandedLayout>{children}</BrandedLayout>
+                  </TooltipProvider>
+                </SessionProvider>
+              </QueryProvider>
+            </ThemeProvider>
+          </PostHogProvider>
+        </NuqsAdapter>
       </body>
     </html>
   )

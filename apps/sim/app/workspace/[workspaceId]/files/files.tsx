@@ -3,7 +3,8 @@
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
@@ -73,6 +74,7 @@ import {
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -171,9 +173,8 @@ export function Files() {
 
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const isNewFile = searchParams.get('new') === '1'
-  const currentFolderId = searchParams.get('folderId')
+  const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
+    useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
 
   const posthog = usePostHog()
@@ -271,7 +272,6 @@ export function Files() {
     folderIds: string[]
     name: string
   } | null>(null)
-  const [shareFileId, setShareFileId] = useState<string | null>(null)
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
@@ -303,7 +303,9 @@ export function Files() {
   const shareModal = shareFile ? (
     <ShareModal
       open
-      onOpenChange={(open) => !open && setShareFileId(null)}
+      onOpenChange={(open) =>
+        !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
+      }
       workspaceId={workspaceId}
       fileId={shareFile.id}
       fileName={shareFile.name}
@@ -995,8 +997,8 @@ export function Files() {
 
   const handleShareSelected = useCallback(() => {
     const file = selectedFileRef.current
-    if (file) setShareFileId(file.id)
-  }, [])
+    if (file) setFilesParams({ shareFileId: file.id }, { history: 'replace' })
+  }, [setFilesParams])
 
   const handleBulkDelete = useCallback(() => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
@@ -1204,7 +1206,7 @@ export function Files() {
     const item = contextMenuItemRef.current
     if (!item) return
     if (item.kind === 'folder') {
-      router.push(`/workspace/${workspaceId}/files?folderId=${item.folder.id}`)
+      void setFilesParams({ folderId: item.folder.id, new: null })
       closeContextMenu()
       return
     }
@@ -1214,7 +1216,7 @@ export function Files() {
         : `/workspace/${workspaceId}/files/${item.file.id}`
     )
     closeContextMenu()
-  }, [closeContextMenu, router, workspaceId])
+  }, [closeContextMenu, router, workspaceId, setFilesParams])
 
   const handleContextMenuDownload = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1244,9 +1246,9 @@ export function Files() {
 
   const handleContextMenuShare = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (item?.kind === 'file') setShareFileId(item.file.id)
+    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id }, { history: 'replace' })
     closeContextMenu()
-  }, [closeContextMenu])
+  }, [closeContextMenu, setFilesParams])
 
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1517,7 +1519,7 @@ export function Files() {
       if (listRenameRef.current.editingId !== rowId && !headerRenameRef.current.editingId) {
         const parsed = parseRowId(rowId)
         if (parsed.kind === 'folder') {
-          router.push(`/workspace/${workspaceId}/files?folderId=${parsed.id}`)
+          void setFilesParams({ folderId: parsed.id, new: null })
           return
         }
         router.push(
@@ -1527,7 +1529,7 @@ export function Files() {
         )
       }
     },
-    [router, workspaceId, currentFolderId]
+    [router, workspaceId, currentFolderId, setFilesParams]
   )
 
   const handleUploadClick = useCallback(() => {
@@ -1586,8 +1588,8 @@ export function Files() {
   )
 
   const handleNavigateToFiles = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/files`)
-  }, [router, workspaceId])
+    void setFilesParams({ folderId: null, new: null })
+  }, [setFilesParams])
 
   const loadingBreadcrumbs = useMemo(
     (): BreadcrumbItem[] => [
@@ -1617,7 +1619,7 @@ export function Files() {
         label: folder.name,
         onClick: isCurrentFolder
           ? undefined
-          : () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+          : () => void setFilesParams({ folderId: folder.id, new: null }),
         editing:
           isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
             ? {
@@ -1647,8 +1649,7 @@ export function Files() {
     currentFolderId,
     folders,
     handleNavigateToFiles,
-    router,
-    workspaceId,
+    setFilesParams,
     canEdit,
     userPermissions.isLoading,
     breadcrumbRename.editingId,

@@ -10,6 +10,12 @@
  *   2. queryfn-no-signal    — an inline `queryFn` that takes no args (cannot forward the AbortSignal)
  *   3. inline-query-key     — `queryKey: ['literal', ...]` instead of a colocated key factory
  *   4. key-factory-no-root  — a `*Keys` factory in hooks/queries/** without an `all` root key
+ *   5. key-fetch-arg-drift  — an identifier the queryFn forwards into the fetch (e.g. `workspaceId`)
+ *                             that is absent from the queryKey, so distinct fetch args collide on one
+ *                             cache entry. Conservative: only bare camelCase identifiers (never the
+ *                             requestJson contract arg, PascalCase/SCREAMING constants, or signal/
+ *                             pageParam machinery) are checked, and only when both a queryKey and an
+ *                             inline-arrow queryFn with a recognizable call are present.
  *
  * Enforcement model (mirrors check-api-validation-contracts.ts):
  *   - STRICT ZONE (apps/sim/hooks/queries/**): zero tolerance — any violation fails.
@@ -41,6 +47,7 @@ type Category =
   | 'queryfn-no-signal'
   | 'inline-query-key'
   | 'key-factory-no-root'
+  | 'key-fetch-arg-drift'
 
 interface Violation {
   file: string
@@ -59,6 +66,9 @@ const SUGGESTION: Record<Category, string> = {
     'use a colocated hierarchical key factory (entityKeys.list(id)) instead of an inline literal key',
   'key-factory-no-root':
     'every *Keys factory in hooks/queries/** must expose an `all` root key for prefix invalidation',
+  'key-fetch-arg-drift':
+    'every identifier the queryFn passes to fetch/requestJson must also appear in the queryKey — ' +
+    'otherwise distinct fetch args collide on one cache entry (cross-tenant/param cache collision)',
 }
 
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
@@ -127,6 +137,124 @@ const QUERYFN_PRESENT = /queryFn\s*:/
 const INLINE_KEY = /queryKey\s*:\s*\[\s*[`'"]/
 const KEYS_FACTORY = /\b(?:export\s+)?const\s+\w*[kK]eys\s*[:=][^=]*?=?\s*\{/g
 
+/**
+ * Identifiers that are part of the queryFn machinery (not fetch params) and
+ * must never be flagged as drift even though they appear in the call.
+ */
+const QUERYFN_NOISE = new Set([
+  'signal',
+  'pageParam',
+  'meta',
+  'queryKey',
+  'direction',
+  'client',
+  'true',
+  'false',
+  'null',
+  'undefined',
+])
+
+/**
+ * Extracts the value slice of `key: ...` from an options object, reading up to
+ * the property-terminating top-level comma. Nested brackets (arrays, calls, and
+ * arrow-function bodies including their own param parens) are skipped via depth
+ * tracking, so this correctly returns the whole `({ signal }) => fetchX(...)`
+ * arrow for `queryFn`, not just its parameter list.
+ */
+function extractOptionValue(obj: string, key: string): string | null {
+  const re = new RegExp(`\\b${key}\\s*:`, 'g')
+  const m = re.exec(obj)
+  if (!m) return null
+  let i = m.index + m[0].length
+  while (i < obj.length && /\s/.test(obj[i])) i++
+  let depth = 0
+  let inStr: string | null = null
+  let j = i
+  for (; j < obj.length; j++) {
+    const c = obj[j]
+    const prev = obj[j - 1]
+    if (inStr) {
+      if (c === inStr && prev !== '\\') inStr = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      inStr = c
+      continue
+    }
+    if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') {
+      if (depth === 0) break
+      depth--
+    } else if (c === ',' && depth === 0) break
+  }
+  return obj.slice(i, j)
+}
+
+/**
+ * "key/fetch-arg drift": an identifier the queryFn forwards into the fetch
+ * (the args of the first call expression inside the queryFn body) that does NOT
+ * textually appear in the queryKey. Conservative — only fires when both the
+ * queryKey and an inline-arrow queryFn with a recognizable call are present, and
+ * only for bare identifiers (optionally `x as T` / `x!`), never member access,
+ * literals, or queryFn machinery (signal/pageParam/etc.).
+ */
+function findKeyFetchArgDrift(obj: string): string[] {
+  const keyExpr = extractOptionValue(obj, 'queryKey')
+  const fnExpr = extractOptionValue(obj, 'queryFn')
+  if (!keyExpr || !fnExpr) return []
+
+  // Drop the arrow prefix (`async`, `(params) =>`, optional `{ return`) so the
+  // search begins at the queryFn body, then locate the first call expression and
+  // balance its argument list.
+  const bodyStart = /=>\s*(?:\{\s*(?:return\s+)?)?/.exec(fnExpr)
+  const body = bodyStart ? fnExpr.slice(bodyStart.index + bodyStart[0].length) : fnExpr
+  const call = /(?:await\s+)?([A-Za-z_$][\w$.]*)\s*\(/.exec(body)
+  if (!call) return []
+  const callee = call[1]
+  const openParen = call.index + call[0].length - 1
+  const argList = matchBalanced(body, openParen, '(', ')')
+
+  // Split top-level args.
+  const args: string[] = []
+  let depth = 0
+  let cur = ''
+  for (let i = 1; i < argList.length - 1; i++) {
+    const c = argList[i]
+    if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') depth--
+    if (c === ',' && depth === 0) {
+      args.push(cur)
+      cur = ''
+    } else cur += c
+  }
+  if (cur.trim()) args.push(cur)
+
+  // `requestJson(contract, ...)` / `ensureQueryData(contract, ...)` etc. take the
+  // contract constant as their first arg — that is module-level config, never a
+  // per-hook identifier, so drop it before checking.
+  const dropsFirstArg = /(?:^|\.)(requestJson|requestText|ensureQueryData|fetchQuery)$/.test(callee)
+  const checkArgs = dropsFirstArg ? args.slice(1) : args
+
+  const drifted: string[] = []
+  for (const raw of checkArgs) {
+    const id = raw
+      .trim()
+      .replace(/\s+as\s+[\w$.<>[\]| ]+$/, '')
+      .replace(/!+$/, '')
+      .trim()
+    // Only bare identifiers; skip member access, calls, literals, destructures, spreads.
+    if (!/^[A-Za-z_$][\w$]*$/.test(id)) continue
+    if (QUERYFN_NOISE.has(id)) continue
+    // Skip module-level constants (contracts/config), which are camelCase config
+    // ending in `Contract`, PascalCase, or SCREAMING_SNAKE — never hook params.
+    if (/Contract$/.test(id) || /^[A-Z]/.test(id) || /^[A-Z0-9_]+$/.test(id)) continue
+    // Present in the key (as a whole word) → no drift.
+    const inKey = new RegExp(`\\b${id}\\b`).test(keyExpr)
+    if (!inKey && !drifted.includes(id)) drifted.push(id)
+  }
+  return drifted
+}
+
 function scanFile(rel: string, content: string): Violation[] {
   const lines = content.split('\n')
   const violations: Violation[] = []
@@ -152,6 +280,13 @@ function scanFile(rel: string, content: string): Violation[] {
     }
     if (QUERYFN_PRESENT.test(obj) && QUERYFN_NOARG.test(obj)) {
       add(m.index, 'queryfn-no-signal', `${m[1]} queryFn takes no args`)
+    }
+    for (const id of findKeyFetchArgDrift(obj)) {
+      add(
+        m.index,
+        'key-fetch-arg-drift',
+        `${m[1]}: '${id}' passed to fetch but absent from queryKey`
+      )
     }
   }
 

@@ -367,6 +367,12 @@ export function useUpdateEntity() {
 }
 ```
 
+## URL / Query-Param State
+
+Shareable *client* view-state (active tab/panel, filters, search query, pagination, selected entity id, view mode, a deep-linked drawer/modal) lives in the URL via [`nuqs`](https://nuqs.dev) — not in a store synced with effects, and never read via `useSearchParams().get(...)` / `new URLSearchParams(window.location.search)`. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand (canvas pan/zoom, cursor, drag, resize widths, live collaborative selection).
+
+Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
+
 ## Styling
 
 Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
