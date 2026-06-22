@@ -106,14 +106,14 @@ function ServerToolsQuery({
   workspaceId: string
   server: WorkflowMcpServer
   workflowId: string
-  onData: (serverId: string, tool: WorkflowMcpTool | null, isLoading: boolean) => void
+  onData: (serverId: string, tool: WorkflowMcpTool | null) => void
 }) {
-  const { data: tools, isLoading } = useWorkflowMcpTools(workspaceId, server.id)
+  const { data: tools } = useWorkflowMcpTools(workspaceId, server.id)
 
   useEffect(() => {
     const tool = tools?.find((t) => t.workflowId === workflowId) || null
-    onData(server.id, tool, isLoading)
-  }, [tools, isLoading, workflowId, server.id, onData])
+    onData(server.id, tool)
+  }, [tools, workflowId, server.id, onData])
 
   return null
 }
@@ -185,31 +185,24 @@ export function McpDeploy({
     return null
   }, [toolName])
 
-  const [serverToolsMap, setServerToolsMap] = useState<
-    Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>
-  >({})
+  const [serverToolsMap, setServerToolsMap] = useState<Record<string, WorkflowMcpTool | null>>({})
 
-  const handleServerToolData = useCallback(
-    (serverId: string, tool: WorkflowMcpTool | null, isLoading: boolean) => {
-      setServerToolsMap((prev) => {
-        const existing = prev[serverId]
-        if (existing?.tool?.id === tool?.id && existing?.isLoading === isLoading) {
-          return prev
-        }
-        return {
-          ...prev,
-          [serverId]: { tool, isLoading },
-        }
-      })
-    },
-    []
-  )
+  const handleServerToolData = useCallback((serverId: string, tool: WorkflowMcpTool | null) => {
+    setServerToolsMap((prev) => {
+      if (prev[serverId]?.id === tool?.id) {
+        return prev
+      }
+      return {
+        ...prev,
+        [serverId]: tool,
+      }
+    })
+  }, [])
 
   const selectedServerIds = useMemo(() => {
     const ids: string[] = []
     for (const server of servers) {
-      const toolInfo = serverToolsMap[server.id]
-      if (toolInfo?.tool) {
+      if (serverToolsMap[server.id]) {
         ids.push(server.id)
       }
     }
@@ -229,11 +222,11 @@ export function McpDeploy({
     if (savedValues || (isLoadingDeployedState && !deployedState)) return
 
     for (const server of servers) {
-      const toolInfo = serverToolsMap[server.id]
-      if (toolInfo?.tool) {
-        const initialToolName = toolInfo.tool.toolName
-        const initialToolDescription = toolInfo.tool.toolDescription ?? ''
-        const storedOverrides = toolInfo.tool.parameterDescriptionOverrides ?? {}
+      const existingTool = serverToolsMap[server.id]
+      if (existingTool) {
+        const initialToolName = existingTool.toolName
+        const initialToolDescription = existingTool.toolDescription ?? ''
+        const storedOverrides = existingTool.parameterDescriptionOverrides ?? {}
         // Tools created before the overrides column kept custom descriptions only in the stored
         // schema; derive them (dropping field-name and Start-block-default values) so opening and
         // saving the form never wipes descriptions that were never migrated to the column.
@@ -241,7 +234,7 @@ export function McpDeploy({
           Object.keys(storedOverrides).length > 0
             ? storedOverrides
             : extractDescriptionOverrides(
-                toolInfo.tool.parameterSchema,
+                existingTool.parameterSchema,
                 generateToolInputSchema(inputFormat)
               )
 
@@ -316,7 +309,7 @@ export function McpDeploy({
     setSaveErrors([])
     try {
       const errors: string[] = []
-      const addedEntries: Record<string, { tool: WorkflowMcpTool; isLoading: boolean }> = {}
+      const addedEntries: Record<string, WorkflowMcpTool> = {}
       const removedIds: string[] = []
 
       for (const serverId of toAdd) {
@@ -330,7 +323,7 @@ export function McpDeploy({
             toolDescription: toolDescriptionForSave,
             parameterDescriptionOverrides,
           })
-          addedEntries[serverId] = { tool: addedTool, isLoading: false }
+          addedEntries[serverId] = addedTool
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
@@ -347,15 +340,15 @@ export function McpDeploy({
       }
 
       for (const serverId of toRemove) {
-        const toolInfo = serverToolsMap[serverId]
-        if (!toolInfo?.tool) continue
+        const existingTool = serverToolsMap[serverId]
+        if (!existingTool) continue
 
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
         try {
           await deleteToolMutation.mutateAsync({
             workspaceId,
             serverId,
-            toolId: toolInfo.tool.id,
+            toolId: existingTool.id,
           })
           removedIds.push(serverId)
         } catch (error) {
@@ -374,14 +367,14 @@ export function McpDeploy({
       if (shouldUpdateExisting) {
         for (const serverId of selectedServerIdsForForm) {
           if (toAdd.has(serverId)) continue
-          const toolInfo = serverToolsMap[serverId]
-          if (!toolInfo?.tool) continue
+          const existingTool = serverToolsMap[serverId]
+          if (!existingTool) continue
 
           try {
             await updateToolMutation.mutateAsync({
               workspaceId,
               serverId,
-              toolId: toolInfo.tool.id,
+              toolId: existingTool.id,
               toolName: toolName.trim(),
               toolDescription: toolDescriptionForSave,
               parameterDescriptionOverrides,
@@ -400,7 +393,7 @@ export function McpDeploy({
                   toolDescription: toolDescriptionForSave,
                   parameterDescriptionOverrides,
                 })
-                addedEntries[serverId] = { tool: recreated, isLoading: false }
+                addedEntries[serverId] = recreated
               } catch (recreateError) {
                 errors.push(`Failed to update on ${serverName}`)
                 logger.error(`Failed to re-add tool on server ${serverId}:`, recreateError)
