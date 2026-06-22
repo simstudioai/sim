@@ -155,16 +155,20 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 
-  it('respects the per-user notifications toggle even after winning the claim', async () => {
+  it('does not send OR burn the claim when the per-user toggle is off', async () => {
     mockSelectRows.mockReturnValue([{ enabled: false }])
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(sendEmailSpy).not.toHaveBeenCalled()
+    // Recipient resolution gates the claim, so the threshold isn't advanced —
+    // re-enabling notifications later still lets the email fire.
+    expect(mockClaim).not.toHaveBeenCalled()
   })
 
-  it('respects unsubscribe preferences', async () => {
+  it('does not send OR burn the claim when the recipient unsubscribed', async () => {
     getEmailPreferencesMock.mockResolvedValue({ unsubscribeNotifications: true })
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(sendEmailSpy).not.toHaveBeenCalled()
+    expect(mockClaim).not.toHaveBeenCalled()
   })
 
   it('skips entirely when billing is disabled', async () => {

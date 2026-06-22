@@ -91,6 +91,63 @@ async function rearmThreshold(
   }
 }
 
+interface LimitEmailRecipient {
+  email: string
+  name?: string
+}
+
+/** Whether a recipient has unsubscribed from all or from notification emails. */
+async function isUnsubscribed(email: string): Promise<boolean> {
+  const prefs = await getEmailPreferences(email)
+  return Boolean(prefs?.unsubscribeAll || prefs?.unsubscribeNotifications)
+}
+
+/**
+ * Resolve the recipients that should receive a limit email, with all opt-outs
+ * already applied (the per-user notifications toggle and unsubscribe prefs).
+ * Returning an empty list means "nobody to notify" — the caller then skips the
+ * claim so the dedup state isn't burned without an email going out.
+ */
+async function resolveRecipients(
+  scope: 'user' | 'organization',
+  params: { userId?: string; userEmail?: string; userName?: string; organizationId?: string }
+): Promise<LimitEmailRecipient[]> {
+  if (scope === 'user') {
+    if (!params.userId || !params.userEmail) return []
+    const rows = await db
+      .select({ enabled: settings.billingUsageNotificationsEnabled })
+      .from(settings)
+      .where(eq(settings.userId, params.userId))
+      .limit(1)
+    if (rows.length > 0 && rows[0].enabled === false) return []
+    if (await isUnsubscribed(params.userEmail)) return []
+    return [{ email: params.userEmail, name: params.userName }]
+  }
+
+  if (!params.organizationId) return []
+  const admins = await db
+    .select({
+      email: user.email,
+      name: user.name,
+      enabled: settings.billingUsageNotificationsEnabled,
+      role: member.role,
+    })
+    .from(member)
+    .innerJoin(user, eq(member.userId, user.id))
+    .leftJoin(settings, eq(settings.userId, member.userId))
+    .where(eq(member.organizationId, params.organizationId))
+
+  const recipients: LimitEmailRecipient[] = []
+  for (const a of admins) {
+    if (!isOrgAdminRole(a.role)) continue
+    if (a.enabled === false) continue
+    if (!a.email) continue
+    if (await isUnsubscribed(a.email)) continue
+    recipients.push({ email: a.email, name: a.name || undefined })
+  }
+  return recipients
+}
+
 /**
  * Send a usage-limit threshold email (80% warning / 100% reached) for a
  * non-credit category, edge-triggered on the mutation that changed usage.
@@ -158,69 +215,44 @@ export async function maybeSendLimitThresholdEmail(params: {
     // Usage-decrease callers re-arm only — a drop is never a fresh crossing to email.
     if (params.rearmOnly || desired === 0) return
 
+    // Resolve eligible recipients (opt-outs filtered) BEFORE claiming, so the
+    // dedup state only advances when an email will actually be sent — otherwise
+    // an opted-out recipient would silently burn the threshold and suppress a
+    // later email after notifications are re-enabled.
+    const recipients = await resolveRecipients(scope, params)
+    if (recipients.length === 0) return
+
     if (!(await claimThreshold(scope, stateId, category, desired))) return
 
     const kind = desired === REACH_THRESHOLD ? 'reached' : 'warning'
     const percentUsed = Math.min(100, Math.round(percent))
     const upgradeLink = `${getBaseUrl()}${buildUpgradeHref(params.workspaceId, category)}`
 
-    const sendTo = async (email: string, name?: string) => {
-      const prefs = await getEmailPreferences(email)
-      if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
-
-      const html = await renderLimitThresholdEmail({
-        kind,
-        reason: category,
-        userName: name,
-        usageLabel: params.usageLabel,
-        limitLabel: params.limitLabel,
-        percentUsed,
-        upgradeLink,
-      })
-
-      await sendEmail({
-        to: email,
-        subject: getLimitEmailSubject(category, kind),
-        html,
-        emailType: 'notifications',
-      })
-    }
-
-    if (scope === 'user' && params.userId && params.userEmail) {
-      const rows = await db
-        .select({ enabled: settings.billingUsageNotificationsEnabled })
-        .from(settings)
-        .where(eq(settings.userId, params.userId))
-        .limit(1)
-      if (rows.length > 0 && rows[0].enabled === false) return
-      await sendTo(params.userEmail, params.userName)
-    } else if (scope === 'organization' && params.organizationId) {
-      const admins = await db
-        .select({
-          email: user.email,
-          name: user.name,
-          enabled: settings.billingUsageNotificationsEnabled,
-          role: member.role,
+    for (const r of recipients) {
+      // Isolate per-recipient failures so one bad send doesn't skip the rest.
+      try {
+        const html = await renderLimitThresholdEmail({
+          kind,
+          reason: category,
+          userName: r.name,
+          usageLabel: params.usageLabel,
+          limitLabel: params.limitLabel,
+          percentUsed,
+          upgradeLink,
         })
-        .from(member)
-        .innerJoin(user, eq(member.userId, user.id))
-        .leftJoin(settings, eq(settings.userId, member.userId))
-        .where(eq(member.organizationId, params.organizationId))
 
-      for (const a of admins) {
-        if (!isOrgAdminRole(a.role)) continue
-        if (a.enabled === false) continue
-        if (!a.email) continue
-        // Isolate per-admin failures so one bad recipient doesn't skip the rest.
-        try {
-          await sendTo(a.email, a.name || undefined)
-        } catch (sendError) {
-          logger.error('Failed to send limit email to org admin', {
-            category,
-            email: a.email,
-            error: sendError,
-          })
-        }
+        await sendEmail({
+          to: r.email,
+          subject: getLimitEmailSubject(category, kind),
+          html,
+          emailType: 'notifications',
+        })
+      } catch (sendError) {
+        logger.error('Failed to send limit email', {
+          category,
+          email: r.email,
+          error: sendError,
+        })
       }
     }
 
