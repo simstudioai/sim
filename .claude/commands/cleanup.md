@@ -1,5 +1,5 @@
 ---
-description: Run all code quality skills in sequence — effects, memo, callbacks, state, React Query, and emcn design review
+description: Run all code quality skills in sequence — effects, memo, callbacks, state, React Query, emcn design review, and url-state
 argument-hint: [scope] [fix=true|false]
 ---
 
@@ -21,5 +21,6 @@ Run each of these skills in order on the specified scope, passing through the sc
 4. `/you-might-not-need-state $ARGUMENTS`
 5. `/react-query-best-practices $ARGUMENTS`
 6. `/emcn-design-review $ARGUMENTS`
+7. `/you-might-not-need-url-state $ARGUMENTS`
 
-After all skills have run, output a summary of what was found and fixed (or proposed) across all six passes.
+After all skills have run, output a summary of what was found and fixed (or proposed) across all seven passes.

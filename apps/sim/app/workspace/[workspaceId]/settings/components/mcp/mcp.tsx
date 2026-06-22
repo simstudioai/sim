@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import {
   Badge,
   Button,
@@ -25,6 +26,10 @@ import {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
+import {
+  mcpServerIdParam,
+  mcpServerIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
@@ -143,11 +148,7 @@ function buildEditInitialData(server: McpServer) {
   }
 }
 
-interface MCPProps {
-  initialServerId?: string | null
-}
-
-export function MCP({ initialServerId }: MCPProps) {
+export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -184,16 +185,20 @@ export function MCP({ initialServerId }: MCPProps) {
   const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
   const showDeleteDialog = serverToDeleteId !== null
 
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(initialServerId ?? null)
+  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
+    ...mcpServerIdParam.parser,
+    ...mcpServerIdUrlKeys,
+  })
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialServerId and workspaceId
-  // are stable for the component's lifetime (route changes remount the settings page).
+  const initialServerIdRef = useRef(selectedServerId)
+  const didDeepLinkRefreshRef = useRef(false)
   useEffect(() => {
-    if (initialServerId) {
-      forceRefreshTools(workspaceId)
-      refetchStoredTools()
-    }
-  }, [])
+    if (didDeepLinkRefreshRef.current) return
+    if (!initialServerIdRef.current) return
+    didDeepLinkRefreshRef.current = true
+    forceRefreshTools(workspaceId)
+    refetchStoredTools()
+  }, [workspaceId, forceRefreshTools, refetchStoredTools])
 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 

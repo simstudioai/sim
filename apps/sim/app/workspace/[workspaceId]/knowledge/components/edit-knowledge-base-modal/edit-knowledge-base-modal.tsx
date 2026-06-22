@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -44,7 +44,13 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  /**
+   * Seed the fields only on the closed → open transition (render-phase reset),
+   * so a prop change while the modal is open never clobbers in-progress edits.
+   */
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setName(initialName)
       setDescription(initialDescription)
@@ -52,7 +58,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
       setDescriptionError(null)
       setError(null)
     }
-  }, [open, initialName, initialDescription])
+  }
 
   const validate = (): boolean => {
     let valid = true

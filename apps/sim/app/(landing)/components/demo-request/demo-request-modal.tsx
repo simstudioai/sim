@@ -69,7 +69,6 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<DemoRequestFormState>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<DemoRequestErrors>({})
-  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const demoMutation = useMutation({
     mutationFn: submitDemoRequest,
@@ -77,14 +76,14 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
       captureClientEvent('landing_demo_request_submitted', {
         company_size: variables.companySize,
       })
-      setSubmitSuccess(true)
     },
   })
+
+  const submitSuccess = demoMutation.isSuccess
 
   function resetForm() {
     setForm(INITIAL_FORM_STATE)
     setErrors({})
-    setSubmitSuccess(false)
     demoMutation.reset()
   }
 

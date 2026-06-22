@@ -69,7 +69,6 @@ export function ContactForm() {
       captureClientEvent('landing_contact_submitted', { topic: variables.topic })
       setForm(INITIAL_FORM_STATE)
       setErrors({})
-      setSubmitSuccess(true)
     },
     onError: () => {
       turnstileRef.current?.reset()
@@ -78,7 +77,6 @@ export function ContactForm() {
 
   const [form, setForm] = useState<ContactFormState>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<ContactErrors>({})
-  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
   const [widgetReady, setWidgetReady] = useState(false)
@@ -141,6 +139,7 @@ export function ContactForm() {
   }
 
   const isBusy = contactMutation.isPending || isSubmitting
+  const submitSuccess = contactMutation.isSuccess
 
   const submitError = contactMutation.isError
     ? toError(contactMutation.error).message || 'Failed to send message. Please try again.'
@@ -161,7 +160,7 @@ export function ContactForm() {
         </p>
         <button
           type='button'
-          onClick={() => setSubmitSuccess(false)}
+          onClick={() => contactMutation.reset()}
           className='mt-6 font-season text-[13px] text-[var(--landing-text)] underline underline-offset-2 transition-opacity hover:opacity-80'
         >
           Send another message

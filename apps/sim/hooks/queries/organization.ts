@@ -174,10 +174,18 @@ export function useOrganizations() {
 }
 
 /**
- * Fetch a specific organization by ID
+ * Fetch a specific organization by ID.
+ *
+ * `getFullOrganization` defaults to the active organization when no
+ * `organizationId` is supplied; passing `orgId` through scopes the result to the
+ * requested org so it is cached under the correct `organizationKeys.detail(orgId)`
+ * (no cross-org cache collision). The active-org caller passes the active org's
+ * id, so its behavior is unchanged.
  */
-async function fetchOrganization(_signal?: AbortSignal) {
-  const response = await client.organization.getFullOrganization()
+async function fetchOrganization(orgId: string, _signal?: AbortSignal) {
+  const response = await client.organization.getFullOrganization({
+    query: { organizationId: orgId },
+  })
   return response.data
 }
 
@@ -187,7 +195,7 @@ async function fetchOrganization(_signal?: AbortSignal) {
 export function useOrganization(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.detail(orgId),
-    queryFn: ({ signal }) => fetchOrganization(signal),
+    queryFn: ({ signal }) => fetchOrganization(orgId, signal),
     enabled: !!orgId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,

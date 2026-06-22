@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Server } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -186,7 +186,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         workspaceId,
         serverId,
         toolId: toolToView.id,
-        toolDescription: editingDescription.trim() || undefined,
+        toolDescription: editingDescription.trim(),
         parameterSchema: updatedSchema,
       })
       setToolToView(null)
@@ -395,7 +395,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <div className='inline-flex'>
-                <Chip disabled>Add Workflows</Chip>
+                <Chip leftIcon={Plus} variant='primary' disabled>
+                  Add Workflows
+                </Chip>
               </div>
             </Tooltip.Trigger>
             <Tooltip.Content>
@@ -403,7 +405,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             </Tooltip.Content>
           </Tooltip.Root>
         ) : (
-          <Chip onClick={() => setShowAddWorkflow(true)} disabled={!canAddWorkflow}>
+          <Chip
+            leftIcon={Plus}
+            variant='primary'
+            onClick={() => setShowAddWorkflow(true)}
+            disabled={!canAddWorkflow}
+          >
             Add Workflows
           </Chip>
         )}
@@ -430,34 +437,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               <div className='min-h-[300px] pt-4'>
                 {activeServerTab === 'workflows' && (
                   <div className='flex flex-col gap-4.5'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-medium text-[var(--text-primary)] text-sm'>
-                        Workflows
-                      </span>
-                      {showAddDisabledTooltip ? (
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <div className='inline-flex'>
-                              <Chip leftIcon={Plus} variant='primary' disabled>
-                                Add Workflow
-                              </Chip>
-                            </div>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content>
-                            All deployed workflows have been added to this server.
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      ) : (
-                        <Chip
-                          leftIcon={Plus}
-                          variant='primary'
-                          onClick={() => setShowAddWorkflow(true)}
-                          disabled={!canAddWorkflow}
-                        >
-                          Add Workflow
-                        </Chip>
-                      )}
-                    </div>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
+                      Workflows
+                    </span>
 
                     {tools.length === 0 ? (
                       <p className='text-[var(--text-muted)] text-sm'>
@@ -915,6 +897,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 export function WorkflowMcpServers() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const searchParams = useSearchParams()
 
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
@@ -923,7 +906,9 @@ export function WorkflowMcpServers() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(() =>
+    searchParams.get('mcpServerId')
+  )
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 

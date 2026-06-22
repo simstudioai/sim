@@ -155,17 +155,6 @@ export async function getMcpServerToolMetadataUsageRows(
   }))
 }
 
-export function getMcpToolDescriptionForStorage(
-  description: string | null | undefined,
-  workflowName: string
-): string {
-  const trimmed = description?.trim()
-  if (trimmed && utf8Size(trimmed) <= MAX_MCP_TOOL_DESCRIPTION_BYTES) {
-    return trimmed
-  }
-  return `Execute ${workflowName} workflow`
-}
-
 export function validateMcpToolMetadataForStorage(metadata: {
   toolName?: string | null
   toolDescription?: string | null
