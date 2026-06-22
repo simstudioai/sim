@@ -187,9 +187,14 @@ export function useVerification({
       })
   }
 
+  /**
+   * On a complete (6-char) code, clear any lingering message — including a
+   * resend failure (which sets `errorMessage` while `status` stays `idle`) — and
+   * exit the error state, matching the prior unconditional reset on a full OTP.
+   */
   function handleOtpChange(value: string) {
-    if (value.length === 6 && status === 'error') {
-      setStatus('idle')
+    if (value.length === 6) {
+      if (status === 'error') setStatus('idle')
       setErrorMessage('')
     }
     setOtp(value)
