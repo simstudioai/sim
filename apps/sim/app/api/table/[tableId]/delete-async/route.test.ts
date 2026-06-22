@@ -39,6 +39,9 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
 }))
 vi.mock('@/background/table-delete', () => ({ tableDeleteTask: { id: 'table-delete' } }))
+vi.mock('@/lib/core/async-jobs/region', () => ({
+  resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
+}))
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: { trigger: mockTasksTrigger },
   task: (config: unknown) => config,
@@ -196,7 +199,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
         excludeRowIds: ['row_keep'],
         cutoff: expect.any(String),
       }),
-      { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'] }
+      { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'], region: 'us-east-1' }
     )
   })
 

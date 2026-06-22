@@ -86,14 +86,15 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // Trigger.dev runs the delete outside the web container (survives deploys) and retries —
     // safe: the keyset + cutoff walk just deletes whatever remains.
     try {
-      const [{ tableDeleteTask }, { tasks }] = await Promise.all([
+      const [{ tableDeleteTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-delete'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableDeleteTask>(
         'table-delete',
         { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff: cutoff.toISOString() },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the

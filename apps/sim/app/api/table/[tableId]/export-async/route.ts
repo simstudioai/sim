@@ -61,12 +61,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const payload: TableExportPayload = { jobId, tableId, workspaceId, format }
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableExportTask }, { tasks }] = await Promise.all([
+      const [{ tableExportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-export'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableExportTask>('table-export', payload, {
         tags: [`tableId:${tableId}`, `jobId:${jobId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the
