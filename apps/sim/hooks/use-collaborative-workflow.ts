@@ -1906,7 +1906,7 @@ export function useCollaborativeWorkflow() {
       const currentCount = currentBlock.data?.count || 5
       const currentDistribution = currentBlock.data?.collection || ''
       const currentParallelType = currentBlock.data?.parallelType || 'count'
-      const clampedBatchSize = Math.max(1, Math.min(100, batchSize))
+      const clampedBatchSize = Math.max(1, Math.min(DEFAULTS.MAX_PARALLEL_BRANCHES, batchSize))
 
       const config = {
         id: parallelId,
