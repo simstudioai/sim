@@ -7,7 +7,7 @@ import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
 
-<VideoPlaceholder eyebrow="Foundations" title="Knowledge Bases" className="mt-2" />
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/knowledge-bases-light-with-intro.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -61,6 +61,12 @@ Use a Knowledge block with a query and it returns the most relevant chunks, each
 
 ## Grounding an answer
 
-On its own, that's retrieval. The power comes one step later: feed those chunks into an [Agent](/academy/agents) block's context, and the model answers from your actual documents — accurate, up to date, and able to **cite** where each fact came from. That's grounding plus retrieval.
+On its own, that's retrieval. The power comes one step later: feed those chunks into an [Agent](/academy/agents/intro) block's context, and the model answers from your actual documents — accurate, up to date, and able to **cite** where each fact came from. That's grounding plus retrieval.
 
 Knowledge bases power systems that need to give agents accurate, current context — and they're where you store what your systems learn over time.
+
+## Related documentation
+
+- [Knowledge Bases overview](/knowledgebase)
+- [Using a knowledge base in workflows](/knowledgebase/using-in-workflows)
+- [Connectors](/knowledgebase/connectors)

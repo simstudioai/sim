@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getAssetUrl } from '@/lib/utils'
 
 interface VideoPlaceholderProps {
   /** Large title shown on the hero. */
@@ -10,17 +10,19 @@ interface VideoPlaceholderProps {
   eyebrow?: string
   /** Pill in the top-right corner. Defaults to "Coming soon" (shown only until a video is set). */
   label?: string
-  /** YouTube video id or URL. When set, the play button loads the video; otherwise the card is "coming soon". */
-  youtube?: string
+  /**
+   * Self-hosted video source. Accepts an absolute URL, a root-relative path
+   * (`/static/...`), or a bare asset name resolved through the Blob CDN. When
+   * set, the play button loads the video; otherwise the card is "coming soon".
+   */
+  src?: string
   className?: string
 }
 
-/** Pull an 11-char YouTube id out of an id or any common YouTube URL. */
-function parseYouTubeId(input?: string): string | null {
-  if (!input) return null
-  if (/^[\w-]{11}$/.test(input)) return input
-  const match = input.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/)
-  return match ? match[1] : null
+/** Resolve a video source: pass absolute/root-relative through, send bare names to the Blob CDN. */
+function resolveVideoSrc(src: string): string {
+  if (/^https?:\/\//.test(src) || src.startsWith('/')) return src
+  return getAssetUrl(src)
 }
 
 /** The sim logotype, drawn with currentColor so the theme can tint it. */
@@ -37,21 +39,21 @@ function SimWordmark({ className }: { className?: string }) {
 
 /**
  * A 16:9 lesson hero used across the Academy. Always shows the design-system
- * video card (title, blueprint grid, theme-aware dark/light). When a `youtube`
- * id/URL is provided the play button loads the video inline; otherwise the card
- * reads "Coming soon" and the play button is muted.
+ * video card (title, blueprint grid, theme-aware dark/light). When a `src` is
+ * provided the play button loads the self-hosted video inline; otherwise the
+ * card reads "Coming soon" and the play button is muted.
  */
 export function VideoPlaceholder({
   title,
   eyebrow,
   label = 'Coming soon',
-  youtube,
+  src,
   className,
 }: VideoPlaceholderProps) {
-  const videoId = parseYouTubeId(youtube)
+  const hasVideo = Boolean(src)
   const [playing, setPlaying] = useState(false)
 
-  if (playing && videoId) {
+  if (playing && src) {
     return (
       <div
         className={cn(
@@ -59,11 +61,13 @@ export function VideoPlaceholder({
           className
         )}
       >
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+        {/* biome-ignore lint/a11y/useMediaCaption: lesson videos have no caption track yet */}
+        <video
+          src={resolveVideoSrc(src)}
           title={title ?? 'Lesson video'}
-          allow='autoplay; encrypted-media; picture-in-picture; fullscreen'
-          allowFullScreen
+          controls
+          autoPlay
+          playsInline
           className='h-full w-full border-0'
         />
       </div>
@@ -100,7 +104,7 @@ export function VideoPlaceholder({
       ))}
 
       {/* Top-right status pill — only until a video is wired up */}
-      {!videoId && (
+      {!hasVideo && (
         <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
           <span className='size-1.5 rounded-full bg-[#1F8A5B]' />
           {label}
@@ -128,7 +132,7 @@ export function VideoPlaceholder({
 
       {/* Centered play button — active when a video is wired, muted otherwise */}
       <div className='absolute inset-0 z-10 grid place-items-center'>
-        {videoId ? (
+        {hasVideo ? (
           <button
             type='button'
             onClick={() => setPlaying(true)}
