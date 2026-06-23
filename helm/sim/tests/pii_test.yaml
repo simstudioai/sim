@@ -1,0 +1,73 @@
+suite: pii — optional Presidio sidecar + PII_URL wiring
+release:
+  name: t
+  namespace: sim
+set:
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: does not render the pii deployment when disabled
+    template: deployment-pii.yaml
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: renders the pii deployment + service when enabled
+    set:
+      pii.enabled: true
+    templates:
+      - deployment-pii.yaml
+      - services.yaml
+    asserts:
+      - template: deployment-pii.yaml
+        isKind: { of: Deployment }
+      - template: deployment-pii.yaml
+        equal: { path: metadata.name, value: t-sim-pii }
+      - template: deployment-pii.yaml
+        equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5001
+
+  - it: app pod gets chart-computed PII_URL pointing at the in-cluster service
+    template: deployment-app.yaml
+    set:
+      pii.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://t-sim-pii:5001"
+
+  - it: app pod gets the localhost PII_URL fallback when sidecar disabled
+    template: deployment-app.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://localhost:5001"
+
+  - it: PII_URL is excluded from the chart-managed app secret
+    template: secrets-app.yaml
+    set:
+      pii.enabled: true
+      app.env.PII_URL: "http://should-not-leak:5001"
+    asserts:
+      - notExists:
+          path: stringData.PII_URL
+
+  - it: user-set PII_URL never overrides the chart-computed inline value
+    template: deployment-app.yaml
+    set:
+      pii.enabled: true
+      app.env.PII_URL: "http://evil-pii:5001"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://evil-pii:5001"

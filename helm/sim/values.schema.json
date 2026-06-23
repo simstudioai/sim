@@ -704,6 +704,72 @@
         }
       }
     },
+    "pii": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the Presidio PII redaction sidecar"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of PII sidecar replicas"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory limit (e.g., 8Gi, 4096Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU limit"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|m|k|M|G|T|P|E)?$",
+                  "description": "Memory request (e.g., 4Gi, 2048Mi)"
+                },
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
+                  "description": "CPU request (e.g., 1000m, 1.0)"
+                }
+              }
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "port": { "type": "integer" },
+            "targetPort": { "type": "integer" }
+          }
+        }
+      }
+    },
     "telemetry": {
       "type": "object",
       "properties": {
