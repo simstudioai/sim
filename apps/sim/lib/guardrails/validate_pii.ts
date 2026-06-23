@@ -1,44 +1,15 @@
-import { spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { env } from '@/lib/core/config/env'
+import { CUSTOM_ENTITY_TYPES, CUSTOM_RECOGNIZERS } from '@/lib/guardrails/recognizers'
 
 const logger = createLogger('PIIValidator')
-const DEFAULT_TIMEOUT = 30000 // 30 seconds
 
-/**
- * Max total bytes of text sent to a single Presidio subprocess. spaCy NER is the
- * bottleneck, so large payloads are split into multiple short calls instead of
- * one that risks the 30s timeout.
- */
-const PII_CHUNK_MAX_BYTES = 256 * 1024
+/** Just above the analyzer's spaCy NER budget so a stuck sidecar aborts gracefully. */
+const REQUEST_TIMEOUT_MS = 45_000
 
-/**
- * Resolve the guardrails Presidio interpreter + script path.
- *
- * `process.cwd()` is not stable across runtimes — the Next standalone container
- * launches from the monorepo root while local dev and some paths run from
- * `apps/sim` — so probe both layouts (mirrors the candidate-path resolution in
- * `lib/execution/isolated-vm.ts`). Requires the bundled venv: throws if it is
- * absent rather than silently falling back to the system `python3`, which has no
- * Presidio and reports a misleading "not installed".
- */
-function resolveGuardrailsPython(): { pythonCmd: string; scriptPath: string } {
-  const candidateDirs = [
-    path.join(process.cwd(), 'apps', 'sim', 'lib', 'guardrails'),
-    path.join(process.cwd(), 'lib', 'guardrails'),
-  ]
-  for (const dir of candidateDirs) {
-    const venvPython = path.join(dir, 'venv', 'bin', 'python3')
-    if (fs.existsSync(venvPython)) {
-      return { pythonCmd: venvPython, scriptPath: path.join(dir, 'validate_pii.py') }
-    }
-  }
-  const probed = candidateDirs.map((d) => path.join(d, 'venv', 'bin', 'python3')).join(', ')
-  throw new Error(
-    `Guardrails Presidio venv not found (looked in ${probed}). Provision it with apps/sim/lib/guardrails/setup.sh locally, or verify the image build installs it.`
-  )
-}
+const ANALYZER_URL = env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002'
+const ANONYMIZER_URL = env.PRESIDIO_ANONYMIZER_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
   text: string
@@ -63,12 +34,89 @@ export interface PIIValidationResult {
   maskedText?: string
 }
 
+interface AnalyzerSpan {
+  entity_type: string
+  start: number
+  end: number
+  score: number
+}
+
 /**
- * Validate text for PII using Microsoft Presidio
+ * Detect PII spans via the Presidio analyzer sidecar. Returns [] when the request
+ * targets only custom entities (nothing left for Presidio). Throws on transport/HTTP failure.
+ */
+async function analyze(
+  text: string,
+  entities: string[] | undefined,
+  language: string
+): Promise<AnalyzerSpan[]> {
+  // Custom-only request: the analyzer has nothing to do.
+  if (entities && entities.length === 0) return []
+
+  // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
+  const response = await fetch(`${ANALYZER_URL}/analyze`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  return (await response.json()) as AnalyzerSpan[]
+}
+
+/**
+ * Mask spans via the Presidio anonymizer sidecar. Omitting `anonymizers` uses the
+ * default `replace` operator, which yields `<ENTITY_TYPE>`. Throws on failure.
+ */
+async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
+  if (spans.length === 0) return text
+
+  // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
+  const response = await fetch(`${ANONYMIZER_URL}/anonymize`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, analyzer_results: spans }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { text: string }
+  return data.text
+}
+
+/**
+ * All PII spans in `text`: spans from the custom TS recognizers plus the analyzer
+ * sidecar's spans, both on original-text offsets. Custom spans carry their own
+ * `entity_type`, which the anonymizer replaces with `<ENTITY_TYPE>` like any other.
+ * An empty `entityTypes` means "all"; otherwise each side gets only the entities it
+ * owns (custom names are never forwarded to the analyzer).
+ */
+async function collectSpans(
+  text: string,
+  entityTypes: string[],
+  language: string
+): Promise<AnalyzerSpan[]> {
+  const all = entityTypes.length === 0
+  const customSpans: AnalyzerSpan[] = CUSTOM_RECOGNIZERS.filter(
+    (r) => all || entityTypes.includes(r.entityType)
+  ).flatMap((r) =>
+    r.detect(text).map((s) => ({ entity_type: r.entityType, start: s.start, end: s.end, score: 1 }))
+  )
+  const requestEntities = all ? undefined : entityTypes.filter((t) => !CUSTOM_ENTITY_TYPES.has(t))
+  const presidioSpans = await analyze(text, requestEntities, language)
+  return [...customSpans, ...presidioSpans]
+}
+
+/**
+ * Validate text for PII using Presidio sidecars (+ the TS VIN recognizer).
  *
- * Supports two modes:
- * - block: Fails validation if any PII is detected
- * - mask: Passes validation and returns masked text with PII replaced
+ * - block: fails validation if any PII is detected
+ * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
  */
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
   const { text, entityTypes, mode, language = 'en', requestId } = input
@@ -81,41 +129,57 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   })
 
   try {
-    // Call Python script for PII detection
-    const result = await executePythonPIIDetection(text, entityTypes, mode, language, requestId)
+    const spans = await collectSpans(text, entityTypes, language)
 
+    const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
+      type: s.entity_type,
+      start: s.start,
+      end: s.end,
+      score: s.score,
+      text: text.slice(s.start, s.end),
+    }))
+
+    if (spans.length === 0) {
+      logger.info(`[${requestId}] PII validation completed`, { passed: true, detectedCount: 0 })
+      return { passed: true, detectedEntities: [], maskedText: mode === 'mask' ? text : undefined }
+    }
+
+    if (mode === 'block') {
+      const counts = new Map<string, number>()
+      for (const e of detectedEntities) counts.set(e.type, (counts.get(e.type) ?? 0) + 1)
+      const summary = Array.from(counts.entries())
+        .map(([type, count]) => `${count} ${type}`)
+        .join(', ')
+      logger.info(`[${requestId}] PII validation completed`, {
+        passed: false,
+        detectedCount: detectedEntities.length,
+      })
+      return { passed: false, error: `PII detected: ${summary}`, detectedEntities }
+    }
+
+    // mask mode: the anonymizer replaces every span (incl. VIN) with `<ENTITY_TYPE>`.
+    const maskedText = await anonymize(text, spans)
     logger.info(`[${requestId}] PII validation completed`, {
-      passed: result.passed,
-      detectedCount: result.detectedEntities.length,
-      hasMaskedText: !!result.maskedText,
+      passed: true,
+      detectedCount: detectedEntities.length,
+      hasMaskedText: true,
     })
-
-    return result
-  } catch (error: any) {
-    logger.error(`[${requestId}] PII validation failed`, {
-      error: error.message,
-    })
-
+    return { passed: true, detectedEntities, maskedText }
+  } catch (error) {
+    logger.error(`[${requestId}] PII validation failed`, { error: getErrorMessage(error) })
     return {
       passed: false,
-      error: `PII validation failed: ${error.message}`,
+      error: `PII validation failed: ${getErrorMessage(error)}`,
       detectedEntities: [],
     }
   }
 }
 
-interface PIIMaskBatchResult {
-  passed: boolean
-  error?: string
-  results?: { maskedText: string }[]
-}
-
 /**
- * Mask PII across many strings, preserving input order. Strings are grouped into
- * byte-budgeted chunks so no single subprocess exceeds {@link PII_CHUNK_MAX_BYTES}
- * (keeping each call well under the 30s timeout). One Presidio engine pair is
- * reused per subprocess invocation. Rejects on any subprocess failure so callers
- * can apply their own fail-safe.
+ * Mask PII across many strings via the Presidio sidecars, preserving input order.
+ * Each string runs a TS VIN pre-pass, then analyze → anonymize. Strings with no
+ * detected PII are returned unchanged. Rejects on any sidecar failure so callers
+ * can apply their own fail-safe (scrub rather than leak).
  */
 export async function maskPIIBatch(
   texts: string[],
@@ -124,214 +188,16 @@ export async function maskPIIBatch(
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
-  const chunks: string[][] = []
-  let current: string[] = []
-  let currentBytes = 0
-  for (const text of texts) {
-    const bytes = Buffer.byteLength(text, 'utf8')
-    if (current.length > 0 && currentBytes + bytes > PII_CHUNK_MAX_BYTES) {
-      chunks.push(current)
-      current = []
-      currentBytes = 0
-    }
-    current.push(text)
-    currentBytes += bytes
-  }
-  if (current.length > 0) chunks.push(current)
-
   const masked: string[] = []
-  for (const chunk of chunks) {
-    const result = await runPythonScript<PIIMaskBatchResult>({
-      texts: chunk,
-      entityTypes,
-      mode: 'mask',
-      language,
-    })
-    if (!result.passed || !result.results || result.results.length !== chunk.length) {
-      throw new Error(result.error || 'PII batch masking returned an unexpected result')
+  for (const text of texts) {
+    if (!text) {
+      masked.push(text)
+      continue
     }
-    for (const item of result.results) masked.push(item.maskedText)
+    const spans = await collectSpans(text, entityTypes, language)
+    masked.push(await anonymize(text, spans))
   }
-
   return masked
-}
-
-/**
- * Spawn the Presidio Python script, write the payload to stdin as JSON, and parse
- * the `__SIM_RESULT__=` marker from stdout. Rejects on non-zero exit, timeout,
- * spawn failure, or a missing/unparseable marker.
- */
-function runPythonScript<T>(payload: Record<string, unknown>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const { pythonCmd, scriptPath } = resolveGuardrailsPython()
-
-    const python = spawn(pythonCmd, [scriptPath])
-    let stdout = ''
-    let stderr = ''
-
-    const timeout = setTimeout(() => {
-      python.kill()
-      reject(new Error('PII processing timeout'))
-    }, DEFAULT_TIMEOUT)
-
-    // stdin errors (e.g. EPIPE when the child exits before draining the payload —
-    // chunks can exceed the OS pipe buffer) emit on stdin, not the process. Without
-    // a listener Node throws an unhandled 'error' and crashes; funnel it into the
-    // promise so the caller's fail-safe scrub path handles it.
-    python.stdin.on('error', (error: Error) => {
-      clearTimeout(timeout)
-      reject(new Error(`PII script stdin error: ${error.message}`))
-    })
-    python.stdin.write(JSON.stringify(payload))
-    python.stdin.end()
-    python.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-    python.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    python.on('close', (code) => {
-      clearTimeout(timeout)
-      if (code !== 0) {
-        reject(new Error(stderr || `PII script exited with code ${code}`))
-        return
-      }
-      const prefix = '__SIM_RESULT__='
-      const marker = stdout.split('\n').find((l) => l.startsWith(prefix))
-      if (!marker) {
-        reject(new Error(`No result marker in PII script output: ${stdout.substring(0, 200)}`))
-        return
-      }
-      try {
-        resolve(JSON.parse(marker.slice(prefix.length)) as T)
-      } catch (error: any) {
-        reject(new Error(`Failed to parse PII script result: ${error.message}`))
-      }
-    })
-
-    python.on('error', (error) => {
-      clearTimeout(timeout)
-      reject(
-        new Error(
-          `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`
-        )
-      )
-    })
-  })
-}
-
-/**
- * Execute Python PII detection script
- */
-async function executePythonPIIDetection(
-  text: string,
-  entityTypes: string[],
-  mode: string,
-  language: string,
-  requestId: string
-): Promise<PIIValidationResult> {
-  return new Promise((resolve, reject) => {
-    const { pythonCmd, scriptPath } = resolveGuardrailsPython()
-
-    const python = spawn(pythonCmd, [scriptPath])
-
-    let stdout = ''
-    let stderr = ''
-
-    const timeout = setTimeout(() => {
-      python.kill()
-      reject(new Error('PII validation timeout'))
-    }, DEFAULT_TIMEOUT)
-
-    // Write input to stdin as JSON
-    const inputData = JSON.stringify({
-      text,
-      entityTypes,
-      mode,
-      language,
-    })
-    // See runPythonScript: stdin errors (EPIPE on early child exit) must be
-    // caught here or Node throws an unhandled 'error' and crashes the process.
-    python.stdin.on('error', (error: Error) => {
-      clearTimeout(timeout)
-      reject(new Error(`Failed to write to Python: ${error.message}`))
-    })
-    python.stdin.write(inputData)
-    python.stdin.end()
-
-    python.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-
-    python.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    python.on('close', (code) => {
-      clearTimeout(timeout)
-
-      if (code !== 0) {
-        logger.error(`[${requestId}] Python PII detection failed`, {
-          code,
-          stderr,
-        })
-        resolve({
-          passed: false,
-          error: stderr || 'PII detection failed',
-          detectedEntities: [],
-        })
-        return
-      }
-
-      // Parse result from stdout
-      try {
-        const prefix = '__SIM_RESULT__='
-        const lines = stdout.split('\n')
-        const marker = lines.find((l) => l.startsWith(prefix))
-
-        if (marker) {
-          const jsonPart = marker.slice(prefix.length)
-          const result = JSON.parse(jsonPart)
-          resolve(result)
-        } else {
-          logger.error(`[${requestId}] No result marker found`, {
-            stdout,
-            stderr,
-            stdoutLines: lines,
-          })
-          resolve({
-            passed: false,
-            error: `No result marker found in output. stdout: ${stdout.substring(0, 200)}, stderr: ${stderr.substring(0, 200)}`,
-            detectedEntities: [],
-          })
-        }
-      } catch (error: any) {
-        logger.error(`[${requestId}] Failed to parse Python result`, {
-          error: error.message,
-          stdout,
-          stderr,
-        })
-        resolve({
-          passed: false,
-          error: `Failed to parse result: ${error.message}. stdout: ${stdout.substring(0, 200)}`,
-          detectedEntities: [],
-        })
-      }
-    })
-
-    python.on('error', (error) => {
-      clearTimeout(timeout)
-      logger.error(`[${requestId}] Failed to spawn Python process`, {
-        error: error.message,
-      })
-      reject(
-        new Error(
-          `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`
-        )
-      )
-    })
-  })
 }
 
 export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

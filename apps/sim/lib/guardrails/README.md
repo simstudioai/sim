@@ -19,22 +19,26 @@ For **hallucination detection**, you'll need:
 - A knowledge base with documents
 - An LLM provider API key (or use hosted models)
 
-### Python Validators (PII Detection)
+### PII Detection (Presidio sidecars)
 
-For **PII detection**, you need to set up a Python virtual environment and install Microsoft Presidio:
+PII detection runs against two long-lived **Microsoft Presidio sidecar containers** reached over
+HTTP — the analyzer (NLP detection) and the anonymizer (masking). In deployment they run alongside the
+app container in the same ECS task; locally, run the official images:
 
 ```bash
-cd apps/sim/lib/guardrails
-./setup.sh
+docker run -d -p 5002:3000 mcr.microsoft.com/presidio-analyzer:latest
+docker run -d -p 5001:3000 mcr.microsoft.com/presidio-anonymizer:latest
 ```
 
-This will:
-1. Create a Python virtual environment in `apps/sim/lib/guardrails/venv`
-2. Install required dependencies:
-   - `presidio-analyzer` - PII detection engine
-   - `presidio-anonymizer` - PII masking/anonymization
+Point the app at them (defaults shown):
 
-The TypeScript wrapper will automatically use the virtual environment's Python interpreter.
+```bash
+PRESIDIO_ANALYZER_URL=http://localhost:5002
+PRESIDIO_ANONYMIZER_URL=http://localhost:5001
+```
+
+VIN recognition (check-digit validated) is implemented in TypeScript (`vin.ts`) and never sent to the
+sidecars. No Python or local venv is required.
 
 ## Usage
 
@@ -93,10 +97,9 @@ See [Presidio documentation](https://microsoft.github.io/presidio/supported_enti
 - `validate_json.ts` - JSON validation (TypeScript)
 - `validate_regex.ts` - Regex validation (TypeScript)
 - `validate_hallucination.ts` - Hallucination detection with RAG + LLM scoring (TypeScript)
-- `validate_pii.ts` - PII detection TypeScript wrapper (TypeScript)
-- `validate_pii.py` - PII detection using Microsoft Presidio (Python)
+- `validate_pii.ts` - PII detection client: calls the Presidio analyzer/anonymizer sidecars (TypeScript)
+- `vin.ts` - Check-digit-validated VIN recognizer (TypeScript)
+- `pii-entities.ts` - Client-safe PII entity catalog
+- `mask-client.ts` - Internal HTTP client for batch PII masking from the log-redaction persist path
 - `validate.test.ts` - Test suite for JSON and regex validators
-- `validate_hallucination.py` - Legacy Python hallucination detector (deprecated)
-- `requirements.txt` - Python dependencies for PII detection (and legacy hallucination)
-- `setup.sh` - Legacy installation script (deprecated)
 
