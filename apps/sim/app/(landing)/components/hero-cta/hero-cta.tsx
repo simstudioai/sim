@@ -10,8 +10,8 @@ import { ChipLink } from '@/components/emcn'
  * field border) — wrapping a transparent 16px `<input>` and the "Book a demo"
  * action `gap-2` apart; its `pl-3` text gutter and tighter `pr-[4px]` tuck that
  * button evenly into the right corner. Its radius is `rounded-lg` (8px, the navbar
- * chip radius) — concentric with the inset `rounded` (4px) "Book a demo" chip:
- * outer = inner + the 4px inset, so the right corners nest cleanly instead of crossing.
+ * chip radius); the inset `rounded-md` (6px) "Book a demo" chip echoes that curve,
+ * tucked inside the 4px inset (a hair under the bar's 8px, so the corners don't cross).
  *
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`) and
@@ -40,7 +40,7 @@ export function HeroCta() {
           variant='primary'
           href='/contact'
           flush
-          className='h-[2em] rounded px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          className='h-[2em] rounded-md px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
         >
           Book a demo
         </ChipLink>
