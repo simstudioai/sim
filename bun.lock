@@ -53,6 +53,10 @@
         "typescript": "^5.8.2",
       },
     },
+    "apps/pii": {
+      "name": "@sim/pii",
+      "version": "0.0.0",
+    },
     "apps/realtime": {
       "name": "@sim/realtime",
       "version": "0.1.0",
@@ -1456,6 +1460,8 @@
     "@sim/db": ["@sim/db@workspace:packages/db"],
 
     "@sim/logger": ["@sim/logger@workspace:packages/logger"],
+
+    "@sim/pii": ["@sim/pii@workspace:apps/pii"],
 
     "@sim/platform-authz": ["@sim/platform-authz@workspace:packages/platform-authz"],
 
