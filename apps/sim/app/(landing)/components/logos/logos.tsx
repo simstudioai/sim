@@ -1,5 +1,4 @@
 import Image from 'next/image'
-import { cn } from '@/lib/core/utils/cn'
 
 /**
  * Shared customer-logo block — the single source of truth for the wordmarks
@@ -16,9 +15,6 @@ import { cn } from '@/lib/core/utils/cn'
  * {@link Logo.aspect} (width = height × aspect, rounded). Width following the
  * aspect ratio means no distortion; explicit dimensions mean zero CLS.
  */
-
-/** Horizontal gap between bare wordmarks in the `row` layout — the canonical 96px rhythm. */
-const LOGO_GAP_X = 'gap-x-24'
 
 /** In the hero card grid the wordmarks render smaller than their optical row size. */
 const GRID_ICON_SCALE = 0.85
@@ -95,28 +91,29 @@ export function Logos({ layout }: LogosProps) {
   return (
     <ul
       aria-label='Companies building AI agents with Sim'
-      className={cn(
+      className={
         isGrid
           ? 'grid w-fit grid-cols-3 gap-3 max-sm:grid-cols-2'
-          : cn('flex flex-wrap items-center justify-center gap-y-12', LOGO_GAP_X)
-      )}
+          : 'flex flex-wrap items-center justify-center gap-x-24 gap-y-12'
+      }
     >
       {LOGOS.map((logo) => {
         const height = isGrid ? Math.round(logo.height * GRID_ICON_SCALE) : logo.height
         return (
           <li
             key={logo.name}
-            className={cn(
-              isGrid &&
-                'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
-            )}
+            className={
+              isGrid
+                ? 'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
+                : undefined
+            }
           >
             <Image
               src={logo.src}
               alt={logo.name}
               height={height}
               width={Math.round(height * logo.aspect)}
-              className={cn('grayscale', isGrid && 'h-auto max-w-full object-contain')}
+              className={isGrid ? 'h-auto max-w-full object-contain' : undefined}
             />
           </li>
         )

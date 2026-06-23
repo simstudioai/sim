@@ -1,4 +1,12 @@
 import { ChipLink } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
+
+/**
+ * Shared label sizing for both CTAs — the single 16px font-size knob (overriding
+ * the chip's `text-sm`) plus horizontal padding at the chip's 8/14 ratio, so the
+ * "Book a demo" and "Sign up" labels stay proportional and never drift apart.
+ */
+const CTA_LABEL = 'px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
 
 /**
  * The canonical landing call-to-action — a 360px email-capture bar with an
@@ -41,7 +49,7 @@ export function HeroCta() {
           variant='primary'
           href='/contact'
           flush
-          className='h-[32px] rounded-md px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          className={cn('h-[32px] rounded-md', CTA_LABEL)}
         >
           Book a demo
         </ChipLink>
@@ -49,7 +57,10 @@ export function HeroCta() {
       <ChipLink
         href='/signup'
         flush
-        className='h-[40px] rounded-lg border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
+        className={cn(
+          'h-[40px] rounded-lg border border-[var(--border-1)] max-sm:justify-center max-sm:[&>span]:flex-none',
+          CTA_LABEL
+        )}
       >
         Sign up
       </ChipLink>
