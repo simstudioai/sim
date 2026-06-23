@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Pinned deps + pinned en_core_web_lg wheel. Separate layer so source edits
 # don't reinstall the heavy model.
-COPY docker/presidio/requirements.txt ./requirements.txt
+COPY docker/pii/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install /tmp/*.whl && \
     rm /tmp/*.whl
 
-COPY docker/presidio/server.py ./server.py
+COPY docker/pii/server.py ./server.py
 
 RUN groupadd -g 1001 presidio && \
     useradd -u 1001 -g presidio presidio && \

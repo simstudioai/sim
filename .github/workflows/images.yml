@@ -26,9 +26,9 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
-          - dockerfile: ./docker/presidio.Dockerfile
-            ghcr_image: ghcr.io/simstudioai/presidio
-            ecr_repo_secret: ECR_PRESIDIO
+          - dockerfile: ./docker/pii.Dockerfile
+            ghcr_image: ghcr.io/simstudioai/pii
+            ecr_repo_secret: ECR_PII
     outputs:
       registry: ${{ steps.login-ecr.outputs.registry }}
 
@@ -117,8 +117,8 @@ jobs:
             image: ghcr.io/simstudioai/migrations
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
-          - dockerfile: ./docker/presidio.Dockerfile
-            image: ghcr.io/simstudioai/presidio
+          - dockerfile: ./docker/pii.Dockerfile
+            image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Checkout code
@@ -162,7 +162,7 @@ jobs:
           - image: ghcr.io/simstudioai/simstudio
           - image: ghcr.io/simstudioai/migrations
           - image: ghcr.io/simstudioai/realtime
-          - image: ghcr.io/simstudioai/presidio
+          - image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Login to GHCR
