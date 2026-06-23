@@ -123,7 +123,7 @@ export async function insertRow(
   }
 
   // Best-effort capacity check against the workspace's current plan limit.
-  await assertRowCapacity({
+  const rowLimit = await assertRowCapacity({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
     addedRows: 1,
@@ -142,6 +142,14 @@ export async function insertRow(
     beforeRowId: data.beforeRowId,
     createdBy: data.userId,
     now,
+  })
+
+  // Post-commit: a pre-commit notify would email/burn the dedup claim for a rolled-back insert.
+  notifyTableRowUsage({
+    workspaceId: table.workspaceId,
+    currentRowCount: table.rowCount,
+    addedRows: 1,
+    limit: rowLimit,
   })
 
   logger.info(`[${requestId}] Inserted row ${rowId} into table ${data.tableId}`)
@@ -194,13 +202,20 @@ export async function batchInsertRows(
 ): Promise<TableRow[]> {
   // Best-effort capacity check against the workspace's current plan limit. Import
   // paths call `batchInsertRowsWithTx` directly and gate capacity up front instead.
-  await assertRowCapacity({
+  const rowLimit = await assertRowCapacity({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
     addedRows: data.rows.length,
   })
 
   const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
+  // Post-commit: notify with the actual inserted count, so a rolled-back batch never emails.
+  notifyTableRowUsage({
+    workspaceId: table.workspaceId,
+    currentRowCount: table.rowCount,
+    addedRows: result.length,
+    limit: rowLimit,
+  })
   dispatchAfterBatchInsert(table, result, requestId, data.userId)
   return result
 }
@@ -349,12 +364,20 @@ export async function replaceTableRows(
 ): Promise<ReplaceRowsResult> {
   // All existing rows are deleted, so the footprint is just the new set. Checked
   // before the tx opens — never inside it (the plan lookup is a separate pool read).
-  await assertRowCapacity({
+  const rowLimit = await assertRowCapacity({
     workspaceId: table.workspaceId,
     currentRowCount: 0,
     addedRows: data.rows.length,
   })
-  return db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
+  const result = await db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
+  // Post-commit: footprint is the new set (prior rows deleted → prior count 0).
+  notifyTableRowUsage({
+    workspaceId: table.workspaceId,
+    currentRowCount: 0,
+    addedRows: result.insertedCount,
+    limit: rowLimit,
+  })
+  return result
 }
 
 /**

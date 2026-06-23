@@ -191,25 +191,23 @@ export function wouldExceedRowLimit(
  * connection (and locks) risks pool starvation. Callers already inside a tx should
  * fetch the limit up front and use {@link wouldExceedRowLimit} instead.
  *
+ * Pure check (no side effects): returns the resolved limit so callers can fire
+ * {@link notifyTableRowUsage} AFTER their insert commits — a pre-commit notify
+ * would email (and burn the dedup claim) for a write that later rolls back.
+ *
+ * @returns the resolved plan row limit (-1 for unlimited)
  * @throws {TableRowLimitError} if `currentRowCount + addedRows` exceeds the limit
  */
 export async function assertRowCapacity(params: {
   workspaceId: string
   currentRowCount: number
   addedRows: number
-}): Promise<void> {
+}): Promise<number> {
   const limit = await getMaxRowsPerTable(params.workspaceId)
   if (wouldExceedRowLimit(limit, params.currentRowCount, params.addedRows)) {
     throw new TableRowLimitError(limit)
   }
-
-  // Accepted write: warn (best-effort) once the table crosses the notify band.
-  notifyTableRowUsage({
-    workspaceId: params.workspaceId,
-    currentRowCount: params.currentRowCount,
-    addedRows: params.addedRows,
-    limit,
-  })
+  return limit
 }
 
 /**

@@ -120,16 +120,16 @@ describe('wouldExceedRowLimit', () => {
 })
 
 describe('assertRowCapacity', () => {
-  it('passes when the write stays under the plan limit', async () => {
+  it('returns the resolved limit when the write stays under it', async () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 10, addedRows: 5 })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(5000)
   })
 
-  it('allows reaching the limit exactly', async () => {
+  it('allows reaching the limit exactly and returns it', async () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 4999, addedRows: 1 })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(5000)
   })
 
   it('throws TableRowLimitError when the write would exceed the limit', async () => {
@@ -155,6 +155,6 @@ describe('assertRowCapacity', () => {
         currentRowCount: 10_000_000,
         addedRows: 1,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(-1)
   })
 })
