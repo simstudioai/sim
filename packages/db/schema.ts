@@ -922,6 +922,11 @@ export const userStats = pgTable('user_stats', {
    * `{ storage: 80, tables: 100 }`). Prevents re-spamming the same warning;
    * re-arms when usage drops back below the re-arm band. Keyed by limit
    * category ('storage' | 'tables'); seats live on `organization`.
+   *
+   * Dedup granularity is per billing account per category — intentionally NOT
+   * per table, so a user hitting the row limit on several tables gets one
+   * 'tables' warning, not one per table (the email still names the table that
+   * triggered it).
    */
   limitNotifications: jsonb('limit_notifications')
     .$type<Record<string, number>>()
@@ -3044,7 +3049,7 @@ export const credentialSetInvitation = pgTable(
  *
  * Scope invariant: the organization's single default group (`isDefault`) is
  * org-wide (`appliesToAllWorkspaces = true`) and governs everyone not covered by
- * another group, including external workspace members. Every non-default group
+ * another group. Every non-default group
  * targets specific workspaces (`appliesToAllWorkspaces = false` with rows in
  * `permission_group_workspace`) — the all-workspaces scope is reserved for the
  * default group. Enforced by the API contracts/routes, not a DB constraint.
