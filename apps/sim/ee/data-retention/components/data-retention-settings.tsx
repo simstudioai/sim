@@ -21,7 +21,13 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { PII_ENTITY_GROUPS, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'
+import {
+  DEFAULT_PII_LANGUAGE,
+  PII_ENTITY_GROUPS,
+  PII_LANGUAGES,
+  type PIILanguage,
+  SUPPORTED_PII_ENTITIES,
+} from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { InfoNote } from '@/ee/components/info-note'
@@ -59,6 +65,7 @@ interface RuleDraft {
   id: string
   entityTypes: string[]
   workspaceId: string | null
+  language: PIILanguage
 }
 
 function hoursToDisplayDays(hours: number | null): string {
@@ -75,6 +82,7 @@ function normalizeRule(rule: RuleDraft): string {
   return JSON.stringify({
     entityTypes: [...rule.entityTypes].sort(),
     workspaceId: rule.workspaceId,
+    language: rule.language,
   })
 }
 
@@ -227,6 +235,18 @@ function RuleModal({
             onChange={(entityTypes) => onChange({ ...draft, entityTypes })}
           />
         </ChipModalField>
+        <ChipModalField
+          type='custom'
+          title='Language'
+          hint='Detection runs with this language’s recognizers — match it to your log content.'
+        >
+          <ChipSelect
+            value={draft.language}
+            onChange={(language) => onChange({ ...draft, language: language as PIILanguage })}
+            options={PII_LANGUAGES.map((l) => ({ value: l.value, label: l.label }))}
+            align='start'
+          />
+        </ChipModalField>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
@@ -291,6 +311,7 @@ export function DataRetentionSettings() {
         id: r.id,
         entityTypes: r.entityTypes,
         workspaceId: r.workspaceId,
+        language: r.language ?? DEFAULT_PII_LANGUAGE,
       }))
     )
     hydratedOrgRef.current = orgId
@@ -327,6 +348,7 @@ export function DataRetentionSettings() {
             id: r.id,
             entityTypes: r.entityTypes,
             workspaceId: r.workspaceId,
+            language: r.language,
           })),
         },
       },
@@ -335,7 +357,12 @@ export function DataRetentionSettings() {
   }
 
   function openEditDefault() {
-    const rule: RuleDraft = defaultRule ?? { id: generateId(), entityTypes: [], workspaceId: null }
+    const rule: RuleDraft = defaultRule ?? {
+      id: generateId(),
+      entityTypes: [],
+      workspaceId: null,
+      language: DEFAULT_PII_LANGUAGE,
+    }
     setModalIsNew(defaultRule === null)
     setModalOriginal(rule)
     setModalDraft({ ...rule })
@@ -344,7 +371,12 @@ export function DataRetentionSettings() {
   function openAddOverride() {
     const workspaceId = freeWorkspaces[0]?.value
     if (!workspaceId) return
-    const blank: RuleDraft = { id: generateId(), entityTypes: [], workspaceId }
+    const blank: RuleDraft = {
+      id: generateId(),
+      entityTypes: [],
+      workspaceId,
+      language: DEFAULT_PII_LANGUAGE,
+    }
     setModalIsNew(true)
     setModalOriginal(blank)
     setModalDraft(blank)

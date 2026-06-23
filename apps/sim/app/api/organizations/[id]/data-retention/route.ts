@@ -16,6 +16,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { coercePiiLanguage } from '@/lib/guardrails/pii-entities'
 
 const logger = createLogger('DataRetentionAPI')
 
@@ -35,7 +36,14 @@ function normalizeConfigured(
     logRetentionHours: settings?.logRetentionHours ?? null,
     softDeleteRetentionHours: settings?.softDeleteRetentionHours ?? null,
     taskCleanupHours: settings?.taskCleanupHours ?? null,
-    piiRedaction: settings?.piiRedaction?.rules ? { rules: settings.piiRedaction.rules } : null,
+    piiRedaction: settings?.piiRedaction?.rules
+      ? {
+          rules: settings.piiRedaction.rules.map((rule) => ({
+            ...rule,
+            language: coercePiiLanguage(rule.language),
+          })),
+        }
+      : null,
   }
 }
 

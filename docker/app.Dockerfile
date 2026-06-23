@@ -114,16 +114,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-v
 # apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bundles ./apps/sim/lib/execution/sandbox/bundles
 
-# Guardrails setup with pip caching
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
-
-# Install Python dependencies with pip cache mount for faster rebuilds
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m venv ./apps/sim/lib/guardrails/venv && \
-    ./apps/sim/lib/guardrails/venv/bin/pip install --upgrade pip && \
-    ./apps/sim/lib/guardrails/venv/bin/pip install -r ./apps/sim/lib/guardrails/requirements.txt && \
-    chown -R nextjs:nodejs /app/apps/sim/lib/guardrails
+# Guardrails PII runs in dedicated Presidio sidecar containers (analyzer +
+# anonymizer), reached over localhost — no Python/Presidio in this image.
 
 # Create .next/cache directory with correct ownership
 RUN mkdir -p apps/sim/.next/cache && \

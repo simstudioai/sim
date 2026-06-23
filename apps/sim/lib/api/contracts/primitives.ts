@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PII_LANGUAGE_CODES } from '@/lib/guardrails/pii-entities'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
@@ -93,6 +94,8 @@ export const piiRedactionRuleSchema = z.object({
   entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
   /** null = all workspaces; otherwise the single targeted workspace. */
   workspaceId: z.string().min(1).nullable(),
+  /** Language whose Presidio recognizers apply; defaults to English. */
+  language: z.enum(PII_LANGUAGE_CODES).optional(),
 })
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>

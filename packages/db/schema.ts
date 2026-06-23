@@ -1077,6 +1077,8 @@ export interface PiiRedactionRule {
   entityTypes: string[]
   /** `null` = all workspaces; otherwise the single targeted workspace. */
   workspaceId: string | null
+  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  language?: string
 }
 
 /**
