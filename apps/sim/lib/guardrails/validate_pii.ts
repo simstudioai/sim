@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { CUSTOM_ENTITY_TYPES, CUSTOM_RECOGNIZERS } from '@/lib/guardrails/recognizers'
 
 const logger = createLogger('PIIValidator')
 
 /** Just above the analyzer's spaCy NER budget so a stuck sidecar aborts gracefully. */
 const REQUEST_TIMEOUT_MS = 45_000
+
+/** Concurrent per-string sidecar calls within one batch; the warm model handles parallelism. */
+const MASK_CONCURRENCY = 8
 
 const ANALYZER_URL = env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002'
 const ANONYMIZER_URL = env.PRESIDIO_ANONYMIZER_URL || 'http://localhost:5001'
@@ -177,9 +181,12 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 
 /**
  * Mask PII across many strings via the Presidio sidecars, preserving input order.
- * Each string runs a TS VIN pre-pass, then analyze → anonymize. Strings with no
- * detected PII are returned unchanged. Rejects on any sidecar failure so callers
- * can apply their own fail-safe (scrub rather than leak).
+ * Each string runs a TS custom-recognizer pass, then analyze → anonymize. Strings
+ * with no detected PII are returned unchanged. Calls run with bounded concurrency:
+ * the sidecars' model is warm, so the bottleneck is round-trip latency, and a
+ * batch of thousands of small leaves would otherwise exceed the caller's request
+ * timeout if run strictly sequentially. Rejects on any sidecar failure (which
+ * fails the whole batch) so callers can apply their own fail-safe (scrub).
  */
 export async function maskPIIBatch(
   texts: string[],
@@ -188,16 +195,11 @@ export async function maskPIIBatch(
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
-  const masked: string[] = []
-  for (const text of texts) {
-    if (!text) {
-      masked.push(text)
-      continue
-    }
+  return mapWithConcurrency(texts, MASK_CONCURRENCY, async (text) => {
+    if (!text) return text
     const spans = await collectSpans(text, entityTypes, language)
-    masked.push(await anonymize(text, spans))
-  }
-  return masked
+    return anonymize(text, spans)
+  })
 }
 
 export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

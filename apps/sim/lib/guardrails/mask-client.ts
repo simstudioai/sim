@@ -10,15 +10,15 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
  */
 const REQUEST_MAX_BYTES = 256 * 1024
 const REQUEST_MAX_COUNT = 2_000
-/** Slightly above the 30s Python subprocess timeout so a hung app container aborts gracefully. */
+/** Bounds one mask-batch request; an unreachable/stuck Presidio sidecar aborts so the caller scrubs. */
 const REQUEST_TIMEOUT_MS = 45_000
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.
  *
- * Presidio (a Python venv) only exists in the app container, but the
- * log-redaction persist path also runs inside the trigger.dev runtime — so
- * redaction always routes through HTTP, the same way the guardrails tool does.
+ * The Presidio sidecars run only in the app task, but the log-redaction persist
+ * path also runs inside the trigger.dev runtime — so redaction always routes
+ * through HTTP, the same way the guardrails tool does.
  * Strings are grouped into byte/count-budgeted chunks; order is preserved, so
  * the returned array matches `texts` length.
  *
