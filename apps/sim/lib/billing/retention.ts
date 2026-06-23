@@ -1,14 +1,18 @@
 import type { DataRetentionSettings } from '@sim/db/schema'
+import { DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
 
 export interface EffectivePiiRedaction {
   enabled: boolean
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
+  /** Language whose Presidio recognizers apply when masking. */
+  language: string
 }
 
 export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
   enabled: false,
   entityTypes: [],
+  language: DEFAULT_PII_LANGUAGE,
 }
 
 /**
@@ -34,5 +38,6 @@ export function resolveEffectivePiiRedaction(params: {
     ? rule.entityTypes.filter((t): t is string => typeof t === 'string')
     : []
   if (types.length === 0) return DEFAULT_PII_REDACTION
-  return { enabled: true, entityTypes: types }
+  const language = typeof rule?.language === 'string' ? rule.language : DEFAULT_PII_LANGUAGE
+  return { enabled: true, entityTypes: types, language }
 }

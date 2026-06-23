@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { CUSTOM_ENTITY_TYPES, CUSTOM_RECOGNIZERS } from '@/lib/guardrails/recognizers'
 
 const logger = createLogger('PIIValidator')
 
@@ -12,8 +11,8 @@ const REQUEST_TIMEOUT_MS = 45_000
 /** Concurrent per-string sidecar calls within one batch; the warm model handles parallelism. */
 const MASK_CONCURRENCY = 8
 
-const ANALYZER_URL = env.PRESIDIO_ANALYZER_URL || 'http://localhost:5002'
-const ANONYMIZER_URL = env.PRESIDIO_ANONYMIZER_URL || 'http://localhost:5001'
+/** Single Presidio sidecar serving both /analyze and /anonymize (VIN is native there). */
+const PRESIDIO_URL = env.PRESIDIO_URL || 'http://localhost:5002'
 
 export interface PIIValidationInput {
   text: string
@@ -46,19 +45,18 @@ interface AnalyzerSpan {
 }
 
 /**
- * Detect PII spans via the Presidio analyzer sidecar. Returns [] when the request
- * targets only custom entities (nothing left for Presidio). Throws on transport/HTTP failure.
+ * Detect PII spans via the Presidio analyzer. An empty `entityTypes` ⇒ detect all.
+ * Throws on transport/HTTP failure so callers can apply their own fail-safe.
  */
 async function analyze(
   text: string,
-  entities: string[] | undefined,
+  entityTypes: string[],
   language: string
 ): Promise<AnalyzerSpan[]> {
-  // Custom-only request: the analyzer has nothing to do.
-  if (entities && entities.length === 0) return []
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
 
   // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
-  const response = await fetch(`${ANALYZER_URL}/analyze`, {
+  const response = await fetch(`${PRESIDIO_URL}/analyze`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
@@ -79,7 +77,7 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
   if (spans.length === 0) return text
 
   // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
-  const response = await fetch(`${ANONYMIZER_URL}/anonymize`, {
+  const response = await fetch(`${PRESIDIO_URL}/anonymize`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, analyzer_results: spans }),
@@ -94,30 +92,7 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
 }
 
 /**
- * All PII spans in `text`: spans from the custom TS recognizers plus the analyzer
- * sidecar's spans, both on original-text offsets. Custom spans carry their own
- * `entity_type`, which the anonymizer replaces with `<ENTITY_TYPE>` like any other.
- * An empty `entityTypes` means "all"; otherwise each side gets only the entities it
- * owns (custom names are never forwarded to the analyzer).
- */
-async function collectSpans(
-  text: string,
-  entityTypes: string[],
-  language: string
-): Promise<AnalyzerSpan[]> {
-  const all = entityTypes.length === 0
-  const customSpans: AnalyzerSpan[] = CUSTOM_RECOGNIZERS.filter(
-    (r) => all || entityTypes.includes(r.entityType)
-  ).flatMap((r) =>
-    r.detect(text).map((s) => ({ entity_type: r.entityType, start: s.start, end: s.end, score: 1 }))
-  )
-  const requestEntities = all ? undefined : entityTypes.filter((t) => !CUSTOM_ENTITY_TYPES.has(t))
-  const presidioSpans = await analyze(text, requestEntities, language)
-  return [...customSpans, ...presidioSpans]
-}
-
-/**
- * Validate text for PII using Presidio sidecars (+ the TS VIN recognizer).
+ * Validate text for PII using the Presidio sidecar.
  *
  * - block: fails validation if any PII is detected
  * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
@@ -133,7 +108,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   })
 
   try {
-    const spans = await collectSpans(text, entityTypes, language)
+    const spans = await analyze(text, entityTypes, language)
 
     const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
       type: s.entity_type,
@@ -161,7 +136,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
       return { passed: false, error: `PII detected: ${summary}`, detectedEntities }
     }
 
-    // mask mode: the anonymizer replaces every span (incl. VIN) with `<ENTITY_TYPE>`.
+    // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>`.
     const maskedText = await anonymize(text, spans)
     logger.info(`[${requestId}] PII validation completed`, {
       passed: true,
@@ -180,13 +155,13 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 }
 
 /**
- * Mask PII across many strings via the Presidio sidecars, preserving input order.
- * Each string runs a TS custom-recognizer pass, then analyze → anonymize. Strings
- * with no detected PII are returned unchanged. Calls run with bounded concurrency:
- * the sidecars' model is warm, so the bottleneck is round-trip latency, and a
- * batch of thousands of small leaves would otherwise exceed the caller's request
- * timeout if run strictly sequentially. Rejects on any sidecar failure (which
- * fails the whole batch) so callers can apply their own fail-safe (scrub).
+ * Mask PII across many strings via the Presidio sidecar, preserving input order.
+ * Each string runs analyze → anonymize; strings with no detected PII are returned
+ * unchanged. Calls run with bounded concurrency: the sidecar's model is warm, so
+ * the bottleneck is round-trip latency, and a batch of thousands of small leaves
+ * would otherwise exceed the caller's request timeout if run strictly sequentially.
+ * Rejects on any sidecar failure (which fails the whole batch) so callers can apply
+ * their own fail-safe (scrub).
  */
 export async function maskPIIBatch(
   texts: string[],
@@ -197,7 +172,7 @@ export async function maskPIIBatch(
 
   return mapWithConcurrency(texts, MASK_CONCURRENCY, async (text) => {
     if (!text) return text
-    const spans = await collectSpans(text, entityTypes, language)
+    const spans = await analyze(text, entityTypes, language)
     return anonymize(text, spans)
   })
 }

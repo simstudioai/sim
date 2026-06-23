@@ -4,8 +4,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { maskPIIBatch, validatePII } from '@/lib/guardrails/validate_pii'
 
-const VALID_VIN = '1HGCM82633A004352'
-
 interface Span {
   entity_type: string
   start: number
@@ -29,8 +27,8 @@ function emailSpans(text: string, entities: string[] | undefined): Span[] {
   return idx === -1 ? [] : [{ entity_type: 'EMAIL_ADDRESS', start: idx, end: idx + 7, score: 0.9 }]
 }
 
-describe('validate_pii (Presidio sidecars + TS VIN)', () => {
-  let analyzeBodies: Array<{ text: string; entities?: string[] }>
+describe('validate_pii (Presidio sidecar)', () => {
+  let analyzeBodies: Array<{ text: string; language: string; entities?: string[] }>
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
@@ -38,7 +36,7 @@ describe('validate_pii (Presidio sidecars + TS VIN)', () => {
     fetchMock = vi.fn(async (url: string, init: { body: string }) => {
       const body = JSON.parse(init.body)
       if (url.includes('/analyze')) {
-        analyzeBodies.push({ text: body.text, entities: body.entities })
+        analyzeBodies.push({ text: body.text, language: body.language, entities: body.entities })
         return new Response(JSON.stringify(emailSpans(body.text, body.entities)), { status: 200 })
       }
       // /anonymize
@@ -55,21 +53,20 @@ describe('validate_pii (Presidio sidecars + TS VIN)', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   describe('maskPIIBatch', () => {
-    it('masks both Presidio entities and TS-detected VINs, preserving order', async () => {
-      const out = await maskPIIBatch([`email a@b.com car ${VALID_VIN}`, 'nothing here'], [])
-      expect(out[0]).toBe('email <EMAIL_ADDRESS> car <VIN>')
+    it('masks detected entities, preserving input order', async () => {
+      const out = await maskPIIBatch(['email a@b.com', 'nothing here'], [])
+      expect(out[0]).toBe('email <EMAIL_ADDRESS>')
       expect(out[1]).toBe('nothing here')
     })
 
-    it('strips VIN from the analyzer request (handled in TS)', async () => {
-      await maskPIIBatch([`vin ${VALID_VIN} mail a@b.com`], ['EMAIL_ADDRESS', 'VIN'])
-      expect(analyzeBodies[0].entities).toEqual(['EMAIL_ADDRESS'])
-    })
+    it('forwards entityTypes (and language) to the analyzer; empty ⇒ omitted (all)', async () => {
+      await maskPIIBatch(['mail a@b.com'], ['EMAIL_ADDRESS', 'PERSON'], 'es')
+      expect(analyzeBodies[0].entities).toEqual(['EMAIL_ADDRESS', 'PERSON'])
+      expect(analyzeBodies[0].language).toBe('es')
 
-    it('skips the analyzer entirely for a VIN-only request', async () => {
-      const out = await maskPIIBatch([`vin ${VALID_VIN}`], ['VIN'])
-      expect(out[0]).toBe('vin <VIN>')
-      expect(analyzeBodies).toHaveLength(0)
+      analyzeBodies.length = 0
+      await maskPIIBatch(['mail a@b.com'], [])
+      expect(analyzeBodies[0].entities).toBeUndefined()
     })
 
     it('returns [] for empty input and leaves empty strings untouched', async () => {
@@ -86,26 +83,25 @@ describe('validate_pii (Presidio sidecars + TS VIN)', () => {
   describe('validatePII', () => {
     it('block mode fails with a summary when PII is detected', async () => {
       const res = await validatePII({
-        text: `a@b.com and ${VALID_VIN}`,
+        text: 'reach me at a@b.com',
         entityTypes: [],
         mode: 'block',
         requestId: 'r1',
       })
       expect(res.passed).toBe(false)
       expect(res.error).toContain('EMAIL_ADDRESS')
-      expect(res.error).toContain('VIN')
-      expect(res.detectedEntities).toHaveLength(2)
+      expect(res.detectedEntities).toHaveLength(1)
     })
 
     it('mask mode returns masked text', async () => {
       const res = await validatePII({
-        text: `mail a@b.com vin ${VALID_VIN}`,
+        text: 'mail a@b.com',
         entityTypes: [],
         mode: 'mask',
         requestId: 'r2',
       })
       expect(res.passed).toBe(true)
-      expect(res.maskedText).toBe('mail <EMAIL_ADDRESS> vin <VIN>')
+      expect(res.maskedText).toBe('mail <EMAIL_ADDRESS>')
     })
 
     it('passes clean text', async () => {

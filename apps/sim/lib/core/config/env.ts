@@ -311,8 +311,7 @@ export const env = createEnv({
     PORT:                                  z.number().optional(),                  // Main application port
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
-    PRESIDIO_ANALYZER_URL:                 z.string().optional(),                  // Presidio analyzer sidecar base URL for PII detection (default http://localhost:5002)
-    PRESIDIO_ANONYMIZER_URL:               z.string().optional(),                  // Presidio anonymizer sidecar base URL for PII masking (default http://localhost:5001)
+    PRESIDIO_URL:                          z.string().optional(),                  // Presidio sidecar base URL serving /analyze + /anonymize (default http://localhost:5002)
 
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services

@@ -1,5 +1,5 @@
 import { ShieldCheckIcon } from '@/components/icons'
-import { PII_ENTITY_GROUPS } from '@/lib/guardrails/pii-entities'
+import { PII_ENTITY_GROUPS, PII_LANGUAGES } from '@/lib/guardrails/pii-entities'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -206,13 +206,7 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       id: 'piiLanguage',
       title: 'Language',
       type: 'dropdown',
-      options: [
-        { label: 'English', id: 'en' },
-        { label: 'Spanish', id: 'es' },
-        { label: 'Italian', id: 'it' },
-        { label: 'Polish', id: 'pl' },
-        { label: 'Finnish', id: 'fi' },
-      ],
+      options: PII_LANGUAGES.map((language) => ({ label: language.label, id: language.value })),
       defaultValue: 'en',
       condition: {
         field: 'validationType',

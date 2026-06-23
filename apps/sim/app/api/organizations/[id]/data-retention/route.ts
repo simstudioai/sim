@@ -16,6 +16,14 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { PII_LANGUAGE_CODES, type PIILanguage } from '@/lib/guardrails/pii-entities'
+
+/** Narrow a stored (loosely-typed) language to the supported set; unknown ⇒ undefined (defaults to en). */
+function coercePiiLanguage(value: string | undefined): PIILanguage | undefined {
+  return value && (PII_LANGUAGE_CODES as readonly string[]).includes(value)
+    ? (value as PIILanguage)
+    : undefined
+}
 
 const logger = createLogger('DataRetentionAPI')
 
@@ -35,7 +43,14 @@ function normalizeConfigured(
     logRetentionHours: settings?.logRetentionHours ?? null,
     softDeleteRetentionHours: settings?.softDeleteRetentionHours ?? null,
     taskCleanupHours: settings?.taskCleanupHours ?? null,
-    piiRedaction: settings?.piiRedaction?.rules ? { rules: settings.piiRedaction.rules } : null,
+    piiRedaction: settings?.piiRedaction?.rules
+      ? {
+          rules: settings.piiRedaction.rules.map((rule) => ({
+            ...rule,
+            language: coercePiiLanguage(rule.language),
+          })),
+        }
+      : null,
   }
 }
 
