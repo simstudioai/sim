@@ -73,9 +73,9 @@ export function Hero() {
         id='hero-heading'
         className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-[40px]'
       >
-        Your workflow agent for
+        Your workflow agent
         <br />
-        solving automations.
+        for AI automations.
       </h1>
 
       <p className='text-lg text-[var(--text-body)] leading-[1.5] max-sm:text-md [&>br]:max-sm:hidden'>
