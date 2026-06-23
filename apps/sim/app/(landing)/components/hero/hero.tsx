@@ -48,12 +48,12 @@ import { Logos } from '@/app/(landing)/components/logos'
  * The shared {@link Logos} grid (the same logo set every platform and solutions
  * page uses) sits in a bottom-anchored panel that mirrors the visual panel on
  * the left half (`left-12` → `right-1/2`, same `top-8 bottom-8` frame).
- * `flex flex-col justify-end` pins the grid to the bottom, then `pb-20` lifts it
- * 80px above the panel's bottom edge, leaving the logos resting 112px above the
- * section bottom — mirroring the hero text's 112px from the top. A `text-sm`
- * muted "Trusted by technical teams at" label (navbar text size) sits `gap-[22px]`
- * above the grid — the hero's block rhythm. The frame overlays the text column,
- * so it is `pointer-events-none`.
+ * `flex flex-col justify-end` pins the group to the bottom, then `pb-20` lifts it
+ * 80px up — so the logos rest 112px above the section bottom, mirroring the hero
+ * text's 112px from the top (not flush with the visual panel). A `text-sm` muted "Trusted by technical
+ * teams at" label (navbar text size) sits `gap-[22px]` above the grid — the
+ * hero's block rhythm. The frame overlays the text column, so it is
+ * `pointer-events-none`.
  *
  * Carries the sr-only ~50-word product summary for AI citation (CLAUDE.md → GEO).
  */
