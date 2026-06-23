@@ -28,6 +28,13 @@ const logger = createLogger('PiLocalBackend')
 
 const MAX_DIFF_BYTES = 200_000
 
+// Local mode edits in place and reports the working-tree diff. The agent must not
+// commit (a commit would hide the changes from `git diff HEAD`) or push/open a PR.
+const LOCAL_GUIDANCE =
+  'Use the provided read/write/edit/bash tools to make the file changes needed to complete the task; they ' +
+  'operate on the target repository. Do not commit, push, or open a pull request — leave your changes in the ' +
+  'working tree; Sim reports them after you finish.'
+
 /** The Pi SDK module, loaded dynamically so it stays externalized from the bundle. */
 type PiSdk = typeof import('@earendil-works/pi-coding-agent')
 
@@ -154,6 +161,7 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
           skills: params.skills,
           initialMessages: params.initialMessages,
           task: params.task,
+          guidance: LOCAL_GUIDANCE,
         })
       )
       // Pi has no error event; a failed run surfaces on the agent state. Capture

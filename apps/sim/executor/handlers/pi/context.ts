@@ -64,13 +64,21 @@ export async function loadPiMemory(
   }
 }
 
-/** Builds the prompt preamble (skills + prior memory) followed by the task. */
+/**
+ * Builds the prompt: optional operating `guidance` (mode-specific constraints),
+ * then skills, prior memory, and the task.
+ */
 export function buildPiPrompt(input: {
   skills: PiSkill[]
   initialMessages: PiMessage[]
   task: string
+  guidance?: string
 }): string {
   const parts: string[] = []
+
+  if (input.guidance) {
+    parts.push(`# Operating instructions\n${input.guidance}`)
+  }
 
   if (input.skills.length > 0) {
     parts.push('# Available skills')
