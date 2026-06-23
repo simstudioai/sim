@@ -26,6 +26,7 @@ function enterpriseDefaults(): OrganizationRetentionValues {
     softDeleteRetentionHours: CLEANUP_CONFIG['cleanup-soft-deletes'].defaults.enterprise,
     taskCleanupHours: CLEANUP_CONFIG['cleanup-tasks'].defaults.enterprise,
     piiRedaction: null,
+    retentionOverrides: null,
   }
 }
 
@@ -44,6 +45,7 @@ function normalizeConfigured(
           })),
         }
       : null,
+    retentionOverrides: settings?.retentionOverrides ?? null,
   }
 }
 
@@ -186,6 +188,9 @@ export const PUT = withRouteHandler(
         )
       }
       merged.piiRedaction = body.piiRedaction
+    }
+    if (body.retentionOverrides !== undefined) {
+      merged.retentionOverrides = body.retentionOverrides
     }
 
     const [updated] = await db

@@ -3,7 +3,10 @@
  */
 import type { DataRetentionSettings, PiiRedactionRule } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
-import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import {
+  resolveEffectivePiiRedaction,
+  resolveEffectiveRetentionHours,
+} from '@/lib/billing/retention'
 
 function settings(rules: PiiRedactionRule[]): DataRetentionSettings {
   return { piiRedaction: { rules } }
@@ -81,5 +84,82 @@ describe('resolveEffectivePiiRedaction', () => {
       entityTypes: [],
       language: 'en',
     })
+  })
+})
+
+describe('resolveEffectiveRetentionHours', () => {
+  const orgSettings: DataRetentionSettings = {
+    logRetentionHours: 720,
+    softDeleteRetentionHours: 2160,
+    taskCleanupHours: null,
+  }
+
+  it('returns the org value when the workspace has no override', () => {
+    expect(
+      resolveEffectiveRetentionHours({ orgSettings, workspaceId: 'ws-1', key: 'logRetentionHours' })
+    ).toBe(720)
+  })
+
+  it('returns the org value when an override exists but omits the field (inherit)', () => {
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: { ...orgSettings, retentionOverrides: [{ workspaceId: 'ws-1' }] },
+        workspaceId: 'ws-1',
+        key: 'logRetentionHours',
+      })
+    ).toBe(720)
+  })
+
+  it('uses the override hours when the field is set to a number', () => {
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: {
+          ...orgSettings,
+          retentionOverrides: [{ workspaceId: 'ws-1', logRetentionHours: 168 }],
+        },
+        workspaceId: 'ws-1',
+        key: 'logRetentionHours',
+      })
+    ).toBe(168)
+  })
+
+  it('uses null (forever) when the override field is explicitly null', () => {
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: {
+          ...orgSettings,
+          retentionOverrides: [{ workspaceId: 'ws-1', logRetentionHours: null }],
+        },
+        workspaceId: 'ws-1',
+        key: 'logRetentionHours',
+      })
+    ).toBeNull()
+  })
+
+  it('only applies the override to its own workspace', () => {
+    const settingsWithOverride: DataRetentionSettings = {
+      ...orgSettings,
+      retentionOverrides: [{ workspaceId: 'ws-1', logRetentionHours: 168 }],
+    }
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: settingsWithOverride,
+        workspaceId: 'ws-2',
+        key: 'logRetentionHours',
+      })
+    ).toBe(720)
+  })
+
+  it('returns null when neither an override nor an org value is configured', () => {
+    expect(
+      resolveEffectiveRetentionHours({ orgSettings, workspaceId: 'ws-1', key: 'taskCleanupHours' })
+    ).toBeNull()
+    expect(
+      resolveEffectiveRetentionHours({
+        orgSettings: null,
+        workspaceId: 'ws-1',
+        key: 'logRetentionHours',
+      })
+    ).toBeNull()
   })
 })

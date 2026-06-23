@@ -1082,9 +1082,23 @@ export interface PiiRedactionRule {
 }
 
 /**
+ * A per-workspace override of the org-level retention hours. Each field is
+ * tri-state: absent = inherit the org value; a number = that workspace's
+ * retention in hours; `null` = forever (never delete). `workspaceId` is unique
+ * across overrides.
+ */
+export interface RetentionOverride {
+  workspaceId: string
+  logRetentionHours?: number | null
+  softDeleteRetentionHours?: number | null
+  taskCleanupHours?: number | null
+}
+
+/**
  * Org-level data retention + governance settings. Retention-hours fall back to
  * plan defaults when unset. `piiRedaction.rules` are org-scoped; each rule
- * selects which workspaces it applies to.
+ * selects which workspaces it applies to. `retentionOverrides` lets individual
+ * workspaces override the org retention hours (enterprise only).
  */
 export interface DataRetentionSettings {
   logRetentionHours?: number | null
@@ -1094,6 +1108,8 @@ export interface DataRetentionSettings {
   piiRedaction?: {
     rules?: PiiRedactionRule[]
   } | null
+  /** Per-workspace overrides of the retention hours above (enterprise only). */
+  retentionOverrides?: RetentionOverride[] | null
 }
 
 export const organization = pgTable('organization', {

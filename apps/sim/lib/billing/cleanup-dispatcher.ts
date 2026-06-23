@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import type { WorkspaceMode } from '@sim/db/schema'
+import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
@@ -7,6 +7,7 @@ import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
+import { resolveEffectiveRetentionHours } from '@/lib/billing/retention'
 import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -31,10 +32,6 @@ export type OrganizationRetentionKey =
   | 'softDeleteRetentionHours'
   | 'taskCleanupHours'
 
-export type OrganizationRetentionSettings = {
-  [K in OrganizationRetentionKey]: number | null
-}
-
 export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
 const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly NonEnterprisePlan[]
@@ -58,7 +55,7 @@ interface WorkspaceCleanupScopeRow {
   billedAccountUserId: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
-  organizationSettings: OrganizationRetentionSettings | null
+  organizationSettings: DataRetentionSettings | null
 }
 
 const DAY = 24
@@ -113,8 +110,7 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
 
   return rows.map((row) => ({
     ...row,
-    organizationSettings:
-      (row.organizationSettings as OrganizationRetentionSettings | null) ?? null,
+    organizationSettings: (row.organizationSettings as DataRetentionSettings | null) ?? null,
   }))
 }
 
@@ -266,7 +262,11 @@ async function forEachCleanupChunk(
 
     for (const row of rows) {
       if (planByWorkspaceId.get(row.id) !== 'enterprise') continue
-      const hours = row.organizationSettings?.[config.key]
+      const hours = resolveEffectiveRetentionHours({
+        orgSettings: row.organizationSettings,
+        workspaceId: row.id,
+        key: config.key,
+      })
       if (hours == null) continue
       workspaceCount++
       await emitChunk({
