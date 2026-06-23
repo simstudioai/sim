@@ -155,8 +155,9 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+          # pii is ECR-only (private ECS sidecar) — no ghcr_image, so the tag
+          # step below skips GHCR for it.
           - dockerfile: ./docker/pii.Dockerfile
-            ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
     steps:
       - name: Checkout code
@@ -211,7 +212,7 @@ jobs:
 
           TAGS="${ECR_IMAGE}"
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
             GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
             GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
@@ -256,8 +257,6 @@ jobs:
             image: ghcr.io/simstudioai/migrations
           - dockerfile: ./docker/realtime.Dockerfile
             image: ghcr.io/simstudioai/realtime
-          - dockerfile: ./docker/pii.Dockerfile
-            image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Checkout code
@@ -313,7 +312,6 @@ jobs:
           - image: ghcr.io/simstudioai/simstudio
           - image: ghcr.io/simstudioai/migrations
           - image: ghcr.io/simstudioai/realtime
-          - image: ghcr.io/simstudioai/pii
 
     steps:
       - name: Login to GHCR
