@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { ChipLink } from '@/components/emcn'
-import { GitHubChip } from '@/app/(landing)/components/navbar/components/github-chip'
-import { LogoMark } from '@/app/(landing)/components/navbar/components/logo-mark'
-import { MobileNav } from '@/app/(landing)/components/navbar/components/mobile-nav'
-import { NavMenuChip } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
-import { NavbarShell } from '@/app/(landing)/components/navbar/components/navbar-shell'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
+import {
+  GitHubChip,
+  LogoMark,
+  MobileNav,
+  NavMenuChip,
+  NavbarShell,
+  SimWordmark,
+} from '@/app/(landing)/components/navbar/components'
 
 /**
  * Landing navbar.

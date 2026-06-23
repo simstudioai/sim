@@ -344,7 +344,7 @@ export function StageHome({
                   <path
                     d='M12 19V5M5 12l7-7 7 7'
                     pathLength={1}
-                    stroke='#ffffff'
+                    stroke='var(--surface-2)'
                     strokeWidth={2}
                     strokeLinecap='round'
                     strokeLinejoin='round'

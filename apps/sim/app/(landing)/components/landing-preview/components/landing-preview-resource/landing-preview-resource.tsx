@@ -89,7 +89,7 @@ export function LandingPreviewResource({
         <div className='flex w-full items-center justify-between'>
           <div className='flex items-center gap-3'>
             <Icon className='size-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[var(--text-body)] text-sm'>{title}</h1>
+            <span className='font-medium text-[var(--text-body)] text-sm'>{title}</span>
           </div>
           <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
             <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />

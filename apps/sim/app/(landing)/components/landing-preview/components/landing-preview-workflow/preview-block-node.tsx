@@ -112,7 +112,7 @@ interface PreviewBlockData {
  * Handle styling matching the real WorkflowBlock handles.
  * --workflow-edge in dark mode: #c9c9c9
  */
-const HANDLE_BASE = '!z-[10] !border-none !bg-[#c9c9c9]'
+const HANDLE_BASE = '!z-[10] !top-5 !-translate-y-1/2 !border-none !bg-[var(--surface-7)]'
 const HANDLE_LEFT = `${HANDLE_BASE} !left-[-8px] !h-5 !w-[7px] !rounded-r-none !rounded-l-[2px]`
 const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px]`
 
@@ -152,9 +152,9 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
           animate={{ opacity: 1 }}
           transition={{ duration: 0.45, delay, ease: EASE_OUT }}
         >
-          <div className='w-[280px] select-none rounded-[8px] border border-[#e6e6e6] bg-[#ffffff]'>
-            <div className='border-[#e6e6e6] border-b p-2'>
-              <span className='font-medium text-[#121212] text-[16px]'>Note</span>
+          <div className='w-[280px] select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
+            <div className='border-[var(--border)] border-b p-2'>
+              <span className='font-medium text-[var(--text-primary)] text-[16px]'>Note</span>
             </div>
             <div className='p-2.5'>
               <NoteMarkdown content={markdown} />
@@ -175,7 +175,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.45, delay, ease: EASE_OUT }}
       >
-        <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[#e6e6e6] bg-[#ffffff]'>
+        <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
           {/* Target handle (left side) */}
           {!hideTargetHandle && (
             <Handle
@@ -183,7 +183,6 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               position={Position.Left}
               id='target'
               className={HANDLE_LEFT}
-              style={{ top: '20px', transform: 'translateY(-50%)' }}
               isConnectableStart={false}
               isConnectableEnd={false}
             />
@@ -191,7 +190,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
           {/* Header */}
           <div
-            className={`flex items-center justify-between p-2 ${hasContent ? 'border-[#e6e6e6] border-b' : ''}`}
+            className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--border)] border-b' : ''}`}
           >
             <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
               <div
@@ -200,7 +199,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               >
                 {Icon && <Icon className='size-[16px] text-white' />}
               </div>
-              <span className='truncate font-medium text-[#121212] text-[16px]'>{name}</span>
+              <span className='truncate font-medium text-[var(--text-primary)] text-[16px]'>{name}</span>
             </div>
           </div>
 
@@ -212,14 +211,14 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                 const ModelIcon = modelEntry?.icon
                 return (
                   <div key={row.title} className='flex items-center gap-2'>
-                    <span className='flex-shrink-0 font-normal text-[#5f5f5f] text-[14px] capitalize'>
+                    <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-muted)] capitalize'>
                       {row.title}
                     </span>
                     {row.value && (
-                      <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[#121212] text-[14px]'>
+                      <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[14px] text-[var(--text-primary)]'>
                         {ModelIcon && (
                           <ModelIcon
-                            className={`inline-block flex-shrink-0 text-[#121212] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
+                            className={`inline-block flex-shrink-0 text-[var(--text-primary)] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
                           />
                         )}
                         <span className='truncate'>{row.value}</span>
@@ -232,7 +231,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               {/* Tool chips — inline with label */}
               {tools && tools.length > 0 && (
                 <div className='flex items-center gap-2'>
-                  <span className='flex-shrink-0 font-normal text-[#5f5f5f] text-[14px]'>
+                  <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-muted)]'>
                     Tools
                   </span>
                   <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
@@ -241,7 +240,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                       return (
                         <div
                           key={tool.type}
-                          className='flex items-center gap-[5px] rounded-[5px] border border-[#e6e6e6] bg-[#f0f0f0] px-[6px] py-[3px]'
+                          className='flex items-center gap-[5px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[6px] py-[3px]'
                         >
                           <div
                             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
@@ -249,7 +248,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                           >
                             {ToolIcon && <ToolIcon className='size-[10px] text-white' />}
                           </div>
-                          <span className='font-normal text-[#121212] text-[12px]'>
+                          <span className='font-normal text-[12px] text-[var(--text-primary)]'>
                             {tool.name}
                           </span>
                         </div>
@@ -268,14 +267,13 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               position={Position.Right}
               id='source'
               className={HANDLE_RIGHT}
-              style={{ top: '20px', transform: 'translateY(-50%)' }}
               isConnectableStart={false}
               isConnectableEnd={false}
             />
           )}
 
           {isHighlighted && (
-            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[#121212] ring-[1.75px]' />
+            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[var(--text-primary)] ring-[1.75px]' />
           )}
         </div>
       </m.div>
@@ -297,12 +295,12 @@ function NoteMarkdown({ content }: { content: string }) {
         if (!trimmed) return <div key={i} className='h-[4px]' />
 
         if (trimmed === '---') {
-          return <hr key={i} className='my-1 border-[#e6e6e6] border-t' />
+          return <hr key={i} className='my-1 border-[var(--border)] border-t' />
         }
 
         if (trimmed.startsWith('### ')) {
           return (
-            <p key={i} className='font-semibold text-[#121212] text-[16px] leading-[1.3]'>
+            <p key={i} className='font-semibold text-[16px] text-[var(--text-primary)] leading-[1.3]'>
               {trimmed.slice(4)}
             </p>
           )
@@ -311,7 +309,7 @@ function NoteMarkdown({ content }: { content: string }) {
         return (
           <p
             key={i}
-            className='font-medium text-[#121212] text-[13px] leading-[1.5]'
+            className='font-medium text-[13px] text-[var(--text-primary)] leading-[1.5]'
             dangerouslySetInnerHTML={{
               __html: trimmed
                 .replace(/\*\*_(.+?)_\*\*/g, '<strong><em>$1</em></strong>')

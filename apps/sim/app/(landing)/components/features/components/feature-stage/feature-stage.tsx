@@ -94,7 +94,7 @@ export function CalloutFrame({ className, bodyClassName, fade, children }: Callo
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border border-[#e6e6e6] bg-[#ffffff] shadow-[0_24px_60px_-24px_rgba(18,18,18,0.28)]',
+        'overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-[0_24px_60px_-24px_rgba(18,18,18,0.28)]',
         className
       )}
     >

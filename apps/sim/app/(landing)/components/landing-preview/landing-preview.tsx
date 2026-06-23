@@ -231,7 +231,7 @@ export function LandingPreview({
   return (
     <LazyMotion features={domAnimation}>
       <m.div
-        className='flex aspect-[1116/615] w-full overflow-hidden rounded bg-[#f8f8f8] antialiased'
+        className='flex aspect-[1116/615] w-full overflow-hidden rounded bg-[var(--surface-1)] antialiased'
         initial={animated ? 'hidden' : false}
         animate='visible'
         variants={containerVariants}
@@ -247,7 +247,7 @@ export function LandingPreview({
           />
         </m.div>
         <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
-          <div className='flex flex-1 overflow-hidden rounded-[5px] border border-[#e6e6e6] bg-[#ffffff]'>
+          <div className='flex flex-1 overflow-hidden rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
             {isHomeView ? (
               /* Home: the chat IS the whole view — its empty "What should we get
                  done?" state, with no resource staged. */
@@ -279,7 +279,7 @@ export function LandingPreview({
                     animationKey={animationKey}
                   />
                 </m.div>
-                <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden border-[#e6e6e6] border-l'>
+                <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden border-[var(--border-1)] border-l'>
                   {isWorkflowView && <LandingPreviewStageHeader name={activeWorkflow.name} />}
                   <div className='relative min-h-0 flex-1 overflow-hidden'>
                     {animated ? (

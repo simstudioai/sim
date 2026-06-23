@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@/lib/core/utils/cn'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/iso-marks/goo-defs'
 import {
   type Edge,
@@ -61,10 +62,8 @@ export function IsoGridPlane({ size = 110, className, forceHover = false }: IsoG
       viewBox='0 0 100 100'
       width={size}
       height={size}
-      role='img'
-      aria-label='Grid plane'
-      className={className}
-      style={{ display: 'block', outline: 'none' }}
+      aria-hidden='true'
+      className={cn('block outline-none', className)}
       {...bind}
     >
       <GooDefs gradId={gradId} gooId={gooId} gooFusion={GOO_FUSION} />

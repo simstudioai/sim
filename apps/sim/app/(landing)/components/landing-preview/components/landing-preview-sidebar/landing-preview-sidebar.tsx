@@ -32,21 +32,6 @@ interface LandingPreviewSidebarProps {
   onSelectNav: (id: SidebarView) => void
 }
 
-/**
- * Hardcoded dark-theme equivalents of the real sidebar CSS variables.
- * The preview lives inside a `dark` wrapper but CSS variable cascade
- * isn't guaranteed, so we pin the hex values directly.
- */
-const C = {
-  SURFACE_1: '#f8f8f8',
-  SURFACE_2: '#ffffff',
-  SURFACE_ACTIVE: '#ededed',
-  BORDER: '#e6e6e6',
-  TEXT_PRIMARY: '#121212',
-  TEXT_BODY: '#2c2c2c',
-  TEXT_ICON: '#5f5f5f',
-} as const
-
 const WORKSPACE_NAV = [
   { id: 'tables', label: 'Tables', icon: Table },
   { id: 'files', label: 'Files', icon: File },
@@ -74,8 +59,8 @@ function NavItem({
   if (!onClick) {
     return (
       <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
-        <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-        <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
           {label}
         </span>
       </div>
@@ -91,8 +76,8 @@ function NavItem({
         isActive && 'bg-[var(--c-active)]'
       )}
     >
-      <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-      <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
         {label}
       </span>
     </button>
@@ -116,34 +101,26 @@ export function LandingPreviewSidebar({
 
   return (
     <div
-      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-3'
-      style={
-        { backgroundColor: C.SURFACE_1, '--c-active': C.SURFACE_ACTIVE } as React.CSSProperties
-      }
+      className='flex h-full w-[248px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'
+      style={{ '--c-active': 'var(--surface-active)' } as React.CSSProperties}
     >
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
-        <div
-          className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border pr-2 pl-[5px]'
-          style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
-        >
+        <div className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] pr-2 pl-[5px]'>
           <div className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
             <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
-                stroke='#f8f8f8'
+                stroke='var(--surface-1)'
                 strokeWidth='1.8'
                 strokeLinecap='round'
               />
             </svg>
           </div>
-          <span
-            className='min-w-0 flex-1 truncate text-left font-medium text-[13px]'
-            style={{ color: C.TEXT_PRIMARY }}
-          >
+          <span className='min-w-0 flex-1 truncate text-left font-medium text-[13px] text-[var(--text-primary)]'>
             Superark
           </span>
-          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
       </div>
 
@@ -157,8 +134,8 @@ export function LandingPreviewSidebar({
             isHomeActive && 'bg-[var(--c-active)]'
           )}
         >
-          <Home className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-          <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+          <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
             Home
           </span>
         </button>
@@ -168,9 +145,7 @@ export function LandingPreviewSidebar({
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
-          <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-            Workspace
-          </div>
+          <div className='text-[12px] text-[var(--text-icon)]'>Workspace</div>
         </div>
         <div className='flex flex-col gap-0.5 px-2'>
           {WORKSPACE_NAV.map((item) => (
@@ -190,9 +165,7 @@ export function LandingPreviewSidebar({
         {/* Workflows */}
         <div className='flex flex-col'>
           <div className='px-4'>
-            <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-              Workflows
-            </div>
+            <div className='text-[12px] text-[var(--text-icon)]'>Workflows</div>
           </div>
           <div className='mt-1.5 flex flex-col gap-0.5 px-2'>
             {workflows.map((workflow) => {
@@ -203,14 +176,14 @@ export function LandingPreviewSidebar({
                   type='button'
                   onClick={() => onSelectWorkflow(workflow.id)}
                   className={cn(
-                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[#ededed]',
-                    isActive && 'bg-[#ededed]'
+                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--surface-active)]',
+                    isActive && 'bg-[var(--surface-active)]'
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   <div
-                    className='min-w-0 flex-1 truncate text-left text-[13px]'
-                    style={{ color: C.TEXT_BODY, fontWeight: 450 }}
+                    className='min-w-0 flex-1 truncate text-left text-[13px] text-[var(--text-body)]'
+                    style={{ fontWeight: 450 }}
                   >
                     {workflow.name}
                   </div>

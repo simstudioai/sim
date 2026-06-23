@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/core/utils/cn'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/goo-marks/goo-defs'
 import {
   GOO_FUSION,
@@ -14,7 +15,12 @@ interface GooMarkSvgProps {
   size: number
   gradId: string
   gooId: string
-  ariaLabel: string
+  /**
+   * Retained for caller ergonomics, but no longer rendered: these marks are
+   * decorative glyphs paired with a visible heading, so the `<svg>` is
+   * `aria-hidden` rather than labeled.
+   */
+  ariaLabel?: string
   bind?: Record<string, () => void>
   children: ReactNode
   dots?: ReactNode
@@ -26,7 +32,6 @@ export function GooMarkSvg({
   size,
   gradId,
   gooId,
-  ariaLabel,
   bind,
   children,
   dots,
@@ -38,10 +43,8 @@ export function GooMarkSvg({
       viewBox='0 0 100 100'
       width={size}
       height={size}
-      role='img'
-      aria-label={ariaLabel}
-      className={className}
-      style={{ display: 'block', outline: 'none' }}
+      aria-hidden='true'
+      className={cn('block outline-none', className)}
       {...bind}
     >
       <GooDefs gradId={gradId} gooId={gooId} gooFusion={gooFusion} />

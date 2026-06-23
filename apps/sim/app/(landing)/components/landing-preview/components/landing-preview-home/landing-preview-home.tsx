@@ -21,15 +21,6 @@ const SUGGESTED_ACTIONS = [
   { id: 'tracker', label: 'Build a project tracker table', icon: Table },
 ] as const
 
-const C = {
-  BORDER: '#e6e6e6',
-  TEXT_PRIMARY: '#121212',
-  TEXT_BODY: '#2c2c2c',
-  TEXT_SECONDARY: '#5f5f5f',
-  TEXT_TERTIARY: '#5f5f5f',
-  TEXT_ICON: '#5f5f5f',
-} as const
-
 const AUTO_PROMPT = 'Analyze our customer leads and identify the top prospects'
 
 const MOCK_RESPONSE =
@@ -184,11 +175,8 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: EASE_OUT }}
                 >
-                  <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[#ededed] px-3.5 py-2'>
-                    <p
-                      className='font-body text-[14px] leading-[1.5]'
-                      style={{ color: C.TEXT_PRIMARY }}
-                    >
+                  <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-active)] px-3.5 py-2'>
+                    <p className='font-body text-[14px] text-[var(--text-primary)] leading-[1.5]'>
                       {AUTO_PROMPT}
                     </p>
                   </div>
@@ -210,15 +198,12 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         className='flex cursor-pointer items-center gap-2'
                       >
                         <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                          <Blimp className='h-[16px] w-[16px]' style={{ color: C.TEXT_ICON }} />
+                          <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
                         </div>
-                        <span className='text-sm' style={{ color: C.TEXT_BODY }}>
-                          Sim
-                        </span>
+                        <span className='text-[var(--text-body)] text-sm'>Sim</span>
                         <ChevronDown
-                          className='h-[7px] w-[9px] transition-transform duration-150'
+                          className='h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150'
                           style={{
-                            color: C.TEXT_ICON,
                             transform: toolsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                           }}
                         />
@@ -234,12 +219,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <div className='overflow-hidden'>
                           <div className='flex flex-col gap-1.5 pt-0.5'>
                             <ToolCallRow
-                              icon={
-                                <Table
-                                  className='h-[15px] w-[15px]'
-                                  style={{ color: C.TEXT_TERTIARY }}
-                                />
-                              }
+                              icon={<Table className='h-[15px] w-[15px] text-[var(--text-muted)]' />}
                               title='Read Customer Leads'
                             />
                           </div>
@@ -270,7 +250,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
             <AnimatePresence>
               {showResourcePanel && (
                 <m.div
-                  className='hidden h-full flex-shrink-0 overflow-hidden border-[#e6e6e6] border-l lg:flex'
+                  className='hidden h-full flex-shrink-0 overflow-hidden border-[var(--border-1)] border-l lg:flex'
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: '55%', opacity: 1 }}
                   transition={{ duration: 0.35, ease: EASE_OUT }}
@@ -291,8 +271,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
         <LandingPreviewChatTitleBar chatName='New chat' />
         <div className='flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-[8vh]'>
           <m.h1
-            className='mb-7 max-w-[36rem] text-balance font-season text-[30px]'
-            style={{ color: C.TEXT_PRIMARY }}
+            className='mb-7 max-w-[36rem] text-balance font-season text-[30px] text-[var(--text-primary)]'
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: EASE_OUT }}
@@ -320,12 +299,12 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
             <div className='mt-7'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-[#5f5f5f] text-small'>Suggested actions</span>
-                  <ChevronDown className='h-[7px] w-[9px] text-[#5f5f5f]' />
+                  <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
+                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
                 </div>
                 <div className='-mr-2 flex items-center gap-1.5 rounded-lg px-2 py-1'>
-                  <span className='-mt-px text-[#5f5f5f] text-small'>Shuffle</span>
-                  <Shuffle className='size-[16px] flex-shrink-0 text-[#5f5f5f]' />
+                  <span className='-mt-px text-[var(--text-muted)] text-small'>Shuffle</span>
+                  <Shuffle className='size-[16px] flex-shrink-0 text-[var(--text-muted)]' />
                 </div>
               </div>
               <div className='mt-2 flex flex-col'>
@@ -335,13 +314,15 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                     <div
                       key={action.id}
                       className={cn(
-                        'flex items-center gap-2 border-[#e6e6e6] px-2 py-2 text-left transition-colors hover-hover:bg-[#f8f8f8]',
+                        'flex items-center gap-2 border-[var(--border-1)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-1)]',
                         i > 0 && 'border-t'
                       )}
                     >
-                      <Icon className='size-[16px] flex-shrink-0 text-[#5f5f5f]' />
-                      <span className='flex-1 truncate text-[#121212] text-sm'>{action.label}</span>
-                      <ArrowRight className='size-[16px] shrink-0 text-[#5f5f5f]' />
+                      <Icon className='size-[16px] flex-shrink-0 text-[var(--text-muted)]' />
+                      <span className='flex-1 truncate text-[var(--text-primary)] text-sm'>
+                        {action.label}
+                      </span>
+                      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-muted)]' />
                     </div>
                   )
                 })}
@@ -362,9 +343,7 @@ function ToolCallRow({ icon, title }: { icon: React.ReactNode; title: string }) 
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
       <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>{icon}</div>
-      <span className='text-[13px]' style={{ color: C.TEXT_SECONDARY }}>
-        {title}
-      </span>
+      <span className='text-[13px] text-[var(--text-muted)]'>{title}</span>
     </div>
   )
 }
@@ -386,11 +365,11 @@ function ChatMarkdown({
   const rendered = visible.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br />')
 
   return (
-    <div className='font-body text-[14px] leading-[1.6]' style={{ color: C.TEXT_PRIMARY }}>
+    <div className='font-body text-[14px] text-[var(--text-primary)] leading-[1.6]'>
       <span dangerouslySetInnerHTML={{ __html: rendered }} />
       {isTyping && (
         <m.span
-          className='inline-block h-[14px] w-[1.5px] translate-y-[2px] bg-[#121212]'
+          className='inline-block h-[14px] w-[1.5px] translate-y-[2px] bg-[var(--text-primary)]'
           animate={{ opacity: [1, 0] }}
           transition={{
             duration: 0.6,
@@ -408,12 +387,10 @@ function ChatMarkdown({
  */
 function MiniTablePanel() {
   return (
-    <div className='flex h-full w-full flex-col bg-[#ffffff]'>
-      <div className='flex items-center gap-2 border-[#e6e6e6] border-b px-3 py-2'>
-        <Table className='h-[14px] w-[14px]' style={{ color: C.TEXT_ICON }} />
-        <span className='font-medium text-sm' style={{ color: C.TEXT_PRIMARY }}>
-          Customer Leads
-        </span>
+    <div className='flex h-full w-full flex-col bg-[var(--surface-2)]'>
+      <div className='flex items-center gap-2 border-[var(--border)] border-b px-3 py-2'>
+        <Table className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <span className='font-medium text-[var(--text-primary)] text-sm'>Customer Leads</span>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>
         <table className='w-full table-fixed border-separate border-spacing-0 text-[12px]'>
@@ -429,17 +406,14 @@ function MiniTablePanel() {
                 return (
                   <th
                     key={col.id}
-                    className='border-[#e6e6e6] border-r border-b bg-[#f8f8f8] p-0 text-left'
+                    className='border-[var(--border-1)] border-r border-b bg-[var(--surface-1)] p-0 text-left'
                   >
                     <div className='flex items-center gap-1 px-2 py-1.5'>
-                      <Icon className='h-3 w-3 shrink-0' style={{ color: C.TEXT_ICON }} />
-                      <span className='font-medium text-[11px]' style={{ color: C.TEXT_PRIMARY }}>
+                      <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+                      <span className='font-medium text-[11px] text-[var(--text-primary)]'>
                         {col.label}
                       </span>
-                      <ChevronDown
-                        className='ml-auto h-[6px] w-[8px]'
-                        style={{ color: '#5f5f5f' }}
-                      />
+                      <ChevronDown className='ml-auto h-[6px] w-[8px] text-[var(--text-muted)]' />
                     </div>
                   </th>
                 )
@@ -459,8 +433,7 @@ function MiniTablePanel() {
                   return (
                     <td
                       key={col.id}
-                      className='border-[#e6e6e6] border-r border-b px-2 py-1.5'
-                      style={{ color: C.TEXT_BODY }}
+                      className='border-[var(--border-1)] border-r border-b px-2 py-1.5 text-[var(--text-body)]'
                     >
                       {col.type === 'boolean' ? (
                         <div className='flex items-center justify-center'>

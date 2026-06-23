@@ -166,7 +166,7 @@ export function LandingPreviewLogs() {
         <div className='flex w-full items-center justify-between'>
           <div className='flex items-center gap-3'>
             <Library className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[var(--text-body)] text-sm'>Logs</h1>
+            <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
           </div>
           <div className='flex items-center gap-1'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>

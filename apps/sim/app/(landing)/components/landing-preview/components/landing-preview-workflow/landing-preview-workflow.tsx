@@ -155,7 +155,7 @@ function PreviewFlow({
       minZoom={minZoom}
       fitView
       fitViewOptions={resolvedFitViewOptions}
-      className='h-full w-full bg-[#ffffff]'
+      className='h-full w-full bg-[var(--surface-2)]'
     />
   )
 }
