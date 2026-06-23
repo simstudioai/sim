@@ -57,6 +57,10 @@ vi.mock('@/providers/models', () => ({
   getBaseModelProviders: mockGetBaseModelProviders,
 }))
 
+vi.mock('@/providers/utils', () => ({
+  getProviderFromModel: vi.fn(() => 'openai'),
+}))
+
 vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: {
     getState: () => ({

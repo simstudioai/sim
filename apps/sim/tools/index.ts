@@ -1578,6 +1578,9 @@ async function executeToolRequest(
     }
 
     const headers = new Headers(requestParams.headers)
+    if (!headers.has('User-Agent')) {
+      headers.set('User-Agent', 'Sim')
+    }
     await addInternalAuthIfNeeded(
       headers,
       isInternalRoute,
