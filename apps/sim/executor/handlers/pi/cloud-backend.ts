@@ -46,6 +46,17 @@ const COMMIT_TITLE_MAX = 72
 const PR_SUMMARY_MAX = 2000
 const PUSH_ERROR_MAX = 1000
 
+// The agent only edits files; Sim commits, pushes, and opens the PR after the run.
+// Without this, the coding agent tries to git push / open a PR / run the test
+// toolchain itself and fails — the sandbox has no GitHub auth (the token is
+// stripped from the remote after clone) and may lack the project's tooling.
+const CLOUD_GUIDANCE =
+  'You are running inside an automated sandbox. Make only the file changes needed to complete the task. ' +
+  'Do not run git commands (commit, push, branch, remote), do not configure git credentials or authenticate ' +
+  'with GitHub, and do not open a pull request — after you finish, Sim automatically commits your changes, ' +
+  "pushes the branch, and opens the pull request. The project's package manager and test tooling may not be " +
+  'installed, so do not block on running the full build or test suite; focus on correct, minimal edits.'
+
 const CLONE_SCRIPT = `set -e
 rm -rf ${REPO_DIR}
 git clone "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" ${REPO_DIR}
@@ -188,6 +199,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
     skills: params.skills,
     initialMessages: params.initialMessages,
     task: params.task,
+    guidance: CLOUD_GUIDANCE,
   })
   const totals = createPiTotals()
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
