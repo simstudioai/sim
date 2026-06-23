@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 45_000
 const MASK_CONCURRENCY = 8
 
 /** Single Presidio sidecar serving both /analyze and /anonymize (VIN is native there). */
-const PRESIDIO_URL = env.PRESIDIO_URL || 'http://localhost:5002'
+const PRESIDIO_URL = env.PRESIDIO_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
   text: string

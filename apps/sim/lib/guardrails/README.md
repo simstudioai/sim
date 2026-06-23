@@ -19,26 +19,29 @@ For **hallucination detection**, you'll need:
 - A knowledge base with documents
 - An LLM provider API key (or use hosted models)
 
-### PII Detection (Presidio sidecars)
+### PII Detection (Presidio sidecar)
 
-PII detection runs against two long-lived **Microsoft Presidio sidecar containers** reached over
-HTTP — the analyzer (NLP detection) and the anonymizer (masking). In deployment they run alongside the
-app container in the same ECS task; locally, run the official images:
-
-```bash
-docker run -d -p 5002:3000 mcr.microsoft.com/presidio-analyzer:latest
-docker run -d -p 5001:3000 mcr.microsoft.com/presidio-anonymizer:latest
-```
-
-Point the app at them (defaults shown):
+PII detection runs against **one** long-lived Presidio sidecar — a combined service (built from
+`docker/pii.Dockerfile`, source in `apps/pii/server.py`) that constructs a warm `AnalyzerEngine` +
+`AnonymizerEngine` once and exposes both `/analyze` and `/anonymize` (plus `/health`) on a single
+port. In deployment it runs alongside the app container in the same ECS task; locally, build and run
+it:
 
 ```bash
-PRESIDIO_ANALYZER_URL=http://localhost:5002
-PRESIDIO_ANONYMIZER_URL=http://localhost:5001
+docker build -f docker/pii.Dockerfile -t sim-pii .
+docker run -d -p 5001:5001 sim-pii
 ```
 
-VIN recognition (check-digit validated) is implemented in TypeScript (`vin.ts`) and never sent to the
-sidecars. No Python or local venv is required.
+Point the app at it (default shown):
+
+```bash
+PRESIDIO_URL=http://localhost:5001
+```
+
+The image bakes in the recognizers itself — a check-digit-validated **VIN** recognizer and
+multi-language NLP models (en/es/it/pl/fi) — so the app is a thin HTTP client (`validate_pii.ts`) with
+no Python or local venv. The redaction language is configured per rule (Data Retention) and defaults
+to English.
 
 ## Usage
 
@@ -97,9 +100,8 @@ See [Presidio documentation](https://microsoft.github.io/presidio/supported_enti
 - `validate_json.ts` - JSON validation (TypeScript)
 - `validate_regex.ts` - Regex validation (TypeScript)
 - `validate_hallucination.ts` - Hallucination detection with RAG + LLM scoring (TypeScript)
-- `validate_pii.ts` - PII detection client: calls the Presidio analyzer/anonymizer sidecars (TypeScript)
-- `vin.ts` - Check-digit-validated VIN recognizer (TypeScript)
-- `pii-entities.ts` - Client-safe PII entity catalog
+- `validate_pii.ts` - PII detection client: calls the Presidio sidecar's /analyze + /anonymize (TypeScript)
+- `pii-entities.ts` - Client-safe PII entity + language catalog (shared by the block and Data Retention)
 - `mask-client.ts` - Internal HTTP client for batch PII masking from the log-redaction persist path
 - `validate.test.ts` - Test suite for JSON and regex validators
 
