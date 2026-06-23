@@ -69,7 +69,8 @@ pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_
 // hooks are disabled too as defense-in-depth. Commit runs unconditionally
 // (`|| true` tolerates an empty commit); the push decision is gated on HEAD
 // advancing past base, so commits the agent made itself are still pushed.
-const PREPARE_SCRIPT = `cd ${REPO_DIR}
+const PREPARE_SCRIPT = `set -e
+cd ${REPO_DIR}
 git -c core.hooksPath=/dev/null add -A
 git -c core.hooksPath=/dev/null -c user.email="pi@sim.ai" -c user.name="Sim Pi Agent" commit -F ${COMMIT_MSG_PATH} >/dev/null 2>&1 || true
 git diff --name-only "$BASE_SHA" HEAD | sed "s/^/__CHANGED__=/"
@@ -275,9 +276,15 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         context.signal
       )
       const changedFiles = extractMarkerValues(prepare.stdout, '__CHANGED__=')
-      // Push only when PREPARE explicitly reports HEAD advanced. If it emitted
-      // neither marker (a git error), treat it as no-op rather than pushing.
+      const noChanges = prepare.stdout.includes('__NO_CHANGES__=1')
       const needsPush = prepare.stdout.includes('__NEEDS_PUSH__=1')
+      // PREPARE (`set -e`) emits exactly one of the two markers on success. Neither
+      // means the finalize step itself failed (e.g. the repo dir vanished mid-run) —
+      // surface that rather than silently reporting success with no push.
+      if (!noChanges && !needsPush) {
+        const reason = (prepare.stderr || prepare.stdout || 'no status reported').trim()
+        throw new Error(`Pi finalize failed: ${truncate(reason, PUSH_ERROR_MAX)}`)
+      }
 
       let diff: string | undefined
       try {
@@ -288,7 +295,7 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         diff = undefined
       }
 
-      if (!needsPush) {
+      if (noChanges) {
         logger.info('Pi cloud run produced no changes to push', {
           owner: params.owner,
           repo: params.repo,

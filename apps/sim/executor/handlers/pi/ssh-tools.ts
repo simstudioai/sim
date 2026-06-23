@@ -37,20 +37,25 @@ export async function openSshSession(connection: PiSshConnection): Promise<PiSsh
     passphrase: connection.passphrase ?? null,
   })
 
-  const sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
-    client.sftp((err, channel) => (err ? reject(err) : resolve(channel)))
-  })
+  const close = () => {
+    try {
+      client.end()
+    } catch (error) {
+      logger.warn('Failed to close SSH session', { error: getErrorMessage(error) })
+    }
+  }
 
-  return {
-    client,
-    sftp,
-    close: () => {
-      try {
-        client.end()
-      } catch (error) {
-        logger.warn('Failed to close SSH session', { error: getErrorMessage(error) })
-      }
-    },
+  // The TCP/SSH connection is already open here, so close it if opening the SFTP
+  // channel fails (e.g. the server has the SFTP subsystem disabled) — otherwise
+  // the connection is orphaned when this function throws.
+  try {
+    const sftp = await new Promise<SFTPWrapper>((resolve, reject) => {
+      client.sftp((err, channel) => (err ? reject(err) : resolve(channel)))
+    })
+    return { client, sftp, close }
+  } catch (error) {
+    close()
+    throw error
   }
 }
 

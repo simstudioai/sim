@@ -229,6 +229,27 @@ describe('runCloudPi', () => {
     expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
   })
 
+  it('fails (no PR) when finalize reports neither no-changes nor a push', async () => {
+    mockRun.mockImplementation((command: string) => {
+      if (command.includes('git clone')) {
+        return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+      }
+      if (command.includes('pi -p')) {
+        return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+      }
+      // PREPARE aborted before emitting a marker (e.g. the repo dir vanished).
+      return Promise.resolve({
+        stdout: '',
+        stderr: 'cd: /workspace/repo: No such file or directory',
+        exitCode: 1,
+      })
+    })
+
+    await expect(runCloudPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(/finalize failed/)
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
+  })
+
   it('surfaces the real git push error when the push fails, with the token scrubbed', async () => {
     mockRun.mockImplementation((command: string) => {
       if (command.includes('git clone')) {
