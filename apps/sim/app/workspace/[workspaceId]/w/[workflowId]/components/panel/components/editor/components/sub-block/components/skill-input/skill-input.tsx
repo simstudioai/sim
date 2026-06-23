@@ -155,11 +155,8 @@ export function SkillInput({
                   }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <div
-                      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
-                      style={{ backgroundColor: '#e0e0e0' }}
-                    >
-                      <AgentSkillsIcon className='size-[10px] text-[var(--border)]' />
+                    <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
+                      <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
                     </div>
                     <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {formatDisplayText(skillName, { workflowSearchHighlight })}
