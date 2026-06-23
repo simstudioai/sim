@@ -51,8 +51,9 @@ import { Logos } from '@/app/(landing)/components/logos'
  * `flex flex-col justify-end` pins the grid to the bottom, then `pb-20` lifts it
  * 80px above the panel's bottom edge, leaving the logos resting 112px above the
  * section bottom — mirroring the hero text's 112px from the top. A `text-sm`
- * muted "Trusted by technical teams at" label (navbar text size) sits `gap-3`
- * above the grid. The frame overlays the text column, so it is `pointer-events-none`.
+ * muted "Trusted by technical teams at" label (navbar text size) sits `gap-[22px]`
+ * above the grid — the hero's block rhythm. The frame overlays the text column,
+ * so it is `pointer-events-none`.
  *
  * Carries the sr-only ~50-word product summary for AI citation (CLAUDE.md → GEO).
  */
@@ -98,7 +99,7 @@ export function Hero() {
       </div>
 
       <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0'>
-        <div className='flex flex-col gap-3'>
+        <div className='flex flex-col gap-[22px]'>
           <p className='text-sm text-[var(--text-muted)]'>Trusted by technical teams at</p>
           <Logos layout='grid' />
         </div>
