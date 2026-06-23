@@ -3,10 +3,10 @@ import { cn } from '@/lib/core/utils/cn'
 
 /**
  * Shared customer-logo block — the single source of truth for the wordmarks
- * shown both in the landing hero (a packed grid on the left half) and on every
- * platform page (a single centered row). Neither consumer redefines the data or
- * the chrome; they only pass a `layout` intent. This keeps the logo set, the
- * optical sizing, and the `gap-x-24` horizontal rhythm identical everywhere.
+ * shown both in the landing hero (a grid of bordered logo cards on the left half)
+ * and on every platform page (a single centered row of bare wordmarks). Neither
+ * consumer redefines the data or the per-logo optical sizing; they only pass a
+ * `layout` intent, so the logo set reads as one system everywhere.
  *
  * Optical sizing, not box-fitting. These wordmarks differ enormously in aspect
  * ratio (Rivian|VW ≈ 11:1, eXp ≈ 2:1, Mobile Health ≈ 8:1) and in how much of their own
@@ -17,7 +17,7 @@ import { cn } from '@/lib/core/utils/cn'
  * aspect ratio means no distortion; explicit dimensions mean zero CLS.
  */
 
-/** Horizontal gap between logos — the canonical 96px rhythm shared by both layouts. */
+/** Horizontal gap between bare wordmarks in the `row` layout — the canonical 96px rhythm. */
 const LOGO_GAP_X = 'gap-x-24'
 
 /** A single customer wordmark with the dimensions that keep it optically balanced. */
@@ -70,38 +70,46 @@ const LOGOS: readonly Logo[] = [
 interface LogosProps {
   /**
    * Layout intent.
-   * - `grid` — the hero's packed 3×2 block (`max-content` columns, `gap-y-12`),
-   *   flush-left against the canvas.
-   * - `row` — the platform page's single centered row.
+   * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
+   *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
+   *   100px tall) on a responsive 3-up grid (2-up on phones) at a `gap-5` rhythm.
+   * - `row` — the platform page's single centered row of bare wordmarks.
    */
   layout: 'grid' | 'row'
 }
 
 /**
- * Renders the shared customer logos. The two layouts diverge only in the list's
- * own flex/grid container — every individual logo (size, grayscale tone, gap) is
- * identical across consumers, so the two read as one logo system.
+ * Renders the shared customer logos. In the `grid` layout each wordmark is boxed
+ * in a bordered `--surface-1` card (the platform card chrome) on a 3-up grid; in
+ * the `row` layout the bare wordmarks wrap in a centered row. Every logo keeps
+ * its optical {@link Logo.height}, scaling down to fit its card when it would
+ * otherwise overflow (`max-w-full h-auto`), so wide marks never break the box.
  */
 export function Logos({ layout }: LogosProps) {
+  const isGrid = layout === 'grid'
   return (
     <ul
       aria-label='Companies building AI agents with Sim'
       className={cn(
-        'items-center',
-        LOGO_GAP_X,
-        layout === 'grid'
-          ? 'grid grid-cols-[repeat(3,max-content)] gap-y-12 max-sm:gap-x-10 max-sm:gap-y-8 max-lg:gap-x-16'
-          : 'flex flex-wrap justify-center gap-y-12'
+        isGrid
+          ? 'grid grid-cols-3 gap-5 max-sm:grid-cols-2'
+          : cn('flex flex-wrap items-center justify-center gap-y-12', LOGO_GAP_X)
       )}
     >
       {LOGOS.map((logo) => (
-        <li key={logo.name}>
+        <li
+          key={logo.name}
+          className={cn(
+            isGrid &&
+              'flex h-[100px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-6'
+          )}
+        >
           <Image
             src={logo.src}
             alt={logo.name}
             height={logo.height}
             width={Math.round(logo.height * logo.aspect)}
-            className='grayscale'
+            className={cn('grayscale', isGrid && 'h-auto max-w-full object-contain')}
           />
         </li>
       ))}
