@@ -147,6 +147,7 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
       context.signal?.addEventListener('abort', onAbort, { once: true })
     }
 
+    let runErrorMessage: string | undefined
     try {
       await agentSession.prompt(
         buildPiPrompt({
@@ -155,6 +156,9 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
           task: params.task,
         })
       )
+      // Pi has no error event; a failed run surfaces on the agent state. Capture
+      // it before `dispose()` so the failure can't be missed by a later read.
+      runErrorMessage = agentSession.agent.state.errorMessage
     } finally {
       unsubscribe()
       context.signal?.removeEventListener('abort', onAbort)
@@ -172,9 +176,8 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
       throw new Error('Pi run aborted')
     }
 
-    // Pi has no error event; a failed run surfaces on the agent state.
-    if (agentSession.agent.state.errorMessage) {
-      totals.errorMessage = agentSession.agent.state.errorMessage
+    if (runErrorMessage) {
+      totals.errorMessage = runErrorMessage
       return { totals }
     }
 
