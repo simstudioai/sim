@@ -78,7 +78,7 @@ export function Hero() {
         solving automations.
       </h1>
 
-      <p className='text-[20px] text-[var(--text-body)] leading-[1.5] max-sm:text-[16px] [&>br]:max-sm:hidden'>
+      <p className='text-lg text-[var(--text-body)] leading-[1.5] max-sm:text-md [&>br]:max-sm:hidden'>
         Sim is the collaborative workspace to build, deploy, <br /> and manage AI agents and
         workflows.
       </p>
