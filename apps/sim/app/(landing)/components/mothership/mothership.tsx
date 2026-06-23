@@ -54,7 +54,7 @@ const AREAS: Area[] = [
   {
     word: 'Build',
     Mark: IsoBuildIllustration,
-    size: 166,
+    size: 156,
     definition: 'Compose agent logic on a canvas, or just describe it to Sim.',
   },
   {
