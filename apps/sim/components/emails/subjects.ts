@@ -1,3 +1,4 @@
+import { UPGRADE_REASON_COPY, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /** Email subject type for all supported email templates */
@@ -78,4 +79,16 @@ export function getEmailSubject(type: EmailSubjectType): string {
     default:
       return brandName
   }
+}
+
+/**
+ * Subject line for a per-category usage-limit email. Reuses the shared
+ * {@link UPGRADE_REASON_COPY} so the subject matches the email body and the
+ * upgrade-page header the user lands on.
+ */
+export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'reached'): string {
+  const brandName = getBrandConfig().name
+  const copy = UPGRADE_REASON_COPY[reason]
+  const subject = kind === 'reached' ? copy.reachedSubject : copy.warningSubject
+  return `${subject} on ${brandName}`
 }

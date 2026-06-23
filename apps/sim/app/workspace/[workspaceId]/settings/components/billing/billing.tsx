@@ -33,6 +33,7 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
@@ -125,7 +126,7 @@ export function Billing() {
   const betterAuthSubscription = useSubscription()
   const openBillingPortal = useOpenBillingPortal()
 
-  const upgradeHref = `/workspace/${workspaceId}/upgrade`
+  const upgradeHref = buildUpgradeHref(workspaceId)
 
   /**
    * Warm the Upgrade route bundle and the exact queries that page gates on, so

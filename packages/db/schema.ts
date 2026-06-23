@@ -917,6 +917,21 @@ export const userStats = pgTable('user_stats', {
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
+  /**
+   * Highest usage-limit threshold already emailed per category (e.g.
+   * `{ storage: 80, tables: 100 }`). Prevents re-spamming the same warning;
+   * re-arms when usage drops back below the re-arm band. Keyed by limit
+   * category ('storage' | 'tables'); seats live on `organization`.
+   *
+   * Dedup granularity is per billing account per category — intentionally NOT
+   * per table, so a user hitting the row limit on several tables gets one
+   * 'tables' warning, not one per table (the email still names the table that
+   * triggered it).
+   */
+  limitNotifications: jsonb('limit_notifications')
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
 })
 
 export const customTools = pgTable(
@@ -1124,6 +1139,15 @@ export const organization = pgTable('organization', {
    * changes; personal storage writes update `user_stats.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Highest usage-limit threshold already emailed per category for this org
+   * (e.g. `{ seats: 80, storage: 100 }`). Mirrors `user_stats.limitNotifications`
+   * for org-scoped (pooled) limits. Re-arms when usage drops below the re-arm band.
+   */
+  limitNotifications: jsonb('limit_notifications')
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -3025,7 +3049,7 @@ export const credentialSetInvitation = pgTable(
  *
  * Scope invariant: the organization's single default group (`isDefault`) is
  * org-wide (`appliesToAllWorkspaces = true`) and governs everyone not covered by
- * another group, including external workspace members. Every non-default group
+ * another group. Every non-default group
  * targets specific workspaces (`appliesToAllWorkspaces = false` with rows in
  * `permission_group_workspace`) — the all-workspaces scope is reserved for the
  * default group. Enforced by the API contracts/routes, not a DB constraint.

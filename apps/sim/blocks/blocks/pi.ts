@@ -53,7 +53,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
-  bgColor: '#6E56CF',
+  bgColor: '#000000',
   icon: PiIcon,
   subBlocks: [
     {
