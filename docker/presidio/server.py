@@ -7,7 +7,7 @@ endpoints so a single PRESIDIO_URL serves both.
 
 from typing import Any
 
-from fastapi import Body, FastAPI
+from fastapi import FastAPI
 from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer, RecognizerResult
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer.predefined_recognizers import (
@@ -35,6 +35,7 @@ from presidio_analyzer.predefined_recognizers import (
 )
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
+from pydantic import BaseModel
 
 # Languages served. Each needs its spaCy model installed in the image; the
 # es/it/pl/fi predefined recognizers (ES_NIF, IT_FISCAL_CODE, PL_PESEL, ...)
@@ -112,14 +113,18 @@ class VinRecognizer(PatternRecognizer):
 def build_analyzer() -> AnalyzerEngine:
     nlp_engine = NlpEngineProvider(nlp_configuration=NLP_CONFIGURATION).create_engine()
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES)
+    # VIN is language-agnostic, so register it under every served language —
+    # a recognizer only fires for the language the caller routes to.
     vin_pattern = Pattern(name="vin", regex=r"\b[A-HJ-NPR-Z0-9]{17}\b", score=0.7)
-    analyzer.registry.add_recognizer(
-        VinRecognizer(
-            supported_entity="VIN",
-            patterns=[vin_pattern],
-            context=["vin", "vehicle", "chassis"],
+    for language in SUPPORTED_LANGUAGES:
+        analyzer.registry.add_recognizer(
+            VinRecognizer(
+                supported_entity="VIN",
+                patterns=[vin_pattern],
+                context=["vin", "vehicle", "chassis"],
+                supported_language=language,
+            )
         )
-    )
     for recognizer_cls in EXTRA_RECOGNIZERS:
         analyzer.registry.add_recognizer(recognizer_cls())
     return analyzer
@@ -129,6 +134,21 @@ analyzer = build_analyzer()
 anonymizer = AnonymizerEngine()
 
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
+
+
+class AnalyzeRequest(BaseModel):
+    text: str
+    language: str = "en"
+    entities: list[str] | None = None
+    score_threshold: float | None = None
+    return_decision_process: bool = False
+
+
+class AnonymizeRequest(BaseModel):
+    text: str
+    analyzer_results: list[dict[str, Any]] = []
+    anonymizers: dict[str, dict[str, Any]] | None = None
+    operators: dict[str, dict[str, Any]] | None = None
 
 
 @app.get("/health")
@@ -142,20 +162,19 @@ def supported_entities(language: str = "en") -> list[str]:
 
 
 @app.post("/analyze")
-def analyze(payload: dict[str, Any] = Body(...)) -> list[dict[str, Any]]:
-    entities = payload.get("entities") or None
+def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
     results = analyzer.analyze(
-        text=payload["text"],
-        language=payload.get("language", "en"),
-        entities=entities,
-        score_threshold=payload.get("score_threshold"),
-        return_decision_process=payload.get("return_decision_process", False),
+        text=req.text,
+        language=req.language,
+        entities=req.entities or None,
+        score_threshold=req.score_threshold,
+        return_decision_process=req.return_decision_process,
     )
     return [r.to_dict() for r in results]
 
 
 @app.post("/anonymize")
-def anonymize(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
     analyzer_results = [
         RecognizerResult(
             entity_type=r["entity_type"],
@@ -163,17 +182,18 @@ def anonymize(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
             end=r["end"],
             score=r.get("score", 1.0),
         )
-        for r in payload.get("analyzer_results", [])
+        for r in req.analyzer_results
     ]
-    raw_operators = payload.get("anonymizers") or payload.get("operators")
+    raw_operators = req.anonymizers or req.operators
     operators = None
     if raw_operators:
         operators = {}
-        for entity, cfg in raw_operators.items():
-            cfg = dict(cfg)
-            operators[entity] = OperatorConfig(cfg.pop("type"), cfg)
+        for entity, raw_cfg in raw_operators.items():
+            op_cfg = dict(raw_cfg)
+            op_type = op_cfg.pop("type", "replace")
+            operators[entity] = OperatorConfig(op_type, op_cfg)
     result = anonymizer.anonymize(
-        text=payload["text"],
+        text=req.text,
         analyzer_results=analyzer_results,
         operators=operators,
     )

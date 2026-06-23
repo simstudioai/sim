@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # don't reinstall the heavy model.
 COPY docker/presidio/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+    pip install -r requirements.txt
 
 # Pinned spaCy models (en + es/it/pl/fi, ~2.2GB total). Downloaded with
 # retries/resume — the large wheels truncate on flaky networks if pip fetches
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         -o "/tmp/${whl}" \
         "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
     done && \
-    pip install --no-cache-dir /tmp/*.whl && \
+    pip install /tmp/*.whl && \
     rm /tmp/*.whl
 
 COPY docker/presidio/server.py ./server.py
@@ -41,7 +41,9 @@ USER presidio
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+# start-period is generous: five large spaCy models load at import before
+# /health responds. Tune against measured cold-start once built.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
     CMD curl -fsS http://localhost:3000/health || exit 1
 
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "3000"]
