@@ -1,0 +1,10 @@
+# Pinned for reproducible image builds. Bump deliberately.
+presidio-analyzer==2.2.362
+presidio-anonymizer==2.2.362
+spacy==3.8.14
+fastapi==0.138.0
+uvicorn[standard]==0.49.0
+
+# The English spaCy model (en_core_web_lg, ~400MB) is fetched + pinned in the
+# Dockerfile via curl-with-retry rather than here — a direct pip wheel URL
+# truncates on flaky networks and fails wheel validation.
