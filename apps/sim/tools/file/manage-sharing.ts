@@ -3,7 +3,7 @@ import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/t
 
 interface FileManageSharingParams {
   fileId: string
-  isActive?: boolean
+  isActive: boolean
   authType?: ShareAuthType
   password?: string
   allowedEmails?: string[]

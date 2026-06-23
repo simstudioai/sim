@@ -1211,6 +1211,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           let fileId: string
           const fileIds = parseReadFileIds(shareInput)
           if (fileIds) {
+            if (Array.isArray(fileIds) && fileIds.length > 1) {
+              throw new Error('Manage Sharing accepts a single file at a time')
+            }
             fileId = Array.isArray(fileIds) ? fileIds[0] : fileIds
           } else {
             const normalized = normalizeFileInput(shareInput, { single: true })

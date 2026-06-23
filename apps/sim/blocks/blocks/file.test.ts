@@ -205,4 +205,15 @@ describe('FileV5Block', () => {
       'File is required to manage sharing'
     )
   })
+
+  it('rejects multiple file IDs for manage sharing', () => {
+    expect(() =>
+      buildParams({
+        operation: 'file_manage_sharing',
+        shareInput: '["file-1","file-2"]',
+        shareVisibility: 'public',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toThrow('Manage Sharing accepts a single file at a time')
+  })
 })
