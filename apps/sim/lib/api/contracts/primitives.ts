@@ -124,6 +124,41 @@ export const piiRedactionSettingsSchema = z.object({
 
 export type PiiRedactionSettings = z.output<typeof piiRedactionSettingsSchema>
 
+/** Retention hours bound: 1 day to ~5 years, in hours. */
+const retentionOverrideHoursSchema = z.number().int().min(24).max(43800).nullable().optional()
+
+/**
+ * A per-workspace override of the org retention hours. Each field is tri-state:
+ * omitted = inherit the org value; a number = that workspace's retention in
+ * hours; `null` = forever (never delete).
+ */
+export const retentionOverrideSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  logRetentionHours: retentionOverrideHoursSchema,
+  softDeleteRetentionHours: retentionOverrideHoursSchema,
+  taskCleanupHours: retentionOverrideHoursSchema,
+})
+
+export type RetentionOverride = z.output<typeof retentionOverrideSchema>
+
+/**
+ * Per-workspace retention overrides. Each workspace appears at most once —
+ * resolution is workspace-override-then-org-default, so duplicate workspaces
+ * would make the effective value depend on array order.
+ */
+export const retentionOverridesSchema = z
+  .array(retentionOverrideSchema)
+  .max(1000)
+  .refine(
+    (overrides) => {
+      const ids = overrides.map((o) => o.workspaceId)
+      return new Set(ids).size === ids.length
+    },
+    { message: 'Each workspace may have at most one retention override.' }
+  )
+
+export type RetentionOverrides = z.output<typeof retentionOverridesSchema>
+
 export const booleanQueryFlagSchema = z.preprocess(
   (value) => {
     if (typeof value === 'boolean') return value

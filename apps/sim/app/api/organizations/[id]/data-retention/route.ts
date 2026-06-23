@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import type { DataRetentionSettings } from '@sim/db/schema'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type OrganizationRetentionValues,
@@ -26,6 +26,7 @@ function enterpriseDefaults(): OrganizationRetentionValues {
     softDeleteRetentionHours: CLEANUP_CONFIG['cleanup-soft-deletes'].defaults.enterprise,
     taskCleanupHours: CLEANUP_CONFIG['cleanup-tasks'].defaults.enterprise,
     piiRedaction: null,
+    retentionOverrides: null,
   }
 }
 
@@ -44,6 +45,7 @@ function normalizeConfigured(
           })),
         }
       : null,
+    retentionOverrides: settings?.retentionOverrides ?? null,
   }
 }
 
@@ -186,6 +188,32 @@ export const PUT = withRouteHandler(
         )
       }
       merged.piiRedaction = body.piiRedaction
+    }
+    if (body.retentionOverrides !== undefined) {
+      merged.retentionOverrides = body.retentionOverrides
+    }
+
+    const targetedWorkspaceIds = new Set<string>()
+    for (const override of body.retentionOverrides ?? []) {
+      targetedWorkspaceIds.add(override.workspaceId)
+    }
+    for (const rule of body.piiRedaction?.rules ?? []) {
+      if (rule.workspaceId) targetedWorkspaceIds.add(rule.workspaceId)
+    }
+    if (targetedWorkspaceIds.size > 0) {
+      const ids = [...targetedWorkspaceIds]
+      const orgWorkspaces = await db
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(and(eq(workspace.organizationId, organizationId), inArray(workspace.id, ids)))
+      const known = new Set(orgWorkspaces.map((row) => row.id))
+      const unknown = ids.filter((id) => !known.has(id))
+      if (unknown.length > 0) {
+        return NextResponse.json(
+          { error: `Override targets workspaces outside this organization: ${unknown.join(', ')}` },
+          { status: 400 }
+        )
+      }
     }
 
     const [updated] = await db
