@@ -270,6 +270,9 @@ export const PAUSE_RESUME = {
   },
 } as const
 
+/**
+ * Builds the API callback URL used by paused executor runs to resume execution.
+ */
 export function buildResumeApiUrl(
   baseUrl: string | undefined,
   workflowId: string,
