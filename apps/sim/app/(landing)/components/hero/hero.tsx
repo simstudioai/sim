@@ -1,3 +1,5 @@
+import { chipBorderShadowRing } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { Logos } from '@/app/(landing)/components/logos'
@@ -34,15 +36,14 @@ import { Logos } from '@/app/(landing)/components/logos'
  * `aria-hidden` product demo and the page's only client island. It is absolutely
  * positioned against the section: its left edge sits at the screen center
  * (`left-1/2`) and its right edge at the hero's right padding (`right-12`), so
- * its width is the right half. Vertically it is inset `top-[112px] bottom-[112px]`
- * — matching the headline's `pt-[112px]` top and the logos' 112px-from-bottom
- * resting line — so the panel's top edge aligns with the top of the hero text
- * and its bottom edge aligns with the bottom of the customer logos, framing the
- * exact vertical extent of the left content column. Below `xl` the split
- * collapses and the panel goes in-flow (`max-xl:static`) with a stable aspect
- * ratio so the stacked hero never shifts. Chrome is a `rounded-lg` panel over a
- * subtle `--surface-1` fill; `overflow-hidden` clips the future video to the
- * radius.
+ * its width is the right half. Vertically it is inset a uniform 32px from the
+ * section's top and bottom (`top-8 bottom-8`) — equal breathing room above and
+ * below, extending past the text column's 112px lines so the panel reads as the
+ * taller media surface. Below `xl` the split collapses and the panel goes in-flow
+ * (`max-xl:static`) with a stable aspect ratio so the stacked hero never shifts.
+ * Chrome is the `border-shadow` chip surface — a `rounded-lg` panel on
+ * `--surface-2` carrying the shared {@link chipBorderShadowRing} (a 1px hairline
+ * ring plus a soft drop shadow); `overflow-hidden` clips the visual to the radius.
  *
  * The shared {@link Logos} grid (the same logo set every platform and solutions
  * page uses) sits in a bottom-anchored panel that mirrors the visual panel on
@@ -86,7 +87,11 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-[112px] right-12 bottom-[112px] left-1/2 overflow-hidden rounded-lg bg-[var(--surface-1)] max-sm:mt-3 max-sm:aspect-[5/4] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full'
+        className={cn(
+          'absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[var(--surface-2)]',
+          chipBorderShadowRing,
+          'max-sm:mt-3 max-sm:aspect-[5/4] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full'
+        )}
       >
         <HeroVisual />
       </div>
