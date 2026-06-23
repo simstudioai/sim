@@ -93,6 +93,15 @@ Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/wor
 
 Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the agent's final summary, which are folded into the next run's prompt.
 
+### Context limits
+
+Memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
+
+- **Sim trims before the run.** The selected memory type bounds what's injected: **Conversation** is automatically capped to a fraction of the model's context window (for models in Sim's catalog), **Sliding window (messages)** keeps the last N messages, and **Sliding window (tokens)** keeps history up to an explicit token budget.
+- **Pi compacts during the run.** As the agent works (reading files, running commands), Pi automatically summarizes older turns to stay under the window — in both Cloud and Local mode, on by default. You don't need to configure anything for context growth mid-run.
+
+The one case neither layer can rescue is a *first* prompt that already exceeds the window — Pi can only compact once there are older turns to summarize. This is only reachable with **Conversation** memory plus a model typed in manually (not in Sim's catalog), where the automatic cap can't look up a context window. For long histories — and whenever you use a manually entered model — choose **Sliding window (tokens)**: its budget applies regardless of the model, so the first prompt always fits.
+
 ## Outputs
 
 | Output | What it is |
@@ -139,4 +148,5 @@ Cloud runs in a sandbox image with the Pi CLI and git baked in.
   { question: "What GitHub permissions does Cloud mode need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
   { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local mode via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
   { question: "Where do the changes go?", answer: "In Cloud mode, to a new branch and a pull request (read prUrl and branch). In Local mode, the files are edited in place on the target machine — review them with git there. Both modes also return changedFiles and a diff." },
+  { question: "What happens when memory or context gets large?", answer: "Two things keep it in bounds. Sim trims memory before the run based on the memory type (Conversation auto-caps to a fraction of the model's window for catalog models; the sliding windows bound by message count or token budget), and Pi auto-compacts older turns during the run to stay under the window in both modes. The only gap is a first prompt that already exceeds the window, reachable with Conversation memory plus a manually typed model — use Sliding window (tokens) for long histories or non-catalog models so the budget always applies." },
 ]} />
