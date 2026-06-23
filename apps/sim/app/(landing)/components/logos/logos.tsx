@@ -21,7 +21,7 @@ import { cn } from '@/lib/core/utils/cn'
 const LOGO_GAP_X = 'gap-x-24'
 
 /** In the hero card grid the wordmarks render smaller than their optical row size. */
-const GRID_ICON_SCALE = 0.65
+const GRID_ICON_SCALE = 0.8
 
 /** A single customer wordmark with the dimensions that keep it optically balanced. */
 interface Logo {
@@ -75,7 +75,7 @@ interface LogosProps {
    * Layout intent.
    * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
    *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
-   *   `h-16` × `w-[150px]`) on a content-hugging 3-up grid (2-up on phones) at a `gap-3` rhythm.
+   *   `h-20` × `w-[180px]`) on a content-hugging 3-up grid (2-up on phones) at a `gap-3` rhythm.
    *   Wordmarks render at {@link GRID_ICON_SCALE} of their optical row size.
    * - `row` — the platform page's single centered row of bare wordmarks.
    */
@@ -108,7 +108,7 @@ export function Logos({ layout }: LogosProps) {
             key={logo.name}
             className={cn(
               isGrid &&
-                'flex h-16 w-[150px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2'
+                'flex h-20 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
             )}
           >
             <Image
