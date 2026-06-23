@@ -38,15 +38,13 @@ RUN groupadd -g 1001 pii && \
     chown -R pii:pii /app
 USER pii
 
-# Bind a configurable port via $PORT. In the ECS task all containers share one
-# network namespace (awsvpc), so this must NOT collide with the app on 3000 —
-# default to 5001 and let the taskdef override via PORT.
-ENV PORT=5001
+# Listen on 5001. In the ECS task all containers share one network namespace
+# (awsvpc) and the app owns 3000, so this sidecar must not use 3000.
 EXPOSE 5001
 
 # start-period is generous: five large spaCy models load at import before
 # /health responds. Tune against measured cold-start once built.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
-    CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
+    CMD curl -fsS http://localhost:5001/health || exit 1
 
-CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
