@@ -99,7 +99,7 @@ function ExternalArrow() {
   return (
     <svg
       aria-hidden='true'
-      className='size-3 shrink-0 -rotate-45'
+      className='-rotate-45 size-3 shrink-0'
       viewBox='0 0 10 10'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
@@ -147,14 +147,14 @@ export function Footer() {
   return (
     <footer
       role='contentinfo'
-      className='mt-[120px] w-full border-[var(--border)] border-t max-lg:mt-20 max-sm:mt-16'
+      className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-20'
     >
-      <div className='mx-auto w-full max-w-[1446px] px-12 pt-20 pb-12 max-lg:px-8 max-lg:pt-16 max-sm:px-5 max-sm:pt-12'>
+      <div className='mx-auto w-full max-w-[1446px] px-12 pt-20 pb-12 max-sm:px-5 max-sm:pt-12 max-lg:px-8 max-lg:pt-16'>
         <nav
           aria-label='Footer navigation'
           itemScope
           itemType='https://schema.org/SiteNavigationElement'
-          className='grid grid-cols-7 gap-x-8 gap-y-10 max-lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-y-8'
+          className='grid grid-cols-7 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
         >
           <Link
             href='/'

@@ -7,40 +7,36 @@ import {
   isoProject,
   type MarkState,
   type Pt,
-  rotate2,
   TARGET,
   useGooMark,
   useMarkIds,
 } from '@/app/(landing)/components/mothership/components/iso-marks/use-goo-mark'
 
 /**
- * Sim iso goo-mark: FOUR-BOX TWIST.
- * Four wireframe boxes layered vertically, each rotated at a progressive angular
- * offset so the stack twists into a rounded cluster. Rest: open and twisted,
- * still. Hover (close + spin): gap collapses, twist unwinds, spins. An optional
- * signal-blue accent box is off by default (the landing stays greyscale).
+ * Sim iso goo-mark: CUBE ROW.
+ * Three cubes set in a level row. Rest: an even row, all one size. Hover (read):
+ * each cube resizes to a different scale, like a live gauge re-leveling. No
+ * spin; the motion is pure isometric scale.
  */
-interface FourBoxState extends MarkState {
-  gap: number
-  twist: number
-  spin: number
+interface RowState extends MarkState {
+  s0: number
+  s1: number
+  s2: number
   tilt: number
   tone: number
 }
 
-const REST: FourBoxState = { gap: 1, twist: 11, spin: -0.38, tilt: 0.4, tone: 1 }
-const HOVER: FourBoxState = { gap: 0, twist: 0, spin: -3.14, tilt: 0.4, tone: 1 }
+const REST: RowState = { s0: 0.62, s1: 0.62, s2: 0.62, tilt: 0.5, tone: 1 }
+const HOVER: RowState = { s0: 0.95, s1: 0.55, s2: 0.8, tilt: 0.5, tone: 1 }
 
-const BOXES = 2
+const SLOTS = 3
+const SPREAD = 0.92
 const STROKE = 2.4
-const GOO_FUSION = 1.4
-const BLUE = '#9FC6E8'
+const GOO_FUSION = 1.0
 
-function boxEdges(s: number, ky: number, rot: number, zc: number): Edge[] {
-  const corner = (sx: number, sy: number, sz: number) => {
-    const [rx, ry] = rotate2(sx * s, sy * s, rot)
-    return isoProject(rx, ry, sz * s * 0.4 + zc, ky)
-  }
+function cubeAt(cx: number, cy: number, half: number, ky: number): Edge[] {
+  const corner = (sx: number, sy: number, sz: number) =>
+    isoProject(cx + sx * half, cy + sy * half, sz * half, ky)
   const c = [
     corner(-1, -1, -1),
     corner(1, -1, -1),
@@ -68,20 +64,18 @@ function boxEdges(s: number, ky: number, rot: number, zc: number): Edge[] {
   return ed.map(([a, b]) => [c[a], c[b]] as Edge)
 }
 
-function buildBoxes(c: FourBoxState): Edge[][] {
-  const twRad = (c.twist * Math.PI) / 180
-  const totalH = (BOXES - 1) * c.gap
-  const boxes: Edge[][] = []
-  for (let i = 0; i < BOXES; i++) {
-    const zc = i * c.gap - totalH / 2
-    const rot = c.spin * i * 0.5 + i * twRad
-    boxes.push(boxEdges(1.0, c.tilt, rot, zc))
+function buildEdges(s: RowState): Edge[] {
+  const sizes = [s.s0, s.s1, s.s2]
+  const edges: Edge[] = []
+  for (let i = 0; i < SLOTS; i++) {
+    const t = (i - (SLOTS - 1) / 2) * SPREAD
+    edges.push(...cubeAt(t, -t, sizes[i], s.tilt))
   }
-  return boxes
+  return edges
 }
 
-function normalizeBoxes(boxes: Edge[][]): Edge[][] {
-  const pts = boxes.flat().flat()
+function normalizeEdges(edges: Edge[]): Edge[] {
+  const pts = edges.flat()
   let minx = Number.POSITIVE_INFINITY
   let maxx = Number.NEGATIVE_INFINITY
   let miny = Number.POSITIVE_INFINITY
@@ -98,7 +92,7 @@ function normalizeBoxes(boxes: Edge[][]): Edge[][] {
   const ox = 50 - ((minx + maxx) / 2) * scale
   const oy = 50 - ((miny + maxy) / 2) * scale
   const tx = (p: Pt): Pt => [ox + p[0] * scale, oy + p[1] * scale]
-  return boxes.map((bx) => bx.map(([A, B]) => [tx(A), tx(B)] as Edge))
+  return edges.map(([A, B]) => [tx(A), tx(B)] as Edge)
 }
 
 function edgesToD(edges: Edge[]): string {
@@ -109,32 +103,18 @@ function edgesToD(edges: Edge[]): string {
   return d.trim()
 }
 
-export interface IsoFourBoxProps {
+export interface IsoCubeRowProps {
   size?: number
   className?: string
   forceHover?: boolean
-  /** Render one box (the 2nd from bottom) in the signal-blue accent. */
-  blueAccent?: boolean
 }
 
-export function IsoFourBox({
-  size = 110,
-  className,
-  forceHover = false,
-  blueAccent = false,
-}: IsoFourBoxProps) {
-  const { current, bind } = useGooMark<FourBoxState>({ rest: REST, hover: HOVER, forceHover })
+export function IsoCubeRow({ size = 110, className, forceHover = false }: IsoCubeRowProps) {
+  const { current, bind } = useGooMark<RowState>({ rest: REST, hover: HOVER, forceHover })
   const { gradId, gooId } = useMarkIds()
 
-  const boxes = normalizeBoxes(buildBoxes(current))
+  const edges = normalizeEdges(buildEdges(current))
   const { from, to } = gradientForTone(current.tone)
-  const blueIdx = blueAccent ? 1 : -1
-  const normal: Edge[] = []
-  let blue: Edge[] = []
-  boxes.forEach((bx, i) => {
-    if (i === blueIdx) blue = bx
-    else normal.push(...bx)
-  })
 
   return (
     <svg
@@ -142,7 +122,7 @@ export function IsoFourBox({
       width={size}
       height={size}
       role='img'
-      aria-label='Four-box twist'
+      aria-label='Cube row'
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}
@@ -155,8 +135,7 @@ export function IsoFourBox({
         strokeLinejoin='round'
         fill='none'
       >
-        <path d={edgesToD(normal)} stroke={`url(#${gradId})`} />
-        {blue.length > 0 && <path d={edgesToD(blue)} stroke={BLUE} />}
+        <path d={edgesToD(edges)} stroke={`url(#${gradId})`} />
       </g>
     </svg>
   )

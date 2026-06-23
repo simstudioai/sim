@@ -44,7 +44,7 @@ export function Navbar({ stars }: NavbarProps) {
         aria-label='Primary navigation'
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
-        className='relative mx-auto flex w-full max-w-[1446px] items-center gap-3.5 px-12 py-4 max-lg:px-8 max-sm:px-5'
+        className='relative mx-auto flex w-full max-w-[1446px] items-center gap-3.5 px-12 py-4 max-sm:px-5 max-lg:px-8'
       >
         <Link href='/' aria-label='Sim home' itemProp='url' className='flex h-[30px] items-center'>
           <span itemProp='name' className='sr-only'>

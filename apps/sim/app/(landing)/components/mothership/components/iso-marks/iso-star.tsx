@@ -103,7 +103,6 @@ export function IsoStar({ size = 110, className, forceHover = false }: IsoStarPr
       height={size}
       role='img'
       aria-label='Iso star'
-      tabIndex={0}
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}

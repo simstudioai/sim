@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react'
-import { LissajousMorph } from '@/app/(landing)/components/mothership/components/goo-marks'
 import {
-  IsoFourBox,
-  IsoNestedCube,
-  IsoStackedPlanes,
+  IsoBuildIllustration,
+  IsoIngestIllustration,
+  IsoIntegrateIllustration,
+  IsoMonitorIllustration,
 } from '@/app/(landing)/components/mothership/components/iso-marks'
 
 /**
@@ -41,26 +41,26 @@ interface Area {
 const AREAS: Area[] = [
   {
     word: 'Integrate',
-    Mark: IsoStackedPlanes,
-    size: 134,
+    Mark: IsoIntegrateIllustration,
+    size: 156,
     definition: 'One catalog of 1,000+ connectors your agents reach out and act through.',
   },
   {
     word: 'Ingest context',
-    Mark: LissajousMorph,
-    size: 142,
+    Mark: IsoIngestIllustration,
+    size: 156,
     definition: 'Your data, stored semantically — the memory agents reason over.',
   },
   {
     word: 'Build',
-    Mark: IsoFourBox,
-    size: 130,
+    Mark: IsoBuildIllustration,
+    size: 166,
     definition: 'Compose agent logic on a canvas, or just describe it to Sim.',
   },
   {
     word: 'Monitor',
-    Mark: IsoNestedCube,
-    size: 110,
+    Mark: IsoMonitorIllustration,
+    size: 166,
     definition: 'See inside every run — traces, logs, and real cost, live.',
   },
 ]
@@ -70,7 +70,7 @@ export function Mothership() {
     <section
       id='mothership'
       aria-labelledby='mothership-heading'
-      className='mx-auto w-full max-w-[1446px] px-12 max-lg:px-8 max-sm:px-5'
+      className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
     >
       <h2
         id='mothership-heading'
@@ -82,7 +82,7 @@ export function Mothership() {
         <span className='block text-[var(--text-subtle)]'>Build, run, and watch every agent.</span>
       </h2>
 
-      <ul className='mt-16 grid grid-cols-4 gap-8 max-lg:mt-12 max-lg:grid-cols-2 max-lg:gap-x-8 max-lg:gap-y-12 max-sm:grid-cols-1 max-sm:gap-10'>
+      <ul className='mt-16 grid grid-cols-4 gap-8 max-sm:grid-cols-1 max-sm:gap-10 max-lg:mt-12 max-lg:grid-cols-2 max-lg:gap-x-8 max-lg:gap-y-12'>
         {AREAS.map(({ word, Mark, size, definition }) => (
           <li key={word} className='flex flex-col gap-7 max-sm:gap-5'>
             <div className='flex size-[148px] items-center justify-center'>

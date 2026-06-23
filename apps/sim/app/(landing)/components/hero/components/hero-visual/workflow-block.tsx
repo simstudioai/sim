@@ -3,6 +3,8 @@ import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-v
 
 interface WorkflowBlockProps {
   block: BlockDef
+  contentVisible?: boolean
+  handlesVisible?: boolean
 }
 
 /**
@@ -63,21 +65,38 @@ export function WorkflowBlockContent({ block }: WorkflowBlockProps) {
  * plus decorative handle nubs on its left and right edges. Stateless and
  * client-free — positioning and the rise animation are owned by the parent stage.
  */
-export function WorkflowBlock({ block }: WorkflowBlockProps) {
+export function WorkflowBlock({
+  block,
+  contentVisible = true,
+  handlesVisible = true,
+}: WorkflowBlockProps) {
   return (
     <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
-      <WorkflowBlockContent block={block} />
+      <div
+        className={cn(
+          'transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+          contentVisible ? 'opacity-100' : 'opacity-0'
+        )}
+      >
+        <WorkflowBlockContent block={block} />
+      </div>
 
       {!block.isTrigger && (
         <span
           aria-hidden
-          className='-translate-y-1/2 absolute top-5 left-[-7px] h-5 w-[7px] rounded-l-[2px] bg-[var(--workflow-edge)]'
+          className={cn(
+            '-translate-y-1/2 absolute top-5 left-[-7px] h-5 w-[7px] rounded-l-[2px] bg-[var(--workflow-edge)] transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+            handlesVisible ? 'opacity-100' : 'opacity-0'
+          )}
         />
       )}
       {!block.isTerminal && (
         <span
           aria-hidden
-          className='-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)]'
+          className={cn(
+            '-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)] transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+            handlesVisible ? 'opacity-100' : 'opacity-0'
+          )}
         />
       )}
     </div>

@@ -223,7 +223,7 @@ export function LandingPreview({
 
   const isWorkflowView = activeView === 'workflow'
   const isHomeView = activeView === 'home'
-  const chatName = isWorkflowView ? activeWorkflow.name : CHAT_TITLES[activeView] ?? 'New chat'
+  const chatName = isWorkflowView ? activeWorkflow.name : (CHAT_TITLES[activeView] ?? 'New chat')
 
   /** Desktop demo motion only runs when autoplaying; otherwise a static snapshot. */
   const animated = isDesktop && autoplay
@@ -321,11 +321,7 @@ export function LandingPreview({
                           </m.div>
                         )}
                         {activeView === 'logs' && (
-                          <m.div
-                            key='logs'
-                            className='flex h-full w-full flex-col'
-                            initial={false}
-                          >
+                          <m.div key='logs' className='flex h-full w-full flex-col' initial={false}>
                             <LandingPreviewLogs />
                           </m.div>
                         )}

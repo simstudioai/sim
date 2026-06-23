@@ -55,7 +55,6 @@ export function LissajousMorph({
       height={size}
       role='img'
       aria-label='Lissajous'
-      tabIndex={0}
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}
@@ -67,7 +66,11 @@ export function LissajousMorph({
         </radialGradient>
         <filter id={gooId} x='-25%' y='-25%' width='150%' height='150%'>
           <feGaussianBlur in='SourceGraphic' stdDeviation={GOO_FUSION} result='b' />
-          <feColorMatrix in='b' type='matrix' values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9' />
+          <feColorMatrix
+            in='b'
+            type='matrix'
+            values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9'
+          />
         </filter>
       </defs>
       <g

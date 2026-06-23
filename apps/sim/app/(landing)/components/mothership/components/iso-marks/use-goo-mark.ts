@@ -135,8 +135,8 @@ export type Pt = [number, number]
 
 /** Isometric projection: 45deg in-plane rotation + vertical squash by `ky`, z is up. */
 export function isoProject(x: number, y: number, z: number, ky: number): Pt {
-  const ix = (x - y) * 0.7071
-  const iy = (x + y) * 0.7071 * ky
+  const ix = (x - y) * Math.SQRT1_2
+  const iy = (x + y) * Math.SQRT1_2 * ky
   return [ix, iy - z]
 }
 

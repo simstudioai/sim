@@ -2,7 +2,10 @@
 
 import type { ReactNode } from 'react'
 import { GooMarkSvg } from '@/app/(landing)/components/mothership/components/goo-marks/goo-mark-svg'
-import { useGooHover, useGooIds } from '@/app/(landing)/components/mothership/components/goo-marks/use-goo-hover'
+import {
+  useGooHover,
+  useGooIds,
+} from '@/app/(landing)/components/mothership/components/goo-marks/use-goo-hover'
 
 /**
  * Sim circle goo-mark: GRID-9.

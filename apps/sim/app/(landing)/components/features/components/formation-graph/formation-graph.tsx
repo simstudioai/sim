@@ -31,7 +31,9 @@ function AgentCard({ className, name, status, model }: AgentCardProps) {
         <div className={TILE}>
           <AgentIcon className='size-[16px] text-white' />
         </div>
-        <span className='min-w-0 flex-1 truncate font-medium text-[#121212] text-[15px]'>{name}</span>
+        <span className='min-w-0 flex-1 truncate font-medium text-[#121212] text-[15px]'>
+          {name}
+        </span>
         {status && (
           <span className='flex flex-shrink-0 items-center gap-1.5 text-[#5f5f5f] text-[12px]'>
             <span className='size-[6px] rounded-full bg-[#3ba55d]' />

@@ -33,13 +33,13 @@ export function Features() {
     <section
       id='features'
       aria-labelledby='features-heading'
-      className='relative mx-auto -mb-[90px] w-full max-w-[1446px] px-12 max-lg:px-8 max-sm:-mb-12 max-sm:px-5'
+      className='-mb-[90px] max-sm:-mb-12 relative mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
     >
       <h2 id='features-heading' className='sr-only'>
         Integrate your tools, give Sim context, build agents, and monitor every run.
       </h2>
 
-      <div className='flex flex-col gap-32 max-lg:gap-24 max-sm:gap-20'>
+      <div className='flex flex-col gap-32 max-sm:gap-20 max-lg:gap-24'>
         {/* Integrate — bring your stack in. */}
         <FeatureStage
           eyebrow='Integrate'

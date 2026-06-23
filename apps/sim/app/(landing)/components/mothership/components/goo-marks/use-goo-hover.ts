@@ -88,9 +88,7 @@ export function useGooHover({
     let raf = 0
     const loop = () => {
       const target = activeRef.current ? 1 : 0
-      const next = reduced
-        ? target
-        : amtRef.current + (target - amtRef.current) * easeRef.current
+      const next = reduced ? target : amtRef.current + (target - amtRef.current) * easeRef.current
       if (Math.abs(next - amtRef.current) > 0.0005) {
         amtRef.current = next
         setTick((t) => (t + 1) % 1000000)

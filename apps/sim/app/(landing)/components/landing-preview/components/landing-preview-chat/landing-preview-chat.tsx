@@ -5,8 +5,8 @@ import { ThinkingLoader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { LandingPreviewChatInput } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-input'
 import { LandingPreviewChatTitleBar } from '@/app/(landing)/components/landing-preview/components/landing-preview-chat/chat-title-bar'
-import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/hooks/use-landing-submit'
 import type { PreviewChat } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/hooks/use-landing-submit'
 
 interface LandingPreviewChatProps {
   /** The scripted exchange to play, or `null` to show only the input. */
@@ -78,7 +78,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
           <>
             <div
               className={cn(
-                'max-w-[85%] self-end rounded-2xl bg-[#f0f0f0] px-3.5 py-2 text-[13.5px] text-[#121212] leading-[1.45] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
+                'max-w-[85%] self-end rounded-2xl bg-[#f0f0f0] px-3.5 py-2 text-[#121212] text-[13.5px] leading-[1.45] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
                 showUser ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
               )}
             >
@@ -90,7 +90,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
               {showAssistant && (
                 <p
                   className={cn(
-                    'max-w-[92%] text-[13.5px] text-[#121212] leading-[1.5] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
+                    'max-w-[92%] text-[#121212] text-[13.5px] leading-[1.5] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
                     showAssistant ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
                   )}
                 >

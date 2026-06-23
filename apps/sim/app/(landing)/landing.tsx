@@ -1,7 +1,7 @@
 import { cn } from '@/lib/core/utils/cn'
 import { getGitHubStars } from '@/lib/github/stars'
-import { Cta, Features, Footer, Hero, Mothership, Navbar } from '@/app/(landing)/components'
 import styles from '@/app/(landing)/brand-tokens.module.css'
+import { Cta, Features, Footer, Hero, Mothership, Navbar } from '@/app/(landing)/components'
 
 /**
  * Landing page root — owns section order and server-side context.
@@ -43,7 +43,7 @@ export default async function Landing() {
         Skip to main content
       </a>
       <Navbar stars={stars} />
-      <main id='main-content' className='flex flex-col gap-[120px] max-lg:gap-[88px] max-sm:gap-16'>
+      <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
         <Hero />
         <Mothership />
         <Features />

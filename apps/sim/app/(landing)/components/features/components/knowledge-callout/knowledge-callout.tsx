@@ -28,14 +28,14 @@ export function KnowledgeCallout() {
         <div className='flex h-[44px] flex-shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
           <Database className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
           <span className='font-medium text-[var(--text-body)] text-sm'>Knowledge base</span>
-          <span className='ml-auto text-[var(--text-muted)] text-[11px]'>6 sources · embedded</span>
+          <span className='ml-auto text-[11px] text-[var(--text-muted)]'>6 sources · embedded</span>
         </div>
         <div className='flex flex-col px-2 pt-1.5'>
           {SOURCES.map(({ name, meta }) => (
             <div key={name} className='flex items-center gap-2.5 rounded-md px-2 py-2'>
               <File className='size-[15px] flex-shrink-0 text-[var(--text-icon)]' />
               <span className='flex-1 truncate text-[var(--text-body)] text-sm'>{name}</span>
-              <span className='flex-shrink-0 text-[var(--text-muted)] text-[11px]'>{meta}</span>
+              <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>{meta}</span>
             </div>
           ))}
         </div>

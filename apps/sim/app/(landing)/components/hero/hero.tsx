@@ -75,7 +75,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-xl:min-h-0 max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4 max-sm:px-5 max-sm:pt-12'
+      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-xl:min-h-0 max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -86,7 +86,7 @@ export function Hero() {
 
       <h1
         id='hero-heading'
-        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-xl:text-[40px] max-sm:text-[32px]'
+        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-sm:text-[32px] max-xl:text-[40px]'
       >
         Your workflow agent for
         <br />
@@ -118,7 +118,7 @@ export function Hero() {
         <ChipLink
           href='/signup'
           flush
-          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit] max-sm:justify-center max-sm:[&>span]:flex-none'
+          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
         >
           Sign up
         </ChipLink>
@@ -126,12 +126,12 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-[112px] right-12 bottom-[112px] left-1/2 overflow-hidden rounded-lg bg-[#fafafa] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full max-sm:mt-3 max-sm:aspect-[5/4]'
+        className='absolute top-[112px] right-12 bottom-[112px] left-1/2 overflow-hidden rounded-lg bg-[#fafafa] max-sm:mt-3 max-sm:aspect-[5/4] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full'
       >
         <HeroVisual />
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0 max-sm:mt-8'>
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0'>
         <HeroLogos />
       </div>
     </section>

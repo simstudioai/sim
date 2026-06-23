@@ -53,7 +53,7 @@ export function FeatureStage({
         </p>
       </div>
 
-      <div className='relative mt-20 max-lg:mt-14 max-sm:mt-8'>
+      <div className='relative mt-20 max-sm:mt-8 max-lg:mt-14'>
         <div
           className={cn(
             'relative overflow-hidden rounded-xl border border-[var(--border-1)]',
@@ -65,7 +65,7 @@ export function FeatureStage({
         >
           <LandingPreviewMount autoplay={false} view={view} workflowId={workflowId} />
         </div>
-        <div className='absolute -top-6 left-10 z-10 max-md:hidden'>{callout}</div>
+        <div className='-top-6 absolute left-10 z-10 max-md:hidden'>{callout}</div>
       </div>
     </div>
   )

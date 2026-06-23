@@ -63,7 +63,6 @@ export function IsoGridPlane({ size = 110, className, forceHover = false }: IsoG
       height={size}
       role='img'
       aria-label='Grid plane'
-      tabIndex={0}
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}

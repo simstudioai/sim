@@ -52,7 +52,7 @@ export function IntegrationsCallout() {
             <div key={name} className='flex items-center gap-2.5 rounded-md px-2 py-1.5'>
               <Icon className='size-[16px] flex-shrink-0' />
               <span className='flex-1 text-[var(--text-body)] text-sm'>{name}</span>
-              <span className='text-[var(--text-muted)] text-[11px]'>{category}</span>
+              <span className='text-[11px] text-[var(--text-muted)]'>{category}</span>
             </div>
           ))}
         </div>

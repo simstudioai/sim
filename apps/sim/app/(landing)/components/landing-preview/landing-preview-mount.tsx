@@ -21,9 +21,7 @@ const LandingPreview = dynamic(
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className='aspect-[1116/615] w-full rounded bg-[#f8f8f8]' />
-    ),
+    loading: () => <div className='aspect-[1116/615] w-full rounded bg-[#f8f8f8]' />,
   }
 )
 

@@ -31,7 +31,7 @@ const FOLLOW_UPS = [
 export function MothershipChatPreview() {
   return (
     <div className='flex flex-col gap-3.5 px-4'>
-      <div className='max-w-[82%] self-end rounded-2xl bg-[#f0f0f0] px-3.5 py-2 text-[13.5px] text-[#121212] leading-[1.45]'>
+      <div className='max-w-[82%] self-end rounded-2xl bg-[#f0f0f0] px-3.5 py-2 text-[#121212] text-[13.5px] leading-[1.45]'>
         Create a comprehensive sales CRM workflow and table.
       </div>
 
@@ -41,18 +41,20 @@ export function MothershipChatPreview() {
         <div className='flex flex-col gap-1.5'>
           <div className='flex items-center gap-2 pl-6'>
             <File className='size-[15px] flex-shrink-0 text-[#8c8c8c]' />
-            <span className='text-[13px] text-[#5f5f5f]'>Attempted to read Sales_CRM</span>
+            <span className='text-[#5f5f5f] text-[13px]'>Attempted to read Sales_CRM</span>
           </div>
           <div className='flex items-center gap-2 pl-6'>
             <File className='size-[15px] flex-shrink-0 text-[#8c8c8c]' />
-            <span className='text-[13px] text-[#5f5f5f]'>Read Sales CRM Enrichment &amp; Scoring</span>
+            <span className='text-[#5f5f5f] text-[13px]'>
+              Read Sales CRM Enrichment &amp; Scoring
+            </span>
           </div>
         </div>
 
-        <p className='text-[13.5px] text-[#121212] leading-[1.5]'>
+        <p className='text-[#121212] text-[13.5px] leading-[1.5]'>
           You already have a live{' '}
-          <span className='underline decoration-[#c3c3c3] underline-offset-2'>Sales_CRM</span> here —
-          both the table and its enrichment workflow are running. Pick a direction:
+          <span className='underline decoration-[#c3c3c3] underline-offset-2'>Sales_CRM</span> here
+          — both the table and its enrichment workflow are running. Pick a direction:
         </p>
 
         <div className='mt-0.5'>

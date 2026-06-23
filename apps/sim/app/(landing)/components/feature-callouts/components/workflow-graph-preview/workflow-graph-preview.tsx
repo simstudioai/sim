@@ -1,5 +1,12 @@
 import type { ComponentType, SVGProps } from 'react'
-import { AgentIcon, AnthropicIcon, GmailIcon, HubspotIcon, SalesforceIcon, SlackIcon } from '@/components/icons'
+import {
+  AgentIcon,
+  AnthropicIcon,
+  GmailIcon,
+  HubspotIcon,
+  SalesforceIcon,
+  SlackIcon,
+} from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -20,7 +27,8 @@ import { cn } from '@/lib/core/utils/cn'
  */
 type IconType = ComponentType<SVGProps<SVGSVGElement>>
 
-const ICON_TILE = 'flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[#2C2C2C]'
+const ICON_TILE =
+  'flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[#2C2C2C]'
 const CARD = 'relative w-[240px] rounded-[8px] border border-[#e6e6e6] bg-[#ffffff]'
 const HANDLE = 'absolute top-[20px] h-5 w-[7px] -translate-y-1/2 bg-[#c9c9c9]'
 
@@ -40,14 +48,24 @@ interface BlockCardProps {
   rightHandle?: boolean
 }
 
-function BlockCard({ className, name, Icon, model, tools, leftHandle, rightHandle }: BlockCardProps) {
+function BlockCard({
+  className,
+  name,
+  Icon,
+  model,
+  tools,
+  leftHandle,
+  rightHandle,
+}: BlockCardProps) {
   const hasContent = Boolean(model || tools?.length)
   return (
     <div className={cn('absolute select-none', className)}>
       <div className={CARD}>
         {leftHandle && <span className={cn(HANDLE, 'left-[-7px] rounded-l-[2px]')} />}
 
-        <div className={cn('flex items-center gap-2.5 p-2', hasContent && 'border-[#e6e6e6] border-b')}>
+        <div
+          className={cn('flex items-center gap-2.5 p-2', hasContent && 'border-[#e6e6e6] border-b')}
+        >
           <div className={ICON_TILE}>
             <Icon className='size-[16px] text-white' />
           </div>
@@ -110,16 +128,8 @@ export function WorkflowGraphPreview({ className }: WorkflowGraphPreviewProps) {
       {/* Edge layer — bezier connectors from the Agent's source handle to each
           action block's target handle. Coords are in px and map 1:1 to the box. */}
       <svg className='absolute inset-0 h-full w-full' fill='none' aria-hidden='true'>
-        <path
-          d='M258,132 C300,132 290,58 332,58'
-          stroke='#c9c9c9'
-          strokeWidth='1.5'
-        />
-        <path
-          d='M258,132 C300,132 290,278 332,278'
-          stroke='#c9c9c9'
-          strokeWidth='1.5'
-        />
+        <path d='M258,132 C300,132 290,58 332,58' stroke='#c9c9c9' strokeWidth='1.5' />
+        <path d='M258,132 C300,132 290,278 332,278' stroke='#c9c9c9' strokeWidth='1.5' />
       </svg>
 
       <BlockCard

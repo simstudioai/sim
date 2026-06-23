@@ -1,6 +1,13 @@
 'use client'
 
-import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type RefObject,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import styles from '@/app/(landing)/components/hero/components/hero-visual/stage-home.module.css'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
@@ -11,6 +18,8 @@ import {
   HOME_GREETING,
   PROMPT_ATOMS,
   type PromptAtom,
+  SEND_BUBBLE_ENTER_MS,
+  SEND_BUBBLE_REVEAL_DELAY_MS,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
@@ -82,8 +91,7 @@ interface StageHomeProps {
 }
 
 /** Staggered enter for a chat bubble — translateY + opacity + blur, interruptible. */
-const ENTER_BASE =
-  'transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.2,0,0,1)]'
+const ENTER_BASE = 'transition-[opacity,transform,filter] ease-[cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
   shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
 
@@ -184,6 +192,10 @@ export function StageHome({
   const visible = PROMPT_ATOMS.slice(0, typedCount)
   const isEmpty = typedCount === 0
   const answer = ANSWER_TEXT.slice(0, answerTypedCount)
+  const bubbleTransitionStyle = {
+    transitionDelay: mode === 'sending' ? `${SEND_BUBBLE_REVEAL_DELAY_MS}ms` : '0ms',
+    transitionDuration: `${SEND_BUBBLE_ENTER_MS}ms`,
+  } satisfies CSSProperties
 
   return (
     <div className='flex h-full w-full flex-col items-center justify-center px-10'>
@@ -219,7 +231,8 @@ export function StageHome({
             // The chat input's aesthetic (rounded-2xl, border, soft shadow) is
             // kept THROUGHOUT — including once morphed into the workflow block —
             // so it stays the same white card, just resized.
-            'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
+            'relative mx-auto rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
+            isBlock ? 'overflow-visible' : 'overflow-hidden',
             // While the parent drives the height per-frame (the send-bubble grow),
             // do NOT CSS-transition height — the per-frame writes ARE the animation;
             // a transition would lag behind them and fight the camera. Every other
@@ -283,16 +296,10 @@ export function StageHome({
                 )}
               </div>
               <div
+                style={bubbleTransitionStyle}
                 className={cn(
                   'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
                   ENTER_BASE,
-                  // Hold the bubble's fade-in until the card has finished growing
-                  // upward to make room for it. The bubble is already in flow (so
-                  // the card measures the right height and expands to fit), but its
-                  // opacity/translate/blur reveal waits out the parent-driven grow
-                  // (GROW_MS) plus a short beat — so the card settles fully before
-                  // the bubble appears, instead of racing the expanding edge.
-                  mode === 'sending' && 'delay-[700ms]',
                   showBubble
                     ? enterState(true)
                     : cn('pointer-events-none absolute top-0 right-0', enterState(false))
@@ -345,7 +352,7 @@ export function StageHome({
                     strokeLinecap='round'
                     strokeLinejoin='round'
                     className={cn(
-                      '[stroke-dasharray:1] transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
+                      'transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)] [stroke-dasharray:1]',
                       isCompose ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
                     )}
                   />
@@ -367,6 +374,7 @@ export function StageHome({
             )}
           >
             <div
+              className='relative'
               style={{
                 width: BLOCK_WIDTH,
                 transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
@@ -374,6 +382,10 @@ export function StageHome({
               }}
             >
               <WorkflowBlockContent block={FIRST_BLOCK} />
+              <span
+                aria-hidden
+                className='-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)]'
+              />
             </div>
           </div>
         </div>

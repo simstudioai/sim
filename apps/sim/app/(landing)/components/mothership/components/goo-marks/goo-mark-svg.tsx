@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { GooDefs } from '@/app/(landing)/components/mothership/components/goo-marks/goo-defs'
-import { GOO_FUSION, STROKE } from '@/app/(landing)/components/mothership/components/goo-marks/use-goo-hover'
+import {
+  GOO_FUSION,
+  STROKE,
+} from '@/app/(landing)/components/mothership/components/goo-marks/use-goo-hover'
 
 /**
  * Shared `<svg>` shell for the circle goo marks. Children are the stroke
@@ -37,7 +40,6 @@ export function GooMarkSvg({
       height={size}
       role='img'
       aria-label={ariaLabel}
-      tabIndex={0}
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}

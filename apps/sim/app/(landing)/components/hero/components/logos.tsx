@@ -59,7 +59,7 @@ export function HeroLogos() {
   return (
     <ul
       aria-label='Companies building AI agents with Sim'
-      className='grid grid-cols-[repeat(3,max-content)] items-center gap-x-24 gap-y-12 max-lg:gap-x-16 max-sm:gap-x-10 max-sm:gap-y-8'
+      className='grid grid-cols-[repeat(3,max-content)] items-center gap-x-24 gap-y-12 max-sm:gap-x-10 max-sm:gap-y-8 max-lg:gap-x-16'
     >
       {LOGOS.map((logo) => (
         <li key={logo.name}>

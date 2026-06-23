@@ -15,8 +15,8 @@ import {
 /**
  * Sim iso goo-mark: STACKED PLANES.
  * N lattice sheets layered with a vertical gap.
- * Rest: tight, slightly tilted, still. Hover (open + spin): gap spreads, tilt
- * flattens, spins.
+ * Rest: open and spread, slightly tilted, still. Hover (close + spin): gap
+ * collapses tight, tilt steepens, spins.
  */
 interface StackState extends MarkState {
   gap: number
@@ -30,19 +30,19 @@ interface StackState extends MarkState {
 }
 
 const REST: StackState = {
-  gap: 11.5,
-  tilt: 0.33,
-  spin: -3.14,
+  gap: 34.5,
+  tilt: 0.34,
+  spin: -2.82,
   stroke: 2,
   gradCx: 50,
   gradCy: 50,
   gradR: 44,
-  tone: 0,
+  tone: 1,
 }
 const HOVER: StackState = {
-  gap: 34.5,
-  tilt: 0.34,
-  spin: -2.82,
+  gap: 11.5,
+  tilt: 0.33,
+  spin: -3.14,
   stroke: 2,
   gradCx: 50,
   gradCy: 50,
@@ -99,7 +99,6 @@ export function IsoStackedPlanes({
       height={size}
       role='img'
       aria-label='Stacked planes'
-      tabIndex={0}
       className={className}
       style={{ display: 'block', outline: 'none' }}
       {...bind}

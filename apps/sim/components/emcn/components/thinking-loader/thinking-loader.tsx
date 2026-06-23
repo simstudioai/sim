@@ -257,7 +257,9 @@ export function ThinkingLoader({
   const clipId = `tl-clip-${id}`
   const windowClipId = `tl-window-${id}`
   const gradientId = `tl-grad-${id}`
-  const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>(startVariant ?? 'metaballs')
+  const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>(
+    startVariant ?? 'metaballs'
+  )
   const cycling = variant === undefined
 
   useEffect(() => {

@@ -208,6 +208,17 @@ export const SCENE_EDGES: EdgeDef[] = (
 export const SCENE_OVERVIEW_SCALE = 0.68 / WORKFLOW_FOCUS_SCALE
 export const SCENE_OVERVIEW_TRANSLATE = { x: -204, y: -43 } as const
 
+/** Camera scale while tracing the workflow edge-by-edge before the full zoom-out. */
+export const SCENE_FOLLOW_SCALE = 0.86
+
+/**
+ * Intermediate camera stops for the edge-follow pass. These keep the active
+ * destination block centered enough to read while preserving a little context
+ * around the incoming connection.
+ */
+export const SCENE_AGENT_FOCUS_TRANSLATE = { x: -323, y: -126 } as const
+export const SCENE_JIRA_FOCUS_TRANSLATE = { x: -645, y: 0 } as const
+
 /**
  * The typed prompt, encoded as ordered atoms the typewriter reveals one at a
  * time. A `char` atom is a single character; a `mention` atom pops in
@@ -242,11 +253,22 @@ export const TYPE_MS_PER_ATOM = 45
  * the world voice — it dispatches an agent — and previews the workflow it's
  * about to build, so the chat answer morphs naturally into the canvas below.
  */
-export const ANSWER_TEXT =
-  'On it — dispatching an agent to review every PR and open a Jira issue.'
+export const ANSWER_TEXT = 'On it — dispatching an agent to review every PR and open a Jira issue.'
 
 /** Reveal cadence for the answer typewriter (faster than a human; the AI types). */
 export const ANSWER_MS_PER_CHAR = 18
+
+/** White chat card grow after send, before the sent-message bubble is visible. */
+export const SEND_BUBBLE_GROW_MS = 620
+
+/** Delay the grey sent-message reveal until the card grow has visibly settled. */
+export const SEND_BUBBLE_REVEAL_DELAY_MS = SEND_BUBBLE_GROW_MS + 260
+
+/** Soft enter for the grey sent-message bubble once the card has room for it. */
+export const SEND_BUBBLE_ENTER_MS = 280
+
+/** Full send beat duration: grow, reveal, then a brief hold before loader slide. */
+export const SEND_BUBBLE_HOLD_MS = SEND_BUBBLE_REVEAL_DELAY_MS + SEND_BUBBLE_ENTER_MS + 220
 
 /** Knowledge-base name shown pre-filled in the create modal. */
 export const KB_NAME = 'Product Docs'
