@@ -8,19 +8,18 @@ import { ChipLink } from '@/components/emcn'
  *
  * The email bar is a no-background input shell — `border-[var(--border-1)]` (the
  * field border) — wrapping a transparent 16px `<input>` and the "Book a demo"
- * action `gap-2` apart; its `pl-3` text gutter and tighter `pr-[5px]` tuck that
- * button evenly into the right corner. Its radius is `rounded-[13px]` —
- * concentric with the inset `rounded-lg` (8px) "Book a demo" chip: outer = inner
- * + the ~5px inset, so the right corners nest cleanly instead of crossing. (A
- * field that wraps an inset action is meant to be a touch rounder than a bare chip.)
+ * action `gap-2` apart; its `pl-3` text gutter and tighter `pr-[4px]` tuck that
+ * button evenly into the right corner. Its radius is `rounded-lg` (8px, the navbar
+ * chip radius) — concentric with the inset `rounded` (4px) "Book a demo" chip:
+ * outer = inner + the 4px inset, so the right corners nest cleanly instead of crossing.
  *
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`) and
  * horizontal padding in `em` so it stays proportional to the text —
  * `px-[0.571em]`, the chip's 8/14 ratio (≈9px at 16px). "Book a demo" sits
- * inside the bar and scales its height too (`h-[2.143em]`); the standalone
+ * inside the bar and scales its height too (`h-[2em]`); the standalone
  * "Sign up" is the default chip overridden to the bar's `border-[var(--border-1)]`
- * and `rounded-[13px]` at `h-[44px]` — so the two CTAs share one corner radius and
+ * and `rounded-lg` at `h-[40px]` — so the two CTAs share one corner radius and
  * their borders line up exactly.
  *
  * Server Component — the bare `<input>` is uncontrolled and submits via the
@@ -30,7 +29,7 @@ import { ChipLink } from '@/components/emcn'
 export function HeroCta() {
   return (
     <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
-      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3 max-sm:w-full'>
+      <div className='flex h-[40px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[4px] pl-3 max-sm:w-full'>
         <input
           type='email'
           aria-label='Email address'
@@ -41,7 +40,7 @@ export function HeroCta() {
           variant='primary'
           href='/contact'
           flush
-          className='h-[2.143em] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          className='h-[2em] rounded px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
         >
           Book a demo
         </ChipLink>
@@ -49,7 +48,7 @@ export function HeroCta() {
       <ChipLink
         href='/signup'
         flush
-        className='h-[44px] rounded-[13px] border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
+        className='h-[40px] rounded-lg border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
       >
         Sign up
       </ChipLink>
