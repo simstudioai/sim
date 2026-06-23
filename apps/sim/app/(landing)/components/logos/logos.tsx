@@ -37,24 +37,24 @@ interface Logo {
 
 /**
  * The canonical six customer wordmarks, in row-major reading order — the 3×2
- * hero grid places them as: eXp Realty (top-left), Russell (top-center),
- * Rivian|VW (top-right); Artie (bottom-left), thinkproject (bottom-center),
+ * hero grid places them as: Rivian|VW (top-left), Russell (top-center),
+ * eXp Realty (top-right); Artie (bottom-left), thinkproject (bottom-center),
  * Mobile Health (bottom-right).
  */
 const LOGOS: readonly Logo[] = [
-  { name: 'eXp Realty', src: '/landing/logos/exp-realty.svg', aspect: 1.84, height: 28 },
-  {
-    name: 'Russell Investments',
-    src: '/landing/logos/russell-investments.svg',
-    aspect: 4.29,
-    height: 21,
-  },
   {
     name: 'Rivian | Volkswagen Group Technologies',
     src: '/landing/logos/rivian-vw.svg',
     aspect: 10.72,
     height: 17,
   },
+  {
+    name: 'Russell Investments',
+    src: '/landing/logos/russell-investments.svg',
+    aspect: 4.29,
+    height: 21,
+  },
+  { name: 'eXp Realty', src: '/landing/logos/exp-realty.svg', aspect: 1.84, height: 28 },
   { name: 'Artie', src: '/landing/logos/artie.svg', aspect: 3.65, height: 24 },
   {
     name: 'thinkproject',
@@ -75,7 +75,7 @@ interface LogosProps {
    * Layout intent.
    * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
    *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
-   *   `h-[88px]` × `w-[180px]`) on a content-hugging 3-up grid (2-up on phones) at a `gap-3` rhythm.
+   *   `h-24` × `w-[180px]`) on a content-hugging 3-up grid (2-up on phones) at a `gap-3` rhythm.
    *   Wordmarks render at {@link GRID_ICON_SCALE} of their optical row size.
    * - `row` — the platform page's single centered row of bare wordmarks.
    */
@@ -108,7 +108,7 @@ export function Logos({ layout }: LogosProps) {
             key={logo.name}
             className={cn(
               isGrid &&
-                'flex h-[88px] w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
+                'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3'
             )}
           >
             <Image
