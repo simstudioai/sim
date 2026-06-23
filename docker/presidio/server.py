@@ -1,24 +1,34 @@
 """Combined Presidio REST service: analyzer + anonymizer on one port.
 
-Constructs one warm AnalyzerEngine (with a native check-digit VIN recognizer)
-and one AnonymizerEngine at startup, exposing stock-compatible endpoints so a
-single PRESIDIO_URL serves both. English only.
+Constructs one warm AnalyzerEngine (multi-language NLP + a native check-digit
+VIN recognizer) and one AnonymizerEngine at startup, exposing stock-compatible
+endpoints so a single PRESIDIO_URL serves both.
 """
 
 from typing import Any
 
 from fastapi import Body, FastAPI
 from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer, RecognizerResult
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer.predefined_recognizers import (
     AuAbnRecognizer,
     AuAcnRecognizer,
     AuMedicareRecognizer,
     AuTfnRecognizer,
+    EsNieRecognizer,
+    EsNifRecognizer,
+    FiPersonalIdentityCodeRecognizer,
     InAadhaarRecognizer,
     InPanRecognizer,
     InPassportRecognizer,
     InVehicleRegistrationRecognizer,
     InVoterRecognizer,
+    ItDriverLicenseRecognizer,
+    ItFiscalCodeRecognizer,
+    ItIdentityCardRecognizer,
+    ItPassportRecognizer,
+    ItVatCodeRecognizer,
+    PlPeselRecognizer,
     SgFinRecognizer,
     SgUenRecognizer,
     UkNinoRecognizer,
@@ -26,9 +36,25 @@ from presidio_analyzer.predefined_recognizers import (
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
-# English-capable predefined recognizers Presidio ships but does NOT load by
-# default (UK_NINO, AU_*, IN_*, SG_*). es/it/pl/fi/th/ko recognizers are
-# language-locked and excluded — this image is English only.
+# Languages served. Each needs its spaCy model installed in the image; the
+# es/it/pl/fi predefined recognizers (ES_NIF, IT_FISCAL_CODE, PL_PESEL, ...)
+# auto-load once their NLP engine is present.
+NLP_CONFIGURATION = {
+    "nlp_engine_name": "spacy",
+    "models": [
+        {"lang_code": "en", "model_name": "en_core_web_lg"},
+        {"lang_code": "es", "model_name": "es_core_news_lg"},
+        {"lang_code": "it", "model_name": "it_core_news_lg"},
+        {"lang_code": "pl", "model_name": "pl_core_news_lg"},
+        {"lang_code": "fi", "model_name": "fi_core_news_lg"},
+    ],
+}
+SUPPORTED_LANGUAGES = [m["lang_code"] for m in NLP_CONFIGURATION["models"]]
+
+# Predefined recognizers Presidio ships but does NOT load into the default
+# registry — they must be added explicitly. Each carries its own
+# supported_language, so it fires under that language once its NLP model is
+# loaded. en: UK/AU/IN/SG locale ids; es/it/pl/fi: national ids.
 EXTRA_RECOGNIZERS = [
     UkNinoRecognizer,
     AuAbnRecognizer,
@@ -42,6 +68,15 @@ EXTRA_RECOGNIZERS = [
     InPassportRecognizer,
     SgFinRecognizer,
     SgUenRecognizer,
+    EsNifRecognizer,
+    EsNieRecognizer,
+    ItFiscalCodeRecognizer,
+    ItDriverLicenseRecognizer,
+    ItVatCodeRecognizer,
+    ItPassportRecognizer,
+    ItIdentityCardRecognizer,
+    PlPeselRecognizer,
+    FiPersonalIdentityCodeRecognizer,
 ]
 
 
@@ -75,7 +110,8 @@ class VinRecognizer(PatternRecognizer):
 
 
 def build_analyzer() -> AnalyzerEngine:
-    analyzer = AnalyzerEngine()
+    nlp_engine = NlpEngineProvider(nlp_configuration=NLP_CONFIGURATION).create_engine()
+    analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES)
     vin_pattern = Pattern(name="vin", regex=r"\b[A-HJ-NPR-Z0-9]{17}\b", score=0.7)
     analyzer.registry.add_recognizer(
         VinRecognizer(

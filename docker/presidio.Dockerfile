@@ -18,16 +18,19 @@ COPY docker/presidio/requirements.txt ./requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-# Pinned English spaCy model. Downloaded with retries/resume (the wheel is
-# ~400MB and truncates on flaky networks if pip fetches the URL directly).
-ARG SPACY_MODEL_VERSION=3.8.0
+# Pinned spaCy models (en + es/it/pl/fi, ~2.2GB total). Downloaded with
+# retries/resume — the large wheels truncate on flaky networks if pip fetches
+# the URLs directly.
+ARG SPACY_MODELS="en_core_web_lg-3.8.0 es_core_news_lg-3.8.0 it_core_news_lg-3.8.0 pl_core_news_lg-3.8.0 fi_core_news_lg-3.8.0"
 RUN --mount=type=cache,target=/root/.cache/pip \
-    MODEL_WHL="en_core_web_lg-${SPACY_MODEL_VERSION}-py3-none-any.whl" && \
-    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
-      -o "/tmp/${MODEL_WHL}" \
-      "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-${SPACY_MODEL_VERSION}/${MODEL_WHL}" && \
-    pip install --no-cache-dir "/tmp/${MODEL_WHL}" && \
-    rm "/tmp/${MODEL_WHL}"
+    for model in ${SPACY_MODELS}; do \
+      whl="${model}-py3-none-any.whl"; \
+      curl -fL --retry 5 --retry-delay 5 --retry-all-errors -C - \
+        -o "/tmp/${whl}" \
+        "https://github.com/explosion/spacy-models/releases/download/${model}/${whl}" || exit 1; \
+    done && \
+    pip install --no-cache-dir /tmp/*.whl && \
+    rm /tmp/*.whl
 
 COPY docker/presidio/server.py ./server.py
 
