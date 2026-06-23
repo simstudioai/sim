@@ -646,9 +646,11 @@ export function DataRetentionSettings() {
 
       const ids = draft.workspaceIds
       if (ids.length === 0) return
-      const idSet = new Set(ids)
-      const nextOverrides = overrides.filter((o) => !idSet.has(o.workspaceId))
-      const nextPiiOverrides = piiOverrides.filter((p) => !idSet.has(p.workspaceId))
+      // Clear the workspaces this edit previously owned plus the new selection,
+      // so deselecting a workspace removes its override instead of orphaning it.
+      const clearIds = new Set([...modal.original.workspaceIds, ...ids])
+      const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
+      const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
       for (const workspaceId of ids) {
         const ov = buildRetentionOverride(workspaceId, draft)
         if (ov) nextOverrides.push(ov)
@@ -678,7 +680,9 @@ export function DataRetentionSettings() {
 
   async function removeCurrentOverride() {
     if (!modal || modal.draft.isOrgDefault) return
-    const idSet = new Set(modal.draft.workspaceIds)
+    // Remove the override(s) this row originally owned, regardless of any
+    // unsaved changes to the workspace multi-select in the open modal.
+    const idSet = new Set(modal.original.workspaceIds)
     try {
       await persistSnapshot({
         ...snapshot(),
