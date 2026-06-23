@@ -117,4 +117,92 @@ describe('FileV5Block', () => {
       'File is required for get content'
     )
   })
+
+  it('maps set sharing to public access for a canonical file ID', () => {
+    expect(
+      buildParams({
+        operation: 'file_set_sharing',
+        shareInput: 'file-1',
+        shareVisibility: 'public',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toEqual({
+      fileId: 'file-1',
+      isActive: true,
+      authType: 'public',
+      password: undefined,
+      allowedEmails: undefined,
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('maps private visibility to a disabled share with no authType', () => {
+    expect(
+      buildParams({
+        operation: 'file_set_sharing',
+        shareInput: 'file-1',
+        shareVisibility: 'private',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toMatchObject({
+      fileId: 'file-1',
+      isActive: false,
+      authType: undefined,
+    })
+  })
+
+  it('passes the password through for password visibility', () => {
+    expect(
+      buildParams({
+        operation: 'file_set_sharing',
+        shareInput: 'file-1',
+        shareVisibility: 'password',
+        sharePassword: 'hunter2',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toMatchObject({
+      fileId: 'file-1',
+      isActive: true,
+      authType: 'password',
+      password: 'hunter2',
+    })
+  })
+
+  it('splits allowed emails for email visibility', () => {
+    expect(
+      buildParams({
+        operation: 'file_set_sharing',
+        shareInput: 'file-1',
+        shareVisibility: 'email',
+        shareAllowedEmails: 'a@example.com, b@example.com\n@acme.com',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toMatchObject({
+      fileId: 'file-1',
+      isActive: true,
+      authType: 'email',
+      allowedEmails: ['a@example.com', 'b@example.com', '@acme.com'],
+    })
+  })
+
+  it('resolves the file ID from a selected workspace file object for set sharing', () => {
+    expect(
+      buildParams({
+        operation: 'file_set_sharing',
+        shareInput: [{ id: 'file-9', name: 'report.pdf' }],
+        shareVisibility: 'public',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toMatchObject({
+      fileId: 'file-9',
+      isActive: true,
+      authType: 'public',
+    })
+  })
+
+  it('throws when no file is provided for set sharing', () => {
+    expect(() => buildParams({ operation: 'file_set_sharing' })).toThrow(
+      'File is required for set sharing'
+    )
+  })
 })

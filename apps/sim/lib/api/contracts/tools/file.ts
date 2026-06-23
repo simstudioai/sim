@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -41,6 +42,18 @@ export const fileManageMoveBodySchema = z.object({
 })
 
 export type FileManageMoveBody = z.input<typeof fileManageMoveBodySchema>
+
+export const fileManageSetSharingBodySchema = z.object({
+  operation: z.literal('set_sharing'),
+  workspaceId: z.string().min(1).optional(),
+  fileId: z.string().min(1, 'fileId is required for set_sharing operation'),
+  isActive: z.boolean().optional().default(true),
+  authType: shareAuthTypeSchema.optional(),
+  password: z.string().min(1).max(1024).optional(),
+  allowedEmails: z.array(z.string().min(1)).max(200).optional(),
+})
+
+export type FileManageSetSharingBody = z.input<typeof fileManageSetSharingBodySchema>
 
 export const fileManageReadBodySchema = z
   .object({
@@ -92,6 +105,7 @@ export const fileManageBodySchema = z.union([
   fileManageAppendBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
+  fileManageSetSharingBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
   fileManageCompressBodySchema,

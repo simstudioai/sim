@@ -1,5 +1,6 @@
 import { Buffer, isUtf8 } from 'buffer'
 import type { Readable } from 'stream'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -14,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { ShareValidationError, upsertFileShare } from '@/lib/public-shares/share-manager'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -27,9 +29,14 @@ import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
+  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import {
+  PublicFileSharingNotAllowedError,
+  validatePublicFileSharing,
+} from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
 
 export const dynamic = 'force-dynamic'
@@ -565,6 +572,68 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
+      case 'set_sharing': {
+        const { fileId, isActive, authType, password, allowedEmails } = body
+
+        const file = await getWorkspaceFile(workspaceId, fileId)
+        if (!file) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${fileId}"` },
+            { status: 404 }
+          )
+        }
+
+        // Publishing a file is more sensitive than the other mutating ops, so it
+        // requires write/admin (not just workspace access) to match the share route.
+        const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+        if (permission !== 'admin' && permission !== 'write') {
+          return NextResponse.json(
+            { success: false, error: 'Insufficient permissions' },
+            { status: 403 }
+          )
+        }
+
+        // Enabling a share is gated by the org's access-control policy; disabling
+        // is always allowed so users can un-share after the policy is turned on.
+        if (isActive) {
+          try {
+            await validatePublicFileSharing(userId, workspaceId, authType ?? 'public')
+          } catch (error) {
+            if (error instanceof PublicFileSharingNotAllowedError) {
+              return NextResponse.json({ success: false, error: error.message }, { status: 403 })
+            }
+            throw error
+          }
+        }
+
+        const share = await upsertFileShare({
+          workspaceId,
+          fileId,
+          userId,
+          isActive,
+          authType,
+          password,
+          allowedEmails,
+        })
+
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
+          resourceType: AuditResourceType.FILE,
+          resourceId: fileId,
+          resourceName: file.name,
+          description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${file.name}"`,
+          request,
+        })
+
+        logger.info('File sharing updated', { fileId, isActive, authType: share.authType })
+
+        // A disabled link doesn't resolve, so don't hand back a dead URL.
+        const responseShare = share.isActive ? share : { ...share, url: '' }
+        return NextResponse.json({ success: true, data: { share: responseShare } })
+      }
+
       case 'append': {
         const { fileName, content } = body
 
@@ -910,6 +979,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { success: false, error: 'Workspace access denied' },
         { status: 403 }
       )
+    }
+    if (error instanceof ShareValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })
