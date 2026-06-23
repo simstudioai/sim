@@ -88,7 +88,13 @@ export const runLocalPi: PiBackendRun<PiLocalRunParams> = async (params, context
   // Isolate Pi resource discovery: an empty cwd/agentDir keeps DefaultResourceLoader
   // from loading the Sim server's own .agents/skills, AGENTS.md, extensions, or settings.
   const isolatedDir = await mkdtemp(join(tmpdir(), 'sim-pi-'))
-  const session = await openSshSession(params.ssh)
+  // Clean up the scratch dir if the SSH connection fails — the try/finally below
+  // is only entered once the session is open, so an early handshake failure would
+  // otherwise orphan the directory.
+  const session = await openSshSession(params.ssh).catch(async (error) => {
+    await rm(isolatedDir, { recursive: true, force: true }).catch(() => {})
+    throw error
+  })
 
   try {
     const sdk = await loadPiSdk()

@@ -121,6 +121,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       title: 'GitHub Token',
       type: 'short-input',
       password: true,
+      paramVisibility: 'user-only',
       placeholder: 'GitHub personal access token (repo scope)',
       tooltip: 'Personal access token with repo scope, used to clone, push, and open the PR.',
       required: true,
@@ -201,6 +202,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       title: 'Password',
       type: 'short-input',
       password: true,
+      paramVisibility: 'user-only',
       placeholder: 'Your SSH password',
       required: { field: 'mode', value: 'local', and: { field: 'authMethod', value: 'password' } },
       condition: { field: 'mode', value: 'local', and: { field: 'authMethod', value: 'password' } },
@@ -210,6 +212,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      paramVisibility: 'user-only',
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       required: {
         field: 'mode',
@@ -246,6 +249,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       title: 'Passphrase',
       type: 'short-input',
       password: true,
+      paramVisibility: 'user-only',
       placeholder: 'Passphrase for encrypted key (optional)',
       mode: 'advanced',
       condition: {
