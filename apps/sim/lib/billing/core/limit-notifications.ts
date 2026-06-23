@@ -72,7 +72,7 @@ async function rearmThreshold(
   id: string,
   category: LimitCategory
 ): Promise<void> {
-  const setExpr = sql`jsonb_set(coalesce(${scope === 'user' ? userStats.limitNotifications : organization.limitNotifications}, '{}'::jsonb), ARRAY[${category}], to_jsonb(0))`
+  const setExpr = sql`jsonb_set(coalesce(${scope === 'user' ? userStats.limitNotifications : organization.limitNotifications}, '{}'::jsonb), ARRAY[${category}], to_jsonb(0::int))`
   const onlyIfArmed =
     scope === 'user'
       ? sql`coalesce((${userStats.limitNotifications} ->> ${category})::int, 0) > 0`
