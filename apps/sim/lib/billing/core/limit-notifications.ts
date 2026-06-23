@@ -228,6 +228,7 @@ export async function maybeSendLimitThresholdEmail(params: {
     const percentUsed = Math.min(100, Math.round(percent))
     const upgradeLink = `${getBaseUrl()}${buildUpgradeHref(params.workspaceId, category)}`
 
+    let sent = 0
     for (const r of recipients) {
       // Isolate per-recipient failures so one bad send doesn't skip the rest.
       try {
@@ -247,6 +248,7 @@ export async function maybeSendLimitThresholdEmail(params: {
           html,
           emailType: 'notifications',
         })
+        sent++
       } catch (sendError) {
         logger.error('Failed to send limit email', {
           category,
@@ -256,12 +258,9 @@ export async function maybeSendLimitThresholdEmail(params: {
       }
     }
 
-    logger.info('Sent usage-limit threshold email', {
-      category,
-      scope,
-      kind,
-      percentUsed,
-    })
+    if (sent > 0) {
+      logger.info('Sent usage-limit threshold email', { category, scope, kind, percentUsed, sent })
+    }
   } catch (error) {
     logger.error('Failed to send usage-limit threshold email', {
       category: params.category,
