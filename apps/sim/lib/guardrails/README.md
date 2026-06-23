@@ -35,7 +35,7 @@ docker run -d -p 5001:5001 sim-pii
 Point the app at it (default shown):
 
 ```bash
-PRESIDIO_URL=http://localhost:5001
+PII_URL=http://localhost:5001
 ```
 
 The image bakes in the recognizers itself — a check-digit-validated **VIN** recognizer and

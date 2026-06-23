@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 45_000
 const MASK_CONCURRENCY = 8
 
 /** Single Presidio sidecar serving both /analyze and /anonymize (VIN is native there). */
-const PRESIDIO_URL = env.PRESIDIO_URL || 'http://localhost:5001'
+const PII_URL = env.PII_URL || 'http://localhost:5001'
 
 export interface PIIValidationInput {
   text: string
@@ -56,7 +56,7 @@ async function analyze(
   const entities = entityTypes.length > 0 ? entityTypes : undefined
 
   // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
-  const response = await fetch(`${PRESIDIO_URL}/analyze`, {
+  const response = await fetch(`${PII_URL}/analyze`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, language, ...(entities ? { entities } : {}) }),
@@ -77,7 +77,7 @@ async function anonymize(text: string, spans: AnalyzerSpan[]): Promise<string> {
   if (spans.length === 0) return text
 
   // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
-  const response = await fetch(`${PRESIDIO_URL}/anonymize`, {
+  const response = await fetch(`${PII_URL}/anonymize`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, analyzer_results: spans }),
