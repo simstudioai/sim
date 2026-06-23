@@ -161,9 +161,6 @@ describe('assertRowCapacity', () => {
 })
 
 describe('notifyTableRowUsage — edge-crossing gate', () => {
-  // The notify (and its first billing lookup) fire synchronously when the gate
-  // passes, so asserting on the billed-account lookup is enough — no DB work
-  // happens unless the insert actually crosses a threshold.
   beforeEach(() => mockGetWorkspaceBilledAccountUserId.mockClear())
 
   it('fires when an insert crosses UP into the warn band (limit 5000)', () => {

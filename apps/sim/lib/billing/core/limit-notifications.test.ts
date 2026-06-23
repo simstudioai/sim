@@ -30,7 +30,6 @@ vi.mock('@sim/db', () => {
     set: () => updateBuilder,
     where: () => updateBuilder,
     returning: () => Promise.resolve(mockClaim()),
-    // Awaited directly by the re-arm path (no `.returning()`).
     then: (f: (v: unknown) => unknown, r?: (e: unknown) => unknown) =>
       Promise.resolve(undefined).then(f, r),
   }
@@ -40,7 +39,6 @@ vi.mock('@sim/db', () => {
     innerJoin: () => selectBuilder,
     leftJoin: () => selectBuilder,
     limit: () => Promise.resolve(mockSelectRows()),
-    // Awaited directly by the org-admins query (no `.limit()`).
     then: (f: (v: unknown) => unknown, r?: (e: unknown) => unknown) =>
       Promise.resolve(mockSelectRows()).then(f, r),
   }
@@ -81,8 +79,8 @@ describe('maybeSendLimitThresholdEmail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     billingFlag.enabled = true
-    mockClaim.mockReturnValue([{ id: 'u1' }]) // claim wins by default
-    mockSelectRows.mockReturnValue([]) // no settings row / no admins by default
+    mockClaim.mockReturnValue([{ id: 'u1' }])
+    mockSelectRows.mockReturnValue([])
     getEmailPreferencesMock.mockResolvedValue(null)
   })
 
@@ -100,8 +98,6 @@ describe('maybeSendLimitThresholdEmail', () => {
   })
 
   it('never sends in rearmOnly mode, even when usage is above a threshold', async () => {
-    // A storage shrink that still leaves usage at 90% must only re-arm, not send,
-    // even if the stored threshold is 0 (claim would otherwise win).
     await maybeSendLimitThresholdEmail({
       ...baseUserParams,
       currentUsage: 4.5,
@@ -113,14 +109,12 @@ describe('maybeSendLimitThresholdEmail', () => {
   })
 
   it('does not send when the atomic claim is lost (already notified)', async () => {
-    mockClaim.mockReturnValue([]) // someone else already advanced the threshold
+    mockClaim.mockReturnValue([])
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 
   it('claims without re-arming on a crossing (re-arm and claim are mutually exclusive)', async () => {
-    // 90% crossing: a single claim update, no re-arm — so there is no re-arm/claim
-    // interleaving for a concurrent caller to exploit into a duplicate email.
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(dbUpdateSpy).toHaveBeenCalledTimes(1)
     expect(mockClaim).toHaveBeenCalledTimes(1)
@@ -143,8 +137,6 @@ describe('maybeSendLimitThresholdEmail', () => {
     mockSelectRows.mockReturnValue([{ enabled: false }])
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(sendEmailSpy).not.toHaveBeenCalled()
-    // Recipient resolution gates the claim, so the threshold isn't advanced —
-    // re-enabling notifications later still lets the email fire.
     expect(mockClaim).not.toHaveBeenCalled()
   })
 
@@ -164,7 +156,7 @@ describe('maybeSendLimitThresholdEmail', () => {
 
   it('re-arms but does not send when usage is fully cleared (zero usage)', async () => {
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 0, limit: 5 })
-    expect(dbUpdateSpy).toHaveBeenCalledTimes(1) // re-arm only
+    expect(dbUpdateSpy).toHaveBeenCalledTimes(1)
     expect(mockClaim).not.toHaveBeenCalled()
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })

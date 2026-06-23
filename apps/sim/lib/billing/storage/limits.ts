@@ -101,8 +101,6 @@ export async function getUserStorageLimit(
       return limits.free
     }
 
-    // Org-scoped subs use pooled org-level storage. Custom limits come from the
-    // subscription metadata (already on `sub`); otherwise team/enterprise default.
     if (isOrgScopedSubscription(sub, userId)) {
       const metadata = sub.metadata as { customStorageLimitGB?: number } | null
       if (metadata?.customStorageLimitGB) {

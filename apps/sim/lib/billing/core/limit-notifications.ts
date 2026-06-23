@@ -290,8 +290,6 @@ export async function maybeNotifyLimit(params: {
         : params.subscription
     const isOrg = Boolean(sub && isOrgScopedSubscription(sub, params.billedUserId))
 
-    // Only the send path (user scope, not re-arm, at/above the warn band) needs
-    // the recipient's email — skip the read for the common far-from-limit case.
     const percent = params.limit > 0 ? (params.currentUsage / params.limit) * 100 : 0
     let userEmail: string | undefined
     let userName: string | undefined
