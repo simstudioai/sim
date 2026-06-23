@@ -100,7 +100,6 @@ export async function incrementStorageUsage(
     throw error
   }
 
-  // Fire-and-forget (errors swallowed internally) so the email never adds upload latency.
   if (workspaceId) {
     void maybeNotifyStorageLimit(userId, workspaceId)
   }
@@ -153,7 +152,6 @@ export async function decrementStorageUsage(
     throw error
   }
 
-  // Re-arm only: usage dropped, so this never sends.
   if (workspaceId) {
     void maybeNotifyStorageLimit(userId, workspaceId, true)
   }

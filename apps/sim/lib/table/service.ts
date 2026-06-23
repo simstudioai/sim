@@ -370,7 +370,6 @@ export async function createTable(
     throw error
   }
 
-  // Post-commit: starter rows landed, so notify here (a rolled-back create never emails).
   if (initialRowCount > 0 && rowLimit !== undefined) {
     notifyTableRowUsage({
       workspaceId: data.workspaceId,

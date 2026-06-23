@@ -152,15 +152,22 @@ async function resolveRecipients(
  * Send a usage-limit threshold email (80% warning / 100% reached) for a
  * non-credit category, edge-triggered on the mutation that changed usage.
  *
- * Dedup + re-arm: the highest threshold already emailed is persisted per
- * category on `user_stats` / `organization`. The send is gated on an atomic
- * {@link claimThreshold}, so a threshold emails exactly once per crossing even
- * under concurrent calls; it re-arms once usage drops below {@link REARM_BELOW}.
- * Best-effort — callers fire-and-forget; failures never block the mutation.
+ * Flow: bail when billing is off or the limit is non-positive; re-arm the
+ * persisted threshold when current usage is back in the low band; then (for
+ * increases) resolve eligible recipients and atomically claim the threshold
+ * before sending. Re-arm and claim are mutually exclusive per call — re-arm only
+ * fires when `desired === 0` — so the dedup stays a single atomic
+ * {@link claimThreshold} with no re-arm/claim interleaving race. Recipients are
+ * resolved with opt-outs applied BEFORE the claim, so an opted-out recipient
+ * never burns the threshold (which would suppress a later email once
+ * notifications are re-enabled). Per-recipient send failures are isolated.
  *
- * Mirrors the credits path in `maybeSendUsageThresholdEmail`: skips when billing
- * is disabled, respects the per-user notifications toggle and unsubscribe
- * preferences, and emails org admins for organization-scoped limits.
+ * The highest threshold already emailed is persisted per category on
+ * `user_stats` / `organization`; it re-arms once usage drops below
+ * {@link REARM_BELOW}. Best-effort — callers fire-and-forget; failures never
+ * block the mutation. Mirrors the credits path in `maybeSendUsageThresholdEmail`:
+ * respects the per-user notifications toggle and unsubscribe preferences, and
+ * emails org admins for organization-scoped limits.
  */
 export async function maybeSendLimitThresholdEmail(params: {
   category: LimitCategory
@@ -185,8 +192,6 @@ export async function maybeSendLimitThresholdEmail(params: {
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
-    // A non-positive limit can't yield a percentage; a zero/negative `currentUsage`
-    // still needs to re-arm below, so it is handled by the `desired === 0` return.
     if (params.limit <= 0) return
 
     const { category, scope } = params
@@ -196,20 +201,12 @@ export async function maybeSendLimitThresholdEmail(params: {
     const stateId = scope === 'user' ? params.userId : params.organizationId
     if (!stateId) return
 
-    // Re-arm when current usage is back in the low band, so a fresh climb re-notifies.
-    // Re-arm and claim are mutually exclusive (re-arm only when desired === 0), which
-    // keeps the dedup a single atomic claim with no re-arm/claim interleaving race.
     if (percent < REARM_BELOW) {
       await rearmThreshold(scope, stateId, category)
     }
 
-    // Usage-decrease callers re-arm only — a drop is never a fresh crossing to email.
     if (params.rearmOnly || desired === 0) return
 
-    // Resolve eligible recipients (opt-outs filtered) BEFORE claiming, so the
-    // dedup state only advances when an email will actually be sent — otherwise
-    // an opted-out recipient would silently burn the threshold and suppress a
-    // later email after notifications are re-enabled.
     const recipients = await resolveRecipients(scope, params)
     if (recipients.length === 0) return
 
@@ -221,7 +218,6 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     let sent = 0
     for (const r of recipients) {
-      // Isolate per-recipient failures so one bad send doesn't skip the rest.
       try {
         const html = await renderLimitThresholdEmail({
           kind,

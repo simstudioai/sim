@@ -46,16 +46,18 @@ async function maybeNotifyTableRowLimit(
 
 /**
  * Fire-and-forget the table row-limit threshold email for an accepted insert,
- * gated so only near-limit writes pay the cost. Shared by every insert path
- * ({@link assertRowCapacity} and the transactional upsert/import branches that
- * check capacity with {@link wouldExceedRowLimit} instead). Pass the pre-insert
- * `currentRowCount` and `addedRows` so the projected count drives the notify gate.
+ * gated (>= {@link TABLE_ROW_NOTIFY_PERCENT}) so only near-limit writes pay the
+ * cost. Shared by every insert path ({@link assertRowCapacity} and the
+ * transactional upsert/import branches that check capacity with
+ * {@link wouldExceedRowLimit} instead). Pass the pre-insert `currentRowCount` and
+ * `addedRows` so the projected count drives the gate.
  *
- * Re-arm (allowing a fresh warning) happens on any insert that lands the table
- * back below the re-arm band. Deleting straight below the band and then jumping
- * back over a threshold in a single insert (with no intermediate write) is a
- * best-effort gap — the 100% reached email and first-time crossings are
- * unaffected. This keeps the dedup a single atomic claim with no re-arm/claim race.
+ * Because the gate only fires at/above the warn band, tables warn once per
+ * threshold and do not re-arm: a table that hit a threshold then dropped (via
+ * deletes, which have no notify hook) won't re-warn on a later climb. This is a
+ * deliberate trade-off — re-arm is storage-only (via its decrement hook), which
+ * avoids per-delete billing-table reads. The 100% reached and first-time
+ * crossings are unaffected, and the dedup stays a single atomic claim (no race).
  */
 export function notifyTableRowUsage(params: {
   workspaceId: string

@@ -144,7 +144,6 @@ export async function insertRow(
     now,
   })
 
-  // Post-commit: a pre-commit notify would email/burn the dedup claim for a rolled-back insert.
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
@@ -209,7 +208,6 @@ export async function batchInsertRows(
   })
 
   const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
-  // Post-commit: notify with the actual inserted count, so a rolled-back batch never emails.
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
@@ -370,7 +368,6 @@ export async function replaceTableRows(
     addedRows: data.rows.length,
   })
   const result = await db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
-  // Post-commit: footprint is the new set (prior rows deleted → prior count 0).
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: 0,
@@ -697,7 +694,6 @@ export async function upsertRow(
   )
 
   if (result.operation === 'insert') {
-    // assertRowCapacity can't run inside the upsert tx, so notify here post-commit.
     notifyTableRowUsage({
       workspaceId: data.workspaceId,
       currentRowCount: table.rowCount,

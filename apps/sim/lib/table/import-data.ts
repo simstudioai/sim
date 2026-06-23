@@ -179,7 +179,6 @@ export async function importAppendRows(
     }
     return { inserted, table: working }
   })
-  // Post-commit: a pre-commit notify would email/burn the claim for a rolled-back import.
   notifyTableRowUsage({
     workspaceId: ctx.workspaceId,
     currentRowCount: table.rowCount,
@@ -219,7 +218,6 @@ export async function importReplaceRows(
       requestId
     )
   })
-  // Post-commit: footprint is the new set (prior rows deleted → prior count 0).
   notifyTableRowUsage({
     workspaceId: data.workspaceId,
     currentRowCount: 0,

@@ -217,7 +217,6 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         { ...table, schema },
         requestId
       )
-      // Post-commit (per batch): pre-batch count as prior, actual inserted as the delta.
       notifyTableRowUsage({
         workspaceId,
         currentRowCount: existingRowCount + inserted,

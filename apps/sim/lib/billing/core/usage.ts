@@ -841,8 +841,6 @@ export async function maybeSendUsageThresholdEmail(params: {
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
 
-    // Live deep-links. Without a workspaceId, fall back to `/workspace` (resolves
-    // to the user's default workspace) rather than a dropped query param.
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}/workspace`
