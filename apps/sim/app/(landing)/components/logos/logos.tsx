@@ -9,7 +9,7 @@ import { cn } from '@/lib/core/utils/cn'
  * optical sizing, and the `gap-x-24` horizontal rhythm identical everywhere.
  *
  * Optical sizing, not box-fitting. These wordmarks differ enormously in aspect
- * ratio (Volvo ≈ 7:1, Rivian|VW ≈ 11:1, eXp ≈ 2:1) and in how much of their own
+ * ratio (Rivian|VW ≈ 11:1, eXp ≈ 2:1, Mobile Health ≈ 8:1) and in how much of their own
  * viewBox the ink fills, so a single fixed slot makes them read at wildly
  * different sizes. Each logo carries its own optically-tuned {@link Logo.height}
  * — the single knob for balancing them by eye — and renders at its intrinsic
@@ -32,22 +32,32 @@ interface Logo {
   height: number
 }
 
-/** The canonical six customer wordmarks, in row-major reading order. */
+/**
+ * The canonical six customer wordmarks, in row-major reading order — the 3×2
+ * hero grid places them as: Rivian|VW (top-left), eXp Realty (top-center),
+ * Russell (top-right); Artie (bottom-left), thinkproject (bottom-center),
+ * Mobile Health (bottom-right).
+ */
 const LOGOS: readonly Logo[] = [
-  { name: 'Volvo', src: '/landing/logos/volvo.svg', aspect: 7.27, height: 14 },
-  { name: 'eXp Realty', src: '/landing/logos/exp-realty.svg', aspect: 1.84, height: 28 },
   {
     name: 'Rivian | Volkswagen Group Technologies',
     src: '/landing/logos/rivian-vw.svg',
     aspect: 10.72,
-    height: 15,
+    height: 17,
   },
-  { name: 'Artie', src: '/landing/logos/artie.svg', aspect: 3.65, height: 24 },
+  { name: 'eXp Realty', src: '/landing/logos/exp-realty.svg', aspect: 1.84, height: 28 },
   {
     name: 'Russell Investments',
     src: '/landing/logos/russell-investments.svg',
     aspect: 4.29,
     height: 21,
+  },
+  { name: 'Artie', src: '/landing/logos/artie.svg', aspect: 3.65, height: 24 },
+  {
+    name: 'thinkproject',
+    src: '/landing/logos/thinkproject.svg',
+    aspect: 6.01,
+    height: 18,
   },
   {
     name: 'Mobile Health Consumer',
