@@ -226,6 +226,7 @@ import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
 import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
 import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
+import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
@@ -530,6 +531,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
   persona: PersonaBlock,
+  pi: PiBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   polymarket: PolymarketBlock,

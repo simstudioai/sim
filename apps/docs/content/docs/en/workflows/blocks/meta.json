@@ -2,6 +2,7 @@
   "title": "Core Blocks",
   "pages": [
     "agent",
+    "pi",
     "api",
     "function",
     "condition",

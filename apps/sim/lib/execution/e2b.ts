@@ -107,7 +107,7 @@ async function writeSandboxInputs(
   })
 }
 
-async function createE2BSandbox(kind: 'code' | 'shell' | 'doc'): Promise<E2BSandbox> {
+async function createE2BSandbox(kind: 'code' | 'shell' | 'doc' | 'pi'): Promise<E2BSandbox> {
   const apiKey = env.E2B_API_KEY
   if (!apiKey) {
     throw new Error('E2B_API_KEY is required when E2B is enabled')
@@ -120,8 +120,18 @@ async function createE2BSandbox(kind: 'code' | 'shell' | 'doc'): Promise<E2BSand
   if (kind === 'doc' && !env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID) {
     throw new Error('Document compiler not configured (MOTHERSHIP_E2B_DOC_TEMPLATE_ID is unset)')
   }
+  // Pi fails closed for the same reason: the coding agent needs the Pi CLI + git
+  // baked into a vetted template, never E2B's default image.
+  if (kind === 'pi' && !env.E2B_PI_TEMPLATE_ID) {
+    throw new Error('Pi cloud agent not configured (E2B_PI_TEMPLATE_ID is unset)')
+  }
+
   const templateName =
-    kind === 'doc' ? env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID : env.MOTHERSHIP_E2B_TEMPLATE_ID
+    kind === 'doc'
+      ? env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID
+      : kind === 'pi'
+        ? env.E2B_PI_TEMPLATE_ID
+        : env.MOTHERSHIP_E2B_TEMPLATE_ID
   logger.info('Creating E2B sandbox', {
     kind,
     template: templateName || '(default)',
@@ -377,6 +387,87 @@ export async function executeShellInE2B(
       exportedFileContent,
       exportedFiles: Object.keys(exportedFiles).length ? exportedFiles : undefined,
     }
+  } finally {
+    try {
+      await sandbox.kill()
+    } catch {}
+  }
+}
+
+const PI_SANDBOX_PATH =
+  '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin'
+
+/** Result of one command run inside a Pi sandbox. */
+export interface PiSandboxCommandResult {
+  stdout: string
+  stderr: string
+  exitCode: number
+}
+
+/** Runs commands and moves files inside a live Pi sandbox. */
+export interface PiSandboxRunner {
+  run(
+    command: string,
+    options: {
+      envs?: Record<string, string>
+      timeoutMs: number
+      onStdout?: (chunk: string) => void
+      onStderr?: (chunk: string) => void
+    }
+  ): Promise<PiSandboxCommandResult>
+  readFile(path: string): Promise<string>
+  /**
+   * Writes a file via the sandbox filesystem API. Bytes go through the E2B SDK,
+   * never a shell, so untrusted content (the assembled prompt, a commit message)
+   * is delivered without any shell parsing — callers reference it by a fixed path.
+   */
+  writeFile(path: string, content: string): Promise<void>
+}
+
+/**
+ * Creates a Pi sandbox, keeps it alive for the duration of `fn` (so the cloned
+ * repo persists across the clone -> agent -> push commands), streams command
+ * output, and always kills the sandbox afterward. Per-command envs are isolated,
+ * so secrets handed to one command never leak into the next.
+ */
+export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<T>): Promise<T> {
+  const sandbox = await createE2BSandbox('pi')
+  const sandboxId = sandbox.sandboxId
+  logger.info('Started Pi sandbox', { sandboxId })
+
+  const runner: PiSandboxRunner = {
+    run: async (command, options) => {
+      try {
+        const result = await sandbox.commands.run(command, {
+          envs: { ...(options.envs ?? {}), PATH: PI_SANDBOX_PATH },
+          timeoutMs: options.timeoutMs,
+          user: 'root',
+          onStdout: options.onStdout,
+          onStderr: options.onStderr,
+        })
+        return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
+      } catch (error) {
+        const failure = error as {
+          stdout?: string
+          stderr?: string
+          message?: string
+          exitCode?: number
+        }
+        return {
+          stdout: failure.stdout ?? '',
+          stderr: failure.stderr ?? failure.message ?? getErrorMessage(error),
+          exitCode: failure.exitCode ?? 1,
+        }
+      }
+    },
+    readFile: (path) => sandbox.files.read(path),
+    writeFile: async (path, content) => {
+      await sandbox.files.write(path, content)
+    },
+  }
+
+  try {
+    return await fn(runner)
   } finally {
     try {
       await sandbox.kill()

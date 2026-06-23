@@ -56,7 +56,7 @@ export default defineConfig({
   dirs: ['./background'],
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
-    external: ['isolated-vm'],
+    external: ['isolated-vm', '@earendil-works/pi-coding-agent'],
     extensions: [
       additionalFiles({
         files: [
@@ -67,7 +67,13 @@ export default defineConfig({
         ],
       }),
       additionalPackages({
-        packages: ['unpdf', 'isolated-vm', 'react-dom', '@react-email/render'],
+        packages: [
+          'unpdf',
+          'isolated-vm',
+          'react-dom',
+          '@react-email/render',
+          '@earendil-works/pi-coding-agent',
+        ],
       }),
     ],
   },
