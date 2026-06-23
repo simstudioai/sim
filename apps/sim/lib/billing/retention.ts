@@ -1,5 +1,5 @@
 import type { DataRetentionSettings } from '@sim/db/schema'
-import { DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
+import { coercePiiLanguage, DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
 
 export interface EffectivePiiRedaction {
   enabled: boolean
@@ -38,6 +38,6 @@ export function resolveEffectivePiiRedaction(params: {
     ? rule.entityTypes.filter((t): t is string => typeof t === 'string')
     : []
   if (types.length === 0) return DEFAULT_PII_REDACTION
-  const language = typeof rule?.language === 'string' ? rule.language : DEFAULT_PII_LANGUAGE
+  const language = coercePiiLanguage(rule?.language) ?? DEFAULT_PII_LANGUAGE
   return { enabled: true, entityTypes: types, language }
 }

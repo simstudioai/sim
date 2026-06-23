@@ -145,3 +145,14 @@ export const PII_LANGUAGE_CODES = PII_LANGUAGES.map((l) => l.value) as [
 
 /** Default redaction language when a rule doesn't set one. */
 export const DEFAULT_PII_LANGUAGE: PIILanguage = 'en'
+
+/**
+ * Narrow a loosely-typed (stored/legacy) language to a supported code. Unknown or
+ * stale values (e.g. a dropped locale) return `undefined` so callers fall back to
+ * the default rather than forwarding an unsupported language to Presidio.
+ */
+export function coercePiiLanguage(value: string | undefined): PIILanguage | undefined {
+  return value && (PII_LANGUAGE_CODES as readonly string[]).includes(value)
+    ? (value as PIILanguage)
+    : undefined
+}

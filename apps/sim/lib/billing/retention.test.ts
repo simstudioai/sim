@@ -46,6 +46,16 @@ describe('resolveEffectivePiiRedaction', () => {
     expect(result).toEqual({ enabled: true, entityTypes: ['ES_NIF'], language: 'es' })
   })
 
+  it('falls back to en when a stored language is unsupported/stale', () => {
+    const result = resolveEffectivePiiRedaction({
+      orgSettings: settings([
+        { id: 'r-de', entityTypes: ['EMAIL_ADDRESS'], workspaceId: 'ws-1', language: 'de' },
+      ]),
+      workspaceId: 'ws-1',
+    })
+    expect(result).toEqual({ enabled: true, entityTypes: ['EMAIL_ADDRESS'], language: 'en' })
+  })
+
   it('exempts a workspace when its specific rule has no entity types', () => {
     const result = resolveEffectivePiiRedaction({
       orgSettings: settings([allRule, { id: 'r-1', entityTypes: [], workspaceId: 'ws-1' }]),
