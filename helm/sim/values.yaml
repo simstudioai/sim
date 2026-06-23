@@ -847,6 +847,12 @@ pii:
   # Environment variables for the sidecar container
   env: {}
 
+  # Node scheduling. nodeSelector pins the (memory-heavy, ~4Gi) sidecar to a
+  # node pool; tolerations are inherited from the top-level `tolerations` key
+  # (shared with app/realtime), and topologySpreadConstraints spreads replicas.
+  nodeSelector: {}
+  topologySpreadConstraints: []
+
   # Service configuration
   service:
     type: ClusterIP

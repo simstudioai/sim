@@ -71,3 +71,57 @@ tests:
           content:
             name: PII_URL
             value: "http://evil-pii:5001"
+
+  - it: app NetworkPolicy allows egress to the PII sidecar
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      pii.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: t-sim-app
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    app.kubernetes.io/component: pii
+            ports:
+              - protocol: TCP
+                port: 5001
+
+  - it: renders a dedicated NetworkPolicy for the PII sidecar
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      pii.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: t-sim-pii
+    asserts:
+      - isKind: { of: NetworkPolicy }
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: pii
+
+  - it: pii pod inherits global tolerations (not component-scoped)
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: pii
+          effect: NoSchedule
+    asserts:
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            key: dedicated
+            operator: Equal
+            value: pii
+            effect: NoSchedule

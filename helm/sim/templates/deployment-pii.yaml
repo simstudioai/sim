@@ -33,8 +33,9 @@ spec:
       automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.pii | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.pii | nindent 6 }}
-      {{- include "sim.tolerations" .Values.pii | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.pii | nindent 6 }}
       containers:
         - name: pii
           image: {{ include "sim.image" (dict "imageRoot" .Values.pii.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}

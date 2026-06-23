@@ -767,7 +767,17 @@
             "port": { "type": "integer" },
             "targetPort": { "type": "integer" }
           }
-        }
+        },
+        "env": { "type": "object" },
+        "nodeSelector": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+        "podSecurityContext": { "type": "object" },
+        "securityContext": { "type": "object" },
+        "startupProbe": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } }
       }
     },
     "telemetry": {
