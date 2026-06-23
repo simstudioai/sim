@@ -28,9 +28,10 @@ import { Logos } from '@/app/(landing)/components/logos'
  * The headline is split across two lines with a hard break; the reading-order
  * text content is unaffected.
  *
- * The section is sized to exactly one fold — `min-h-[calc(100vh-62px)]`, the
- * viewport minus the 62px navbar — so the two absolute panels can anchor to its
- * top and bottom and stay on-screen.
+ * The section fills one fold — `calc(100vh-62px)`, the viewport minus the 62px
+ * navbar — but capped at `960px` (`h-[min(…)]`) so on very tall monitors the
+ * panels and bottom-anchored logos stay proportioned instead of stretching; the
+ * two absolute panels anchor to its top and bottom.
  *
  * The right-hand visual panel holds the {@link HeroVisual} — a looping,
  * `aria-hidden` product demo and the page's only client island. It is absolutely
@@ -48,9 +49,9 @@ import { Logos } from '@/app/(landing)/components/logos'
  * The shared {@link Logos} grid (the same logo set every platform and solutions
  * page uses) sits in a bottom-anchored panel that mirrors the visual panel on
  * the left half (`left-12` → `right-1/2`, same `top-8 bottom-8` frame).
- * `flex flex-col justify-end` pins the group to the bottom, then `pb-20` lifts it
- * 80px up — so the logos rest 112px above the section bottom, mirroring the hero
- * text's 112px from the top (not flush with the visual panel). A `text-sm` muted "Trusted by technical
+ * `flex flex-col justify-end` pins the grid to the bottom of that frame, so the
+ * logos' bottom edge lines up exactly with the visual panel's bottom edge (both
+ * rest on the shared `bottom-8` line). A `text-sm` muted "Trusted by technical
  * teams at" label (navbar text size) sits `gap-[22px]` above the grid — the
  * hero's block rhythm. The frame overlays the text column, so it is
  * `pointer-events-none`.
@@ -62,7 +63,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-xl:min-h-0 max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4'
+      className='relative mx-auto flex h-[min(calc(100vh-62px),960px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-xl:h-auto max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -98,7 +99,7 @@ export function Hero() {
         <HeroVisual />
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0'>
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full'>
         <div className='flex flex-col gap-[22px]'>
           <p className='text-sm text-[var(--text-muted)]'>Trusted by technical teams at</p>
           <Logos layout='grid' />
