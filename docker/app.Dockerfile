@@ -81,6 +81,13 @@ RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.nex
     --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
     bun run build
 
+# Bundle the secrets-loading bootstrap into a self-contained entrypoint. It runs
+# before (and outside) the Next standalone server, so its dependencies
+# (@sim/runtime-secrets, AWS SDK) are inlined here rather than resolved from the
+# pruned standalone node_modules. The dynamic import of ./server.js stays a
+# runtime import.
+RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
+
 # ========================================
 # Runner Stage: Run the actual app
 # ========================================
@@ -99,6 +106,10 @@ RUN groupadd -g 1001 nodejs && \
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
+
+# Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
+# before the standalone server.js to hydrate process.env from the runtime secret.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
 
 # Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content
@@ -128,4 +139,4 @@ EXPOSE 3000
 ENV PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-CMD ["bun", "apps/sim/server.js"]
+CMD ["bun", "apps/sim/bootstrap.js"]

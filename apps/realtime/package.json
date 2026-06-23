@@ -20,12 +20,14 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "3.1032.0",
     "@sim/audit": "workspace:*",
     "@sim/auth": "workspace:*",
     "@sim/db": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/platform-authz": "workspace:*",
     "@sim/realtime-protocol": "workspace:*",
+    "@sim/runtime-secrets": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",
