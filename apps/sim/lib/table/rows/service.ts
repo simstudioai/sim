@@ -20,6 +20,7 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   assertRowCapacity,
   getMaxRowsPerTable,
+  notifyTableRowUsage,
   TableRowLimitError,
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
@@ -673,6 +674,13 @@ export async function upsertRow(
   )
 
   if (result.operation === 'insert') {
+    // assertRowCapacity can't run inside the upsert tx, so notify here post-commit.
+    notifyTableRowUsage({
+      workspaceId: data.workspaceId,
+      currentRowCount: table.rowCount,
+      addedRows: 1,
+      limit: rowLimit,
+    })
     void fireTableTrigger(
       data.tableId,
       table.name,

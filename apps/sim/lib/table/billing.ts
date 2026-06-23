@@ -47,6 +47,31 @@ async function maybeNotifyTableRowLimit(
 }
 
 /**
+ * Fire-and-forget the table row-limit threshold email for an accepted insert,
+ * gated so only near-limit writes pay the cost. Shared by every insert path
+ * ({@link assertRowCapacity} and the transactional upsert/import branches that
+ * check capacity with {@link wouldExceedRowLimit} instead). Pass the pre-insert
+ * `currentRowCount` so a delete-then-insert jump re-arms correctly.
+ */
+export function notifyTableRowUsage(params: {
+  workspaceId: string
+  currentRowCount: number
+  addedRows: number
+  limit: number
+}): void {
+  if (params.limit <= 0) return
+  const projected = params.currentRowCount + params.addedRows
+  if ((projected / params.limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
+    void maybeNotifyTableRowLimit(
+      params.workspaceId,
+      params.currentRowCount,
+      projected,
+      params.limit
+    )
+  }
+}
+
+/**
  * Plan lookups hit billing + subscription tables (2-3 queries). Row-limit checks
  * run on every insert, so a short TTL keeps the hot path off the DB. Plan changes
  * are rare and enforcement is best-effort, so brief staleness is acceptable.
@@ -179,12 +204,12 @@ export async function assertRowCapacity(params: {
   }
 
   // Accepted write: warn (best-effort) once the table crosses the notify band.
-  if (limit > 0) {
-    const projected = params.currentRowCount + params.addedRows
-    if ((projected / limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
-      void maybeNotifyTableRowLimit(params.workspaceId, params.currentRowCount, projected, limit)
-    }
-  }
+  notifyTableRowUsage({
+    workspaceId: params.workspaceId,
+    currentRowCount: params.currentRowCount,
+    addedRows: params.addedRows,
+    limit,
+  })
 }
 
 /**
