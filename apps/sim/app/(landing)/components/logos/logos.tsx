@@ -20,6 +20,9 @@ import { cn } from '@/lib/core/utils/cn'
 /** Horizontal gap between bare wordmarks in the `row` layout — the canonical 96px rhythm. */
 const LOGO_GAP_X = 'gap-x-24'
 
+/** In the hero card grid the wordmarks render a touch smaller than their optical row size. */
+const GRID_ICON_SCALE = 0.85
+
 /** A single customer wordmark with the dimensions that keep it optically balanced. */
 interface Logo {
   /** Accessible company name, used as the image `alt`. */
@@ -72,7 +75,8 @@ interface LogosProps {
    * Layout intent.
    * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
    *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
-   *   `h-20`) on a responsive 3-up grid (2-up on phones) at a `gap-3` rhythm.
+   *   `h-[100px]`) on a responsive 3-up grid (2-up on phones) at a `gap-3` rhythm.
+   *   Wordmarks render at {@link GRID_ICON_SCALE} of their optical row size.
    * - `row` — the platform page's single centered row of bare wordmarks.
    */
   layout: 'grid' | 'row'
@@ -80,10 +84,11 @@ interface LogosProps {
 
 /**
  * Renders the shared customer logos. In the `grid` layout each wordmark is boxed
- * in a bordered `--surface-1` card (the platform card chrome) on a 3-up grid; in
- * the `row` layout the bare wordmarks wrap in a centered row. Every logo keeps
- * its optical {@link Logo.height}, scaling down to fit its card when it would
- * otherwise overflow (`max-w-full h-auto`), so wide marks never break the box.
+ * in a bordered `--surface-1` card (the platform card chrome) on a 3-up grid and
+ * renders at {@link GRID_ICON_SCALE} of its optical size; in the `row` layout the
+ * bare wordmarks wrap at full optical size in a centered row. Either way a logo
+ * scales down to fit when it would otherwise overflow (`max-w-full h-auto`), so
+ * wide marks never break the box.
  */
 export function Logos({ layout }: LogosProps) {
   const isGrid = layout === 'grid'
@@ -96,23 +101,26 @@ export function Logos({ layout }: LogosProps) {
           : cn('flex flex-wrap items-center justify-center gap-y-12', LOGO_GAP_X)
       )}
     >
-      {LOGOS.map((logo) => (
-        <li
-          key={logo.name}
-          className={cn(
-            isGrid &&
-              'flex h-20 items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-4'
-          )}
-        >
-          <Image
-            src={logo.src}
-            alt={logo.name}
-            height={logo.height}
-            width={Math.round(logo.height * logo.aspect)}
-            className={cn('grayscale', isGrid && 'h-auto max-w-full object-contain')}
-          />
-        </li>
-      ))}
+      {LOGOS.map((logo) => {
+        const height = isGrid ? Math.round(logo.height * GRID_ICON_SCALE) : logo.height
+        return (
+          <li
+            key={logo.name}
+            className={cn(
+              isGrid &&
+                'flex h-[100px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-4'
+            )}
+          >
+            <Image
+              src={logo.src}
+              alt={logo.name}
+              height={height}
+              width={Math.round(height * logo.aspect)}
+              className={cn('grayscale', isGrid && 'h-auto max-w-full object-contain')}
+            />
+          </li>
+        )
+      })}
     </ul>
   )
 }
