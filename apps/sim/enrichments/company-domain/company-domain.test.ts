@@ -22,7 +22,7 @@ describe('company-domain enrichment cascade', () => {
     const p = provider('pdl')
     it('matches by name and normalizes the returned website', () => {
       expect(p.toolId).toBe('pdl_company_enrich')
-      expect(p.buildParams(nameInput)).toEqual({ name: 'Acme Inc' })
+      expect(p.buildParams(nameInput)).toEqual({ name: 'Acme Inc', required: 'website' })
       expect(p.buildParams({ companyName: '' })).toBeNull()
       expect(p.mapOutput({ company: { website: 'https://www.acme.com' } })).toEqual({
         domain: 'acme.com',

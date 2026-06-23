@@ -21,7 +21,9 @@ export const companyDomainEnrichment: EnrichmentConfig = {
       buildParams: (inputs) => {
         const name = str(inputs.companyName)
         if (!name) return null
-        return { name }
+        // `required` makes PDL 404 (free) when the match has no website,
+        // instead of charging a credit for a match we'd discard as a no-match.
+        return { name, required: 'website' }
       },
       mapOutput: (output) => {
         const company = output.company as Record<string, unknown> | undefined
