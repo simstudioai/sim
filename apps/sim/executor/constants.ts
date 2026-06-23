@@ -8,6 +8,9 @@ import type { LoopType, ParallelType } from '@/lib/workflows/types'
 export const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
 export type TriggerInternalKey = (typeof TRIGGER_INTERNAL_KEYS)[number]
 
+/**
+ * Checks whether a trigger output key is reserved for executor-internal metadata.
+ */
 export function isTriggerInternalKey(key: string): key is TriggerInternalKey {
   return TRIGGER_INTERNAL_KEYS.includes(key as TriggerInternalKey)
 }
