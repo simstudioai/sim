@@ -88,6 +88,8 @@ jobs:
             ecr_repo_secret: ECR_MIGRATIONS
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
+          - dockerfile: ./docker/pii.Dockerfile
+            ecr_repo_secret: ECR_PII
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -115,7 +117,7 @@ jobs:
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
         env:
-          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Build and push
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
@@ -153,6 +155,10 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
+          # pii is ECR-only (private ECS sidecar) — no ghcr_image, so the tag
+          # step below skips GHCR for it.
+          - dockerfile: ./docker/pii.Dockerfile
+            ecr_repo_secret: ECR_PII
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -188,7 +194,7 @@ jobs:
         id: ecr-repo
         run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
         env:
-          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
       - name: Generate tags
         id: meta
@@ -206,7 +212,7 @@ jobs:
 
           TAGS="${ECR_IMAGE}"
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
             GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
             GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
