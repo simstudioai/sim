@@ -51,8 +51,6 @@ export const SUPPORTED_PII_ENTITIES = {
   IN_VOTER: 'Indian voter ID',
   IN_PASSPORT: 'Indian passport',
   FI_PERSONAL_IDENTITY_CODE: 'Finnish Personal Identity Code',
-  KR_RRN: 'Korean Resident Registration Number',
-  TH_TNIN: 'Thai National ID Number',
 } as const
 
 export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
@@ -115,8 +113,6 @@ export const PII_ENTITY_GROUPS: ReadonlyArray<{
       'IN_VOTER',
       'IN_PASSPORT',
       'FI_PERSONAL_IDENTITY_CODE',
-      'KR_RRN',
-      'TH_TNIN',
     ],
   },
 ].map((group) => ({
@@ -126,3 +122,37 @@ export const PII_ENTITY_GROUPS: ReadonlyArray<{
     label: SUPPORTED_PII_ENTITIES[value as PIIEntityType],
   })),
 }))
+
+/**
+ * Languages the Presidio image has NLP models for. The analyzer only recognizes a
+ * language's entities when its model is loaded, so this set must match the image.
+ */
+export const PII_LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pl', label: 'Polish' },
+  { value: 'fi', label: 'Finnish' },
+] as const
+
+export type PIILanguage = (typeof PII_LANGUAGES)[number]['value']
+
+/** Non-empty tuple of language codes for schema/enum use. */
+export const PII_LANGUAGE_CODES = PII_LANGUAGES.map((l) => l.value) as [
+  PIILanguage,
+  ...PIILanguage[],
+]
+
+/** Default redaction language when a rule doesn't set one. */
+export const DEFAULT_PII_LANGUAGE: PIILanguage = 'en'
+
+/**
+ * Narrow a loosely-typed (stored/legacy) language to a supported code. Unknown or
+ * stale values (e.g. a dropped locale) return `undefined` so callers fall back to
+ * the default rather than forwarding an unsupported language to Presidio.
+ */
+export function coercePiiLanguage(value: string | undefined): PIILanguage | undefined {
+  return value && (PII_LANGUAGE_CODES as readonly string[]).includes(value)
+    ? (value as PIILanguage)
+    : undefined
+}

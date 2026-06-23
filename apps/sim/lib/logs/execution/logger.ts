@@ -620,7 +620,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
     if (!config.enabled) return payload
 
-    return redactPIIFromExecution(payload, { entityTypes: config.entityTypes })
+    return redactPIIFromExecution(payload, {
+      entityTypes: config.entityTypes,
+      language: config.language,
+    })
   }
 
   async completeWorkflowExecution(params: {
