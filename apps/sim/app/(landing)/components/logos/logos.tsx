@@ -72,7 +72,7 @@ interface LogosProps {
    * Layout intent.
    * - `grid` — the hero's logo wall: each wordmark sits in its own bordered
    *   `--surface-1` card (the platform card chrome — `rounded-lg`, `--border-1`,
-   *   100px tall) on a responsive 3-up grid (2-up on phones) at a `gap-5` rhythm.
+   *   `h-20`) on a responsive 3-up grid (2-up on phones) at a `gap-3` rhythm.
    * - `row` — the platform page's single centered row of bare wordmarks.
    */
   layout: 'grid' | 'row'
@@ -92,7 +92,7 @@ export function Logos({ layout }: LogosProps) {
       aria-label='Companies building AI agents with Sim'
       className={cn(
         isGrid
-          ? 'grid grid-cols-3 gap-5 max-sm:grid-cols-2'
+          ? 'grid grid-cols-3 gap-3 max-sm:grid-cols-2'
           : cn('flex flex-wrap items-center justify-center gap-y-12', LOGO_GAP_X)
       )}
     >
@@ -101,7 +101,7 @@ export function Logos({ layout }: LogosProps) {
           key={logo.name}
           className={cn(
             isGrid &&
-              'flex h-[100px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-6'
+              'flex h-20 items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-4'
           )}
         >
           <Image

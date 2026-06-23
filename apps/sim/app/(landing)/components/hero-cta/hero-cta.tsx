@@ -9,9 +9,10 @@ import { ChipLink } from '@/components/emcn'
  * The email bar is a no-background input shell — `border-[var(--border-1)]` (the
  * field border) — wrapping a transparent 16px `<input>` and the "Book a demo"
  * action `gap-2` apart; its `pl-3` text gutter and tighter `pr-[5px]` tuck that
- * button evenly into the right corner. Its radius is `rounded-lg` (8px) — the
- * same corner as the navbar chips and the standalone "Sign up" chip, so every
- * CTA shares one radius; the inset "Book a demo" chip carries the same `rounded-lg`.
+ * button evenly into the right corner. Its radius is `rounded-[13px]` —
+ * concentric with the inset `rounded-lg` (8px) "Book a demo" chip: outer = inner
+ * + the ~5px inset, so the right corners nest cleanly instead of crossing. (A
+ * field that wraps an inset action is meant to be a touch rounder than a bare chip.)
  *
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`) and
@@ -29,7 +30,7 @@ import { ChipLink } from '@/components/emcn'
 export function HeroCta() {
   return (
     <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
-      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[5px] pl-3 max-sm:w-full'>
+      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3 max-sm:w-full'>
         <input
           type='email'
           aria-label='Email address'
