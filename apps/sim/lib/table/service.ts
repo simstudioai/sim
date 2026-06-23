@@ -15,7 +15,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
-import { assertRowCapacity } from '@/lib/table/billing'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
@@ -285,8 +285,9 @@ export async function createTable(
   // Starter rows count against the plan too. Checked before the tx (the lookup is a
   // separate pool read) — a new table starts empty, so the footprint is just these.
   const initialRowCount = data.initialRowCount ?? 0
+  let rowLimit: number | undefined
   if (initialRowCount > 0) {
-    await assertRowCapacity({
+    rowLimit = await assertRowCapacity({
       workspaceId: data.workspaceId,
       currentRowCount: 0,
       addedRows: initialRowCount,
@@ -367,6 +368,15 @@ export async function createTable(
       throw new TableConflictError(data.name)
     }
     throw error
+  }
+
+  if (initialRowCount > 0 && rowLimit !== undefined) {
+    notifyTableRowUsage({
+      workspaceId: data.workspaceId,
+      currentRowCount: 0,
+      addedRows: initialRowCount,
+      limit: rowLimit,
+    })
   }
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)

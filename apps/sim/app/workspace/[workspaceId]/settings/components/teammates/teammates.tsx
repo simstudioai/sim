@@ -24,6 +24,7 @@ import {
   workspaceRoleLockReason,
 } from '@/components/permissions'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import {
   MemberRow,
   MemberSection,
@@ -105,7 +106,7 @@ export function Teammates() {
   const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
 
-  const upgradeHref = `/workspace/${workspaceId}/upgrade`
+  const upgradeHref = buildUpgradeHref(workspaceId, 'seats')
 
   /**
    * Warm the Upgrade route bundle and the queries it gates on, so a gated

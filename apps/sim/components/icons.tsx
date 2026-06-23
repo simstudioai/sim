@@ -5300,22 +5300,12 @@ export function SmtpIcon(props: SVGProps<SVGSVGElement>) {
 
 export function PiIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      {...props}
-      xmlns='http://www.w3.org/2000/svg'
-      width='24'
-      height='24'
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-    >
-      <rect x='2' y='3' width='20' height='18' rx='2' />
-      <path d='M7 9h10' />
-      <path d='M10 9v7' />
-      <path d='M15 9v7' />
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800' fill='currentColor'>
+      <path
+        fillRule='evenodd'
+        d='M165.29 165.29 H517.36 V400 H400 V517.36 H282.65 V634.72 H165.29 Z M282.65 282.65 V400 H400 V282.65 Z'
+      />
+      <path d='M517.36 400 H634.72 V634.72 H517.36 Z' />
     </svg>
   )
 }

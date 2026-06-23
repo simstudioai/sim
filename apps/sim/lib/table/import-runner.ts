@@ -17,7 +17,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
-import { assertRowCapacity } from '@/lib/table/billing'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -200,7 +200,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
-      await assertRowCapacity({
+      const rowLimit = await assertRowCapacity({
         workspaceId,
         currentRowCount: existingRowCount + inserted,
         addedRows: coerced.length,
@@ -217,6 +217,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         { ...table, schema },
         requestId
       )
+      notifyTableRowUsage({
+        workspaceId,
+        currentRowCount: existingRowCount + inserted,
+        addedRows: result.inserted,
+        limit: rowLimit,
+      })
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
