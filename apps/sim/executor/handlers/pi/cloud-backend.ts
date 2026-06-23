@@ -258,6 +258,10 @@ export const runCloudPi: PiBackendRun<PiCloudRunParams> = async (params, context
         )
       }
 
+      if (totals.errorMessage) {
+        throw new Error(`Pi agent failed: ${totals.errorMessage}`)
+      }
+
       // Same rationale as the prompt: keep the commit message off the command line.
       await runner.writeFile(COMMIT_MSG_PATH, commitMessage)
 

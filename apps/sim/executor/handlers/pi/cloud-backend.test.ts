@@ -206,6 +206,29 @@ describe('runCloudPi', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
+  it('does not commit, push, or open a PR when the run reports an error on a zero exit', async () => {
+    mockRun.mockImplementation(
+      (command: string, options: { onStdout?: (chunk: string) => void }) => {
+        if (command.includes('git clone')) {
+          return Promise.resolve({ stdout: '__BASE_SHA__=abc', stderr: '', exitCode: 0 })
+        }
+        if (command.includes('pi -p')) {
+          options.onStdout?.('{"type":"error","error":"model exploded"}\n')
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        }
+        return Promise.resolve({
+          stdout: '__CHANGED__=src/x.ts\n__NEEDS_PUSH__=1',
+          stderr: '',
+          exitCode: 0,
+        })
+      }
+    )
+
+    await expect(runCloudPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(/model exploded/)
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockRun.mock.calls.some(([cmd]: [string]) => cmd.includes('push'))).toBe(false)
+  })
+
   it('surfaces the real git push error when the push fails, with the token scrubbed', async () => {
     mockRun.mockImplementation((command: string) => {
       if (command.includes('git clone')) {
