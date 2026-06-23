@@ -16,8 +16,8 @@ import { ChipLink } from '@/components/emcn'
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`) and
  * horizontal padding in `em` so it stays proportional to the text —
- * `px-[0.571em]`, the chip's 8/14 ratio (≈9px at 16px). "Book a demo" sits
- * inside the bar and scales its height too (`h-[2em]`); the standalone
+ * `px-[0.571em]` (the chip's 8/14 ratio) and `h-[2.143em]` (its 30/14 ratio), so
+ * "Book a demo" keeps the navbar chip's exact proportions; the standalone
  * "Sign up" is the default chip overridden to the bar's `border-[var(--border-1)]`
  * and `rounded-lg` at `h-[40px]` — so the two CTAs share one corner radius and
  * their borders line up exactly.
@@ -40,7 +40,7 @@ export function HeroCta() {
           variant='primary'
           href='/contact'
           flush
-          className='h-[2em] rounded-md px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          className='h-[2.143em] rounded-md px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
         >
           Book a demo
         </ChipLink>
