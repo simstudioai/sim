@@ -47,7 +47,7 @@ export const fileManageSetSharingBodySchema = z.object({
   operation: z.literal('set_sharing'),
   workspaceId: z.string().min(1).optional(),
   fileId: z.string().min(1, 'fileId is required for set_sharing operation'),
-  isActive: z.boolean().optional().default(true),
+  isActive: z.boolean({ error: 'isActive is required for set_sharing operation' }),
   authType: shareAuthTypeSchema.optional(),
   password: z.string().min(1).max(1024).optional(),
   allowedEmails: z.array(z.string().min(1)).max(200).optional(),

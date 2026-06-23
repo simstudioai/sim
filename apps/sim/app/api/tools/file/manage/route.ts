@@ -15,7 +15,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
-import { ShareValidationError, upsertFileShare } from '@/lib/public-shares/share-manager'
+import {
+  getShareForResource,
+  ShareValidationError,
+  upsertFileShare,
+} from '@/lib/public-shares/share-manager'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -575,16 +579,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       case 'set_sharing': {
         const { fileId, isActive, authType, password, allowedEmails } = body
 
-        const file = await getWorkspaceFile(workspaceId, fileId)
-        if (!file) {
-          return NextResponse.json(
-            { success: false, error: `File not found: "${fileId}"` },
-            { status: 404 }
-          )
-        }
-
-        // Publishing a file is more sensitive than the other mutating ops, so it
-        // requires write/admin (not just workspace access) to match the share route.
+        // Check permission before probing file existence so a read-only caller
+        // can't distinguish 404 from 403 as a file-existence side channel.
+        // Publishing is more sensitive than the other mutating ops, so it
+        // requires write/admin (not just workspace access) like the share route.
         const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
         if (permission !== 'admin' && permission !== 'write') {
           return NextResponse.json(
@@ -593,11 +591,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        const file = await getWorkspaceFile(workspaceId, fileId)
+        if (!file) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${fileId}"` },
+            { status: 404 }
+          )
+        }
+
         // Enabling a share is gated by the org's access-control policy; disabling
         // is always allowed so users can un-share after the policy is turned on.
         if (isActive) {
+          // Resolve the auth type the same way upsertFileShare will (falling back
+          // to the existing share's type) so the policy gate can't be bypassed by
+          // re-enabling a pre-existing restricted share without an explicit authType.
+          const existingShare = await getShareForResource('file', fileId)
+          const resolvedAuthType = authType ?? existingShare?.authType ?? 'public'
           try {
-            await validatePublicFileSharing(userId, workspaceId, authType ?? 'public')
+            await validatePublicFileSharing(userId, workspaceId, resolvedAuthType)
           } catch (error) {
             if (error instanceof PublicFileSharingNotAllowedError) {
               return NextResponse.json({ success: false, error: error.message }, { status: 403 })

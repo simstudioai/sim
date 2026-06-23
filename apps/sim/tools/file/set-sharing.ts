@@ -27,14 +27,14 @@ export const fileSetSharingTool: ToolConfig<FileSetSharingParams, ToolResponse> 
     },
     isActive: {
       type: 'boolean',
-      required: false,
-      visibility: 'user-only',
+      required: true,
+      visibility: 'user-or-llm',
       description: 'Whether the public link is enabled. Set to false to make the file private.',
     },
     authType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Access mode for the link: "public", "password", "email", or "sso". Defaults to "public".',
     },
@@ -47,7 +47,7 @@ export const fileSetSharingTool: ToolConfig<FileSetSharingParams, ToolResponse> 
     allowedEmails: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Allowed emails or "@domain" patterns. Required when authType is "email" or "sso".',
     },
