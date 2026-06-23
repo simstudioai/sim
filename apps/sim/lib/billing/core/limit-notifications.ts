@@ -173,13 +173,6 @@ export async function maybeSendLimitThresholdEmail(params: {
   /** Pre-formatted limit for the email body, e.g. "5 GB", "10 seats". */
   limitLabel: string
   /**
-   * Usage immediately BEFORE the mutation, when known (e.g. the pre-insert row
-   * count). Lets a single large change that jumps from below the re-arm band
-   * past a threshold still re-arm before claiming, so the re-warning isn't
-   * suppressed. Omit when only the post-mutation usage is observable.
-   */
-  priorUsage?: number
-  /**
    * When true, only the re-arm is evaluated and no email is ever sent. Used by
    * usage-decrease paths (e.g. a storage shrink) where usage can still be above
    * a threshold but the change is a drop, not a fresh crossing.
@@ -198,17 +191,15 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     const { category, scope } = params
     const percent = Math.max(0, (params.currentUsage / params.limit) * 100)
-    const priorPercent =
-      params.priorUsage != null && params.priorUsage >= 0
-        ? (params.priorUsage / params.limit) * 100
-        : percent
     const desired = thresholdFor(percent)
 
     const stateId = scope === 'user' ? params.userId : params.organizationId
     if (!stateId) return
 
-    // Re-arm if usage is (or just was) back in the low band, so a fresh climb re-notifies.
-    if (Math.min(percent, priorPercent) < REARM_BELOW) {
+    // Re-arm when current usage is back in the low band, so a fresh climb re-notifies.
+    // Re-arm and claim are mutually exclusive (re-arm only when desired === 0), which
+    // keeps the dedup a single atomic claim with no re-arm/claim interleaving race.
+    if (percent < REARM_BELOW) {
       await rearmThreshold(scope, stateId, category)
     }
 
@@ -289,8 +280,6 @@ export async function maybeNotifyLimit(params: {
   limit: number
   usageLabel: string
   limitLabel: string
-  /** Usage before the mutation, when known — see {@link maybeSendLimitThresholdEmail}. */
-  priorUsage?: number
   /** Re-arm only, never send — for usage-decrease callers. See {@link maybeSendLimitThresholdEmail}. */
   rearmOnly?: boolean
 }): Promise<void> {
@@ -318,7 +307,6 @@ export async function maybeNotifyLimit(params: {
       limit: params.limit,
       usageLabel: params.usageLabel,
       limitLabel: params.limitLabel,
-      priorUsage: params.priorUsage,
       rearmOnly: params.rearmOnly,
       userId: params.billedUserId,
       userEmail,

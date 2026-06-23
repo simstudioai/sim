@@ -118,28 +118,12 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 
-  it('re-arms then claims when a single jump crosses from below the band past 80% (priorUsage)', async () => {
-    // prior 50% (re-arm band) → current 90%: re-arm (update) + claim (update) = 2 updates, then send.
-    await maybeSendLimitThresholdEmail({
-      ...baseUserParams,
-      currentUsage: 4.5,
-      limit: 5,
-      priorUsage: 2.5,
-    })
-    expect(dbUpdateSpy).toHaveBeenCalledTimes(2)
-    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
-    expect(renderMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning' }))
-  })
-
-  it('does not re-arm when prior usage was already in-band (no spurious reset)', async () => {
-    // prior 85% and current 90%: both >= re-arm band → claim only, no re-arm update.
-    await maybeSendLimitThresholdEmail({
-      ...baseUserParams,
-      currentUsage: 4.5,
-      limit: 5,
-      priorUsage: 4.25,
-    })
+  it('claims without re-arming on a crossing (re-arm and claim are mutually exclusive)', async () => {
+    // 90% crossing: a single claim update, no re-arm — so there is no re-arm/claim
+    // interleaving for a concurrent caller to exploit into a duplicate email.
+    await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4.5, limit: 5 })
     expect(dbUpdateSpy).toHaveBeenCalledTimes(1)
+    expect(mockClaim).toHaveBeenCalledTimes(1)
     expect(sendEmailSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -183,18 +167,6 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(dbUpdateSpy).toHaveBeenCalledTimes(1) // re-arm only
     expect(mockClaim).not.toHaveBeenCalled()
     expect(sendEmailSpy).not.toHaveBeenCalled()
-  })
-
-  it('re-arms then sends on wipe-then-rebuild (priorUsage 0)', async () => {
-    // prior 0% (empty table) → current 90%: re-arm + claim + send.
-    await maybeSendLimitThresholdEmail({
-      ...baseUserParams,
-      currentUsage: 4.5,
-      limit: 5,
-      priorUsage: 0,
-    })
-    expect(dbUpdateSpy).toHaveBeenCalledTimes(2)
-    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
   })
 
   it('skips when the limit is non-positive', async () => {

@@ -23,7 +23,6 @@ const TABLE_ROW_NOTIFY_PERCENT = 80
  */
 async function maybeNotifyTableRowLimit(
   workspaceId: string,
-  currentRowCount: number,
   projectedRowCount: number,
   limit: number
 ): Promise<void> {
@@ -39,7 +38,6 @@ async function maybeNotifyTableRowLimit(
       limit,
       usageLabel: `${projectedRowCount.toLocaleString('en-US')} rows`,
       limitLabel: `${limit.toLocaleString('en-US')} rows`,
-      priorUsage: currentRowCount,
     })
   } catch (error) {
     logger.error('Error evaluating table row-limit notification:', error)
@@ -51,7 +49,13 @@ async function maybeNotifyTableRowLimit(
  * gated so only near-limit writes pay the cost. Shared by every insert path
  * ({@link assertRowCapacity} and the transactional upsert/import branches that
  * check capacity with {@link wouldExceedRowLimit} instead). Pass the pre-insert
- * `currentRowCount` so a delete-then-insert jump re-arms correctly.
+ * `currentRowCount` and `addedRows` so the projected count drives the notify gate.
+ *
+ * Re-arm (allowing a fresh warning) happens on any insert that lands the table
+ * back below the re-arm band. Deleting straight below the band and then jumping
+ * back over a threshold in a single insert (with no intermediate write) is a
+ * best-effort gap — the 100% reached email and first-time crossings are
+ * unaffected. This keeps the dedup a single atomic claim with no re-arm/claim race.
  */
 export function notifyTableRowUsage(params: {
   workspaceId: string
@@ -62,12 +66,7 @@ export function notifyTableRowUsage(params: {
   if (params.limit <= 0) return
   const projected = params.currentRowCount + params.addedRows
   if ((projected / params.limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
-    void maybeNotifyTableRowLimit(
-      params.workspaceId,
-      params.currentRowCount,
-      projected,
-      params.limit
-    )
+    void maybeNotifyTableRowLimit(params.workspaceId, projected, params.limit)
   }
 }
 
