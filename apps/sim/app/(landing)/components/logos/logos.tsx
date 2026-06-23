@@ -20,8 +20,8 @@ import { cn } from '@/lib/core/utils/cn'
 /** Horizontal gap between bare wordmarks in the `row` layout — the canonical 96px rhythm. */
 const LOGO_GAP_X = 'gap-x-24'
 
-/** In the hero card grid the wordmarks render a touch smaller than their optical row size. */
-const GRID_ICON_SCALE = 0.85
+/** In the hero card grid the wordmarks render smaller than their optical row size. */
+const GRID_ICON_SCALE = 0.65
 
 /** A single customer wordmark with the dimensions that keep it optically balanced. */
 interface Logo {
@@ -108,7 +108,7 @@ export function Logos({ layout }: LogosProps) {
             key={logo.name}
             className={cn(
               isGrid &&
-                'flex h-[100px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-4'
+                'flex h-[100px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2'
             )}
           >
             <Image

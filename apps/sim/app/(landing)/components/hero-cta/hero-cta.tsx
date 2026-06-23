@@ -19,9 +19,9 @@ import { ChipLink } from '@/components/emcn'
  * horizontal padding in `em` so it stays proportional to the text —
  * `px-[0.571em]`, the chip's 8/14 ratio (≈9px at 16px). "Book a demo" sits
  * inside the bar and scales its height too (`h-[2.143em]`); the standalone
- * "Sign up" is the default chip with a `border border-[var(--border-1)]` (the
- * bar's border) at `h-[44px]` — both borders sit inside their border-box height,
- * so the two edges line up exactly.
+ * "Sign up" is the default chip overridden to the bar's `border-[var(--border-1)]`
+ * and `rounded-[13px]` at `h-[44px]` — so the two CTAs share one corner radius and
+ * their borders line up exactly.
  *
  * Server Component — the bare `<input>` is uncontrolled and submits via the
  * "Book a demo" link, so no client island is needed here. Owns its own chrome
@@ -49,7 +49,7 @@ export function HeroCta() {
       <ChipLink
         href='/signup'
         flush
-        className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
+        className='h-[44px] rounded-[13px] border border-[var(--border-1)] px-[0.571em] text-[16px] max-sm:justify-center [&>span]:[font-size:inherit] max-sm:[&>span]:flex-none'
       >
         Sign up
       </ChipLink>
