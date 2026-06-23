@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, sql } from 'drizzle-orm'
 import { getLimitEmailSubject, renderLimitThresholdEmail } from '@/components/emails/render'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
@@ -267,6 +268,8 @@ export async function maybeSendLimitThresholdEmail(params: {
  *
  * @param params.billedUserId - User whose subscription determines billing scope
  *   (the uploader for storage; the workspace's billed account for tables).
+ * @param params.subscription - Pre-resolved subscription (may be `null`) to skip
+ *   the `getHighestPrioritySubscription` lookup on hot paths; omit to fetch here.
  */
 export async function maybeNotifyLimit(params: {
   category: LimitCategory
@@ -278,14 +281,21 @@ export async function maybeNotifyLimit(params: {
   limitLabel: string
   /** Re-arm only, never send — for usage-decrease callers. See {@link maybeSendLimitThresholdEmail}. */
   rearmOnly?: boolean
+  subscription?: HighestPrioritySubscription | null
 }): Promise<void> {
   try {
-    const sub = await getHighestPrioritySubscription(params.billedUserId)
+    const sub =
+      params.subscription === undefined
+        ? await getHighestPrioritySubscription(params.billedUserId)
+        : params.subscription
     const isOrg = Boolean(sub && isOrgScopedSubscription(sub, params.billedUserId))
 
+    // Only the send path (user scope, not re-arm, at/above the warn band) needs
+    // the recipient's email — skip the read for the common far-from-limit case.
+    const percent = params.limit > 0 ? (params.currentUsage / params.limit) * 100 : 0
     let userEmail: string | undefined
     let userName: string | undefined
-    if (!isOrg) {
+    if (!isOrg && !params.rearmOnly && percent >= WARN_THRESHOLD) {
       const [row] = await db
         .select({ email: user.email, name: user.name })
         .from(user)

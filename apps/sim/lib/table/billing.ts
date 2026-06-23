@@ -13,8 +13,14 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('TableBilling')
 
-/** Notify at 80% only — a row insert can only push the count up. */
-const TABLE_ROW_NOTIFY_PERCENT = 80
+/** Warn band; an insert that crosses up into it (or up into 100%) triggers a notify. */
+const TABLE_WARN_PERCENT = 80
+const TABLE_REACHED_PERCENT = 100
+
+/** Whether adding rows pushed the count UP across `threshold` (pre below, post at/above). */
+function crossedUp(prePct: number, postPct: number, threshold: number): boolean {
+  return prePct < threshold && postPct >= threshold
+}
 
 /**
  * Best-effort table row-limit email after an accepted insert. Resolves the
@@ -45,19 +51,20 @@ async function maybeNotifyTableRowLimit(
 }
 
 /**
- * Fire-and-forget the table row-limit threshold email for an accepted insert,
- * gated (>= {@link TABLE_ROW_NOTIFY_PERCENT}) so only near-limit writes pay the
- * cost. Shared by every insert path ({@link assertRowCapacity} and the
+ * Fire-and-forget the table row-limit threshold email for an accepted insert.
+ * Edge-triggered: it only does any billing work when the write CROSSES UP into
+ * the warn (80%) or reached (100%) band — not on every near-limit insert — so a
+ * table sitting at e.g. 90% being inserted into pays nothing until it crosses
+ * 100%. Shared by every insert path ({@link assertRowCapacity} and the
  * transactional upsert/import branches that check capacity with
  * {@link wouldExceedRowLimit} instead). Pass the pre-insert `currentRowCount` and
- * `addedRows` so the projected count drives the gate.
+ * `addedRows` so both the pre and post percentages are known.
  *
- * Because the gate only fires at/above the warn band, tables warn once per
- * threshold and do not re-arm: a table that hit a threshold then dropped (via
- * deletes, which have no notify hook) won't re-warn on a later climb. This is a
- * deliberate trade-off — re-arm is storage-only (via its decrement hook), which
- * avoids per-delete billing-table reads. The 100% reached and first-time
- * crossings are unaffected, and the dedup stays a single atomic claim (no race).
+ * Tables warn once per threshold and do not re-arm: a table that hit a threshold
+ * then dropped (via deletes, which have no notify hook) won't re-warn on a later
+ * climb. Deliberate trade-off — re-arm is storage-only (its single decrement
+ * hook) to avoid per-delete billing-table reads. The atomic claim still dedups
+ * concurrent crossings (no race).
  */
 export function notifyTableRowUsage(params: {
   workspaceId: string
@@ -66,9 +73,17 @@ export function notifyTableRowUsage(params: {
   limit: number
 }): void {
   if (params.limit <= 0) return
-  const projected = params.currentRowCount + params.addedRows
-  if ((projected / params.limit) * 100 >= TABLE_ROW_NOTIFY_PERCENT) {
-    void maybeNotifyTableRowLimit(params.workspaceId, projected, params.limit)
+  const prePct = (params.currentRowCount / params.limit) * 100
+  const postPct = ((params.currentRowCount + params.addedRows) / params.limit) * 100
+  if (
+    crossedUp(prePct, postPct, TABLE_WARN_PERCENT) ||
+    crossedUp(prePct, postPct, TABLE_REACHED_PERCENT)
+  ) {
+    void maybeNotifyTableRowLimit(
+      params.workspaceId,
+      params.currentRowCount + params.addedRows,
+      params.limit
+    )
   }
 }
 

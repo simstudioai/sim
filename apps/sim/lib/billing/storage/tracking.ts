@@ -9,6 +9,7 @@ import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage/limits'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -22,8 +23,12 @@ function formatGb(bytes: number, decimals: number): string {
 
 /**
  * Best-effort storage threshold evaluation after a usage change. Re-reads the
- * (now updated) usage and plan limit, then delegates scope resolution + dedup +
- * send to {@link maybeNotifyLimit}. Never throws.
+ * (now updated) usage and plan limit, then delegates dedup + send to
+ * {@link maybeNotifyLimit}. Never throws.
+ *
+ * The caller passes the subscription it already resolved for the increment/
+ * decrement, so the whole path (usage read, limit, scope) reuses a single
+ * `getHighestPrioritySubscription` instead of re-fetching it three times.
  *
  * @param rearmOnly - True on decrements, so a shrink that leaves usage above a
  *   threshold re-arms but never sends (a drop is not a fresh crossing).
@@ -31,12 +36,13 @@ function formatGb(bytes: number, decimals: number): string {
 async function maybeNotifyStorageLimit(
   userId: string,
   workspaceId: string,
+  sub: HighestPrioritySubscription | null,
   rearmOnly = false
 ): Promise<void> {
   try {
     const [usage, limit] = await Promise.all([
-      getUserStorageUsage(userId),
-      getUserStorageLimit(userId),
+      getUserStorageUsage(userId, sub),
+      getUserStorageLimit(userId, sub),
     ])
 
     await maybeNotifyLimit({
@@ -48,6 +54,7 @@ async function maybeNotifyStorageLimit(
       usageLabel: formatGb(usage, 2),
       limitLabel: formatGb(limit, 0),
       rearmOnly,
+      subscription: sub,
     })
   } catch (error) {
     logger.error('Error evaluating storage limit notification:', error)
@@ -71,9 +78,10 @@ export async function incrementStorageUsage(
     return
   }
 
+  let sub: HighestPrioritySubscription | null = null
   try {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    sub = await getHighestPrioritySubscription(userId)
 
     // Org-scoped subs pool at the org level; personal plans per-user.
     if (isOrgScopedSubscription(sub, userId) && sub) {
@@ -101,7 +109,7 @@ export async function incrementStorageUsage(
   }
 
   if (workspaceId) {
-    void maybeNotifyStorageLimit(userId, workspaceId)
+    void maybeNotifyStorageLimit(userId, workspaceId, sub)
   }
 }
 
@@ -124,9 +132,10 @@ export async function decrementStorageUsage(
     return
   }
 
+  let sub: HighestPrioritySubscription | null = null
   try {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    sub = await getHighestPrioritySubscription(userId)
 
     if (isOrgScopedSubscription(sub, userId) && sub) {
       await db
@@ -153,6 +162,6 @@ export async function decrementStorageUsage(
   }
 
   if (workspaceId) {
-    void maybeNotifyStorageLimit(userId, workspaceId, true)
+    void maybeNotifyStorageLimit(userId, workspaceId, sub, true)
   }
 }

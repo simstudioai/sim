@@ -10,15 +10,22 @@ import {
   DEFAULT_PRO_STORAGE_LIMIT_GB,
   DEFAULT_TEAM_STORAGE_LIMIT_GB,
 } from '@sim/db/constants'
-import { organization, subscription, userStats } from '@sim/db/schema'
+import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageLimits')
+
+/** Resolve the highest-priority subscription via a deferred import (avoids a static cycle). */
+async function resolveSub(userId: string): Promise<HighestPrioritySubscription | null> {
+  const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+  return getHighestPrioritySubscription(userId)
+}
 
 /**
  * Convert GB to bytes
@@ -74,13 +81,19 @@ export function getStorageLimitForPlan(plan: string, metadata?: any): number {
 }
 
 /**
- * Get storage limit for a user based on their subscription
- * Returns limit in bytes
+ * Get storage limit for a user based on their subscription. Returns limit in
+ * bytes.
+ *
+ * @param prefetchedSub - Pass an already-resolved subscription (may be `null`)
+ *   to skip the `getHighestPrioritySubscription` lookup on hot paths. Omit
+ *   (leave `undefined`) to fetch it here.
  */
-export async function getUserStorageLimit(userId: string): Promise<number> {
+export async function getUserStorageLimit(
+  userId: string,
+  prefetchedSub?: HighestPrioritySubscription | null
+): Promise<number> {
   try {
-    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    const sub = prefetchedSub === undefined ? await resolveSub(userId) : prefetchedSub
 
     const limits = getStorageLimits()
 
@@ -89,21 +102,12 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
     }
 
     // Org-scoped subs use pooled org-level storage. Custom limits come from the
-    // subscription metadata; otherwise use the team/enterprise default.
+    // subscription metadata (already on `sub`); otherwise team/enterprise default.
     if (isOrgScopedSubscription(sub, userId)) {
-      const orgRecord = await db
-        .select({ metadata: subscription.metadata })
-        .from(subscription)
-        .where(eq(subscription.id, sub.id))
-        .limit(1)
-
-      if (orgRecord.length > 0 && orgRecord[0].metadata) {
-        const metadata = orgRecord[0].metadata as any
-        if (metadata.customStorageLimitGB) {
-          return metadata.customStorageLimitGB * 1024 * 1024 * 1024
-        }
+      const metadata = sub.metadata as { customStorageLimitGB?: number } | null
+      if (metadata?.customStorageLimitGB) {
+        return metadata.customStorageLimitGB * 1024 * 1024 * 1024
       }
-
       return isEnterprise(sub.plan) ? limits.enterpriseDefault : limits.team
     }
 
@@ -122,13 +126,17 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
 }
 
 /**
- * Get current storage usage for a user
- * Returns usage in bytes
+ * Get current storage usage for a user. Returns usage in bytes.
+ *
+ * @param prefetchedSub - Pass an already-resolved subscription (may be `null`)
+ *   to skip the `getHighestPrioritySubscription` lookup on hot paths.
  */
-export async function getUserStorageUsage(userId: string): Promise<number> {
+export async function getUserStorageUsage(
+  userId: string,
+  prefetchedSub?: HighestPrioritySubscription | null
+): Promise<number> {
   try {
-    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-    const sub = await getHighestPrioritySubscription(userId)
+    const sub = prefetchedSub === undefined ? await resolveSub(userId) : prefetchedSub
 
     // Org-scoped subs share pooled `organization.storageUsedBytes`;
     // personal plans use `userStats`.

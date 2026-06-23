@@ -32,6 +32,7 @@ import {
   assertRowCapacity,
   getMaxRowsPerTable,
   getWorkspaceTableLimits,
+  notifyTableRowUsage,
   TableRowLimitError,
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
@@ -156,5 +157,37 @@ describe('assertRowCapacity', () => {
         addedRows: 1,
       })
     ).resolves.toBe(-1)
+  })
+})
+
+describe('notifyTableRowUsage — edge-crossing gate', () => {
+  // The notify (and its first billing lookup) fire synchronously when the gate
+  // passes, so asserting on the billed-account lookup is enough — no DB work
+  // happens unless the insert actually crosses a threshold.
+  beforeEach(() => mockGetWorkspaceBilledAccountUserId.mockClear())
+
+  it('fires when an insert crosses UP into the warn band (limit 5000)', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 3990, addedRows: 20, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
+
+  it('fires when an insert crosses UP into the reached band', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4990, addedRows: 20, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT fire when already above the band (no crossing)', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4200, addedRows: 100, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('does NOT fire well below the band', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 100, addedRows: 10, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('does NOT fire for unlimited plans', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 0, addedRows: 10_000, limit: -1 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
   })
 })
