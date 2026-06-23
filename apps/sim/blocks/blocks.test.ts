@@ -174,7 +174,7 @@ describe.concurrent('Blocks Module', () => {
         'file_append',
         'file_compress',
         'file_decompress',
-        'file_set_sharing',
+        'file_manage_sharing',
       ])
       expect(block?.tools.config?.tool({ operation: 'file_compress' })).toBe('file_compress')
       expect(block?.tools.config?.tool({ operation: 'file_decompress' })).toBe('file_decompress')

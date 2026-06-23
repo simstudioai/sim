@@ -118,10 +118,10 @@ describe('FileV5Block', () => {
     )
   })
 
-  it('maps set sharing to public access for a canonical file ID', () => {
+  it('maps manage sharing to public access for a canonical file ID', () => {
     expect(
       buildParams({
-        operation: 'file_set_sharing',
+        operation: 'file_manage_sharing',
         shareInput: 'file-1',
         shareVisibility: 'public',
         _context: { workspaceId: 'workspace-1' },
@@ -139,7 +139,7 @@ describe('FileV5Block', () => {
   it('maps private visibility to a disabled share with no authType', () => {
     expect(
       buildParams({
-        operation: 'file_set_sharing',
+        operation: 'file_manage_sharing',
         shareInput: 'file-1',
         shareVisibility: 'private',
         _context: { workspaceId: 'workspace-1' },
@@ -154,7 +154,7 @@ describe('FileV5Block', () => {
   it('passes the password through for password visibility', () => {
     expect(
       buildParams({
-        operation: 'file_set_sharing',
+        operation: 'file_manage_sharing',
         shareInput: 'file-1',
         shareVisibility: 'password',
         sharePassword: 'hunter2',
@@ -171,7 +171,7 @@ describe('FileV5Block', () => {
   it('splits allowed emails for email visibility', () => {
     expect(
       buildParams({
-        operation: 'file_set_sharing',
+        operation: 'file_manage_sharing',
         shareInput: 'file-1',
         shareVisibility: 'email',
         shareAllowedEmails: 'a@example.com, b@example.com\n@acme.com',
@@ -185,10 +185,10 @@ describe('FileV5Block', () => {
     })
   })
 
-  it('resolves the file ID from a selected workspace file object for set sharing', () => {
+  it('resolves the file ID from a selected workspace file object for manage sharing', () => {
     expect(
       buildParams({
-        operation: 'file_set_sharing',
+        operation: 'file_manage_sharing',
         shareInput: [{ id: 'file-9', name: 'report.pdf' }],
         shareVisibility: 'public',
         _context: { workspaceId: 'workspace-1' },
@@ -200,9 +200,9 @@ describe('FileV5Block', () => {
     })
   })
 
-  it('throws when no file is provided for set sharing', () => {
-    expect(() => buildParams({ operation: 'file_set_sharing' })).toThrow(
-      'File is required for set sharing'
+  it('throws when no file is provided for manage sharing', () => {
+    expect(() => buildParams({ operation: 'file_manage_sharing' })).toThrow(
+      'File is required to manage sharing'
     )
   })
 })

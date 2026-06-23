@@ -576,7 +576,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      case 'set_sharing': {
+      case 'manage_sharing': {
         const { fileId, isActive, authType, password, allowedEmails } = body
 
         // Check permission before probing file existence so a read-only caller

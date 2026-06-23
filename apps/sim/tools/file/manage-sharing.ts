@@ -1,7 +1,7 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
-interface FileSetSharingParams {
+interface FileManageSharingParams {
   fileId: string
   isActive?: boolean
   authType?: ShareAuthType
@@ -11,9 +11,9 @@ interface FileSetSharingParams {
   _context?: WorkflowToolExecutionContext
 }
 
-export const fileSetSharingTool: ToolConfig<FileSetSharingParams, ToolResponse> = {
-  id: 'file_set_sharing',
-  name: 'Set File Sharing',
+export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResponse> = {
+  id: 'file_manage_sharing',
+  name: 'Manage Sharing',
   description:
     'Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.',
   version: '1.0.0',
@@ -58,7 +58,7 @@ export const fileSetSharingTool: ToolConfig<FileSetSharingParams, ToolResponse> 
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
-      operation: 'set_sharing',
+      operation: 'manage_sharing',
       fileId: params.fileId,
       isActive: params.isActive,
       authType: params.authType,

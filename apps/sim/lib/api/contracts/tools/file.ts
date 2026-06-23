@@ -43,17 +43,17 @@ export const fileManageMoveBodySchema = z.object({
 
 export type FileManageMoveBody = z.input<typeof fileManageMoveBodySchema>
 
-export const fileManageSetSharingBodySchema = z.object({
-  operation: z.literal('set_sharing'),
+export const fileManageSharingBodySchema = z.object({
+  operation: z.literal('manage_sharing'),
   workspaceId: z.string().min(1).optional(),
-  fileId: z.string().min(1, 'fileId is required for set_sharing operation'),
-  isActive: z.boolean({ error: 'isActive is required for set_sharing operation' }),
+  fileId: z.string().min(1, 'fileId is required for manage_sharing operation'),
+  isActive: z.boolean({ error: 'isActive is required for manage_sharing operation' }),
   authType: shareAuthTypeSchema.optional(),
   password: z.string().min(1).max(1024).optional(),
   allowedEmails: z.array(z.string().min(1)).max(200).optional(),
 })
 
-export type FileManageSetSharingBody = z.input<typeof fileManageSetSharingBodySchema>
+export type FileManageSharingBody = z.input<typeof fileManageSharingBodySchema>
 
 export const fileManageReadBodySchema = z
   .object({
@@ -105,7 +105,7 @@ export const fileManageBodySchema = z.union([
   fileManageAppendBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
-  fileManageSetSharingBodySchema,
+  fileManageSharingBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
   fileManageCompressBodySchema,

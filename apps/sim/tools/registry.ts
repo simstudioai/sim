@@ -864,11 +864,11 @@ import {
   fileFetchTool,
   fileGetContentTool,
   fileGetTool,
+  fileManageSharingTool,
   fileParserV2Tool,
   fileParserV3Tool,
   fileParseTool,
   fileReadTool,
-  fileSetSharingTool,
   fileWriteTool,
 } from '@/tools/file'
 import {
@@ -4220,7 +4220,7 @@ export const tools: Record<string, ToolConfig> = {
   file_get: fileGetTool,
   file_get_content: fileGetContentTool,
   file_read: fileReadTool,
-  file_set_sharing: fileSetSharingTool,
+  file_manage_sharing: fileManageSharingTool,
   file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,

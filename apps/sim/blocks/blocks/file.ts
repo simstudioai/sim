@@ -823,9 +823,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v5',
   name: 'File',
   description:
-    'Read, get content, fetch, write, append, compress, decompress, and set sharing for files',
+    'Read, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or set the public share link for a file.',
+    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -850,7 +850,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Append', id: 'file_append' },
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
-        { label: 'Set File Sharing', id: 'file_set_sharing' },
+        { label: 'Manage Sharing', id: 'file_manage_sharing' },
       ],
       value: () => 'file_read',
     },
@@ -1026,8 +1026,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       acceptedTypes: '*',
       placeholder: 'Select a workspace file',
       mode: 'basic',
-      condition: { field: 'operation', value: 'file_set_sharing' },
-      required: { field: 'operation', value: 'file_set_sharing' },
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
     },
     {
       id: 'shareFileId',
@@ -1036,8 +1036,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       canonicalParamId: 'shareInput',
       placeholder: 'Workspace file ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'file_set_sharing' },
-      required: { field: 'operation', value: 'file_set_sharing' },
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
     },
     {
       id: 'shareVisibility',
@@ -1051,7 +1051,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'SSO', id: 'sso' },
       ],
       value: () => 'public',
-      condition: { field: 'operation', value: 'file_set_sharing' },
+      condition: { field: 'operation', value: 'file_manage_sharing' },
     },
     {
       id: 'sharePassword',
@@ -1061,12 +1061,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Password for the public link',
       condition: {
         field: 'operation',
-        value: 'file_set_sharing',
+        value: 'file_manage_sharing',
         and: { field: 'shareVisibility', value: 'password' },
       },
       required: {
         field: 'operation',
-        value: 'file_set_sharing',
+        value: 'file_manage_sharing',
         and: { field: 'shareVisibility', value: 'password' },
       },
     },
@@ -1077,12 +1077,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Comma- or newline-separated emails or @domain patterns',
       condition: {
         field: 'operation',
-        value: 'file_set_sharing',
+        value: 'file_manage_sharing',
         and: { field: 'shareVisibility', value: ['email', 'sso'] },
       },
       required: {
         field: 'operation',
-        value: 'file_set_sharing',
+        value: 'file_manage_sharing',
         and: { field: 'shareVisibility', value: ['email', 'sso'] },
       },
     },
@@ -1096,7 +1096,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_append',
       'file_compress',
       'file_decompress',
-      'file_set_sharing',
+      'file_manage_sharing',
     ],
     config: {
       tool: (params) => params.operation || 'file_read',
@@ -1202,10 +1202,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           }
         }
 
-        if (operation === 'file_set_sharing') {
+        if (operation === 'file_manage_sharing') {
           const shareInput = params.shareInput
           if (!shareInput) {
-            throw new Error('File is required for set sharing')
+            throw new Error('File is required to manage sharing')
           }
 
           let fileId: string
@@ -1338,7 +1338,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     shareInput: {
       type: 'json',
-      description: 'Selected workspace file or canonical file ID to set sharing for',
+      description: 'Selected workspace file or canonical file ID to manage sharing for',
     },
     shareVisibility: {
       type: 'string',
@@ -1379,23 +1379,23 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     url: {
       type: 'string',
       description:
-        'URL to access the file (write and append), or the public share link when shared; empty when set to private (set sharing)',
+        'URL to access the file (write and append), or the public share link when shared; empty when set to private (manage sharing)',
     },
     isActive: {
       type: 'boolean',
-      description: 'Whether the public link is enabled (set sharing)',
+      description: 'Whether the public link is enabled (manage sharing)',
     },
     authType: {
       type: 'string',
-      description: 'Public link access mode: public, password, email, or sso (set sharing)',
+      description: 'Public link access mode: public, password, email, or sso (manage sharing)',
     },
     hasPassword: {
       type: 'boolean',
-      description: 'Whether the public link is password-protected (set sharing)',
+      description: 'Whether the public link is password-protected (manage sharing)',
     },
     allowedEmails: {
       type: 'array',
-      description: 'Allowed emails/domains for email or SSO access (set sharing)',
+      description: 'Allowed emails/domains for email or SSO access (manage sharing)',
     },
   },
 }
