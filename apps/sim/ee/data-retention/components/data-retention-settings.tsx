@@ -510,8 +510,13 @@ export function DataRetentionSettings() {
       ? normalizeDefaultPii(modal.draft) !== normalizeDefaultPii(modal.original)
       : normalizeWorkspaceDraft(modal.draft) !== normalizeWorkspaceDraft(modal.original))
 
+  // PII-only rows are only surfaced when redaction is enabled — the route
+  // rejects PII writes while the flag is off, so such rows couldn't be deleted.
   const overrideWorkspaceIds = Array.from(
-    new Set([...overrides.map((o) => o.workspaceId), ...piiOverrides.map((p) => p.workspaceId)])
+    new Set([
+      ...overrides.map((o) => o.workspaceId),
+      ...(piiEnabled ? piiOverrides.map((p) => p.workspaceId) : []),
+    ])
   ).sort((a, b) => workspaceName(a).localeCompare(workspaceName(b)))
   const takenWorkspaceIds = new Set(overrideWorkspaceIds)
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))

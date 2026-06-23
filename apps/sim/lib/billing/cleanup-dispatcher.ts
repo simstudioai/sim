@@ -7,7 +7,7 @@ import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
-import { resolveEffectiveRetentionHours } from '@/lib/billing/retention'
+import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
 import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -27,11 +27,6 @@ const WORKSPACES_PER_CLEANUP_CHUNK = 500
 
 export type CleanupJobType = 'cleanup-logs' | 'cleanup-soft-deletes' | 'cleanup-tasks'
 
-export type OrganizationRetentionKey =
-  | 'logRetentionHours'
-  | 'softDeleteRetentionHours'
-  | 'taskCleanupHours'
-
 export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
 const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly NonEnterprisePlan[]
@@ -46,7 +41,7 @@ export interface CleanupJobPayload {
 }
 
 interface CleanupJobConfig {
-  key: OrganizationRetentionKey
+  key: RetentionHoursKey
   defaults: Record<PlanCategory, number | null>
 }
 
