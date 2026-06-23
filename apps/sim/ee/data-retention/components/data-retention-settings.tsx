@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import {
   Checkbox,
   Chip,
@@ -34,7 +34,6 @@ import {
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { SettingRow } from '@/ee/components/setting-row'
 import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
@@ -63,36 +62,36 @@ const DAY_OPTIONS = [
   { value: 'never', label: 'Forever' },
 ] as const
 
-/** Local editable shape of the org-wide (`workspaceId: null`) PII redaction rule. */
-interface DefaultPiiDraft {
+interface PiiOverride {
   id: string
+  workspaceId: string
   entityTypes: string[]
   language: PIILanguage
 }
 
 /**
- * Local editable shape of a per-workspace override. Retention fields use
- * `RetentionSelect` values (`INHERIT` / `'never'` / a day count). PII is a
- * mode + entities, applied to every selected workspace on save.
+ * Unified editable shape for one retention policy — the organization default
+ * (`isOrgDefault`) or a workspace override. Retention fields hold
+ * `RetentionSelect` values; for overrides `INHERIT` means "use the org value".
+ * `piiOverride` gates the PII grid (always on for the org default; toggled by
+ * the inherit/override switch for workspace overrides).
  */
-interface WorkspaceOverrideDraft {
+interface PolicyDraft {
+  isOrgDefault: boolean
   workspaceIds: string[]
   logDays: string
   softDeleteDays: string
   taskCleanupDays: string
-  piiMode: 'inherit' | 'override'
+  piiOverride: boolean
   piiEntityTypes: string[]
   piiLanguage: PIILanguage
 }
 
-type ActiveModal =
-  | { kind: 'pii-default'; draft: DefaultPiiDraft; original: DefaultPiiDraft; isNew: boolean }
-  | {
-      kind: 'workspace'
-      draft: WorkspaceOverrideDraft
-      original: WorkspaceOverrideDraft
-      isNew: boolean
-    }
+interface ActiveModal {
+  draft: PolicyDraft
+  original: PolicyDraft
+  isNew: boolean
+}
 
 function hoursToDisplayDays(hours: number | null): string {
   if (hours === null) return 'never'
@@ -117,10 +116,7 @@ function overrideValueToHours(value: string): number | null | undefined {
   return Number(value) * 24
 }
 
-function buildRetentionOverride(
-  workspaceId: string,
-  draft: WorkspaceOverrideDraft
-): RetentionOverride | null {
+function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): RetentionOverride | null {
   const override: RetentionOverride = { workspaceId }
   const log = overrideValueToHours(draft.logDays)
   const soft = overrideValueToHours(draft.softDeleteDays)
@@ -135,18 +131,15 @@ function buildRetentionOverride(
   return hasField ? override : null
 }
 
-function normalizeDefaultPii(draft: DefaultPiiDraft): string {
-  return JSON.stringify({ entityTypes: [...draft.entityTypes].sort(), language: draft.language })
-}
-
-function normalizeWorkspaceDraft(draft: WorkspaceOverrideDraft): string {
+function normalizePolicyDraft(draft: PolicyDraft): string {
   return JSON.stringify({
+    isOrgDefault: draft.isOrgDefault,
     workspaceIds: [...draft.workspaceIds].sort(),
     logDays: draft.logDays,
     softDeleteDays: draft.softDeleteDays,
     taskCleanupDays: draft.taskCleanupDays,
-    piiMode: draft.piiMode,
-    piiEntityTypes: draft.piiMode === 'override' ? [...draft.piiEntityTypes].sort() : [],
+    piiOverride: draft.piiOverride,
+    piiEntityTypes: draft.piiOverride ? [...draft.piiEntityTypes].sort() : [],
     piiLanguage: draft.piiLanguage,
   })
 }
@@ -158,10 +151,18 @@ function entitySummary(entityTypes: string[]): string {
   return `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more`
 }
 
+/** Row-summary label for a retention field driven by stored hours. */
 function retentionLabel(hours: number | null | undefined): string {
   if (hours === undefined) return 'inherited'
   if (hours === null) return 'forever'
   return `${Math.round(hours / 24)}d`
+}
+
+/** Row-summary label for a retention field driven by a `RetentionSelect` day value. */
+function dayValueLabel(days: string): string {
+  if (days === 'never') return 'forever'
+  if (!days) return '—'
+  return `${days}d`
 }
 
 interface RetentionSelectProps {
@@ -278,111 +279,72 @@ function PiiLanguageSelect({ value, onChange }: PiiLanguageSelectProps) {
   )
 }
 
-interface DefaultPiiModalProps {
-  draft: DefaultPiiDraft
-  isNew: boolean
-  isSaving: boolean
-  onChange: (draft: DefaultPiiDraft) => void
-  onClose: () => void
-  onSave: () => void
-}
-
-function DefaultPiiModal({
-  draft,
-  isNew,
-  isSaving,
-  onChange,
-  onClose,
-  onSave,
-}: DefaultPiiModalProps) {
-  return (
-    <ChipModal open onOpenChange={onClose} size='xl' srTitle='PII redaction'>
-      <ChipModalHeader onClose={onClose}>
-        {isNew ? 'Add redaction · all workspaces' : 'Edit redaction · all workspaces'}
-      </ChipModalHeader>
-      <ChipModalBody>
-        <ChipModalField type='custom' title='Redact'>
-          <EntityCheckboxGrid
-            selected={draft.entityTypes}
-            onChange={(entityTypes) => onChange({ ...draft, entityTypes })}
-          />
-        </ChipModalField>
-        <ChipModalField
-          type='custom'
-          title='Language'
-          hint='Detection runs with this language’s recognizers — match it to your log content.'
-        >
-          <PiiLanguageSelect
-            value={draft.language}
-            onChange={(language) => onChange({ ...draft, language })}
-          />
-        </ChipModalField>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={onClose}
-        primaryAction={{
-          label: isSaving ? 'Saving...' : 'Save',
-          onClick: onSave,
-          disabled: isSaving,
-        }}
-      />
-    </ChipModal>
-  )
-}
-
-interface WorkspaceOverrideModalProps {
-  draft: WorkspaceOverrideDraft
+interface PolicyModalProps {
+  draft: PolicyDraft
   isNew: boolean
   isSaving: boolean
   piiEnabled: boolean
+  canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
-  onChange: (draft: WorkspaceOverrideDraft) => void
+  onChange: (draft: PolicyDraft) => void
   onClose: () => void
   onSave: () => void
+  onRemove: () => void
 }
 
-function WorkspaceOverrideModal({
+function PolicyModal({
   draft,
   isNew,
   isSaving,
   piiEnabled,
+  canRemove,
   workspaceOptions,
   onChange,
   onClose,
   onSave,
-}: WorkspaceOverrideModalProps) {
+  onRemove,
+}: PolicyModalProps) {
+  const isOrg = draft.isOrgDefault
+  const showPiiGrid = isOrg || draft.piiOverride
+
   return (
-    <ChipModal open onOpenChange={onClose} size='xl' srTitle='Workspace override'>
+    <ChipModal open onOpenChange={onClose} size='xl' srTitle='Retention policy'>
       <ChipModalHeader onClose={onClose}>
-        {isNew ? 'Add workspace override' : 'Edit workspace override'}
+        {isOrg
+          ? 'Organization defaults'
+          : isNew
+            ? 'Add workspace override'
+            : 'Edit workspace override'}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Apply to workspaces'>
-          <ChipDropdown
-            multiple
-            value={draft.workspaceIds}
-            onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
-            options={workspaceOptions}
-            placeholder='Select workspaces'
-          />
-        </ChipModalField>
+        {!isOrg && (
+          <ChipModalField type='custom' title='Apply to workspaces'>
+            <ChipDropdown
+              multiple
+              value={draft.workspaceIds}
+              onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
+              options={workspaceOptions}
+              placeholder='Select workspaces'
+            />
+          </ChipModalField>
+        )}
         <ChipModalField type='custom' title='Log retention'>
           <RetentionSelect
-            allowInherit
+            allowInherit={!isOrg}
             value={draft.logDays}
             onChange={(logDays) => onChange({ ...draft, logDays })}
           />
         </ChipModalField>
         <ChipModalField type='custom' title='Soft deletion cleanup'>
           <RetentionSelect
-            allowInherit
+            allowInherit={!isOrg}
             value={draft.softDeleteDays}
             onChange={(softDeleteDays) => onChange({ ...draft, softDeleteDays })}
           />
         </ChipModalField>
         <ChipModalField type='custom' title='Task cleanup'>
           <RetentionSelect
-            allowInherit
+            allowInherit={!isOrg}
             value={draft.taskCleanupDays}
             onChange={(taskCleanupDays) => onChange({ ...draft, taskCleanupDays })}
           />
@@ -390,16 +352,18 @@ function WorkspaceOverrideModal({
         {piiEnabled && (
           <ChipModalField type='custom' title='PII redaction'>
             <div className='flex flex-col gap-3'>
-              <ChipSwitch
-                value={draft.piiMode}
-                onChange={(piiMode) => onChange({ ...draft, piiMode })}
-                aria-label='PII redaction override mode'
-                options={[
-                  { value: 'inherit', label: 'Inherit' },
-                  { value: 'override', label: 'Override' },
-                ]}
-              />
-              {draft.piiMode === 'override' && (
+              {!isOrg && (
+                <ChipSwitch
+                  value={draft.piiOverride ? 'override' : 'inherit'}
+                  onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
+                  aria-label='PII redaction override mode'
+                  options={[
+                    { value: 'inherit', label: 'Inherit' },
+                    { value: 'override', label: 'Override' },
+                  ]}
+                />
+              )}
+              {showPiiGrid && (
                 <>
                   <EntityCheckboxGrid
                     selected={draft.piiEntityTypes}
@@ -417,10 +381,15 @@ function WorkspaceOverrideModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        secondaryActions={
+          canRemove
+            ? [{ label: 'Remove override', onClick: onRemove, variant: 'destructive' }]
+            : undefined
+        }
         primaryAction={{
           label: isSaving ? 'Saving...' : 'Save',
           onClick: onSave,
-          disabled: isSaving || draft.workspaceIds.length === 0,
+          disabled: isSaving || (!isOrg && draft.workspaceIds.length === 0),
         }}
       />
     </ChipModal>
@@ -451,11 +420,8 @@ export function DataRetentionSettings() {
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')
   const [taskCleanupDays, setTaskCleanupDays] = useState('')
-  const [savedHours, setSavedHours] = useState('')
-  const [defaultPii, setDefaultPii] = useState<DefaultPiiDraft | null>(null)
-  const [piiOverrides, setPiiOverrides] = useState<
-    { id: string; workspaceId: string; entityTypes: string[]; language: PIILanguage }[]
-  >([])
+  const [defaultPii, setDefaultPii] = useState<Omit<PiiOverride, 'workspaceId'> | null>(null)
+  const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>([])
   const [overrides, setOverrides] = useState<RetentionOverride[]>([])
   const [modal, setModal] = useState<ActiveModal | null>(null)
   const [showUnsaved, setShowUnsaved] = useState(false)
@@ -463,19 +429,11 @@ export function DataRetentionSettings() {
   // saves don't target the new org with the previous org's config.
   const hydratedOrgRef = useRef<string | null>(null)
 
-  function hoursSnapshot(log: string, soft: string, task: string): string {
-    return JSON.stringify({ log, soft, task })
-  }
-
   useEffect(() => {
     if (!data || !orgId || hydratedOrgRef.current === orgId) return
-    const log = hoursToDisplayDays(data.effective.logRetentionHours)
-    const soft = hoursToDisplayDays(data.effective.softDeleteRetentionHours)
-    const task = hoursToDisplayDays(data.effective.taskCleanupHours)
-    setLogDays(log)
-    setSoftDeleteDays(soft)
-    setTaskCleanupDays(task)
-    setSavedHours(hoursSnapshot(log, soft, task))
+    setLogDays(hoursToDisplayDays(data.effective.logRetentionHours))
+    setSoftDeleteDays(hoursToDisplayDays(data.effective.softDeleteRetentionHours))
+    setTaskCleanupDays(hoursToDisplayDays(data.effective.taskCleanupHours))
 
     const rules = data.configured.piiRedaction?.rules ?? []
     const defaultRule = rules.find((r) => r.workspaceId === null)
@@ -502,13 +460,8 @@ export function DataRetentionSettings() {
     hydratedOrgRef.current = orgId
   }, [data, orgId])
 
-  const hoursChanged = hoursSnapshot(logDays, softDeleteDays, taskCleanupDays) !== savedHours
-
   const modalChanged =
-    modal !== null &&
-    (modal.kind === 'pii-default'
-      ? normalizeDefaultPii(modal.draft) !== normalizeDefaultPii(modal.original)
-      : normalizeWorkspaceDraft(modal.draft) !== normalizeWorkspaceDraft(modal.original))
+    modal !== null && normalizePolicyDraft(modal.draft) !== normalizePolicyDraft(modal.original)
 
   // PII-only rows are only surfaced when redaction is enabled — the route
   // rejects PII writes while the flag is off, so such rows couldn't be deleted.
@@ -522,11 +475,23 @@ export function DataRetentionSettings() {
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
 
   /** Options for the modal's workspace picker — excludes workspaces taken by OTHER overrides. */
-  function workspaceModalOptions(
-    draft: WorkspaceOverrideDraft
-  ): { value: string; label: string }[] {
+  function workspaceModalOptions(draft: PolicyDraft): { value: string; label: string }[] {
     const others = new Set(overrideWorkspaceIds.filter((id) => !draft.workspaceIds.includes(id)))
     return workspaceOptions.filter((w) => !others.has(w.value))
+  }
+
+  function orgRowSummary(): string {
+    const parts = [
+      `Log ${dayValueLabel(logDays)}`,
+      `Soft-delete ${dayValueLabel(softDeleteDays)}`,
+      `Task ${dayValueLabel(taskCleanupDays)}`,
+    ]
+    if (piiEnabled) {
+      parts.push(
+        defaultPii?.entityTypes.length ? `PII: ${entitySummary(defaultPii.entityTypes)}` : 'No PII'
+      )
+    }
+    return parts.join(' · ')
   }
 
   function overrideRowSummary(workspaceId: string): string {
@@ -541,85 +506,106 @@ export function DataRetentionSettings() {
     return parts.join(' · ')
   }
 
-  /** Persist both PII rules and retention overrides in one PUT. */
-  async function persistGovernance(
-    nextDefaultPii: DefaultPiiDraft | null,
-    nextPiiOverrides: typeof piiOverrides,
-    nextOverrides: RetentionOverride[]
-  ) {
+  /**
+   * Persist a full snapshot of org hours + PII rules + retention overrides in
+   * one PUT. The route replaces each provided key, so always sending the whole
+   * state keeps the three editable surfaces consistent.
+   */
+  async function persistSnapshot(next: {
+    logDays: string
+    softDeleteDays: string
+    taskCleanupDays: string
+    defaultPii: Omit<PiiOverride, 'workspaceId'> | null
+    piiOverrides: PiiOverride[]
+    overrides: RetentionOverride[]
+  }) {
     if (!orgId) return
-    const settings: UpdateOrganizationDataRetentionBody = { retentionOverrides: nextOverrides }
+    const settings: UpdateOrganizationDataRetentionBody = {
+      logRetentionHours: daysToHours(next.logDays),
+      softDeleteRetentionHours: daysToHours(next.softDeleteDays),
+      taskCleanupHours: daysToHours(next.taskCleanupDays),
+      retentionOverrides: next.overrides,
+    }
     if (piiEnabled) {
       const rules: {
         id: string
         entityTypes: string[]
         workspaceId: string | null
         language: PIILanguage
-      }[] = nextPiiOverrides.map((p) => ({
+      }[] = next.piiOverrides.map((p) => ({
         id: p.id,
         entityTypes: p.entityTypes,
         workspaceId: p.workspaceId,
         language: p.language,
       }))
-      if (nextDefaultPii) {
+      if (next.defaultPii) {
         rules.unshift({
-          id: nextDefaultPii.id,
-          entityTypes: nextDefaultPii.entityTypes,
+          id: next.defaultPii.id,
+          entityTypes: next.defaultPii.entityTypes,
           workspaceId: null,
-          language: nextDefaultPii.language,
+          language: next.defaultPii.language,
         })
       }
       settings.piiRedaction = { rules }
     }
     await updateMutation.mutateAsync({ orgId, settings })
-    setOverrides(nextOverrides)
+    setLogDays(next.logDays)
+    setSoftDeleteDays(next.softDeleteDays)
+    setTaskCleanupDays(next.taskCleanupDays)
+    setOverrides(next.overrides)
     if (piiEnabled) {
-      setDefaultPii(nextDefaultPii)
-      setPiiOverrides(nextPiiOverrides)
+      setDefaultPii(next.defaultPii)
+      setPiiOverrides(next.piiOverrides)
     }
   }
 
-  function openEditDefault() {
-    const draft: DefaultPiiDraft = defaultPii ?? {
-      id: generateId(),
-      entityTypes: [],
-      language: DEFAULT_PII_LANGUAGE,
+  function snapshot() {
+    return { logDays, softDeleteDays, taskCleanupDays, defaultPii, piiOverrides, overrides }
+  }
+
+  function openEditOrg() {
+    const draft: PolicyDraft = {
+      isOrgDefault: true,
+      workspaceIds: [],
+      logDays,
+      softDeleteDays,
+      taskCleanupDays,
+      piiOverride: true,
+      piiEntityTypes: defaultPii?.entityTypes ?? [],
+      piiLanguage: defaultPii?.language ?? DEFAULT_PII_LANGUAGE,
     }
-    setModal({
-      kind: 'pii-default',
-      draft: { ...draft },
-      original: draft,
-      isNew: defaultPii === null,
-    })
+    setModal({ draft, original: draft, isNew: false })
   }
 
   function openAddOverride() {
     if (freeWorkspaces.length === 0) return
-    const draft: WorkspaceOverrideDraft = {
+    const draft: PolicyDraft = {
+      isOrgDefault: false,
       workspaceIds: [],
       logDays: INHERIT,
       softDeleteDays: INHERIT,
       taskCleanupDays: INHERIT,
-      piiMode: 'inherit',
+      piiOverride: false,
       piiEntityTypes: [],
       piiLanguage: DEFAULT_PII_LANGUAGE,
     }
-    setModal({ kind: 'workspace', draft, original: draft, isNew: true })
+    setModal({ draft, original: draft, isNew: true })
   }
 
   function openEditOverride(workspaceId: string) {
     const ov = overrides.find((o) => o.workspaceId === workspaceId)
     const pii = piiOverrides.find((p) => p.workspaceId === workspaceId)
-    const draft: WorkspaceOverrideDraft = {
+    const draft: PolicyDraft = {
+      isOrgDefault: false,
       workspaceIds: [workspaceId],
       logDays: hoursToOverrideValue(ov?.logRetentionHours),
       softDeleteDays: hoursToOverrideValue(ov?.softDeleteRetentionHours),
       taskCleanupDays: hoursToOverrideValue(ov?.taskCleanupHours),
-      piiMode: pii ? 'override' : 'inherit',
+      piiOverride: Boolean(pii),
       piiEntityTypes: pii?.entityTypes ?? [],
       piiLanguage: pii?.language ?? DEFAULT_PII_LANGUAGE,
     }
-    setModal({ kind: 'workspace', draft, original: draft, isNew: false })
+    setModal({ draft, original: draft, isNew: false })
   }
 
   function clearModal() {
@@ -637,84 +623,73 @@ export function DataRetentionSettings() {
 
   async function saveModal() {
     if (!modal) return
+    const draft = modal.draft
     try {
-      if (modal.kind === 'pii-default') {
-        await persistGovernance(modal.draft, piiOverrides, overrides)
+      if (draft.isOrgDefault) {
+        await persistSnapshot({
+          ...snapshot(),
+          logDays: draft.logDays,
+          softDeleteDays: draft.softDeleteDays,
+          taskCleanupDays: draft.taskCleanupDays,
+          defaultPii: draft.piiEntityTypes.length
+            ? {
+                id: defaultPii?.id ?? generateId(),
+                entityTypes: draft.piiEntityTypes,
+                language: draft.piiLanguage,
+              }
+            : null,
+        })
         clearModal()
-        toast.success('PII redaction saved.')
+        toast.success('Organization defaults saved.')
         return
       }
 
-      const ids = modal.draft.workspaceIds
+      const ids = draft.workspaceIds
       if (ids.length === 0) return
       const idSet = new Set(ids)
       const nextOverrides = overrides.filter((o) => !idSet.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !idSet.has(p.workspaceId))
       for (const workspaceId of ids) {
-        const ov = buildRetentionOverride(workspaceId, modal.draft)
+        const ov = buildRetentionOverride(workspaceId, draft)
         if (ov) nextOverrides.push(ov)
-        if (piiEnabled && modal.draft.piiMode === 'override') {
+        if (piiEnabled && draft.piiOverride) {
           const existing = piiOverrides.find((p) => p.workspaceId === workspaceId)
           nextPiiOverrides.push({
             id: existing?.id ?? generateId(),
             workspaceId,
-            entityTypes: modal.draft.piiEntityTypes,
-            language: modal.draft.piiLanguage,
+            entityTypes: draft.piiEntityTypes,
+            language: draft.piiLanguage,
           })
         }
       }
-      await persistGovernance(defaultPii, nextPiiOverrides, nextOverrides)
+      await persistSnapshot({
+        ...snapshot(),
+        overrides: nextOverrides,
+        piiOverrides: nextPiiOverrides,
+      })
       clearModal()
-      toast.success('Workspace overrides saved.')
+      toast.success('Workspace override saved.')
     } catch (error) {
       const msg = toError(error).message
-      logger.error('Failed to save data retention governance', { error: msg })
+      logger.error('Failed to save data retention policy', { error: msg })
       toast.error(msg)
     }
   }
 
-  async function removeDefaultPii() {
+  async function removeCurrentOverride() {
+    if (!modal || modal.draft.isOrgDefault) return
+    const idSet = new Set(modal.draft.workspaceIds)
     try {
-      await persistGovernance(null, piiOverrides, overrides)
-      toast.success('PII redaction updated.')
-    } catch (error) {
-      const msg = toError(error).message
-      logger.error('Failed to remove PII redaction', { error: msg })
-      toast.error(msg)
-    }
-  }
-
-  async function removeOverrideRow(workspaceId: string) {
-    try {
-      await persistGovernance(
-        defaultPii,
-        piiOverrides.filter((p) => p.workspaceId !== workspaceId),
-        overrides.filter((o) => o.workspaceId !== workspaceId)
-      )
+      await persistSnapshot({
+        ...snapshot(),
+        overrides: overrides.filter((o) => !idSet.has(o.workspaceId)),
+        piiOverrides: piiOverrides.filter((p) => !idSet.has(p.workspaceId)),
+      })
+      clearModal()
       toast.success('Workspace override removed.')
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to remove workspace override', { error: msg })
-      toast.error(msg)
-    }
-  }
-
-  async function handleSaveHours() {
-    if (!orgId) return
-    try {
-      await updateMutation.mutateAsync({
-        orgId,
-        settings: {
-          logRetentionHours: daysToHours(logDays),
-          softDeleteRetentionHours: daysToHours(softDeleteDays),
-          taskCleanupHours: daysToHours(taskCleanupDays),
-        },
-      })
-      setSavedHours(hoursSnapshot(logDays, softDeleteDays, taskCleanupDays))
-      toast.success('Data retention settings saved.')
-    } catch (error) {
-      const msg = toError(error).message
-      logger.error('Failed to save data retention settings', { error: msg })
       toast.error(msg)
     }
   }
@@ -761,126 +736,78 @@ export function DataRetentionSettings() {
         <div />
         <div className='flex items-center'>
           <Chip
+            leftIcon={Plus}
             variant='primary'
-            onClick={handleSaveHours}
-            disabled={updateMutation.isPending || !hoursChanged}
+            onClick={openAddOverride}
+            disabled={freeWorkspaces.length === 0}
           >
-            {updateMutation.isPending ? 'Saving...' : 'Save'}
+            Add override
           </Chip>
         </div>
       </div>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-8 pt-6 pb-6'>
-          <SettingsSection label='Default · all workspaces'>
-            <div className='flex flex-col gap-5'>
-              <SettingRow
-                label='Log retention'
-                description='How long execution logs are kept before they are permanently deleted.'
-              >
-                <RetentionSelect value={logDays} onChange={setLogDays} />
-              </SettingRow>
-              <SettingRow
-                label='Soft deletion cleanup'
-                description='How long deleted resources remain recoverable before they are permanently removed.'
-              >
-                <RetentionSelect value={softDeleteDays} onChange={setSoftDeleteDays} />
-              </SettingRow>
-              <SettingRow
-                label='Task cleanup'
-                description='How long copilot chats, runs, and inbox tasks are kept before they are permanently deleted.'
-              >
-                <RetentionSelect value={taskCleanupDays} onChange={setTaskCleanupDays} />
-              </SettingRow>
-              {piiEnabled && (
-                <SettingRow
-                  label='PII redaction'
-                  description='Mask detected PII in workflow logs before they are persisted.'
-                >
-                  <div className='flex items-center gap-2'>
-                    <span className='truncate text-[var(--text-body)] text-small'>
-                      {defaultPii ? entitySummary(defaultPii.entityTypes) : 'Not redacted'}
-                    </span>
-                    <Chip onClick={openEditDefault}>{defaultPii ? 'Edit' : 'Configure'}</Chip>
-                    {defaultPii && (
-                      <Chip onClick={removeDefaultPii} disabled={updateMutation.isPending}>
-                        Delete
-                      </Chip>
-                    )}
-                  </div>
-                </SettingRow>
-              )}
-            </div>
-          </SettingsSection>
-          <SettingsSection label='Workspace overrides'>
+          <SettingsSection label='Retention policies'>
             <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between gap-3'>
-                <span className='text-[var(--text-muted)] text-caption'>
-                  Workspaces not listed inherit the organization defaults.
-                </span>
-                <Chip
-                  leftIcon={Plus}
-                  onClick={openAddOverride}
-                  disabled={freeWorkspaces.length === 0}
+              <span className='text-[var(--text-muted)] text-caption'>
+                Workspaces without an override inherit the organization defaults.
+              </span>
+              <div className='-mx-2 flex flex-col gap-y-0.5'>
+                <button
+                  type='button'
+                  onClick={openEditOrg}
+                  className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
-                  Add override
-                </Chip>
-              </div>
-              {overrideWorkspaceIds.length === 0 ? (
-                <p className='text-[var(--text-muted)] text-caption'>
-                  No overrides — every workspace uses the defaults above.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {overrideWorkspaceIds.map((workspaceId) => (
-                    <div
-                      key={workspaceId}
-                      className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'
-                    >
-                      <div className='flex min-w-0 flex-col'>
-                        <span className='truncate text-[var(--text-body)] text-small'>
-                          {workspaceName(workspaceId)}
-                        </span>
-                        <span className='truncate text-[var(--text-muted)] text-caption'>
-                          {overrideRowSummary(workspaceId)}
-                        </span>
-                      </div>
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Chip onClick={() => openEditOverride(workspaceId)}>Configure</Chip>
-                        <Chip
-                          onClick={() => removeOverrideRow(workspaceId)}
-                          disabled={updateMutation.isPending}
-                        >
-                          Delete
-                        </Chip>
-                      </div>
+                  <div className='flex min-w-0 flex-1 flex-col'>
+                    <div className='flex items-center gap-2'>
+                      <span className='truncate text-[14px] text-[var(--text-body)]'>
+                        Organization
+                      </span>
+                      <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                        Default
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                      {orgRowSummary()}
+                    </span>
+                  </div>
+                  <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                </button>
+                {overrideWorkspaceIds.map((workspaceId) => (
+                  <button
+                    key={workspaceId}
+                    type='button'
+                    onClick={() => openEditOverride(workspaceId)}
+                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <div className='flex min-w-0 flex-1 flex-col'>
+                      <span className='truncate text-[14px] text-[var(--text-body)]'>
+                        {workspaceName(workspaceId)}
+                      </span>
+                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                        {overrideRowSummary(workspaceId)}
+                      </span>
+                    </div>
+                    <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                ))}
+              </div>
             </div>
           </SettingsSection>
         </div>
       </div>
-      {modal?.kind === 'pii-default' && (
-        <DefaultPiiModal
-          draft={modal.draft}
-          isNew={modal.isNew}
-          isSaving={updateMutation.isPending}
-          onChange={(draft) => setModal({ ...modal, draft })}
-          onClose={requestCloseModal}
-          onSave={saveModal}
-        />
-      )}
-      {modal?.kind === 'workspace' && (
-        <WorkspaceOverrideModal
+      {modal && (
+        <PolicyModal
           draft={modal.draft}
           isNew={modal.isNew}
           isSaving={updateMutation.isPending}
           piiEnabled={piiEnabled}
+          canRemove={!modal.draft.isOrgDefault && !modal.isNew}
           workspaceOptions={workspaceModalOptions(modal.draft)}
           onChange={(draft) => setModal({ ...modal, draft })}
           onClose={requestCloseModal}
           onSave={saveModal}
+          onRemove={removeCurrentOverride}
         />
       )}
       <ChipModal
