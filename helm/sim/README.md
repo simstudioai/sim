@@ -48,6 +48,7 @@ Optional components (off by default):
 
 * **`copilot`** — the Sim Copilot service plus its own Postgres StatefulSet.
 * **`ollama`** — local LLM inference, with optional NVIDIA GPU support.
+* **`pii`** — Presidio PII redaction sidecar (analyzer + anonymizer) for the Guardrails PII block and log redaction. See [PII redaction](#pii-redaction).
 * **`telemetry`** — OpenTelemetry Collector wired to Jaeger / Prometheus / OTLP backends.
 * **`ingress`** — NGINX-style Ingress for the app and realtime services.
 * **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
@@ -321,7 +322,7 @@ User-supplied `securityContext` values are merged with the defaults — your val
 Other security features:
 
 * `automountServiceAccountToken: false` on the ServiceAccount **and** every pod.
-* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A value placed in `app.env` always wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists).
+* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A value placed in `app.env` always wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists).
 * Optional `networkPolicy.enabled=true` enforces east-west isolation and blocks cloud metadata endpoints in egress.
 
 ---
@@ -351,6 +352,35 @@ monitoring:
 ```
 
 Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services.
+
+---
+
+## PII redaction
+
+Sim can redact personally identifiable information using a [Presidio](https://microsoft.github.io/presidio/) sidecar (analyzer + anonymizer combined into one image listening on port 5001). Enable it with:
+
+```yaml
+pii:
+  enabled: true
+```
+
+When enabled, the chart deploys the sidecar (`<release>-pii` Deployment + Service) and **auto-wires** `PII_URL` on the app to the in-cluster service. The sidecar bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
+
+This alone powers the **Guardrails PII block** and on-demand masking. To additionally turn on **automatic log redaction** (the org/workspace data-retention scrub), you must:
+
+```yaml
+app:
+  env:
+    PII_REDACTION: "true"
+    # The log-redaction path calls the app's own /api/guardrails/mask-batch,
+    # which must be reachable from inside the cluster. Set this to the in-cluster
+    # app Service URL (NOT the public ingress, which usually isn't hairpin-reachable).
+    INTERNAL_API_BASE_URL: "http://<release>-app.<namespace>.svc.cluster.local:3000"
+```
+
+Without a cluster-reachable `INTERNAL_API_BASE_URL` (it falls back to `NEXT_PUBLIC_APP_URL`), the redaction path fails closed — it scrubs affected fields to `[REDACTION_FAILED]` rather than leaking, but redaction won't actually run.
+
+> The PII image is published at `ghcr.io/simstudioai/pii` (multi-arch). If you mirror images into a private registry, retag it alongside the app/realtime/migrations images.
 
 ---
 
