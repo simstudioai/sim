@@ -6,6 +6,7 @@ description: An AI agent is a Sim workflow that uses Agent blocks — the reason
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Agents" title="Agents" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-intro-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ In Sim, you build AI agents as **workflows that use the Agent block**. There's n
 ## An agent is a workflow
 
 This is the one idea to hold onto: **an AI agent is a workflow** — one built around the Agent block. Everything you learned about [workflows](/academy/workflows/intro) applies. You don't leave the model; you add reasoning to it.
+
+Here's the shape of it — a workflow built around an Agent block where it thinks:
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
 
 ## Inside the Agent block
 

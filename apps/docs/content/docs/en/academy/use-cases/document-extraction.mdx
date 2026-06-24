@@ -6,6 +6,7 @@ description: A pipeline that takes incoming documents, extracts the fields you c
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Use case" title="Document Intake & Extraction" className="mt-2" />
 
@@ -41,3 +42,7 @@ Turn a pile of unstructured documents — invoices, contracts, forms — into st
 A **file** comes in, an **Agent** block extracts the fields into a [structured output](/academy/agents/intro) so the shape is predictable, and a **Table** block writes the row. Run it across a batch and a folder of documents becomes a queryable table.
 
 This composes [files](/academy/files/intro), [agents](/academy/agents/intro), and [tables](/academy/tables/intro).
+
+Here's the shape of it — a file in, an agent that extracts the fields, a row written out:
+
+<WorkflowPreview workflow={FILE_SUMMARY_WORKFLOW} />

@@ -6,6 +6,7 @@ description: Split a workflow into different paths based on the result of a step
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CONDITION_ROUTE_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Branching" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-branching-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ Branching is how a workflow **splits into different paths based on the result of
 ## A fork in the flow
 
 Most workflows you've seen run in a line. Branching adds a **fork**: at some point the run looks at the result of a step and takes one path or another. The paths can do completely different work.
+
+Here's the shape of a fork — one step decides, and the run takes one path or the other:
+
+<WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
 
 ## The Condition block — decide with a rule
 

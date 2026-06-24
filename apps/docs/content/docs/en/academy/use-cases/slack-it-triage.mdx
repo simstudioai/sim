@@ -6,6 +6,7 @@ description: An agent that watches a Slack channel, classifies incoming IT reque
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, ROUTER_TRIAGE_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Use case" title="Slack IT Triage Bot" className="mt-2" />
 
@@ -41,3 +42,7 @@ Build an agent that lives in a Slack channel: it reads each incoming IT request,
 A **Slack trigger** starts the workflow on each new message. An **Agent** block classifies the request and decides the path: a **knowledge-base search** drafts an answer for common questions, while anything it can't resolve is routed to a human or filed as a ticket. Every run is recorded in the [logs](/logs-debugging).
 
 This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system — the foundations, composed.
+
+Here's the shape of it — a trigger, an agent that classifies and routes, and the paths it chooses between:
+
+<WorkflowPreview workflow={ROUTER_TRIAGE_WORKFLOW} />

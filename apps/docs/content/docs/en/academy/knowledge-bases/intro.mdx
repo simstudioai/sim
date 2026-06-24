@@ -6,6 +6,7 @@ description: Knowledge bases give your workflows searchable memory — large vol
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/knowledge-bases-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ A **knowledge base** gives your workflows searchable memory. You put in large vo
 ## The context problem
 
 The naive way to give a model knowledge is to paste everything into its context. That breaks down fast — too much text, too much cost, too much noise. A knowledge base is the answer: store the corpus once, and at run time pull back only the passages that bear on the question.
+
+Here's the shape of it — a workflow that searches a knowledge base and grounds the answer in what comes back:
+
+<WorkflowPreview workflow={SUPPORT_KB_WORKFLOW} />
 
 ## Inside a knowledge base
 

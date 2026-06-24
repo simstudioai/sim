@@ -6,6 +6,7 @@ description: Call one workflow from another, the way you'd call a function in co
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, WORKFLOW_CALL_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Subworkflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-subworkflows-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ Once you've built a workflow that does something well, you can **call it from an
 ## The workflow you already know
 
 Start with a workflow you've built and trust — say one that classifies a message. On its own it's a complete process you can run.
+
+Here's the shape of it — one workflow invoked as a single block inside another:
+
+<WorkflowPreview workflow={WORKFLOW_CALL_WORKFLOW} />
 
 ## It becomes a block
 

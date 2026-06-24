@@ -6,6 +6,7 @@ description: A workflow is a visual program made of blocks — where you compose
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Workflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-intro-light-with-intro.mp4" className="mt-2" />
 
@@ -54,6 +55,10 @@ A **workflow** is a visual program made of blocks. It's where you compose everyt
 - Blocks have **parameters** that configure how they work. A Fetch Webpage block takes a URL; an Agent block takes a model and a prompt.
 - When a workflow runs, Sim records what each block produced. Any later block can read an earlier block's output through a **connection tag**, like `<fetch.content>`.
 - Everything that happened is saved in the **logs** — the trigger, every block, and each block's input and output — so you can see exactly where a value came from.
+
+Here's a small workflow you can read top to bottom — blocks wired in order, each one a step. The highlighted block reads an earlier block's output through a connection tag:
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} highlightBlock="reply" />
 
 ## How execution flows
 

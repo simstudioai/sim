@@ -6,6 +6,7 @@ description: Deploying gives a workflow an address so the outside world can run 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, RESPONSE_API_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Deployment" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-deployments-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ Deploying publishes a workflow and gives it an **address**, so something other t
 ## A working workflow
 
 Before deploying, you have a workflow that runs when *you* run it, in the editor. Deploying is the step that lets anything else run it too.
+
+Here's the shape of the workflow you'll deploy — a Start block, a chain, and a response back to the caller:
+
+<WorkflowPreview workflow={RESPONSE_API_WORKFLOW} />
 
 ## Deploy gives it an address
 

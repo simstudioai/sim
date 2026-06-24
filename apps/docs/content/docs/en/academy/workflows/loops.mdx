@@ -6,6 +6,7 @@ description: Repeat the same steps over a collection — the Loop block runs the
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, LOOP_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-loops-light-with-intro.mp4" className="mt-2" />
 
@@ -48,6 +49,10 @@ Repeating the same steps across a whole collection is one of the most fundamenta
 ## A block that holds blocks
 
 A Loop (or Parallel) is a **container** — a block you drop other blocks inside. You hand it a collection, and it runs whatever's inside once for every item in that collection, turning a single step into many.
+
+Here's the shape of it — a container wrapping the blocks it repeats over the collection:
+
+<WorkflowPreview workflow={LOOP_WORKFLOW} />
 
 ## What each run knows
 

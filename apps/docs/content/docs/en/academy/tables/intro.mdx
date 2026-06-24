@@ -6,6 +6,7 @@ description: Tables store structured data — columns as types, rows as entries 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Tables" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/tables-light-with-intro.mp4" className="mt-2" />
 
@@ -47,6 +48,10 @@ A **table** stores structured data: columns are the types, rows are the entries.
 ## A familiar shape
 
 If you've used a spreadsheet, you already understand a table: columns with types, rows of entries. Your workflows read rows to work on, write rows they produce, and update rows in place.
+
+Here's the shape of it — a workflow that reads a table, operates on each record, and writes the result back:
+
+<WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} />
 
 ## Operations over data
 
