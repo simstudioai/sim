@@ -3,6 +3,8 @@ import { toError } from '@sim/utils/errors'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -114,6 +116,101 @@ export function validateInputsForBlock(
   }
 
   return { validInputs: validatedInputs, errors }
+}
+
+/** Tool-entry `type` values that are valid but are not registry block types. */
+const KNOWN_NON_BLOCK_TOOL_TYPES = new Set(['custom-tool', 'mcp', 'workflow'])
+
+/**
+ * Validates a single entry in an agent block's `tools` (tool-input) array and
+ * returns a human-readable error string for LLM feedback, or null when valid.
+ *
+ * Targets the shapes that silently fail to attach (the entry is stored but the
+ * wrench icon never renders and/or the runtime drops the tool so the agent never
+ * sees it): a custom tool missing `type: 'custom-tool'`, a custom tool with
+ * neither `customToolId` nor an inline `schema.function`, an MCP tool missing
+ * its `params.serverId`/`params.toolName`, a raw OpenAI function schema pasted
+ * into the array, and unrecognized tool types.
+ */
+function validateAgentToolEntry(item: any, index: number): string | null {
+  const where = `tools[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a tool object`
+  }
+
+  const type = item.type
+
+  // Raw OpenAI function schema pasted directly into the array (common mistake).
+  if (
+    type !== 'custom-tool' &&
+    item.function &&
+    typeof item.function === 'object' &&
+    typeof item.function.name === 'string'
+  ) {
+    return `${where} looks like a raw function schema. A custom tool must be {"type":"custom-tool","customToolId":"<id>"} (preferred) or {"type":"custom-tool","schema":{"type":"function","function":{...}},"code":"..."}`
+  }
+
+  if (typeof type !== 'string' || type.trim() === '') {
+    return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
+  }
+
+  if (type === 'custom-tool') {
+    const hasReference = typeof item.customToolId === 'string' && item.customToolId.trim() !== ''
+    const fn = item.schema?.function
+    const hasInlineSchema =
+      !!fn &&
+      typeof fn.name === 'string' &&
+      fn.name.trim() !== '' &&
+      !!fn.parameters &&
+      typeof fn.parameters === 'object'
+    if (!hasReference && !hasInlineSchema) {
+      return `${where} (custom-tool) must include "customToolId" (the "id" from agent/custom-tools/{name}.json - not the filename, not schema.function.name) or an inline "schema.function" with "name" and "parameters"`
+    }
+    return null
+  }
+
+  if (type === 'mcp') {
+    const serverId = item.params?.serverId
+    const toolName = item.params?.toolName
+    const ok =
+      typeof serverId === 'string' &&
+      serverId.trim() !== '' &&
+      typeof toolName === 'string' &&
+      toolName.trim() !== ''
+    if (!ok) {
+      return `${where} (mcp) must include params.serverId and params.toolName`
+    }
+    return null
+  }
+
+  // Integration/block-based tool: the type must be a real registry block type.
+  if (!KNOWN_NON_BLOCK_TOOL_TYPES.has(type) && !getBlock(type)) {
+    return `${where} has unrecognized tool type "${type}". Use "custom-tool" for custom tools, "mcp" for MCP tools, or a valid integration block type`
+  }
+
+  return null
+}
+
+/**
+ * Validates a single entry in an agent block's `skills` (skill-input) array.
+ * Skills are a SEPARATE array from tools; each entry references a workspace or
+ * builtin skill by `skillId`. Returns an error string or null when valid.
+ */
+function validateAgentSkillEntry(item: any, index: number): string | null {
+  const where = `skills[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a skill object like {"skillId":"<id>","name":"<name>"}`
+  }
+  if (typeof item.skillId !== 'string' || item.skillId.trim() === '') {
+    if (typeof item.id === 'string') {
+      return `${where} uses "id" but skills require "skillId" (the "id" from agent/skills/{name}.json)`
+    }
+    if (typeof item.type === 'string' || item.schema || item.customToolId) {
+      return `${where} looks like a tool entry. Skills go in the SEPARATE "skills" array and need only {"skillId":"<id>"} - no "type"/"schema"/"customToolId"`
+    }
+    return `${where} must include "skillId" (the "id" from agent/skills/{name}.json)`
+  }
+  return null
 }
 
 /**
@@ -294,6 +391,53 @@ export function validateValueForSubBlockType(
             field: fieldName,
             value,
             error: `Invalid tool-input value for field "${fieldName}" - expected an array of tool objects`,
+          },
+        }
+      }
+      const toolErrors = value
+        .map((item, index) => validateAgentToolEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (toolErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid tool ${toolErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${toolErrors.join('; ')}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'skill-input': {
+      // Should be an array of skill reference objects ({ skillId, name? })
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill-input value for field "${fieldName}" - expected an array of skill objects`,
+          },
+        }
+      }
+      const skillErrors = value
+        .map((item, index) => validateAgentSkillEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (skillErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill ${skillErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${skillErrors.join('; ')}`,
           },
         }
       }
@@ -735,7 +879,7 @@ export interface UnresolvedSelectorReference {
   blockType?: string
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource'
+  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
   reason: string
 }
 
@@ -931,6 +1075,118 @@ export async function collectUnresolvedReferences(
         kind,
         reason: `${selector.selectorType} ID(s) ${result.invalid.join(', ')} do not resolve to an accessible ${kind}${warningInfo}`,
       })
+    }
+  }
+
+  return references
+}
+
+/**
+ * Lint-facing existence check for agent-block tool/skill references. Walks every
+ * agent block and verifies that reference-format custom tools (`customToolId`),
+ * MCP tools (`params.serverId`), and skills (`skillId`) resolve to real
+ * workspace/builtin entities. A well-shaped entry whose id does not resolve
+ * passes shape validation but is silently dropped at runtime (the agent never
+ * sees the tool/skill), so surface it through the lint channel. Best-effort:
+ * per-entry resolution failures are skipped rather than failing the edit.
+ */
+export async function collectUnresolvedAgentToolReferences(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string }
+): Promise<UnresolvedSelectorReference[]> {
+  const logger = createLogger('EditWorkflowAgentToolLint')
+  const references: UnresolvedSelectorReference[] = []
+  const { userId, workspaceId } = context
+
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const blockData = block as any
+    if (blockData?.type !== 'agent') continue
+    const blockName = blockData.name as string | undefined
+
+    const tools = blockData.subBlocks?.tools?.value
+    if (Array.isArray(tools)) {
+      for (const tool of tools) {
+        if (!tool || typeof tool !== 'object') continue
+
+        // Reference-format custom tools must resolve to a DB row. Inline tools
+        // (those carrying their own schema) are self-contained, so skip them.
+        if (tool.type === 'custom-tool' && !tool.schema) {
+          const toolId = tool.customToolId
+          if (typeof toolId !== 'string' || toolId.trim() === '') continue
+          try {
+            const found = await getCustomToolById({ toolId, userId, workspaceId })
+            if (!found) {
+              references.push({
+                blockId,
+                blockName,
+                blockType: 'agent',
+                field: 'tools',
+                value: toolId,
+                kind: 'custom-tool',
+                reason: `custom tool id "${toolId}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`,
+              })
+            }
+          } catch (error) {
+            logger.warn('Custom tool resolution failed; skipping', {
+              blockId,
+              toolId,
+              error: toError(error).message,
+            })
+          }
+        } else if (tool.type === 'mcp' && workspaceId) {
+          const serverId = tool.params?.serverId
+          if (typeof serverId !== 'string' || serverId.trim() === '') continue
+          try {
+            const result = await validateSelectorIds('mcp-server-selector', serverId, context)
+            if (result.invalid.length > 0) {
+              references.push({
+                blockId,
+                blockName,
+                blockType: 'agent',
+                field: 'tools',
+                value: serverId,
+                kind: 'mcp-tool',
+                reason: `MCP server "${serverId}" does not resolve to an enabled MCP server in this workspace`,
+              })
+            }
+          } catch (error) {
+            logger.warn('MCP server resolution failed; skipping', {
+              blockId,
+              serverId,
+              error: toError(error).message,
+            })
+          }
+        }
+      }
+    }
+
+    const skills = blockData.subBlocks?.skills?.value
+    if (Array.isArray(skills) && workspaceId) {
+      for (const skillEntry of skills) {
+        if (!skillEntry || typeof skillEntry !== 'object') continue
+        const skillId = skillEntry.skillId
+        if (typeof skillId !== 'string' || skillId.trim() === '') continue
+        try {
+          const found = await getSkillById({ skillId, workspaceId })
+          if (!found) {
+            references.push({
+              blockId,
+              blockName,
+              blockType: 'agent',
+              field: 'skills',
+              value: skillId,
+              kind: 'skill',
+              reason: `skill id "${skillId}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`,
+            })
+          }
+        } catch (error) {
+          logger.warn('Skill resolution failed; skipping', {
+            blockId,
+            skillId,
+            error: toError(error).message,
+          })
+        }
+      }
     }
   }
 

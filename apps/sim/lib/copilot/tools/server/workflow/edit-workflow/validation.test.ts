@@ -5,10 +5,13 @@ import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
-const { mockValidateSelectorIds, mockGetModelOptions } = vi.hoisted(() => ({
-  mockValidateSelectorIds: vi.fn(),
-  mockGetModelOptions: vi.fn(() => []),
-}))
+const { mockValidateSelectorIds, mockGetModelOptions, mockGetCustomToolById, mockGetSkillById } =
+  vi.hoisted(() => ({
+    mockValidateSelectorIds: vi.fn(),
+    mockGetModelOptions: vi.fn(() => []),
+    mockGetCustomToolById: vi.fn(),
+    mockGetSkillById: vi.fn(),
+  }))
 
 const conditionBlockConfig = {
   type: 'condition',
@@ -38,7 +41,11 @@ const agentBlockConfig = {
   type: 'agent',
   name: 'Agent',
   outputs: {},
-  subBlocks: [{ id: 'model', type: 'combobox', options: mockGetModelOptions }],
+  subBlocks: [
+    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'tools', type: 'tool-input' },
+    { id: 'skills', type: 'skill-input' },
+  ],
 }
 
 const huggingfaceBlockConfig = {
@@ -92,6 +99,14 @@ vi.mock('@/lib/copilot/validation/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
 }))
 
+vi.mock('@/lib/workflows/custom-tools/operations', () => ({
+  getCustomToolById: mockGetCustomToolById,
+}))
+
+vi.mock('@/lib/workflows/skills/operations', () => ({
+  getSkillById: mockGetSkillById,
+}))
+
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/providers/utils', () => ({
@@ -99,6 +114,7 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import {
+  collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
   preValidateCredentialInputs,
   validateInputsForBlock,
@@ -413,5 +429,298 @@ describe('collectUnresolvedReferences', () => {
     expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
+  })
+})
+
+describe('validateInputsForBlock - agent tools (tool-input)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('accepts a reference-format custom tool', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'custom-tool', customToolId: 'ct_123', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts an inline custom tool with schema.function', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        tools: [
+          {
+            type: 'custom-tool',
+            schema: { type: 'function', function: { name: 'foo', parameters: { type: 'object' } } },
+            code: 'return 1',
+          },
+        ],
+      },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects a custom tool missing "type": "custom-tool" (the no-icon case)', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ customToolId: 'ct_123', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('custom-tool')
+  })
+
+  it('rejects a raw OpenAI function schema pasted into the array', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'function', function: { name: 'foo', parameters: {} } }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('raw function schema')
+  })
+
+  it('rejects a custom tool with neither customToolId nor inline schema', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'custom-tool', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('customToolId')
+  })
+
+  it('rejects an MCP tool missing params.serverId/toolName', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'mcp', title: 'x', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('params.serverId')
+  })
+
+  it('accepts an MCP tool with params.serverId and params.toolName', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        tools: [
+          {
+            type: 'mcp',
+            params: { serverId: 'srv_1', toolName: 'web_search' },
+            usageControl: 'auto',
+          },
+        ],
+      },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts an integration tool whose type is a known block', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'slack', operation: 'send', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects an unrecognized tool type', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'nonexistent-block', operation: 'x' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('unrecognized tool type')
+  })
+
+  it('reports every bad entry in a single error', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ customToolId: 'x' }, { type: 'mcp' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('tools[0]')
+    expect(result.errors[0]?.error).toContain('tools[1]')
+  })
+
+  it('rejects a non-array tools value', () => {
+    const result = validateInputsForBlock('agent', { tools: 'not-an-array' }, 'agent-1')
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('expected an array')
+  })
+})
+
+describe('validateInputsForBlock - agent skills (skill-input)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('accepts a well-formed skill entry', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { skills: [{ skillId: 'builtin-deploy-workflow', name: 'deploy-workflow' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.skills).toBeDefined()
+  })
+
+  it('rejects a skill entry that uses "id" instead of "skillId"', () => {
+    const result = validateInputsForBlock('agent', { skills: [{ id: 'x', name: 'y' }] }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skillId')
+  })
+
+  it('rejects a skill entry missing skillId', () => {
+    const result = validateInputsForBlock('agent', { skills: [{ name: 'y' }] }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skillId')
+  })
+
+  it('rejects a tool-shaped entry placed in the skills array', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { skills: [{ type: 'custom-tool', customToolId: 'ct_1' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skills')
+  })
+
+  it('rejects a non-array skills value', () => {
+    const result = validateInputsForBlock('agent', { skills: {} }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('expected an array')
+  })
+})
+
+describe('collectUnresolvedAgentToolReferences', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetCustomToolById.mockResolvedValue(null)
+    mockGetSkillById.mockResolvedValue(null)
+  })
+
+  it('flags a custom tool whose customToolId does not resolve', async () => {
+    mockGetCustomToolById.mockResolvedValue(null)
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          name: 'Agent 1',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'missing_ct' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ blockId: 'a1', field: 'tools', kind: 'custom-tool' })
+    expect(refs[0]?.reason).toContain('missing_ct')
+  })
+
+  it('does not DB-check an inline custom tool (it carries its own schema)', async () => {
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: {
+            tools: {
+              value: [
+                {
+                  type: 'custom-tool',
+                  customToolId: 'x',
+                  schema: { type: 'function', function: { name: 'f', parameters: {} } },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+
+  it('does not flag a custom tool that resolves', async () => {
+    mockGetCustomToolById.mockResolvedValue({ id: 'ct_ok' })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'ct_ok' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+  })
+
+  it('flags an MCP tool whose server does not resolve', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['srv_missing'] })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: {
+            tools: { value: [{ type: 'mcp', params: { serverId: 'srv_missing', toolName: 'x' } }] },
+          },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'tools', kind: 'mcp-tool' })
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('mcp-server-selector', 'srv_missing', CTX)
+  })
+
+  it('flags a skill whose skillId does not resolve', async () => {
+    mockGetSkillById.mockResolvedValue(null)
+    const state = {
+      blocks: {
+        a1: { type: 'agent', subBlocks: { skills: { value: [{ skillId: 'bogus-skill' }] } } },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'skills', kind: 'skill' })
+    expect(refs[0]?.reason).toContain('bogus-skill')
+  })
+
+  it('does not flag a skill that resolves (builtin or workspace)', async () => {
+    mockGetSkillById.mockResolvedValue({ id: 'builtin-deploy-workflow', name: 'deploy-workflow' })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { skills: { value: [{ skillId: 'builtin-deploy-workflow' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+  })
+
+  it('ignores non-agent blocks', async () => {
+    const state = {
+      blocks: { s1: { type: 'slack', subBlocks: { tools: { value: [{ type: 'custom-tool' }] } } } },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
   })
 })
