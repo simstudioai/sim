@@ -423,11 +423,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         // with no active public link reads as 'private' and exposes no link/config.
         // Picker/upload input files have no canonical id, so they read as private.
         const shares = await getSharesForResources('file', selectedFileIds)
+        const privateReadShare = () => ({
+          visibility: 'private' as const,
+          url: null,
+          allowedEmails: [] as string[],
+        })
         const toReadShare = (fileId: string) => {
           const share = shares.get(fileId)
-          if (!share || !share.isActive) {
-            return { visibility: 'private' as const, url: null, allowedEmails: [] as string[] }
-          }
+          if (!share || !share.isActive) return privateReadShare()
           return {
             visibility: share.authType,
             url: share.url,
@@ -440,7 +443,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             Boolean(file)
           )
           .map((file) => ({ ...file, share: toReadShare(file.id) }))
-          .concat(selectedInputFiles.map((file) => ({ ...file, share: toReadShare(file.id) })))
+          // Picker/upload entries have only a synthetic id (storage key/URL), so they
+          // never carry a canonical share — mark them private without a lookup.
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: privateReadShare() })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,
