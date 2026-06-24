@@ -13,15 +13,33 @@ export type BlockRunStatus = 'success' | 'error'
 export type EdgeRunStatus = 'success' | 'error'
 
 /**
+ * The mutually-exclusive execution mode of a single workflow.
+ *
+ * @remarks
+ * This is the single source of truth for whether a workflow is running.
+ * The legacy `isExecuting` / `isDebugging` booleans are derived from it
+ * via {@link deriveExecutionFlags} so illegal combinations — such as
+ * "debugging while not executing" — are unrepresentable.
+ *
+ * - `idle` — not running.
+ * - `running` — executing normally (derives `isExecuting`).
+ * - `debugging` — executing in step-by-step debug mode (derives both
+ *   `isExecuting` and `isDebugging`).
+ */
+export type ExecutionStatus = 'idle' | 'running' | 'debugging'
+
+/**
  * Execution state scoped to a single workflow.
  *
  * Each workflow has its own independent instance so concurrent executions
  * do not interfere with one another.
  */
 export interface WorkflowExecutionState {
-  /** Whether this workflow is currently executing */
+  /** Mutually-exclusive execution mode; the source of truth for run state */
+  status: ExecutionStatus
+  /** Derived from {@link status}: whether this workflow is currently executing */
   isExecuting: boolean
-  /** Whether this workflow is in step-by-step debug mode */
+  /** Derived from {@link status}: whether this workflow is in step-by-step debug mode */
   isDebugging: boolean
   /** Block IDs that are currently running (pulsing in the UI) */
   activeBlockIds: Set<string>
@@ -40,6 +58,24 @@ export interface WorkflowExecutionState {
 }
 
 /**
+ * Computes the legacy `isExecuting` / `isDebugging` booleans from a status.
+ *
+ * @remarks
+ * Keeping the derived booleans on the stored state object lets existing
+ * consumers keep reading `state.isExecuting` / `state.isDebugging`
+ * unchanged while {@link ExecutionStatus} remains the single source of truth.
+ */
+export function deriveExecutionFlags(status: ExecutionStatus): {
+  isExecuting: boolean
+  isDebugging: boolean
+} {
+  return {
+    isExecuting: status !== 'idle',
+    isDebugging: status === 'debugging',
+  }
+}
+
+/**
  * Default values for a workflow that has never been executed.
  *
  * @remarks
@@ -48,8 +84,8 @@ export interface WorkflowExecutionState {
  * re-renders in Zustand selectors that use `Object.is` equality.
  */
 export const defaultWorkflowExecutionState: WorkflowExecutionState = {
-  isExecuting: false,
-  isDebugging: false,
+  status: 'idle',
+  ...deriveExecutionFlags('idle'),
   activeBlockIds: new Set(),
   pendingBlocks: [],
   executor: null,
@@ -83,9 +119,38 @@ export interface ExecutionActions {
   getWorkflowExecution: (workflowId: string) => WorkflowExecutionState
   /** Replaces the set of currently-executing block IDs for a workflow */
   setActiveBlocks: (workflowId: string, blockIds: Set<string>) => void
-  /** Marks a workflow as executing or idle. Starting clears the run path */
+  /**
+   * Sets the {@link ExecutionStatus} for a workflow.
+   *
+   * @remarks
+   * Pass `{ clearRunPath: true }` to also reset `lastRunPath` / `lastRunEdges`.
+   * Run-path clearing is opt-in: it is owned by
+   * {@link ExecutionActions.setIsExecuting} (which clears on start), matching
+   * the legacy behavior where only starting execution wiped the run history.
+   */
+  setStatus: (
+    workflowId: string,
+    status: ExecutionStatus,
+    options?: { clearRunPath?: boolean }
+  ) => void
+  /**
+   * Marks a workflow as executing or idle. Starting (`true`) clears the run path.
+   *
+   * @remarks
+   * Translates to {@link ExecutionActions.setStatus}: `true` preserves an
+   * active debug session (`debugging`) and otherwise enters `running`, and
+   * always clears the run path; `false` returns to `idle` and preserves it.
+   */
   setIsExecuting: (workflowId: string, isExecuting: boolean) => void
-  /** Toggles debug mode for a workflow */
+  /**
+   * Toggles step-by-step debug mode for a workflow.
+   *
+   * @remarks
+   * Translates to {@link ExecutionActions.setStatus}: `true` enters
+   * `debugging` (which implies executing); `false` returns to `running` only
+   * when currently `debugging`, otherwise the status is preserved (e.g. calling
+   * it while `idle` is a no-op).
+   */
   setIsDebugging: (workflowId: string, isDebugging: boolean) => void
   /** Sets the list of blocks pending execution during debug stepping */
   setPendingBlocks: (workflowId: string, blockIds: string[]) => void
