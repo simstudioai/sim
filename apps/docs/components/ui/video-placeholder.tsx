@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn, getAssetUrl } from '@/lib/utils'
 
 interface VideoPlaceholderProps {
@@ -52,6 +52,28 @@ export function VideoPlaceholder({
 }: VideoPlaceholderProps) {
   const hasVideo = Boolean(src)
   const [playing, setPlaying] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const pendingSeek = useRef<number | null>(null)
+
+  // Chapter rows (VideoChapters) dispatch `academy:seek` with a time in seconds.
+  // Start the video if it isn't playing yet, then jump there.
+  useEffect(() => {
+    if (!src) return
+    const onSeek = (e: Event) => {
+      const time = (e as CustomEvent<{ time: number }>).detail?.time
+      if (typeof time !== 'number') return
+      const video = videoRef.current
+      if (video) {
+        video.currentTime = time
+        void video.play()
+      } else {
+        pendingSeek.current = time
+        setPlaying(true)
+      }
+    }
+    window.addEventListener('academy:seek', onSeek)
+    return () => window.removeEventListener('academy:seek', onSeek)
+  }, [src])
 
   if (playing && src) {
     return (
@@ -63,11 +85,19 @@ export function VideoPlaceholder({
       >
         {/* biome-ignore lint/a11y/useMediaCaption: lesson videos have no caption track yet */}
         <video
+          ref={videoRef}
           src={resolveVideoSrc(src)}
           title={title ?? 'Lesson video'}
           controls
           autoPlay
           playsInline
+          onLoadedMetadata={() => {
+            if (pendingSeek.current != null && videoRef.current) {
+              videoRef.current.currentTime = pendingSeek.current
+              void videoRef.current.play()
+              pendingSeek.current = null
+            }
+          }}
           className='h-full w-full border-0'
         />
       </div>

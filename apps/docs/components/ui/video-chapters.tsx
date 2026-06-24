@@ -1,5 +1,14 @@
+'use client'
+
 import { CirclePlay } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+/** Parse a chapter timestamp ("M:SS" or "H:MM:SS") into seconds. */
+function parseTime(time: string): number {
+  const parts = time.split(':').map(Number)
+  if (parts.some(Number.isNaN)) return 0
+  return parts.reduce((acc, n) => acc * 60 + n, 0)
+}
 
 interface Chapter {
   /** Chapter label. */
@@ -31,7 +40,13 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
           <li key={chapter.title}>
             <button
               type='button'
-              className='flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-fd-muted-foreground text-sm transition-colors hover:bg-fd-accent/50'
+              onClick={() => {
+                if (chapter.time == null) return
+                window.dispatchEvent(
+                  new CustomEvent('academy:seek', { detail: { time: parseTime(chapter.time) } })
+                )
+              }}
+              className='flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-fd-muted-foreground text-sm transition-colors hover:bg-fd-accent/50'
             >
               <CirclePlay className='mt-0.5 size-4 shrink-0' />
               <span className='min-w-0 flex-1 break-words'>{chapter.title}</span>
