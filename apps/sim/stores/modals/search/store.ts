@@ -4,7 +4,12 @@ import { devtools } from 'zustand/middleware'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks'
-import { type BlockConfig, formatIntegrationType, type SubBlockConfig } from '@/blocks/types'
+import {
+  type BlockConfig,
+  formatIntegrationType,
+  IntegrationType,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import type {
   SearchBlockItem,
   SearchCategory,
@@ -25,9 +30,15 @@ const initialData: SearchData = {
 }
 
 /**
- * Builds the browsable category list for the empty-state drill-down: core
- * blocks and triggers first, then one entry per integration category present,
- * alphabetized for a stable ordering.
+ * Builds the browsable category list for the empty-state drill-down.
+ *
+ * Order is intentional, not alphabetical: the workflow primitives (core blocks,
+ * then triggers) lead, followed by integration categories with AI pinned first
+ * — Sim is an AI workspace, so model/AI services are the most relevant entry
+ * point — and the rest ranked by breadth (most integrations first), since the
+ * richest categories are the likeliest to hold what the user wants. Personal
+ * frequency is handled separately by Recents, so this ordering optimizes for
+ * discovery and stays self-maintaining as integrations are added.
  */
 function buildCategories(
   blocks: SearchBlockItem[],
@@ -59,7 +70,12 @@ function buildCategories(
       kind: 'tool',
       count,
     })
-  ).sort((a, b) => a.label.localeCompare(b.label))
+  ).sort((a, b) => {
+    if (a.id === IntegrationType.AI) return -1
+    if (b.id === IntegrationType.AI) return 1
+    if (b.count !== a.count) return b.count - a.count
+    return a.label.localeCompare(b.label)
+  })
 
   return [...categories, ...integrationCategories]
 }
