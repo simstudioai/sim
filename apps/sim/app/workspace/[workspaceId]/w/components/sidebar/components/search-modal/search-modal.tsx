@@ -98,6 +98,22 @@ function toRecentRow(
   return { id: key, label: item.name, icon: item.icon, bgColor: item.bgColor }
 }
 
+/**
+ * Filters a catalog group for the global search view: empty until the user is
+ * actually searching (`enabled`), then score-sorted and capped so a broad query
+ * never floods the DOM. Single source of the gate-and-cap rule shared by the
+ * blocks, tools, triggers, tool-operations, and docs groups.
+ */
+function cappedCatalog<T>(
+  enabled: boolean,
+  items: T[],
+  toValue: (item: T) => string,
+  search: string
+): T[] {
+  if (!enabled) return []
+  return filterAndSort(items, toValue, search).slice(0, MAX_RESULTS_PER_GROUP)
+}
+
 export type { SearchModalProps } from './utils'
 
 export function SearchModal({
@@ -659,45 +675,36 @@ export function SearchModal({
    */
   const showCatalogResults = isOnWorkflowPage && isSearching && !scope
 
-  const filteredBlocks = useMemo(() => {
-    if (!showCatalogResults) return []
-    return filterAndSort(blocks, (b) => b.searchValue ?? b.name, deferredSearch).slice(
-      0,
-      MAX_RESULTS_PER_GROUP
-    )
-  }, [showCatalogResults, blocks, deferredSearch])
+  const filteredBlocks = useMemo(
+    () => cappedCatalog(showCatalogResults, blocks, (b) => b.searchValue ?? b.name, deferredSearch),
+    [showCatalogResults, blocks, deferredSearch]
+  )
 
-  const filteredTools = useMemo(() => {
-    if (!showCatalogResults) return []
-    return filterAndSort(tools, (t) => t.searchValue ?? t.name, deferredSearch).slice(
-      0,
-      MAX_RESULTS_PER_GROUP
-    )
-  }, [showCatalogResults, tools, deferredSearch])
+  const filteredTools = useMemo(
+    () => cappedCatalog(showCatalogResults, tools, (t) => t.searchValue ?? t.name, deferredSearch),
+    [showCatalogResults, tools, deferredSearch]
+  )
 
-  const filteredTriggers = useMemo(() => {
-    if (!showCatalogResults) return []
-    return filterAndSort(triggers, (t) => `${t.name} ${t.id}`, deferredSearch).slice(
-      0,
-      MAX_RESULTS_PER_GROUP
-    )
-  }, [showCatalogResults, triggers, deferredSearch])
+  const filteredTriggers = useMemo(
+    () => cappedCatalog(showCatalogResults, triggers, (t) => `${t.name} ${t.id}`, deferredSearch),
+    [showCatalogResults, triggers, deferredSearch]
+  )
 
-  const filteredToolOps = useMemo(() => {
-    if (!showCatalogResults) return []
-    return filterAndSort(toolOperations, (op) => op.searchValue, deferredSearch).slice(
-      0,
-      MAX_RESULTS_PER_GROUP
-    )
-  }, [showCatalogResults, toolOperations, deferredSearch])
+  const filteredToolOps = useMemo(
+    () => cappedCatalog(showCatalogResults, toolOperations, (op) => op.searchValue, deferredSearch),
+    [showCatalogResults, toolOperations, deferredSearch]
+  )
 
-  const filteredDocs = useMemo(() => {
-    if (!showCatalogResults) return []
-    return filterAndSort(docs, (d) => `${d.name} docs documentation`, deferredSearch).slice(
-      0,
-      MAX_RESULTS_PER_GROUP
-    )
-  }, [showCatalogResults, docs, deferredSearch])
+  const filteredDocs = useMemo(
+    () =>
+      cappedCatalog(
+        showCatalogResults,
+        docs,
+        (d) => `${d.name} docs documentation`,
+        deferredSearch
+      ),
+    [showCatalogResults, docs, deferredSearch]
+  )
 
   /** Items shown while drilled into a browse category, filtered within scope. */
   const scopedItems = useMemo(() => {

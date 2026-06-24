@@ -75,6 +75,21 @@ describe('useSearchRecentsStore', () => {
     expect(entries['tool:item-59']).toBeDefined()
   })
 
+  it('prunes by frecency, keeping a frequent older item over recent single uses', () => {
+    for (let i = 0; i < 10; i++) {
+      vi.spyOn(Date, 'now').mockReturnValue(i)
+      useSearchRecentsStore.getState().record('tool:popular')
+    }
+    for (let i = 0; i < 50; i++) {
+      vi.spyOn(Date, 'now').mockReturnValue(100 + i)
+      useSearchRecentsStore.getState().record(`tool:once-${i}`)
+    }
+    const { entries } = useSearchRecentsStore.getState()
+    expect(Object.keys(entries)).toHaveLength(50)
+    expect(entries['tool:popular']).toBeDefined()
+    expect(entries['tool:once-0']).toBeUndefined()
+  })
+
   it('clears all entries', () => {
     useSearchRecentsStore.getState().record('block:agent')
     useSearchRecentsStore.getState().clear()

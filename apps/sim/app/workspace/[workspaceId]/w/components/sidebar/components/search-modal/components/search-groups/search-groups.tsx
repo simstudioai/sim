@@ -45,6 +45,7 @@ import type {
   WorkspaceItem,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { GROUP_HEADING_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import { IntegrationType } from '@/blocks/types'
 import type {
   SearchBlockItem,
   SearchCategory,
@@ -52,26 +53,34 @@ import type {
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
 
-/** Icon for each browsable category, keyed by {@link SearchCategory.id}. */
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  blocks: Blocks,
-  triggers: Zap,
-  ai: Sparkles,
-  analytics: BarChart3,
-  commerce: ShoppingCart,
-  communication: MessageCircle,
-  databases: Database,
-  devops: GitBranch,
-  documents: FileText,
-  email: Mail,
-  hr: Users,
-  marketing: Megaphone,
-  observability: Activity,
-  productivity: ListChecks,
-  sales: TrendingUp,
-  search: SearchIcon,
-  security: Shield,
-  support: LifeBuoy,
+/**
+ * Icon per integration category. Exhaustive over {@link IntegrationType} so a
+ * newly added category is a compile error here rather than a silent fallback.
+ */
+const INTEGRATION_CATEGORY_ICONS: Record<IntegrationType, LucideIcon> = {
+  [IntegrationType.AI]: Sparkles,
+  [IntegrationType.Analytics]: BarChart3,
+  [IntegrationType.Commerce]: ShoppingCart,
+  [IntegrationType.Communication]: MessageCircle,
+  [IntegrationType.Databases]: Database,
+  [IntegrationType.DevOps]: GitBranch,
+  [IntegrationType.Documents]: FileText,
+  [IntegrationType.Email]: Mail,
+  [IntegrationType.HR]: Users,
+  [IntegrationType.Marketing]: Megaphone,
+  [IntegrationType.Observability]: Activity,
+  [IntegrationType.Productivity]: ListChecks,
+  [IntegrationType.Sales]: TrendingUp,
+  [IntegrationType.Search]: SearchIcon,
+  [IntegrationType.Security]: Shield,
+  [IntegrationType.Support]: LifeBuoy,
+}
+
+/** Resolves the icon for a browse category from its kind, then its integration slug. */
+function categoryIcon(category: SearchCategory): LucideIcon {
+  if (category.kind === 'block') return Blocks
+  if (category.kind === 'trigger') return Zap
+  return INTEGRATION_CATEGORY_ICONS[category.id as IntegrationType] ?? Blocks
 }
 
 export const ActionsGroup = memo(function ActionsGroup({
@@ -144,7 +153,7 @@ export const BrowseGroup = memo(function BrowseGroup({
           key={category.id}
           value={`${category.label} category-${category.id}`}
           onSelect={() => onSelect(category)}
-          icon={CATEGORY_ICONS[category.id] ?? Blocks}
+          icon={categoryIcon(category)}
           name={category.label}
           count={category.count}
         />

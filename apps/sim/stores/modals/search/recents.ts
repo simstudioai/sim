@@ -39,21 +39,20 @@ export const useSearchRecentsStore = create<SearchRecentsState>()(
 
       record: (key) =>
         set((state) => {
+          const now = Date.now()
           const previous = state.entries[key]
           const entries: Record<string, RecentEntry> = {
             ...state.entries,
-            [key]: { count: (previous?.count ?? 0) + 1, lastUsedAt: Date.now() },
+            [key]: { count: (previous?.count ?? 0) + 1, lastUsedAt: now },
           }
 
           const keys = Object.keys(entries)
           if (keys.length <= MAX_ENTRIES) return { entries }
 
           const kept = keys
-            .sort((a, b) => entries[b].lastUsedAt - entries[a].lastUsedAt)
+            .sort((a, b) => frecencyScore(entries[b], now) - frecencyScore(entries[a], now))
             .slice(0, MAX_ENTRIES)
-          const pruned: Record<string, RecentEntry> = {}
-          for (const k of kept) pruned[k] = entries[k]
-          return { entries: pruned }
+          return { entries: Object.fromEntries(kept.map((k) => [k, entries[k]])) }
         }),
 
       clear: () => set({ entries: {} }),
