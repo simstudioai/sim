@@ -62,7 +62,6 @@
       "name": "@sim/realtime",
       "version": "0.1.0",
       "dependencies": {
-        "@aws-sdk/client-secrets-manager": "3.1032.0",
         "@sim/audit": "workspace:*",
         "@sim/auth": "workspace:*",
         "@sim/db": "workspace:*",

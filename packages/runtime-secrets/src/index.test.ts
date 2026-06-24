@@ -73,6 +73,14 @@ describe('loadRuntimeSecrets', () => {
     await expect(loadRuntimeSecrets()).rejects.toThrow(/must be a JSON object/)
   })
 
+  it('throws immediately on a binary secret (no SecretString), without retrying', async () => {
+    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
+    mockSend.mockResolvedValue({})
+
+    await expect(loadRuntimeSecrets()).rejects.toThrow(/binary secrets/)
+    expect(mockSend).toHaveBeenCalledTimes(1)
+  })
+
   it('retries then throws when the fetch keeps failing', async () => {
     process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
     mockSend.mockRejectedValue(new Error('boom'))

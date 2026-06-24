@@ -12,6 +12,9 @@ const SECRET_ID_ENV = 'SIM_ENV_SECRET_ID'
 
 const MAX_ATTEMPTS = 3
 
+/** Bounds each Secrets Manager request so a stalled response can't hang boot. */
+const REQUEST_TIMEOUT_MS = 5000
+
 /**
  * Fetches the combined `/{env}/sim/env-vars` secret once at container boot and
  * hydrates `process.env`, so secrets no longer have to be fanned out into the
@@ -52,16 +55,24 @@ export async function loadRuntimeSecrets(): Promise<void> {
 }
 
 async function fetchSecretString(client: SecretsManagerClient, secretId: string): Promise<string> {
+  const response = await sendWithRetry(client, secretId)
+  if (!response.SecretString) {
+    // Non-retriable: a binary secret will never become a string between attempts.
+    throw new Error('Secret has no SecretString (binary secrets are not supported)')
+  }
+  return response.SecretString
+}
+
+async function sendWithRetry(
+  client: SecretsManagerClient,
+  secretId: string
+): Promise<GetSecretValueCommandOutput> {
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response: GetSecretValueCommandOutput = await client.send(
-        new GetSecretValueCommand({ SecretId: secretId })
-      )
-      if (!response.SecretString) {
-        throw new Error('Secret has no SecretString (binary secrets are not supported)')
-      }
-      return response.SecretString
+      return await client.send(new GetSecretValueCommand({ SecretId: secretId }), {
+        abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
     } catch (error) {
       lastError = error
       if (attempt < MAX_ATTEMPTS) {
