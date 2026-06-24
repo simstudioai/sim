@@ -41,6 +41,7 @@ import {
   type UpdateParentOperation,
   useUndoRedoStore,
 } from '@/stores/undo-redo'
+import { deriveDiffFlags } from '@/stores/workflow-diff/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -1234,9 +1235,7 @@ export function useUndoRedo() {
 
             // Restore diff state with baseline (local UI only)
             diffStore._batchedStateUpdate({
-              hasActiveDiff: true,
-              isShowingDiff: true,
-              isDiffReady: true,
+              ...deriveDiffFlags('showing'),
               baselineWorkflow: originalBaseline || null,
               baselineWorkflowId: activeWorkflowId,
               diffAnalysis: diffAnalysis,
@@ -1285,9 +1284,7 @@ export function useUndoRedo() {
             // Restore diff state with baseline (local UI only)
             const diffStore = useWorkflowDiffStore.getState()
             diffStore._batchedStateUpdate({
-              hasActiveDiff: true,
-              isShowingDiff: true,
-              isDiffReady: true,
+              ...deriveDiffFlags('showing'),
               baselineWorkflow: baselineSnapshot || null,
               baselineWorkflowId: activeWorkflowId,
               diffAnalysis: diffAnalysis,
@@ -1805,9 +1802,7 @@ export function useUndoRedo() {
 
             // Restore diff state with original baseline (local UI only)
             diffStore._batchedStateUpdate({
-              hasActiveDiff: true,
-              isShowingDiff: true,
-              isDiffReady: true,
+              ...deriveDiffFlags('showing'),
               baselineWorkflow: baselineSnapshot,
               baselineWorkflowId: activeWorkflowId,
               diffAnalysis: diffAnalysis,
@@ -1834,9 +1829,7 @@ export function useUndoRedo() {
             // Clear diff state FIRST to prevent flash of colors (local UI only)
             // Use setState directly to ensure synchronous clearing
             useWorkflowDiffStore.setState({
-              hasActiveDiff: false,
-              isShowingDiff: false,
-              isDiffReady: false,
+              ...deriveDiffFlags('none'),
               baselineWorkflow: null,
               baselineWorkflowId: null,
               diffAnalysis: null,
@@ -1886,9 +1879,7 @@ export function useUndoRedo() {
             // Clear diff state FIRST to prevent flash of colors (local UI only)
             // Use setState directly to ensure synchronous clearing
             useWorkflowDiffStore.setState({
-              hasActiveDiff: false,
-              isShowingDiff: false,
-              isDiffReady: false,
+              ...deriveDiffFlags('none'),
               baselineWorkflow: null,
               baselineWorkflowId: null,
               diffAnalysis: null,

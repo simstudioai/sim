@@ -41,6 +41,7 @@ vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({
       getWorkflowExecution: vi.fn().mockReturnValue({
+        status: 'idle',
         isExecuting: false,
         isDebugging: false,
         activeBlockIds: new Set(),
@@ -50,6 +51,7 @@ vi.mock('@/stores/execution/store', () => ({
         lastRunPath: new Map(),
         lastRunEdges: new Map(),
       }),
+      setStatus: vi.fn(),
       setIsExecuting: vi.fn(),
       setIsDebugging: vi.fn(),
       setPendingBlocks: vi.fn(),
@@ -61,6 +63,7 @@ vi.mock('@/stores/execution/store', () => ({
     }),
   },
   useCurrentWorkflowExecution: vi.fn().mockReturnValue({
+    status: 'idle',
     isExecuting: false,
     isDebugging: false,
     activeBlockIds: new Set(),
