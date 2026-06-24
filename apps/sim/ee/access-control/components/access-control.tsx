@@ -282,7 +282,8 @@ function WorkspaceSelect({
     <ChipDropdown
       multiple
       searchable
-      matchTriggerWidth={false}
+      align={fullWidth ? 'start' : 'end'}
+      matchTriggerWidth={fullWidth}
       options={options}
       value={workspaceIds}
       onChange={onChange}
@@ -970,12 +971,9 @@ export function AccessControl() {
   const handleScopeChange = useCallback(
     async (workspaceIds: string[]) => {
       if (!viewingGroup || !organizationId) return
-      if (workspaceIds.length === 0) {
-        toast.error("Can't remove the last workspace", {
-          description: 'A group must target at least one workspace. Delete the group instead.',
-        })
-        return
-      }
+      // Zero workspaces is allowed: the group then governs nothing (the resolver
+      // inner-joins on the workspace link table, so an empty group never matches
+      // any workspace). Re-add a workspace to make it active again.
       const previous = viewingGroup
       const seq = ++scopeWriteSeqRef.current
 
@@ -1294,7 +1292,7 @@ export function AccessControl() {
                     {viewingGroup.workspaces.length === 0
                       ? 'Applies to no one yet — add workspaces below to choose who this group governs.'
                       : members.length === 0
-                        ? 'Applies to all members of its workspaces, including external members.'
+                        ? 'Applies to all members of its workspaces.'
                         : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}.`}
                   </p>
                 )}
@@ -1376,6 +1374,7 @@ export function AccessControl() {
           }}
           srTitle='Configure Permissions'
           size='xl'
+          className='h-[84vh]'
         >
           <ChipModalHeader
             onClose={() => {
@@ -1405,7 +1404,7 @@ export function AccessControl() {
               }
             />
             {configTab === 'members' && !viewingGroup.isDefault && (
-              <div className='flex flex-col gap-3'>
+              <div className='flex min-h-0 flex-1 flex-col gap-3'>
                 <div className='flex items-center justify-between gap-3'>
                   <span className='text-[var(--text-body)] text-sm'>
                     {members.length === 0
@@ -1431,9 +1430,11 @@ export function AccessControl() {
                     ))}
                   </div>
                 ) : members.length === 0 ? (
-                  <div className='py-6 text-center text-[var(--text-muted)] text-sm'>
-                    This group applies to everyone in its workspaces, including external members.
-                    Add members to restrict it to specific people.
+                  <div className='flex flex-1 items-center justify-center px-6 text-center'>
+                    <span className='max-w-md text-[var(--text-muted)] text-sm'>
+                      This group applies to everyone in its workspaces, including external members.
+                      Add members to restrict it to specific people.
+                    </span>
                   </div>
                 ) : (
                   <div className='-mx-2 flex flex-col gap-y-0.5'>

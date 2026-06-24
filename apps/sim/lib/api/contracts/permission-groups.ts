@@ -125,10 +125,16 @@ const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_W
  * specific workspaces:
  *  - all-workspaces scope (`appliesToAllWorkspaces === true`) is allowed only
  *    when `isDefault === true`,
- *  - a specific-scope group (`appliesToAllWorkspaces === false`) must name at
- *    least one workspace and cannot be the default group, and
+ *  - a specific-scope group (`appliesToAllWorkspaces === false`) cannot be the
+ *    default group, and
  *  - an all-workspaces or default group must not name specific workspaces
  *    (otherwise `workspaceIds` would be silently dropped server-side).
+ *
+ * A specific-scope group may target zero workspaces — it then governs nothing
+ * ({@link ./../../../ee/access-control/utils/permission-check resolveWorkspaceGroup}
+ * inner-joins on the workspace link table, so an empty group never matches any
+ * workspace). Create additionally requires at least one workspace up front; that
+ * floor lives in {@link refineCreateWorkspaceScope}, not here.
  */
 function refineWorkspaceScope(
   body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[]; isDefault?: boolean },
@@ -150,21 +156,33 @@ function refineWorkspaceScope(
         'Only the default group can apply to all workspaces; non-default groups must target specific workspaces',
     })
   }
-  if (body.appliesToAllWorkspaces === false) {
-    if (!body.workspaceIds || body.workspaceIds.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['workspaceIds'],
-        message: 'Select at least one workspace when the group targets specific workspaces',
-      })
-    }
-    if (body.isDefault === true) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['appliesToAllWorkspaces'],
-        message: 'The default group must apply to all workspaces',
-      })
-    }
+  if (body.appliesToAllWorkspaces === false && body.isDefault === true) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['appliesToAllWorkspaces'],
+      message: 'The default group must apply to all workspaces',
+    })
+  }
+}
+
+/**
+ * Create-only floor: a specific-scope group (`appliesToAllWorkspaces === false`)
+ * must name at least one workspace at creation time. Update intentionally omits
+ * this so an existing group can be emptied to target nothing (applies to no one).
+ */
+function refineCreateWorkspaceScope(
+  body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[] },
+  ctx: z.RefinementCtx
+) {
+  if (
+    body.appliesToAllWorkspaces === false &&
+    (!body.workspaceIds || body.workspaceIds.length === 0)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['workspaceIds'],
+      message: 'Select at least one workspace when the group targets specific workspaces',
+    })
   }
 }
 
@@ -178,6 +196,7 @@ export const createPermissionGroupBodySchema = z
     workspaceIds: workspaceIdsSchema.optional(),
   })
   .superRefine(refineWorkspaceScope)
+  .superRefine(refineCreateWorkspaceScope)
 
 export const updatePermissionGroupBodySchema = z
   .object({

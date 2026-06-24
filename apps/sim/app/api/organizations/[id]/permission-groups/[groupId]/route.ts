@@ -165,13 +165,10 @@ export const PUT = withRouteHandler(
       // conflict check and the write share one consistent snapshot.
       let providedWorkspaceIds: string[] | null = null
       if (!resolvedAppliesToAll && updates.workspaceIds !== undefined) {
+        // Zero workspaces is allowed on update: the group then governs nothing
+        // (the resolver inner-joins on the link table, so an empty group never
+        // matches any workspace). No "at least one" floor here.
         providedWorkspaceIds = Array.from(new Set(updates.workspaceIds))
-        if (providedWorkspaceIds.length === 0) {
-          return NextResponse.json(
-            { error: 'Select at least one workspace when the group targets specific workspaces' },
-            { status: 400 }
-          )
-        }
         const invalid = await findWorkspacesNotInOrganization(providedWorkspaceIds, organizationId)
         if (invalid.length > 0) {
           return NextResponse.json(
@@ -198,11 +195,11 @@ export const PUT = withRouteHandler(
           await acquirePermissionGroupOrgLock(tx, organizationId)
 
           if (!resolvedAppliesToAll) {
+            // May resolve to an empty list — a specific-scope group is allowed to
+            // target zero workspaces (governs nothing). The write below deletes
+            // the old links and inserts none.
             resolvedWorkspaceIds =
               providedWorkspaceIds ?? (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
-            if (resolvedWorkspaceIds.length === 0 && !demotingDefaultToInert) {
-              throw new Error('NO_WORKSPACES')
-            }
           }
 
           const members = await tx
@@ -332,12 +329,6 @@ export const PUT = withRouteHandler(
         return NextResponse.json(
           { error: formatAllMembersConflictError(allMembersConflict) },
           { status: 409 }
-        )
-      }
-      if (error instanceof Error && error.message === 'NO_WORKSPACES') {
-        return NextResponse.json(
-          { error: 'Select at least one workspace when the group targets specific workspaces' },
-          { status: 400 }
         )
       }
       if (getPostgresErrorCode(error) === '23505') {

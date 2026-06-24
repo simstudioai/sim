@@ -94,12 +94,12 @@ describe('updatePermissionGroupBodySchema', () => {
     expect(updatePermissionGroupBodySchema.safeParse({ isDefault: false }).success).toBe(true)
   })
 
-  it('rejects switching to specific scope with no workspaces', () => {
+  it('accepts switching to specific scope with no workspaces (group then governs nothing)', () => {
     const result = updatePermissionGroupBodySchema.safeParse({
       appliesToAllWorkspaces: false,
       workspaceIds: [],
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('accepts switching to specific scope with workspaces', () => {
