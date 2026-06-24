@@ -1,6 +1,8 @@
+export type { RecentRenderItem } from './search-groups'
 export {
   ActionsGroup,
   BlocksGroup,
+  BrowseGroup,
   ChatsGroup,
   ConnectedAccountsGroup,
   DocsGroup,
@@ -8,6 +10,7 @@ export {
   IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
+  RecentsGroup,
   TablesGroup,
   ToolOpsGroup,
   ToolsGroup,
