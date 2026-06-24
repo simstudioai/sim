@@ -1,4 +1,5 @@
 import type { GitLabListProjectsParams, GitLabListProjectsResponse } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListProjectsTool: ToolConfig<
@@ -16,6 +17,12 @@ export const gitlabListProjectsTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'GitLab Personal Access Token',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
     owned: {
       type: 'boolean',
@@ -80,7 +87,7 @@ export const gitlabListProjectsTool: ToolConfig<
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `https://gitlab.com/api/v4/projects${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

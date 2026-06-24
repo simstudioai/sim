@@ -1,4 +1,5 @@
 import type { GitLabGetProjectParams, GitLabGetProjectResponse } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetProjectResponse> = {
@@ -14,6 +15,12 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
       visibility: 'user-only',
       description: 'GitLab Personal Access Token',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
+    },
     projectId: {
       type: 'string',
       required: true,
@@ -25,7 +32,7 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId))
-      return `https://gitlab.com/api/v4/projects/${encodedId}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}`
     },
     method: 'GET',
     headers: (params) => ({
