@@ -125,7 +125,7 @@ export function VideoPlaceholder({
           key={pos}
           aria-hidden
           className={cn(
-            'absolute font-mono text-[20px] leading-none text-[rgba(18,18,18,0.22)] dark:text-[rgba(255,255,255,0.28)]',
+            'absolute font-mono text-[20px] text-[rgba(18,18,18,0.22)] leading-none dark:text-[rgba(255,255,255,0.28)]',
             pos
           )}
         >
@@ -135,7 +135,7 @@ export function VideoPlaceholder({
 
       {/* Top-right status pill — only until a video is wired up */}
       {!hasVideo && (
-        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
+        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[#5F5F5F] text-[12px] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
           <span className='size-1.5 rounded-full bg-[#1F8A5B]' />
           {label}
         </span>
@@ -144,7 +144,7 @@ export function VideoPlaceholder({
       {/* Heading: eyebrow + title, bottom-left (design: left:40 bottom:40) */}
       <div className='absolute bottom-10 left-10 z-10 max-w-[80%]'>
         {eyebrow && (
-          <span className='mb-[14px] block font-normal text-[clamp(15px,2cqi,22px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
+          <span className='mb-[14px] block font-normal text-[#5F5F5F] text-[clamp(15px,2cqi,22px)] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
             {eyebrow}
           </span>
         )}
