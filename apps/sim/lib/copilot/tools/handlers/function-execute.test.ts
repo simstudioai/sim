@@ -362,4 +362,25 @@ describe('executeFunctionExecute file mounts', () => {
       url: 'https://s3.example/file?sig=abc',
     })
   })
+
+  it('local storage: buffers directory descendants via inline content', async () => {
+    mockHasCloudStorage.mockReturnValue(false)
+    mockListWorkspaceFileFolders.mockResolvedValue([{ path: 'Reports' }])
+    const descendant = {
+      ...fileRecord,
+      name: 'q1.csv',
+      key: 'workspace/ws_1/q1.csv',
+      folderPath: 'Reports',
+    }
+    mockListWorkspaceFiles.mockResolvedValue([descendant])
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('a,b\n1,2\n'))
+
+    await executeFunctionExecute({ inputs: { directories: ['files/Reports'] } }, context as never)
+
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    const file = mountedFiles()[0]
+    expect(file.path).toBe('/home/user/files/Reports/q1.csv')
+    expect(file.content).toBe('a,b\n1,2\n')
+    expect(file.type).toBeUndefined()
+  })
 })

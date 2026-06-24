@@ -90,12 +90,12 @@ async function pushWorkspaceFileMount(
   if (hasCloudStorage()) {
     if (record.size > MOUNT_URL_MAX_BYTES) {
       throw new Error(
-        `Input file "${record.name}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
+        `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
       )
     }
     if (mounted.url + record.size > MAX_TOTAL_URL_BYTES) {
       throw new Error(
-        `Mounting "${record.name}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+        `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files.`
       )
     }
     const url = await generatePresignedDownloadUrl(
@@ -110,12 +110,12 @@ async function pushWorkspaceFileMount(
 
   if (record.size > MAX_FILE_SIZE) {
     throw new Error(
-      `Input file "${record.name}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+      `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
     )
   }
   if (mounted.buffered + record.size > MAX_TOTAL_SIZE) {
     throw new Error(
-      `Mounting "${record.name}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+      `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
     )
   }
   const buffer = await fetchWorkspaceFileBuffer(record)
