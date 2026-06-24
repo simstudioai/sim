@@ -1208,22 +1208,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             throw new Error('File is required to manage sharing')
           }
 
-          let fileId: string
-          const fileIds = parseReadFileIds(shareInput)
-          if (fileIds) {
-            if (Array.isArray(fileIds) && fileIds.length > 1) {
-              throw new Error('Manage Sharing accepts a single file at a time')
-            }
-            fileId = Array.isArray(fileIds) ? fileIds[0] : fileIds
-          } else {
-            const normalized = normalizeFileInput(shareInput, { single: true })
-            const file = normalized as Record<string, unknown> | null
-            fileId = (file?.id as string) ?? ''
-          }
-          if (!fileId) {
-            throw new Error('Could not determine the file to share')
-          }
-
           const allowedEmails =
             typeof params.shareAllowedEmails === 'string'
               ? params.shareAllowedEmails
@@ -1234,9 +1218,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
 
           const visibility = (params.shareVisibility as string) || 'public'
           const isActive = visibility !== 'private'
-
-          return {
-            fileId,
+          const shareParams = {
             isActive,
             // When disabling, leave authType unset so the stored access mode is preserved.
             authType: isActive ? visibility : undefined,
@@ -1244,6 +1226,28 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             allowedEmails,
             workspaceId: params._context?.workspaceId,
           }
+
+          // Canonical IDs (advanced mode or upstream references) resolve directly.
+          const fileIds = parseReadFileIds(shareInput)
+          if (fileIds) {
+            if (Array.isArray(fileIds) && fileIds.length > 1) {
+              throw new Error('Manage Sharing accepts a single file at a time')
+            }
+            return { fileId: Array.isArray(fileIds) ? fileIds[0] : fileIds, ...shareParams }
+          }
+
+          // The basic picker yields a file object; it carries an id only sometimes,
+          // so prefer the id when present and otherwise pass the object for the
+          // route to resolve via its storage key.
+          const normalized = normalizeFileInput(shareInput, { single: true })
+          const file = normalized as Record<string, unknown> | null
+          if (!file) {
+            throw new Error('Could not determine the file to share')
+          }
+          if (typeof file.id === 'string' && file.id) {
+            return { fileId: file.id, ...shareParams }
+          }
+          return { fileInput: normalized, ...shareParams }
         }
 
         if (operation === 'file_fetch') {

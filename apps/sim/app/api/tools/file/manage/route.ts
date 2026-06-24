@@ -28,6 +28,7 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
@@ -577,7 +578,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'manage_sharing': {
-        const { fileId, isActive, authType, password, allowedEmails } = body
+        const { fileId, fileInput, isActive, authType, password, allowedEmails } = body
 
         // Check permission before probing file existence so a read-only caller
         // can't distinguish 404 from 403 as a file-existence side channel.
@@ -591,10 +592,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const file = await getWorkspaceFile(workspaceId, fileId)
+        // Resolve the canonical file id. The basic file picker provides an object
+        // with a storage `key` but no id, so map the key to the workspace file row.
+        let resolvedFileId = typeof fileId === 'string' ? fileId : undefined
+        if (!resolvedFileId && fileInput) {
+          const single = Array.isArray(fileInput) ? fileInput[0] : fileInput
+          if (single && typeof single === 'object') {
+            const record = single as Record<string, unknown>
+            if (typeof record.id === 'string' && record.id) resolvedFileId = record.id
+            else if (typeof record.fileId === 'string' && record.fileId)
+              resolvedFileId = record.fileId
+            else if (typeof record.key === 'string' && record.key) {
+              const meta = await getFileMetadataByKey(record.key, 'workspace')
+              resolvedFileId = meta?.id
+            }
+          }
+        }
+        if (!resolvedFileId) {
+          return NextResponse.json(
+            { success: false, error: 'A valid file is required to manage sharing' },
+            { status: 400 }
+          )
+        }
+
+        const file = await getWorkspaceFile(workspaceId, resolvedFileId)
         if (!file) {
           return NextResponse.json(
-            { success: false, error: `File not found: "${fileId}"` },
+            { success: false, error: `File not found: "${resolvedFileId}"` },
             { status: 404 }
           )
         }
@@ -605,7 +629,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           // Resolve the auth type the same way upsertFileShare will (falling back
           // to the existing share's type) so the policy gate can't be bypassed by
           // re-enabling a pre-existing restricted share without an explicit authType.
-          const existingShare = await getShareForResource('file', fileId)
+          const existingShare = await getShareForResource('file', resolvedFileId)
           const resolvedAuthType = authType ?? existingShare?.authType ?? 'public'
           try {
             await validatePublicFileSharing(userId, workspaceId, resolvedAuthType)
@@ -619,7 +643,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const share = await upsertFileShare({
           workspaceId,
-          fileId,
+          fileId: resolvedFileId,
           userId,
           isActive,
           authType,
@@ -632,13 +656,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           actorId: userId,
           action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
           resourceType: AuditResourceType.FILE,
-          resourceId: fileId,
+          resourceId: resolvedFileId,
           resourceName: file.name,
           description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${file.name}"`,
           request,
         })
 
-        logger.info('File sharing updated', { fileId, isActive, authType: share.authType })
+        logger.info('File sharing updated', {
+          fileId: resolvedFileId,
+          isActive,
+          authType: share.authType,
+        })
 
         // A disabled link doesn't resolve, so don't hand back a dead URL.
         const responseShare = share.isActive ? share : { ...share, url: '' }

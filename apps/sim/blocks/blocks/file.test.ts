@@ -200,6 +200,28 @@ describe('FileV5Block', () => {
     })
   })
 
+  it('passes a picker file object without an id through as fileInput for manage sharing', () => {
+    const picked = {
+      name: 'report.pdf',
+      key: 'workspace/workspace-1/123-abc-report.pdf',
+      path: '/api/files/serve/workspace%2Fworkspace-1%2F123-abc-report.pdf?context=workspace',
+      size: 10,
+      type: 'application/pdf',
+    }
+    expect(
+      buildParams({
+        operation: 'file_manage_sharing',
+        shareInput: [picked],
+        shareVisibility: 'public',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toMatchObject({
+      fileInput: picked,
+      isActive: true,
+      authType: 'public',
+    })
+  })
+
   it('throws when no file is provided for manage sharing', () => {
     expect(() => buildParams({ operation: 'file_manage_sharing' })).toThrow(
       'File is required to manage sharing'

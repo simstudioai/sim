@@ -2,7 +2,8 @@ import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
 interface FileManageSharingParams {
-  fileId: string
+  fileId?: string
+  fileInput?: unknown
   isActive: boolean
   authType?: ShareAuthType
   password?: string
@@ -21,9 +22,15 @@ export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResp
   params: {
     fileId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The ID of the workspace file to update sharing for.',
+      description: 'Canonical ID of the workspace file to update sharing for.',
+    },
+    fileInput: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Selected workspace file object (from the file picker).',
     },
     isActive: {
       type: 'boolean',
@@ -60,6 +67,7 @@ export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResp
     body: (params) => ({
       operation: 'manage_sharing',
       fileId: params.fileId,
+      fileInput: params.fileInput,
       isActive: params.isActive,
       authType: params.authType,
       password: params.password,
