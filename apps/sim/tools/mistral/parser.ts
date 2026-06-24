@@ -12,6 +12,19 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MistralParserTool')
 
+/**
+ * Mistral OCR 4 standard pricing, in USD per page ($4 per 1,000 pages).
+ *
+ * This tool calls the synchronous `/v1/ocr` endpoint with the `mistral-ocr-latest`
+ * alias, which Mistral repointed to OCR 4 (`mistral-ocr-4-0`) on 2026-06-23, so the
+ * standard (non-batch) OCR 4 rate applies. Document AI / annotation pages are priced
+ * separately, but this tool does not submit annotation requests.
+ *
+ * @see https://mistral.ai/news/ocr-4/
+ * @see https://docs.mistral.ai/getting-started/changelog
+ */
+const MISTRAL_OCR_COST_PER_PAGE = 0.004
+
 const MISTRAL_OCR_HOSTING = {
   envKeyPrefix: 'MISTRAL_API_KEY',
   apiKeyParam: 'apiKey',
@@ -19,9 +32,6 @@ const MISTRAL_OCR_HOSTING = {
   pricing: {
     type: 'custom' as const,
     getCost: (_params: unknown, output: Record<string, unknown>) => {
-      // Mistral OCR 3 standard pricing: $2 per 1,000 pages ($0.002/page).
-      // Annotated pages are priced separately at $3 per 1,000 annotated pages, but this tool does
-      // not submit annotation requests. Source: https://docs.mistral.ai/models/ocr-3-25-12
       const rawUsageInfo = output.usage_info as { pages_processed?: number } | undefined
       const transformedUsageInfo = (
         output.metadata as { usageInfo?: { pagesProcessed?: number } } | undefined
@@ -33,7 +43,7 @@ const MISTRAL_OCR_HOSTING = {
           'Mistral OCR response missing pages_processed in usage_info or metadata.usageInfo.pagesProcessed'
         )
       }
-      const cost = pagesProcessed * 0.002
+      const cost = pagesProcessed * MISTRAL_OCR_COST_PER_PAGE
       return { cost, metadata: { pagesProcessed } }
     },
   },
