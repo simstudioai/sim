@@ -13,6 +13,11 @@ const {
   mockGeneratePresignedDownloadUrl,
   mockHasCloudStorage,
   mockExecuteTool,
+  mockListWorkspaceFiles,
+  mockFindWorkspaceFileRecord,
+  mockFetchWorkspaceFileBuffer,
+  mockGetSandboxWorkspaceFilePath,
+  mockListWorkspaceFileFolders,
 } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
   mockGetTableById: vi.fn(),
@@ -23,6 +28,11 @@ const {
   mockGeneratePresignedDownloadUrl: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockExecuteTool: vi.fn(),
+  mockListWorkspaceFiles: vi.fn(),
+  mockFindWorkspaceFileRecord: vi.fn(),
+  mockFetchWorkspaceFileBuffer: vi.fn(),
+  mockGetSandboxWorkspaceFilePath: vi.fn(),
+  mockListWorkspaceFileFolders: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
@@ -41,15 +51,14 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   hasCloudStorage: mockHasCloudStorage,
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-// Workspace-file + VFS surfaces are unused on the tables-only path; stub to avoid heavy loads.
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: vi.fn(),
-  findWorkspaceFileRecord: vi.fn(),
-  getSandboxWorkspaceFilePath: vi.fn(),
-  listWorkspaceFiles: vi.fn(),
+  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
+  findWorkspaceFileRecord: mockFindWorkspaceFileRecord,
+  getSandboxWorkspaceFilePath: mockGetSandboxWorkspaceFilePath,
+  listWorkspaceFiles: mockListWorkspaceFiles,
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  listWorkspaceFileFolders: vi.fn(),
+  listWorkspaceFileFolders: mockListWorkspaceFileFolders,
 }))
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
   decodeVfsPathSegments: (p: string) => p.split('/'),
@@ -245,5 +254,133 @@ describe('executeFunctionExecute table mounts', () => {
       executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
     ).rejects.toThrow(/Input table not found/)
     expect(mockGetOrCreateTableSnapshot).not.toHaveBeenCalled()
+  })
+})
+
+const fileRecord = {
+  id: 'file_1',
+  workspaceId: 'ws_1',
+  name: 'data.csv',
+  key: 'workspace/ws_1/data.csv',
+  path: '/api/files/serve/workspace%2Fws_1%2Fdata.csv',
+  size: 100,
+  type: 'text/csv',
+  storageContext: 'workspace' as const,
+}
+
+describe('executeFunctionExecute file mounts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true })
+    mockIsFeatureEnabled.mockResolvedValue(false)
+    mockHasCloudStorage.mockReturnValue(true)
+    mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/file?sig=abc')
+    mockListWorkspaceFiles.mockResolvedValue([fileRecord])
+    mockFindWorkspaceFileRecord.mockReturnValue(fileRecord)
+    mockGetSandboxWorkspaceFilePath.mockReturnValue('/home/user/files/data.csv')
+  })
+
+  it('cloud storage: mounts by presigned URL with the record context, no bytes through web', async () => {
+    await executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
+
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
+      'workspace/ws_1/data.csv',
+      'workspace',
+      expect.any(Number)
+    )
+    expect(mountedFiles()[0]).toEqual({
+      type: 'url',
+      path: '/home/user/files/data.csv',
+      url: 'https://s3.example/file?sig=abc',
+    })
+  })
+
+  it('local storage: falls back to a buffered inline content mount', async () => {
+    mockHasCloudStorage.mockReturnValue(false)
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('name\nAda\n'))
+
+    await executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
+
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    const file = mountedFiles()[0]
+    expect(file.path).toBe('/home/user/files/data.csv')
+    expect(file.content).toBe('name\nAda\n')
+    expect(file.type).toBeUndefined()
+  })
+
+  it('cloud storage: throws when a file exceeds the per-file URL mount limit', async () => {
+    mockFindWorkspaceFileRecord.mockReturnValue({ ...fileRecord, size: 600 * 1024 * 1024 })
+
+    await expect(
+      executeFunctionExecute({ inputFiles: ['files/data.csv'] }, context as never)
+    ).rejects.toThrow(/per-file mount limit/)
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it('cloud storage: throws when mounts exceed the aggregate URL mount limit', async () => {
+    // Each file is at the 500MB per-file cap; the 5th pushes the running total past 2GB.
+    mockFindWorkspaceFileRecord.mockReturnValue({ ...fileRecord, size: 500 * 1024 * 1024 })
+    const paths = Array.from({ length: 5 }, (_, i) => `files/big-${i}.csv`)
+
+    await expect(executeFunctionExecute({ inputFiles: paths }, context as never)).rejects.toThrow(
+      /total mount limit/
+    )
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledTimes(4)
+  })
+
+  it('throws when the inputFiles list exceeds the mounted-file count cap', async () => {
+    const paths = Array.from({ length: 501 }, (_, i) => `files/f-${i}.csv`)
+
+    await expect(executeFunctionExecute({ inputFiles: paths }, context as never)).rejects.toThrow(
+      /Too many input files/
+    )
+    expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
+  })
+
+  it('cloud storage: mounts each directory descendant by presigned URL', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue([{ path: 'Reports' }])
+    const descendant = {
+      ...fileRecord,
+      name: 'q1.csv',
+      key: 'workspace/ws_1/q1.csv',
+      folderPath: 'Reports',
+    }
+    mockListWorkspaceFiles.mockResolvedValue([descendant])
+
+    await executeFunctionExecute({ inputs: { directories: ['files/Reports'] } }, context as never)
+
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
+      'workspace/ws_1/q1.csv',
+      'workspace',
+      expect.any(Number)
+    )
+    expect(mountedFiles()[0]).toEqual({
+      type: 'url',
+      path: '/home/user/files/Reports/q1.csv',
+      url: 'https://s3.example/file?sig=abc',
+    })
+  })
+
+  it('local storage: buffers directory descendants via inline content', async () => {
+    mockHasCloudStorage.mockReturnValue(false)
+    mockListWorkspaceFileFolders.mockResolvedValue([{ path: 'Reports' }])
+    const descendant = {
+      ...fileRecord,
+      name: 'q1.csv',
+      key: 'workspace/ws_1/q1.csv',
+      folderPath: 'Reports',
+    }
+    mockListWorkspaceFiles.mockResolvedValue([descendant])
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('a,b\n1,2\n'))
+
+    await executeFunctionExecute({ inputs: { directories: ['files/Reports'] } }, context as never)
+
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    const file = mountedFiles()[0]
+    expect(file.path).toBe('/home/user/files/Reports/q1.csv')
+    expect(file.content).toBe('a,b\n1,2\n')
+    expect(file.type).toBeUndefined()
   })
 })
