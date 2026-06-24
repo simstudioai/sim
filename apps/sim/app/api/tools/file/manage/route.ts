@@ -17,6 +17,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import {
   getShareForResource,
+  getSharesForResources,
   ShareValidationError,
   upsertFileShare,
 } from '@/lib/public-shares/share-manager'
@@ -417,12 +418,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        const shares = await getSharesForResources('file', selectedFileIds)
+        const privateReadShare = () => ({
+          visibility: 'private' as const,
+          url: null,
+          allowedEmails: [] as string[],
+        })
+        const toReadShare = (fileId: string) => {
+          const share = shares.get(fileId)
+          if (!share || !share.isActive) return privateReadShare()
+          return {
+            visibility: share.authType,
+            url: share.url,
+            allowedEmails: share.allowedEmails,
+          }
+        }
         const userFiles = files
           .map((file) => workspaceFileToUserFile(file))
           .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
             Boolean(file)
           )
-          .concat(selectedInputFiles)
+          .map((file) => ({ ...file, share: toReadShare(file.id) }))
+          // Picker/upload entries have only a synthetic id (storage key/URL), so they
+          // never carry a canonical share — mark them private without a lookup.
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: privateReadShare() })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,
