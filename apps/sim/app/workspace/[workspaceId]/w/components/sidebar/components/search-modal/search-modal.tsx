@@ -99,10 +99,19 @@ function toRecentRow(
 }
 
 /**
- * Filters a catalog group for the global search view: empty until the user is
- * actually searching (`enabled`), then score-sorted and capped so a broad query
- * never floods the DOM. Single source of the gate-and-cap rule shared by the
- * blocks, tools, triggers, tool-operations, and docs groups.
+ * Score-sorts a group and caps it to {@link MAX_RESULTS_PER_GROUP} so no single
+ * group can flood the DOM — neither a broad query nor a large workspace (which
+ * can hold thousands of workflows/files). Results are ranked, so the cap only
+ * trims the low-relevance tail.
+ */
+function filterAndCap<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
+  return filterAndSort(items, toValue, search).slice(0, MAX_RESULTS_PER_GROUP)
+}
+
+/**
+ * {@link filterAndCap} for the catalog groups, which stay empty until the user
+ * is actually searching (`enabled`). Single source of the gate-and-cap rule
+ * shared by the blocks, tools, triggers, tool-operations, and docs groups.
  */
 function cappedCatalog<T>(
   enabled: boolean,
@@ -110,8 +119,7 @@ function cappedCatalog<T>(
   toValue: (item: T) => string,
   search: string
 ): T[] {
-  if (!enabled) return []
-  return filterAndSort(items, toValue, search).slice(0, MAX_RESULTS_PER_GROUP)
+  return enabled ? filterAndCap(items, toValue, search) : []
 }
 
 export type { SearchModalProps } from './utils'
@@ -800,29 +808,29 @@ export function SearchModal({
   ])
 
   const filteredTables = useMemo(
-    () => filterAndSort(tables, (t) => t.name, deferredSearch),
+    () => filterAndCap(tables, (t) => t.name, deferredSearch),
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
+    () => filterAndCap(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(
-    () => filterAndSort(knowledgeBases, (kb) => kb.name, deferredSearch),
+    () => filterAndCap(knowledgeBases, (kb) => kb.name, deferredSearch),
     [knowledgeBases, deferredSearch]
   )
 
   const filteredWorkflows = useMemo(
     () =>
-      filterAndSort(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
+      filterAndCap(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [workflows, deferredSearch]
   )
   const filteredChats = useMemo(
-    () => filterAndSort(chats, (t) => t.name, deferredSearch),
+    () => filterAndCap(chats, (t) => t.name, deferredSearch),
     [chats, deferredSearch]
   )
   const filteredWorkspaces = useMemo(
-    () => filterAndSort(workspaces, (w) => w.name, deferredSearch),
+    () => filterAndCap(workspaces, (w) => w.name, deferredSearch),
     [workspaces, deferredSearch]
   )
   const filteredPages = useMemo(
@@ -833,13 +841,13 @@ export function SearchModal({
   /** Connected accounts: visible on the integrations page even with empty input. */
   const filteredConnectedAccounts = useMemo(() => {
     if (!isOnIntegrationsPage) return []
-    return filterAndSort(connectedAccounts, (a) => a.name, deferredSearch)
+    return filterAndCap(connectedAccounts, (a) => a.name, deferredSearch)
   }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
 
   /** Catalog integrations: only shown once the user has typed something. */
   const filteredIntegrations = useMemo(() => {
     if (!isOnIntegrationsPage || !deferredSearch) return []
-    return filterAndSort(integrations, (i) => i.name, deferredSearch)
+    return filterAndCap(integrations, (i) => i.name, deferredSearch)
   }, [isOnIntegrationsPage, deferredSearch, integrations])
 
   if (!mounted) return null
