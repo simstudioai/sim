@@ -281,7 +281,7 @@ export const DELETE = withRouteHandler(
           throw new Error('MEMBER_NOT_FOUND')
         }
 
-        if (!lockedGroup.isDefault && !lockedGroup.appliesToAllWorkspaces) {
+        if (!lockedGroup.isDefault) {
           const [memberCountRow] = await tx
             .select({ value: count() })
             .from(permissionGroupMember)

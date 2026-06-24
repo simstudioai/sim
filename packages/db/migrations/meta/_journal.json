@@ -1737,6 +1737,13 @@
       "when": 1782158722013,
       "tag": "0248_limit_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1782260194924,
+      "tag": "0249_drop_permission_group_applies_to_all_workspaces",
+      "breakpoints": true
     }
   ]
 }

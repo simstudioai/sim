@@ -520,7 +520,7 @@ export function AccessControl() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
   // Monotonic token for scope-affecting writes (workspace select + default
-  // toggle, which both set appliesToAllWorkspaces/workspaces). Only the most
+  // toggle, which both change the group's workspace scope). Only the most
   // recent write may reconcile or revert the local viewingGroup, so rapid
   // multi-select toggles can't settle on a stale, out-of-order response.
   const scopeWriteSeqRef = useRef(0)
@@ -798,17 +798,15 @@ export function AccessControl() {
   const handleCreatePermissionGroup = useCallback(async () => {
     if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
-    // Only the default group is organization-wide; every other group targets
-    // specific workspaces.
-    const appliesToAllWorkspaces = newGroupIsDefault
     try {
       await createPermissionGroup.mutateAsync({
         organizationId,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
         isDefault: newGroupIsDefault,
-        appliesToAllWorkspaces,
-        workspaceIds: appliesToAllWorkspaces ? undefined : newGroupWorkspaceIds,
+        // Only the default group is organization-wide; every other group targets
+        // specific workspaces (omitted for the default group).
+        workspaceIds: newGroupIsDefault ? undefined : newGroupWorkspaceIds,
       })
       setShowCreateModal(false)
       setNewGroupName('')
@@ -981,7 +979,6 @@ export function AccessControl() {
         prev
           ? {
               ...prev,
-              appliesToAllWorkspaces: false,
               workspaces: organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
             }
           : null
@@ -990,7 +987,6 @@ export function AccessControl() {
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
-          appliesToAllWorkspaces: false,
           workspaceIds,
         })
 
@@ -999,7 +995,6 @@ export function AccessControl() {
           prev
             ? {
                 ...prev,
-                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
                 workspaces: organizationWorkspaces.filter((ws) =>
                   result.permissionGroup.workspaceIds.includes(ws.id)
                 ),
@@ -1041,8 +1036,7 @@ export function AccessControl() {
             ? {
                 ...prev,
                 isDefault: result.permissionGroup.isDefault,
-                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
-                workspaces: result.permissionGroup.appliesToAllWorkspaces
+                workspaces: result.permissionGroup.isDefault
                   ? []
                   : organizationWorkspaces.filter((ws) =>
                       result.permissionGroup.workspaceIds.includes(ws.id)
