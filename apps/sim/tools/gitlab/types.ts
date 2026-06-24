@@ -194,6 +194,11 @@ interface GitLabMilestone {
 
 interface GitLabBaseParams {
   accessToken: string
+  /**
+   * Self-managed GitLab host (e.g. `gitlab.example.com`). Optional — defaults to
+   * `gitlab.com` so existing workflows keep working.
+   */
+  host?: string
 }
 
 // ===== Project Parameters =====

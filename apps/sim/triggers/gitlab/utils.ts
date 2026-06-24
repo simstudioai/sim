@@ -103,6 +103,15 @@ export function buildGitLabExtraFields(triggerId: string): SubBlockConfig[] {
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
+    {
+      id: 'host',
+      title: 'GitLab Host',
+      type: 'short-input',
+      placeholder: 'gitlab.com',
+      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
   ]
 }
 

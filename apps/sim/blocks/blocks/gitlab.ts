@@ -57,6 +57,15 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       password: true,
       required: true,
     },
+    // Self-managed GitLab host (defaults to gitlab.com)
+    {
+      id: 'host',
+      title: 'GitLab Host',
+      type: 'short-input',
+      placeholder: 'gitlab.com',
+      mode: 'advanced',
+      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
+    },
     // Project ID (required for most operations)
     {
       id: 'projectId',
@@ -474,6 +483,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
       params: (params) => {
         const baseParams: Record<string, any> = {
           accessToken: params.accessToken,
+          host: params.host?.trim() || undefined,
         }
 
         switch (params.operation) {
@@ -709,6 +719,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'GitLab access token' },
+    host: { type: 'string', description: 'Self-managed GitLab host (defaults to gitlab.com)' },
     projectId: { type: 'string', description: 'Project ID or URL-encoded path' },
     issueIid: { type: 'number', description: 'Issue internal ID' },
     mergeRequestIid: { type: 'number', description: 'Merge request internal ID' },
