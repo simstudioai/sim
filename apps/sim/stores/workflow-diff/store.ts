@@ -8,7 +8,7 @@ import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { mergeSubblockState } from '../workflows/utils'
 import { useWorkflowStore } from '../workflows/workflow/store'
-import type { WorkflowDiffActions, WorkflowDiffState } from './types'
+import { deriveDiffFlags, type WorkflowDiffActions, type WorkflowDiffState } from './types'
 import {
   applyWorkflowStateToStores,
   captureBaselineSnapshot,
@@ -21,17 +21,20 @@ import {
 
 const logger = createLogger('WorkflowDiffStore')
 const diffEngine = new WorkflowDiffEngine()
-const RESET_DIFF_STATE = {
-  hasActiveDiff: false,
-  isShowingDiff: false,
-  isDiffReady: false,
+
+/**
+ * Canonical state patch that clears the diff overlay back to `none`: the
+ * none-derived flags plus a wipe of all diff payload fields.
+ */
+export const RESET_DIFF_STATE = {
+  ...deriveDiffFlags('none'),
   baselineWorkflow: null,
   baselineWorkflowId: null,
   diffAnalysis: null,
   diffMetadata: null,
   diffError: null,
   _triggerMessageId: null,
-}
+} as const
 
 /**
  * Detects when a diff contains no meaningful changes.
@@ -70,9 +73,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
       const batchedUpdate = createBatchedUpdater(set)
 
       return {
-        hasActiveDiff: false,
-        isShowingDiff: false,
-        isDiffReady: false,
+        ...deriveDiffFlags('none'),
         baselineWorkflow: null,
         baselineWorkflowId: null,
         diffAnalysis: null,
@@ -159,13 +160,11 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           )
           serializer.deserializeWorkflow(serialized)
 
-          // Set diff flags BEFORE applying state so that the very first
+          // Set diff status BEFORE applying state so that the very first
           // React render after the store update already sees diff mode active.
           // This prevents a flash frame where blocks render without diff colors.
           set({
-            hasActiveDiff: true,
-            isShowingDiff: true,
-            isDiffReady: true,
+            ...deriveDiffFlags('showing'),
             baselineWorkflow: baselineWorkflow,
             baselineWorkflowId,
             diffAnalysis: diffAnalysisResult,
@@ -256,16 +255,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         },
 
         toggleDiffView: () => {
-          const { hasActiveDiff, isDiffReady, isShowingDiff } = get()
-          if (!hasActiveDiff) {
-            logger.warn('Cannot toggle diff view without active diff')
+          const { status } = get()
+          if (status === 'none') {
+            logger.warn('Cannot toggle diff view without an active, ready diff')
             return
           }
-          if (!isDiffReady) {
-            logger.warn('Cannot toggle diff view before diff is ready')
-            return
-          }
-          batchedUpdate({ isShowingDiff: !isShowingDiff })
+          batchedUpdate(deriveDiffFlags(status === 'showing' ? 'staged' : 'showing'))
         },
 
         acceptChanges: async (options) => {

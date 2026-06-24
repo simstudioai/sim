@@ -1,4 +1,6 @@
 /**
+ * @vitest-environment node
+ *
  * Tests for the per-workflow execution store.
  *
  * These tests cover:
@@ -7,12 +9,19 @@
  * - Execution lifecycle (start/stop clears run path)
  * - Block and edge run status tracking
  * - Active block management
- * - Debug state management
+ * - The {@link ExecutionStatus} enum and its derived `isExecuting` /
+ *   `isDebugging` booleans (exhaustive status → flag mapping + transitions)
  * - Execution snapshot management
  * - Store reset
  * - Immutability guarantees
  *
  * @remarks
+ * The store under test transitively imports the workflow registry store,
+ * which drags in the block registry and emcn icon CSS. To keep this a true
+ * unit test that loads under the node environment, the registry store is
+ * mocked to a minimal stub (the store actions never touch it — only the
+ * convenience hooks do, which are not exercised here).
+ *
  * Most tests use `it.concurrent` with unique workflow IDs per test.
  * Because the store isolates state by workflow ID, concurrent tests
  * do not interfere with each other. The `reset` and `immutability`
@@ -21,17 +30,30 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/stores/workflows/registry/store', () => ({
+  useWorkflowRegistry: Object.assign(
+    vi.fn(() => null),
+    { getState: vi.fn(() => ({ activeWorkflowId: null })) }
+  ),
+}))
+
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/execution/types')
 
 import { useExecutionStore } from '@/stores/execution/store'
-import { defaultWorkflowExecutionState, initialState } from '@/stores/execution/types'
+import {
+  defaultWorkflowExecutionState,
+  deriveExecutionFlags,
+  type ExecutionStatus,
+  initialState,
+} from '@/stores/execution/types'
 
 describe('useExecutionStore', () => {
   describe('getWorkflowExecution', () => {
     it.concurrent('should return default state for an unknown workflow', () => {
       const state = useExecutionStore.getState().getWorkflowExecution('wf-get-default')
 
+      expect(state.status).toBe('idle')
       expect(state.isExecuting).toBe(false)
       expect(state.isDebugging).toBe(false)
       expect(state.activeBlockIds.size).toBe(0)
@@ -63,22 +85,35 @@ describe('useExecutionStore', () => {
     })
   })
 
+  describe('deriveExecutionFlags', () => {
+    it.concurrent('maps every status to the documented legacy booleans', () => {
+      const cases: Array<[ExecutionStatus, boolean, boolean]> = [
+        ['idle', false, false],
+        ['running', true, false],
+        ['debugging', true, true],
+      ]
+      for (const [status, isExecuting, isDebugging] of cases) {
+        expect(deriveExecutionFlags(status)).toEqual({ isExecuting, isDebugging })
+      }
+    })
+  })
+
   describe('setIsExecuting', () => {
-    it.concurrent('should set isExecuting to true', () => {
+    it.concurrent('should set isExecuting to true (status running)', () => {
       useExecutionStore.getState().setIsExecuting('wf-exec-true', true)
 
-      expect(useExecutionStore.getState().getWorkflowExecution('wf-exec-true').isExecuting).toBe(
-        true
-      )
+      const state = useExecutionStore.getState().getWorkflowExecution('wf-exec-true')
+      expect(state.isExecuting).toBe(true)
+      expect(state.status).toBe('running')
     })
 
-    it.concurrent('should set isExecuting to false', () => {
+    it.concurrent('should set isExecuting to false (status idle)', () => {
       useExecutionStore.getState().setIsExecuting('wf-exec-false', true)
       useExecutionStore.getState().setIsExecuting('wf-exec-false', false)
 
-      expect(useExecutionStore.getState().getWorkflowExecution('wf-exec-false').isExecuting).toBe(
-        false
-      )
+      const state = useExecutionStore.getState().getWorkflowExecution('wf-exec-false')
+      expect(state.isExecuting).toBe(false)
+      expect(state.status).toBe('idle')
     })
 
     it.concurrent('should clear lastRunPath and lastRunEdges when starting execution', () => {
@@ -106,6 +141,131 @@ describe('useExecutionStore', () => {
       const state = useExecutionStore.getState().getWorkflowExecution(wf)
       expect(state.isExecuting).toBe(false)
       expect(state.lastRunPath.get('block-1')).toBe('success')
+    })
+
+    it.concurrent('starting a debug run then setIsExecuting(true) clears the run path', () => {
+      const wf = 'wf-exec-debug-start-clears'
+      useExecutionStore.getState().setIsExecuting(wf, true)
+      useExecutionStore.getState().setIsDebugging(wf, true)
+      useExecutionStore.getState().setBlockRunStatus(wf, 'block-1', 'success')
+
+      useExecutionStore.getState().setIsExecuting(wf, true)
+
+      const state = useExecutionStore.getState().getWorkflowExecution(wf)
+      expect(state.status).toBe('debugging')
+      expect(state.isExecuting).toBe(true)
+      expect(state.isDebugging).toBe(true)
+      expect(state.lastRunPath.size).toBe(0)
+      expect(state.lastRunEdges.size).toBe(0)
+    })
+  })
+
+  describe('setIsDebugging', () => {
+    it.concurrent('should toggle debug mode', () => {
+      const wf = 'wf-debug-toggle'
+      useExecutionStore.getState().setIsDebugging(wf, true)
+
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isDebugging).toBe(true)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isExecuting).toBe(true)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).status).toBe('debugging')
+
+      useExecutionStore.getState().setIsDebugging(wf, false)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isDebugging).toBe(false)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isExecuting).toBe(true)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).status).toBe('running')
+    })
+
+    it.concurrent('setIsDebugging(false) while idle is a no-op (stays idle)', () => {
+      const wf = 'wf-debug-false-idle'
+      useExecutionStore.getState().setIsDebugging(wf, false)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).status).toBe('idle')
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isExecuting).toBe(false)
+    })
+
+    it.concurrent('setIsDebugging(false) while running keeps running', () => {
+      const wf = 'wf-debug-false-running'
+      useExecutionStore.getState().setIsExecuting(wf, true)
+      useExecutionStore.getState().setIsDebugging(wf, false)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).status).toBe('running')
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).isExecuting).toBe(true)
+    })
+
+    it.concurrent('does not clear the run path when entering debug mode', () => {
+      const wf = 'wf-debug-keeps-path'
+      useExecutionStore.getState().setBlockRunStatus(wf, 'block-1', 'success')
+      useExecutionStore.getState().setIsDebugging(wf, true)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).lastRunPath.get('block-1')).toBe(
+        'success'
+      )
+    })
+  })
+
+  describe('status enum', () => {
+    it.concurrent('idle derives both flags false', () => {
+      const wf = 'wf-status-idle'
+      const state = useExecutionStore.getState().getWorkflowExecution(wf)
+      expect(state.status).toBe('idle')
+      expect(state.isExecuting).toBe(false)
+      expect(state.isDebugging).toBe(false)
+    })
+
+    it.concurrent('running derives isExecuting only', () => {
+      const wf = 'wf-status-running'
+      useExecutionStore.getState().setStatus(wf, 'running')
+      const state = useExecutionStore.getState().getWorkflowExecution(wf)
+      expect(state.status).toBe('running')
+      expect(state.isExecuting).toBe(true)
+      expect(state.isDebugging).toBe(false)
+    })
+
+    it.concurrent('debugging derives both flags true', () => {
+      const wf = 'wf-status-debugging'
+      useExecutionStore.getState().setStatus(wf, 'debugging')
+      const state = useExecutionStore.getState().getWorkflowExecution(wf)
+      expect(state.status).toBe('debugging')
+      expect(state.isExecuting).toBe(true)
+      expect(state.isDebugging).toBe(true)
+    })
+
+    it.concurrent('setStatus preserves the run path unless clearRunPath is passed', () => {
+      const wf = 'wf-status-path-rules'
+      useExecutionStore.getState().setStatus(wf, 'debugging')
+      useExecutionStore.getState().setBlockRunStatus(wf, 'block-1', 'success')
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).lastRunPath.size).toBe(1)
+
+      useExecutionStore.getState().setStatus(wf, 'running')
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).lastRunPath.size).toBe(1)
+
+      useExecutionStore.getState().setStatus(wf, 'running', { clearRunPath: true })
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).lastRunPath.size).toBe(0)
+    })
+
+    it.concurrent('the derived booleans always agree with the stored status', () => {
+      const wf = 'wf-status-no-drift'
+      for (const status of ['idle', 'running', 'debugging', 'idle'] as const) {
+        useExecutionStore.getState().setStatus(wf, status)
+        const state = useExecutionStore.getState().getWorkflowExecution(wf)
+        expect({ isExecuting: state.isExecuting, isDebugging: state.isDebugging }).toEqual(
+          deriveExecutionFlags(status)
+        )
+      }
+    })
+
+    it.concurrent('setIsExecuting(true) preserves an active debug session', () => {
+      const wf = 'wf-status-debug-preserve'
+      useExecutionStore.getState().setStatus(wf, 'debugging')
+      useExecutionStore.getState().setIsExecuting(wf, true)
+      expect(useExecutionStore.getState().getWorkflowExecution(wf).status).toBe('debugging')
+    })
+
+    it.concurrent('setIsExecuting(false) returns to idle from any mode', () => {
+      const wf = 'wf-status-stop'
+      useExecutionStore.getState().setStatus(wf, 'debugging')
+      useExecutionStore.getState().setIsExecuting(wf, false)
+      const state = useExecutionStore.getState().getWorkflowExecution(wf)
+      expect(state.status).toBe('idle')
+      expect(state.isExecuting).toBe(false)
+      expect(state.isDebugging).toBe(false)
     })
   })
 
@@ -148,18 +308,6 @@ describe('useExecutionStore', () => {
         'block-1',
         'block-2',
       ])
-    })
-  })
-
-  describe('setIsDebugging', () => {
-    it.concurrent('should toggle debug mode', () => {
-      const wf = 'wf-debug-toggle'
-      useExecutionStore.getState().setIsDebugging(wf, true)
-
-      expect(useExecutionStore.getState().getWorkflowExecution(wf).isDebugging).toBe(true)
-
-      useExecutionStore.getState().setIsDebugging(wf, false)
-      expect(useExecutionStore.getState().getWorkflowExecution(wf).isDebugging).toBe(false)
     })
   })
 
