@@ -25,6 +25,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
+import { readSSEEvents } from '@/lib/core/utils/sse'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -520,12 +521,10 @@ export function Chat() {
    * @param responseMessageId - ID of the message to update with streamed content
    */
   const processStreamingResponse = useCallback(
-    async (stream: ReadableStream, responseMessageId: string) => {
+    async (stream: ReadableStream<Uint8Array>, responseMessageId: string) => {
       const reader = stream.getReader()
       streamReaderRef.current = reader
-      const decoder = new TextDecoder()
       let accumulatedContent = ''
-      let buffer = ''
 
       const BATCH_MAX_MS = 50
       let pendingChunks = ''
@@ -563,63 +562,34 @@ export function Chat() {
       }
 
       try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) {
-            flushChunks()
-            finalizeMessageStream(responseMessageId)
-            break
-          }
+        await readSSEEvents<{ event?: string; data?: ExecutionResult; chunk?: string }>(reader, {
+          onParseError: (_data, e) => {
+            logger.error('Error parsing stream data:', e)
+          },
+          onEvent: (json) => {
+            const { event, data: eventData, chunk: contentChunk } = json
 
-          const chunk = decoder.decode(value, { stream: true })
-          buffer += chunk
-
-          const separatorIndex = buffer.lastIndexOf('\n\n')
-          if (separatorIndex === -1) {
-            continue
-          }
-
-          const processable = buffer.slice(0, separatorIndex)
-          buffer = buffer.slice(separatorIndex + 2)
-
-          const lines = processable.split('\n\n')
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-
-            const data = line.substring(6)
-            if (data === '[DONE]') continue
-
-            try {
-              const json = JSON.parse(data)
-              const { event, data: eventData, chunk: contentChunk } = json
-
-              if (event === 'final' && eventData) {
-                const result = eventData as ExecutionResult
-
-                if ('success' in result && !result.success) {
-                  const errorMessage = result.error || 'Workflow execution failed'
-                  flushChunks()
-                  appendMessageContent(
-                    responseMessageId,
-                    `${accumulatedContent ? '\n\n' : ''}Error: ${errorMessage}`
-                  )
-                  finalizeMessageStream(responseMessageId)
-                  return
-                }
-
+            if (event === 'final' && eventData) {
+              if ('success' in eventData && !eventData.success) {
+                const errorMessage = eventData.error || 'Workflow execution failed'
                 flushChunks()
-                finalizeMessageStream(responseMessageId)
-              } else if (contentChunk) {
-                accumulatedContent += contentChunk
-                pendingChunks += contentChunk
-                scheduleFlush()
+                appendMessageContent(
+                  responseMessageId,
+                  `${accumulatedContent ? '\n\n' : ''}Error: ${errorMessage}`
+                )
               }
-            } catch (e) {
-              logger.error('Error parsing stream data:', e)
+              return true
             }
-          }
-        }
+
+            if (contentChunk) {
+              accumulatedContent += contentChunk
+              pendingChunks += contentChunk
+              scheduleFlush()
+            }
+          },
+        })
+        flushChunks()
+        finalizeMessageStream(responseMessageId)
       } catch (error) {
         if ((error as Error)?.name !== 'AbortError') {
           logger.error('Error processing stream:', error)
