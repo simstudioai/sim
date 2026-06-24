@@ -560,6 +560,7 @@ import {
   crowdstrikeGetSensorDetailsTool,
   crowdstrikeQuerySensorsTool,
 } from '@/tools/crowdstrike'
+import { crwCrawlTool, crwMapTool, crwScrapeTool, crwSearchTool } from '@/tools/crw'
 import {
   cursorAddFollowupTool,
   cursorAddFollowupV2Tool,
@@ -4222,6 +4223,10 @@ export const tools: Record<string, ToolConfig> = {
   file_read: fileReadTool,
   file_manage_sharing: fileManageSharingTool,
   file_write: fileWriteTool,
+  crw_scrape: crwScrapeTool,
+  crw_search: crwSearchTool,
+  crw_crawl: crwCrawlTool,
+  crw_map: crwMapTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,

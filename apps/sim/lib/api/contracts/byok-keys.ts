@@ -12,6 +12,7 @@ export const byokProviderIdSchema = z.enum([
   'ollama-cloud',
   'falai',
   'firecrawl',
+  'crw',
   'exa',
   'serper',
   'linkup',

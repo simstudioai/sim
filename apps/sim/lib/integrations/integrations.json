@@ -4873,6 +4873,41 @@
       "tags": ["document-processing", "ocr"]
     },
     {
+      "type": "crw",
+      "slug": "fastcrw",
+      "name": "fastCRW",
+      "description": "Scrape, search, crawl, and map web data",
+      "longDescription": "Integrate fastCRW into the workflow. Scrape pages, search the web, crawl entire sites, and map URL structures. fastCRW is a Firecrawl-compatible web scraper in a single binary — self-host or cloud.",
+      "bgColor": "#181C1E",
+      "iconName": "CrwIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/crw",
+      "operations": [
+        {
+          "name": "Scrape",
+          "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
+        },
+        {
+          "name": "Search",
+          "description": "Search for information on the web using fastCRW"
+        },
+        {
+          "name": "Crawl",
+          "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Map",
+          "description": "Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "automation"]
+    },
+    {
       "type": "fathom",
       "slug": "fathom",
       "name": "Fathom",

@@ -71,6 +71,7 @@ const STATIC_CONNECT_SRC = [
   'wss://api.elevenlabs.io',
   'https://api.exa.ai',
   'https://api.firecrawl.dev',
+  'https://fastcrw.com',
   'https://*.googleapis.com',
   'https://*.amazonaws.com',
   'https://*.s3.amazonaws.com',

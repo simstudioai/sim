@@ -6,6 +6,7 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  CrwIcon,
   DatagmaIcon,
   DropcontactIcon,
   EnrowIcon,
@@ -115,6 +116,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: FirecrawlIcon,
     description: 'Web scraping, crawling, search, and extraction',
     placeholder: 'Enter your Firecrawl API key',
+  },
+  {
+    id: 'crw',
+    name: 'fastCRW',
+    icon: CrwIcon,
+    description: 'Web scraping, crawling, search, and mapping',
+    placeholder: 'Enter your fastCRW API key',
   },
   {
     id: 'exa',
@@ -289,6 +297,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
     label: 'Search & web',
     ids: [
       'firecrawl',
+      'crw',
       'exa',
       'serper',
       'linkup',
