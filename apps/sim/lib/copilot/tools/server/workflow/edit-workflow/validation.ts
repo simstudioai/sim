@@ -27,6 +27,7 @@ import type {
 import { SELECTOR_TYPES } from './types'
 
 const validationLogger = createLogger('EditWorkflowValidation')
+const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
 
 /**
  * Finds an existing block with the same normalized name.
@@ -141,8 +142,11 @@ function validateAgentToolEntry(item: any, index: number): string | null {
   const type = item.type
 
   // Raw OpenAI function schema pasted directly into the array (common mistake).
+  // Keyed on type === 'function' (OpenAI's exact discriminator) so a real
+  // integration tool that happens to carry a `function` property is not
+  // misreported here - it falls through to the block-type check below.
   if (
-    type !== 'custom-tool' &&
+    type === 'function' &&
     item.function &&
     typeof item.function === 'object' &&
     typeof item.function.name === 'string'
@@ -1094,7 +1098,7 @@ export async function collectUnresolvedAgentToolReferences(
   workflowState: any,
   context: { userId: string; workspaceId?: string }
 ): Promise<UnresolvedSelectorReference[]> {
-  const logger = createLogger('EditWorkflowAgentToolLint')
+  const logger = agentToolLintLogger
   const references: UnresolvedSelectorReference[] = []
   const { userId, workspaceId } = context
 
@@ -1110,7 +1114,10 @@ export async function collectUnresolvedAgentToolReferences(
 
         // Reference-format custom tools must resolve to a DB row. Inline tools
         // (those carrying their own schema) are self-contained, so skip them.
-        if (tool.type === 'custom-tool' && !tool.schema) {
+        // Gated on workspaceId (like the MCP/skill paths below): without a
+        // workspace, getCustomToolById only sees legacy tools and would
+        // false-positive on every workspace-scoped tool.
+        if (tool.type === 'custom-tool' && !tool.schema && workspaceId) {
           const toolId = tool.customToolId
           if (typeof toolId !== 'string' || toolId.trim() === '') continue
           try {

@@ -670,6 +670,20 @@ describe('collectUnresolvedAgentToolReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
+  it('does not DB-check a custom tool when workspaceId is absent (avoids false positives)', async () => {
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'ct_x' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, { userId: 'user-1' })
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+
   it('flags an MCP tool whose server does not resolve', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['srv_missing'] })
     const state = {
