@@ -12,6 +12,25 @@ export interface SearchBlockItem {
   type: string
   config?: BlockConfig
   searchValue?: string
+  /** Integration category slug ({@link IntegrationType}), set for tools only. */
+  integrationType?: string
+}
+
+/** Which add-block list a {@link SearchCategory} drills into. */
+export type SearchCategoryKind = 'block' | 'trigger' | 'tool'
+
+/**
+ * A browsable group shown in the palette's empty state. Selecting one scopes
+ * the list to just that category's blocks instead of dumping the full catalog.
+ */
+export interface SearchCategory {
+  /** `'blocks'`, `'triggers'`, or an {@link IntegrationType} slug. */
+  id: string
+  /** Human-readable heading (e.g. "Core Blocks", "Communication"). */
+  label: string
+  kind: SearchCategoryKind
+  /** Number of blocks in this category. */
+  count: number
 }
 
 /**
@@ -46,6 +65,8 @@ export interface SearchData {
   triggers: SearchBlockItem[]
   toolOperations: SearchToolOperationItem[]
   docs: SearchDocItem[]
+  /** Browsable categories for the empty-state drill-down. */
+  categories: SearchCategory[]
   isInitialized: boolean
 }
 

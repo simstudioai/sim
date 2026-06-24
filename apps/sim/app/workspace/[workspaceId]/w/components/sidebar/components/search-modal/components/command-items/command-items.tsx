@@ -5,6 +5,7 @@ import { memo } from 'react'
 import { cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
+import { ChevronRight } from 'lucide-react'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   COMMAND_ITEM_CLASSNAME,
@@ -326,6 +327,43 @@ export const MemoizedPageItem = memo(
     prev.icon === next.icon &&
     prev.name === next.name &&
     prev.shortcut === next.shortcut &&
+    prev.query === next.query
+)
+
+export const MemoizedCategoryItem = memo(
+  function CategoryItem({
+    value,
+    onSelect,
+    icon: Icon,
+    name,
+    count,
+    query,
+  }: {
+    value: string
+    onSelect: () => void
+    icon: ComponentType<{ className?: string }>
+    name: string
+    count: number
+    query?: string
+  }) {
+    return (
+      <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
+        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        <span className='truncate text-[var(--text-body)]'>
+          <HighlightedText text={name} query={query} />
+        </span>
+        <span className='ml-auto flex flex-shrink-0 items-center gap-1.5 text-[var(--text-subtle)] text-small'>
+          {count}
+          <ChevronRight className='size-[14px]' />
+        </span>
+      </Command.Item>
+    )
+  },
+  (prev, next) =>
+    prev.value === next.value &&
+    prev.icon === next.icon &&
+    prev.name === next.name &&
+    prev.count === next.count &&
     prev.query === next.query
 )
 

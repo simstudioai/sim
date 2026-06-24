@@ -5,7 +5,27 @@ import { memo } from 'react'
 import { Database, Table } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import {
+  Activity,
+  BarChart3,
+  Blocks,
+  FileText,
+  GitBranch,
+  LifeBuoy,
+  type LucideIcon,
+  Mail,
+  Megaphone,
+  MessageCircle,
+  Search as SearchIcon,
+  Shield,
+  ShoppingCart,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Zap,
+} from 'lucide-react'
+import {
   MemoizedActionItem,
+  MemoizedCategoryItem,
   MemoizedCommandItem,
   MemoizedFileItem,
   MemoizedIconItem,
@@ -26,9 +46,32 @@ import type {
 import { GROUP_HEADING_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import type {
   SearchBlockItem,
+  SearchCategory,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
+
+/** Icon for each browsable category, keyed by {@link SearchCategory.id}. */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  blocks: Blocks,
+  triggers: Zap,
+  ai: Sparkles,
+  analytics: BarChart3,
+  commerce: ShoppingCart,
+  communication: MessageCircle,
+  databases: Database,
+  devops: GitBranch,
+  documents: FileText,
+  email: Mail,
+  hr: Users,
+  marketing: Megaphone,
+  observability: Activity,
+  productivity: Blocks,
+  sales: TrendingUp,
+  search: SearchIcon,
+  security: Shield,
+  support: LifeBuoy,
+}
 
 export const ActionsGroup = memo(function ActionsGroup({
   items,
@@ -57,18 +100,72 @@ export const ActionsGroup = memo(function ActionsGroup({
   )
 })
 
+/** A recent selection resolved to a renderable row by the modal. */
+export interface RecentRenderItem {
+  id: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  bgColor: string
+  onSelect: () => void
+}
+
+export const RecentsGroup = memo(function RecentsGroup({ items }: { items: RecentRenderItem[] }) {
+  if (items.length === 0) return null
+  return (
+    <Command.Group heading='Recent' className={GROUP_HEADING_CLASSNAME}>
+      {items.map((item) => (
+        <MemoizedCommandItem
+          key={item.id}
+          value={`${item.label} recent-${item.id}`}
+          onSelect={item.onSelect}
+          icon={item.icon}
+          bgColor={item.bgColor}
+          showColoredIcon
+          label={item.label}
+        />
+      ))}
+    </Command.Group>
+  )
+})
+
+export const BrowseGroup = memo(function BrowseGroup({
+  items,
+  onSelect,
+}: {
+  items: SearchCategory[]
+  onSelect: (category: SearchCategory) => void
+}) {
+  if (items.length === 0) return null
+  return (
+    <Command.Group heading='Browse' className={GROUP_HEADING_CLASSNAME}>
+      {items.map((category) => (
+        <MemoizedCategoryItem
+          key={category.id}
+          value={`${category.label} category-${category.id}`}
+          onSelect={() => onSelect(category)}
+          icon={CATEGORY_ICONS[category.id] ?? Blocks}
+          name={category.label}
+          count={category.count}
+        />
+      ))}
+    </Command.Group>
+  )
+})
+
 export const BlocksGroup = memo(function BlocksGroup({
   items,
   onSelect,
   query,
+  heading = 'Blocks',
 }: {
   items: SearchBlockItem[]
   onSelect: (block: SearchBlockItem) => void
   query?: string
+  heading?: string
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Blocks' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
       {items.map((block) => (
         <MemoizedCommandItem
           key={block.id}
@@ -89,14 +186,16 @@ export const ToolsGroup = memo(function ToolsGroup({
   items,
   onSelect,
   query,
+  heading = 'Tools',
 }: {
   items: SearchBlockItem[]
   onSelect: (tool: SearchBlockItem) => void
   query?: string
+  heading?: string
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tools' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
       {items.map((tool) => (
         <MemoizedCommandItem
           key={tool.id}
@@ -117,14 +216,16 @@ export const TriggersGroup = memo(function TriggersGroup({
   items,
   onSelect,
   query,
+  heading = 'Triggers',
 }: {
   items: SearchBlockItem[]
   onSelect: (trigger: SearchBlockItem) => void
   query?: string
+  heading?: string
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Triggers' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
       {items.map((trigger) => (
         <MemoizedCommandItem
           key={trigger.id}
