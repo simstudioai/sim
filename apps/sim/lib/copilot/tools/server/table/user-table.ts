@@ -134,12 +134,14 @@ function shouldImportInBackground(record: { name: string; size: number }): boole
 async function dispatchImportJob(payload: TableImportPayload): Promise<void> {
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableImportTask }, { tasks }] = await Promise.all([
+      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-import'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableImportTask>('table-import', payload, {
         tags: [`tableId:${payload.tableId}`, `jobId:${payload.importId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       await releaseJobClaim(payload.tableId, payload.importId).catch(() => {})
@@ -166,14 +168,15 @@ async function dispatchDeleteJob(params: {
   const { jobId, tableId, workspaceId, filter, cutoff, maxRows } = params
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableDeleteTask }, { tasks }] = await Promise.all([
+      const [{ tableDeleteTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-delete'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableDeleteTask>(
         'table-delete',
         { jobId, tableId, workspaceId, filter, cutoff: cutoff.toISOString(), maxRows },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
       await releaseJobClaim(tableId, jobId).catch(() => {})
@@ -208,14 +211,15 @@ async function dispatchUpdateJob(params: {
   const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = params
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableUpdateTask }, { tasks }] = await Promise.all([
+      const [{ tableUpdateTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-update'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableUpdateTask>(
         'table-update',
         { jobId, tableId, workspaceId, filter, data, cutoff: cutoff.toISOString(), maxRows },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
       await releaseJobClaim(tableId, jobId).catch(() => {})

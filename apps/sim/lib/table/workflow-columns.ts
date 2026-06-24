@@ -764,14 +764,15 @@ export async function runWorkflowColumn(opts: {
   if (isTriggerDevEnabled) {
     // Trigger.dev runs `tableRunDispatcherTask`, which loops `dispatcherStep`
     // until done with CRIU-checkpointed waits between windows.
-    const [{ tableRunDispatcherTask }, { tasks }] = await Promise.all([
+    const [{ tableRunDispatcherTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
       import('@/background/table-run-dispatcher'),
       import('@trigger.dev/sdk'),
+      import('@/lib/core/async-jobs/region'),
     ])
     await tasks.trigger<typeof tableRunDispatcherTask>(
       'table-run-dispatcher',
       { dispatchId },
-      { concurrencyKey: dispatchId }
+      { concurrencyKey: dispatchId, region: await resolveTriggerRegion() }
     )
   } else {
     // Local / no-trigger.dev: drive the same loop in-process, fire-and-forget

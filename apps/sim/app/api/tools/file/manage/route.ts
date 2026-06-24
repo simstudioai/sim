@@ -1,5 +1,6 @@
 import { Buffer, isUtf8 } from 'buffer'
 import type { Readable } from 'stream'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -14,6 +15,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import {
+  getShareForResource,
+  getSharesForResources,
+  ShareValidationError,
+  upsertFileShare,
+} from '@/lib/public-shares/share-manager'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -22,14 +29,20 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
+  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import {
+  PublicFileSharingNotAllowedError,
+  validatePublicFileSharing,
+} from '@/ee/access-control/utils/permission-check'
 import type { UserFile } from '@/executor/types'
 
 export const dynamic = 'force-dynamic'
@@ -405,12 +418,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        const shares = await getSharesForResources('file', selectedFileIds)
+        const privateReadShare = () => ({
+          visibility: 'private' as const,
+          url: null,
+          allowedEmails: [] as string[],
+        })
+        const toReadShare = (fileId: string) => {
+          const share = shares.get(fileId)
+          if (!share || !share.isActive) return privateReadShare()
+          return {
+            visibility: share.authType,
+            url: share.url,
+            allowedEmails: share.allowedEmails,
+          }
+        }
         const userFiles = files
           .map((file) => workspaceFileToUserFile(file))
           .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
             Boolean(file)
           )
-          .concat(selectedInputFiles)
+          .map((file) => ({ ...file, share: toReadShare(file.id) }))
+          // Picker/upload entries have only a synthetic id (storage key/URL), so they
+          // never carry a canonical share — mark them private without a lookup.
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: privateReadShare() })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,
@@ -563,6 +594,102 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           success: true,
           data: { fileId, targetFolder: targetFolder || '(root)' },
         })
+      }
+
+      case 'manage_sharing': {
+        const { fileId, fileInput, isActive, authType, password, allowedEmails } = body
+
+        // Check permission before probing file existence so a read-only caller
+        // can't distinguish 404 from 403 as a file-existence side channel.
+        // Publishing is more sensitive than the other mutating ops, so it
+        // requires write/admin (not just workspace access) like the share route.
+        const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+        if (permission !== 'admin' && permission !== 'write') {
+          return NextResponse.json(
+            { success: false, error: 'Insufficient permissions' },
+            { status: 403 }
+          )
+        }
+
+        // Resolve the canonical file id. The basic file picker provides an object
+        // with a storage `key` but no id, so map the key to the workspace file row.
+        let resolvedFileId = typeof fileId === 'string' ? fileId : undefined
+        if (!resolvedFileId && fileInput) {
+          const single = Array.isArray(fileInput) ? fileInput[0] : fileInput
+          if (single && typeof single === 'object') {
+            const record = single as Record<string, unknown>
+            if (typeof record.id === 'string' && record.id) resolvedFileId = record.id
+            else if (typeof record.fileId === 'string' && record.fileId)
+              resolvedFileId = record.fileId
+            else if (typeof record.key === 'string' && record.key) {
+              const meta = await getFileMetadataByKey(record.key, 'workspace')
+              resolvedFileId = meta?.id
+            }
+          }
+        }
+        if (!resolvedFileId) {
+          return NextResponse.json(
+            { success: false, error: 'A valid file is required to manage sharing' },
+            { status: 400 }
+          )
+        }
+
+        const file = await getWorkspaceFile(workspaceId, resolvedFileId)
+        if (!file) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${resolvedFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        // Enabling a share is gated by the org's access-control policy; disabling
+        // is always allowed so users can un-share after the policy is turned on.
+        if (isActive) {
+          // Resolve the auth type the same way upsertFileShare will (falling back
+          // to the existing share's type) so the policy gate can't be bypassed by
+          // re-enabling a pre-existing restricted share without an explicit authType.
+          const existingShare = await getShareForResource('file', resolvedFileId)
+          const resolvedAuthType = authType ?? existingShare?.authType ?? 'public'
+          try {
+            await validatePublicFileSharing(userId, workspaceId, resolvedAuthType)
+          } catch (error) {
+            if (error instanceof PublicFileSharingNotAllowedError) {
+              return NextResponse.json({ success: false, error: error.message }, { status: 403 })
+            }
+            throw error
+          }
+        }
+
+        const share = await upsertFileShare({
+          workspaceId,
+          fileId: resolvedFileId,
+          userId,
+          isActive,
+          authType,
+          password,
+          allowedEmails,
+        })
+
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
+          resourceType: AuditResourceType.FILE,
+          resourceId: resolvedFileId,
+          resourceName: file.name,
+          description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${file.name}"`,
+          request,
+        })
+
+        logger.info('File sharing updated', {
+          fileId: resolvedFileId,
+          isActive,
+          authType: share.authType,
+        })
+
+        // A disabled link doesn't resolve, so don't hand back a dead URL.
+        const responseShare = share.isActive ? share : { ...share, url: '' }
+        return NextResponse.json({ success: true, data: { share: responseShare } })
       }
 
       case 'append': {
@@ -910,6 +1037,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { success: false, error: 'Workspace access denied' },
         { status: 403 }
       )
+    }
+    if (error instanceof ShareValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })

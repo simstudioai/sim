@@ -32,6 +32,7 @@ import {
   assertRowCapacity,
   getMaxRowsPerTable,
   getWorkspaceTableLimits,
+  notifyTableRowUsage,
   TableRowLimitError,
   wouldExceedRowLimit,
 } from '@/lib/table/billing'
@@ -120,16 +121,16 @@ describe('wouldExceedRowLimit', () => {
 })
 
 describe('assertRowCapacity', () => {
-  it('passes when the write stays under the plan limit', async () => {
+  it('returns the resolved limit when the write stays under it', async () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 10, addedRows: 5 })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(5000)
   })
 
-  it('allows reaching the limit exactly', async () => {
+  it('allows reaching the limit exactly and returns it', async () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 4999, addedRows: 1 })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(5000)
   })
 
   it('throws TableRowLimitError when the write would exceed the limit', async () => {
@@ -155,6 +156,35 @@ describe('assertRowCapacity', () => {
         currentRowCount: 10_000_000,
         addedRows: 1,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(-1)
+  })
+})
+
+describe('notifyTableRowUsage — edge-crossing gate', () => {
+  beforeEach(() => mockGetWorkspaceBilledAccountUserId.mockClear())
+
+  it('fires when an insert crosses UP into the warn band (limit 5000)', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 3990, addedRows: 20, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
+
+  it('fires when an insert crosses UP into the reached band', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4990, addedRows: 20, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT fire when already above the band (no crossing)', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4200, addedRows: 100, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('does NOT fire well below the band', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 100, addedRows: 10, limit: 5000 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('does NOT fire for unlimited plans', () => {
+    notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 0, addedRows: 10_000, limit: -1 })
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
   })
 })

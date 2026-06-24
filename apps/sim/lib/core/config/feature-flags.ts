@@ -90,6 +90,13 @@ const FEATURE_FLAGS = {
       'agree.',
     fallback: 'PII_REDACTION',
   },
+  'trigger-eu-region': {
+    description:
+      'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
+      'only — resolved without user/org context at every task-trigger call site via ' +
+      'resolveTriggerRegion, so the whole deployment switches regions together.',
+    fallback: 'TRIGGER_EU_REGION',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

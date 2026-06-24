@@ -71,6 +71,7 @@ import {
   updateTableRowContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
@@ -694,7 +695,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) =>
-      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -874,7 +875,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
       })
     },
     onError: (error) =>
-      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables'))),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 
@@ -41,6 +42,7 @@ export async function scheduleLifecycleEmail({
     {
       delay: delayUntil,
       idempotencyKey: `lifecycle-${type}-${userId}`,
+      region: await resolveTriggerRegion(),
     }
   )
 

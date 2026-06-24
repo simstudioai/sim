@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
 
 const logger = createLogger('PiiRedaction')
 
@@ -158,11 +159,9 @@ export async function redactPIIFromExecution(
     masked = collected.map(() => REDACTION_FAILED_MARKER)
   } else {
     try {
-      // Lazy import keeps the Python-spawning guardrails module (child_process +
-      // a `lib/guardrails` dir reference) out of the static middleware/RSC graph;
-      // it's only loaded at runtime on the Node log-persist path.
-      const { maskPIIBatch } = await import('@/lib/guardrails/validate_pii')
-      masked = await maskPIIBatch(collected, entityTypes, language)
+      // Presidio runs only in the app container; the persist path also runs in
+      // the trigger.dev runtime, so masking always goes over HTTP to the app.
+      masked = await maskPIIBatchViaHttp(collected, entityTypes, language)
     } catch (error) {
       logger.error('PII masking failed; scrubbing text to avoid leaking PII', {
         error: getErrorMessage(error),

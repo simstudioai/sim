@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { ArrowLeft, Chip, toast } from '@/components/emcn'
 import {
   getUpgradeCardCta,
@@ -11,6 +12,7 @@ import {
   type UpgradeCardId,
 } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
+import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   BillingPeriodToggle,
@@ -26,6 +28,10 @@ import {
   PRO_PLAN_CREDITS,
   PRO_PLAN_FEATURES,
 } from '@/app/workspace/[workspaceId]/upgrade/plan-configs'
+import {
+  upgradeReasonParam,
+  upgradeUrlKeys,
+} from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 
 const TYPEFORM_ENTERPRISE_URL = 'https://form.typeform.com/to/jqCO12pF' as const
@@ -47,7 +53,13 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const state = useUpgradeState()
   const router = useRouter()
   const origin = useFullscreenOriginStore((s) => s.origin)
+  const [reason] = useQueryState(upgradeReasonParam.key, {
+    ...upgradeReasonParam.parser,
+    ...upgradeUrlKeys,
+  })
   const [showAllFeatures, setShowAllFeatures] = useState(false)
+
+  const header = reason ? UPGRADE_REASON_COPY[reason].header : DEFAULT_UPGRADE_HEADER
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}/home`)
@@ -152,7 +164,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
         <div className='mx-auto flex w-full max-w-[960px] flex-col gap-7 pt-6 pb-3'>
           <div className='flex flex-col items-center gap-4'>
             <h1 className='text-balance text-center font-season text-[30px] text-[var(--text-primary)]'>
-              Plans that scale with you
+              {header}
             </h1>
             {state.showUpgradePlans && (
               <BillingPeriodToggle isAnnual={state.isAnnual} onChange={state.setIsAnnual} />

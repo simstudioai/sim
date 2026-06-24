@@ -1,0 +1,127 @@
+suite: pii — optional Presidio sidecar + PII_URL wiring
+release:
+  name: t
+  namespace: sim
+set:
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: does not render the pii deployment when disabled
+    template: deployment-pii.yaml
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: renders the pii deployment + service when enabled
+    set:
+      pii.enabled: true
+    templates:
+      - deployment-pii.yaml
+      - services.yaml
+    asserts:
+      - template: deployment-pii.yaml
+        isKind: { of: Deployment }
+      - template: deployment-pii.yaml
+        equal: { path: metadata.name, value: t-sim-pii }
+      - template: deployment-pii.yaml
+        equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5001
+
+  - it: app pod gets chart-computed PII_URL pointing at the in-cluster service
+    template: deployment-app.yaml
+    set:
+      pii.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://t-sim-pii:5001"
+
+  - it: app pod gets the localhost PII_URL fallback when sidecar disabled
+    template: deployment-app.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://localhost:5001"
+
+  - it: PII_URL is excluded from the chart-managed app secret
+    template: secrets-app.yaml
+    set:
+      pii.enabled: true
+      app.env.PII_URL: "http://should-not-leak:5001"
+    asserts:
+      - notExists:
+          path: stringData.PII_URL
+
+  - it: user-set PII_URL never overrides the chart-computed inline value
+    template: deployment-app.yaml
+    set:
+      pii.enabled: true
+      app.env.PII_URL: "http://evil-pii:5001"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_URL
+            value: "http://evil-pii:5001"
+
+  - it: app NetworkPolicy allows egress to the PII sidecar
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      pii.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: t-sim-app
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    app.kubernetes.io/component: pii
+            ports:
+              - protocol: TCP
+                port: 5001
+
+  - it: renders a dedicated NetworkPolicy for the PII sidecar
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      pii.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: t-sim-pii
+    asserts:
+      - isKind: { of: NetworkPolicy }
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: pii
+
+  - it: pii pod inherits global tolerations (not component-scoped)
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: pii
+          effect: NoSchedule
+    asserts:
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            key: dedicated
+            operator: Equal
+            value: pii
+            effect: NoSchedule
