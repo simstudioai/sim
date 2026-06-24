@@ -1,5 +1,5 @@
 # ========================================
-# Combined Presidio service (analyzer + anonymizer) on a single port (3000)
+# Combined Presidio service (analyzer + anonymizer) on a single port (5001)
 # ========================================
 FROM python:3.12-slim-bookworm AS base
 

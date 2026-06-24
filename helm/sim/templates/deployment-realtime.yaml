@@ -105,7 +105,7 @@ spec:
               deployment.
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
             {{- /*
               Build the effective realtime env from app.env as the base, then
               overlay non-empty realtime.env values. Sprig's `merge` keeps the
