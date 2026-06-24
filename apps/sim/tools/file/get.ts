@@ -63,7 +63,7 @@ const createFileReadTool = (config: {
     files: {
       type: 'file[]',
       description:
-        'Workspace file objects, each with its public share status in a "share" field (null when the file is not shared)',
+        'Workspace file objects, each with a "share" field: { visibility, url, allowedEmails }. visibility is "private" when not publicly shared (url null), otherwise "public"/"password"/"email"/"sso" with the public link in url',
     },
   },
 })

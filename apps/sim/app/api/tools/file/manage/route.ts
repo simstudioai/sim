@@ -418,16 +418,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        // Attach each workspace file's public share status (batched to avoid N+1).
-        // Picker/upload input files have no canonical id, so they carry no share.
+        // Attach each workspace file's share status (batched to avoid N+1), using
+        // the same visibility vocabulary as the Manage Sharing operation. A file
+        // with no active public link reads as 'private' and exposes no link/config.
+        // Picker/upload input files have no canonical id, so they read as private.
         const shares = await getSharesForResources('file', selectedFileIds)
+        const toReadShare = (fileId: string) => {
+          const share = shares.get(fileId)
+          if (!share || !share.isActive) {
+            return { visibility: 'private' as const, url: null, allowedEmails: [] as string[] }
+          }
+          return {
+            visibility: share.authType,
+            url: share.url,
+            allowedEmails: share.allowedEmails,
+          }
+        }
         const userFiles = files
           .map((file) => workspaceFileToUserFile(file))
           .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
             Boolean(file)
           )
-          .map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
-          .concat(selectedInputFiles.map((file) => ({ ...file, share: null })))
+          .map((file) => ({ ...file, share: toReadShare(file.id) }))
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: toReadShare(file.id) })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,
