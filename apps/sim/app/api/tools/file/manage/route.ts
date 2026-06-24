@@ -17,6 +17,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import {
   getShareForResource,
+  getSharesForResources,
   ShareValidationError,
   upsertFileShare,
 } from '@/lib/public-shares/share-manager'
@@ -417,12 +418,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        // Attach each workspace file's public share status (batched to avoid N+1).
+        // Picker/upload input files have no canonical id, so they carry no share.
+        const shares = await getSharesForResources('file', selectedFileIds)
         const userFiles = files
           .map((file) => workspaceFileToUserFile(file))
           .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
             Boolean(file)
           )
-          .concat(selectedInputFiles)
+          .map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
+          .concat(selectedInputFiles.map((file) => ({ ...file, share: null })))
 
         logger.info('Files retrieved', {
           count: userFiles.length,

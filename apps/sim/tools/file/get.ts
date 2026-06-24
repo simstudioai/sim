@@ -60,7 +60,11 @@ const createFileReadTool = (config: {
   },
 
   outputs: {
-    files: { type: 'file[]', description: 'Workspace file objects' },
+    files: {
+      type: 'file[]',
+      description:
+        'Workspace file objects, each with its public share status in a "share" field (null when the file is not shared)',
+    },
   },
 })
 
