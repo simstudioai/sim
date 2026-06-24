@@ -152,6 +152,16 @@ describe('search modal store', () => {
 
   it('carries integrationType onto tools and builds browse categories from it', () => {
     const aiTool = createBlock({ type: 'image_generator_v2', integrationType: IntegrationType.AI })
+    const sales1 = createBlock({
+      type: 'hubspot',
+      name: 'HubSpot',
+      integrationType: IntegrationType.Sales,
+    })
+    const sales2 = createBlock({
+      type: 'salesforce',
+      name: 'Salesforce',
+      integrationType: IntegrationType.Sales,
+    })
     const emailTool = createBlock({
       type: 'gmail',
       name: 'Gmail',
@@ -159,20 +169,20 @@ describe('search modal store', () => {
     })
     const coreBlock = createBlock({ type: 'function', name: 'Function', category: 'blocks' })
 
-    mockGetAllBlocks.mockReturnValue([aiTool, emailTool, coreBlock])
+    mockGetAllBlocks.mockReturnValue([sales1, emailTool, aiTool, sales2, coreBlock])
 
     useSearchModalStore.getState().initializeData((blocks) => blocks)
 
     const { tools, categories } = useSearchModalStore.getState().data
     expect(tools.find((t) => t.id === 'gmail')?.integrationType).toBe(IntegrationType.Email)
 
-    // Core Blocks first, then integration categories alphabetized by label.
-    expect(categories.map((c) => c.label)).toEqual(['Core Blocks', 'AI', 'Email'])
-    expect(categories.find((c) => c.id === IntegrationType.AI)).toEqual({
-      id: 'ai',
-      label: 'AI',
+    // Core Blocks lead; then AI pinned first, then by count desc (Sales 2 > Email 1).
+    expect(categories.map((c) => c.label)).toEqual(['Core Blocks', 'AI', 'Sales', 'Email'])
+    expect(categories.find((c) => c.id === IntegrationType.Sales)).toEqual({
+      id: 'sales',
+      label: 'Sales',
       kind: 'tool',
-      count: 1,
+      count: 2,
     })
   })
 })
