@@ -330,18 +330,32 @@ export function SearchModal({
     }
   }
 
-  useEffect(() => {
-    if (!open || !inputRef.current) return
+  /**
+   * Clears and focuses the search input. The `Command.Input` is uncontrolled
+   * (cmdk owns its value), so resetting requires the native value setter plus a
+   * synthetic `input` event to drive cmdk's internal state back to empty —
+   * `setSearch('')` alone would only update our mirror, leaving stale text on
+   * screen.
+   */
+  const clearInput = useCallback(() => {
+    setSearch('')
+    const input = inputRef.current
+    if (!input) return
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
     )?.set
     if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(inputRef.current, '')
-      inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+      nativeInputValueSetter.call(input, '')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
     }
-    inputRef.current.focus()
-  }, [open])
+    input.focus()
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    clearInput()
+  }, [open, clearInput])
 
   const deferredSearch = useDeferredValue(search)
   const deferredSearchRef = useRef(deferredSearch)
@@ -350,17 +364,18 @@ export function SearchModal({
   const scopeRef = useRef(scope)
   scopeRef.current = scope
 
-  const enterScope = useCallback((category: SearchCategory) => {
-    setScope(category)
-    setSearch('')
-    inputRef.current?.focus()
-  }, [])
+  const enterScope = useCallback(
+    (category: SearchCategory) => {
+      setScope(category)
+      clearInput()
+    },
+    [clearInput]
+  )
 
   const exitScope = useCallback(() => {
     setScope(null)
-    setSearch('')
-    inputRef.current?.focus()
-  }, [])
+    clearInput()
+  }, [clearInput])
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
@@ -710,14 +725,15 @@ export function SearchModal({
    * are an add-block affordance, so they only surface on the workflow page.
    */
   const recents = useMemo<RecentRenderItem[]>(() => {
-    if (!isOnWorkflowPage) return []
+    const recentKeys = Object.keys(recentEntries)
+    if (!isOnWorkflowPage || recentKeys.length === 0) return []
     const blocksByType = new Map(blocks.map((b) => [b.type, b]))
     const toolsByType = new Map(tools.map((t) => [t.type, t]))
     const triggersByType = new Map(triggers.map((t) => [t.type, t]))
     const opsById = new Map(toolOperations.map((op) => [op.id, op]))
 
     const now = Date.now()
-    const orderedKeys = Object.keys(recentEntries).sort(
+    const orderedKeys = recentKeys.sort(
       (a, b) => frecencyScore(recentEntries[b], now) - frecencyScore(recentEntries[a], now)
     )
 
