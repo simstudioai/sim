@@ -25,7 +25,7 @@ Pick the mode with the **Mode** dropdown. The fields below it change to match.
 Cloud runs entirely inside a disposable sandbox, so it never touches your machine. It clones the repo, lets the agent work with full read/shell/edit/git, pushes a branch, and opens a PR you review and merge.
 
 - Requires sandbox execution to be enabled (the Cloud option only appears when it is).
-- Requires **your own provider API key (BYOK)** — the model key is handed to the sandbox, so Sim never injects a hosted key there.
+- Requires **your own provider API key (BYOK)** — the model key is handed to the sandbox.
 - Needs a **GitHub token** with permission to clone, push, and open a PR (see [Setup](#setup-cloud)).
 - The deliverable is a **pull request** — nothing is committed to your default branch directly.
 
@@ -118,7 +118,7 @@ The one case neither layer can rescue is a *first* prompt that already exceeds t
 
 ## Setup
 
-### Cloud
+### Cloud [#setup-cloud]
 
 Cloud runs in a sandbox image with the Pi CLI and git baked in.
 
@@ -128,7 +128,7 @@ Cloud runs in a sandbox image with the Pi CLI and git baked in.
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.
    - *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
 
-### Local
+### Local [#setup-local]
 
 1. **Enable SSH** on the target machine (on macOS: System Settings → General → Sharing → Remote Login).
 2. **Expose it on a public host.** Sim blocks `localhost`/LAN, so use a TCP tunnel — for example `ngrok tcp 22`, which gives a `host:port` to put in **Host** and **Port**.

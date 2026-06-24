@@ -2,7 +2,6 @@
   "title": "Core Blocks",
   "pages": [
     "agent",
-    "pi",
     "api",
     "function",
     "condition",
@@ -17,6 +16,7 @@
     "human-in-the-loop",
     "variables",
     "wait",
-    "credential"
+    "credential",
+    "pi"
   ]
 }
