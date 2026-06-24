@@ -335,6 +335,34 @@ export function isValidPng(buffer: Buffer): boolean {
   return buffer.length >= 8 && buffer.subarray(0, 8).equals(PNG_MAGIC_BYTES)
 }
 
+/**
+ * Detect a renderable raster image from its leading bytes, returning the canonical MIME type or
+ * `null` when the content is not one of the inline-renderable image formats (PNG, JPEG, GIF, WebP).
+ *
+ * The stored `contentType` is client-declared and never sniffed at upload time, so any path that
+ * renders a file inline for a less-trusted audience (e.g. images embedded in a public share) must
+ * derive the served type from the bytes themselves — a file claiming `image/png` could be HTML, SVG,
+ * or a script. SVG is deliberately excluded: it can carry script and is not a raster format.
+ */
+export function sniffImageContentType(buffer: Buffer): string | null {
+  if (isValidPng(buffer)) return 'image/png'
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg'
+  }
+  if (buffer.length >= 6) {
+    const header = buffer.toString('latin1', 0, 6)
+    if (header === 'GIF87a' || header === 'GIF89a') return 'image/gif'
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('latin1', 0, 4) === 'RIFF' &&
+    buffer.toString('latin1', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp'
+  }
+  return null
+}
+
 export function validateMediaFileType(
   fileName: string,
   mimeType: string

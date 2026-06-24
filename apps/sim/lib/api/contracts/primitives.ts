@@ -51,6 +51,33 @@ export const organizationIdSchema = z.string().min(1, 'Organization ID is requir
 export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
 
 /**
+ * A `workspace_files.id` value. The column is a free-form `text` primary key, so
+ * ids come in two shapes: UUID v4 (legacy rows and the `insertFileMetadata`
+ * default) and the current `wf_<shortId>` form minted by the workspace upload
+ * path. Both are drawn from `[A-Za-z0-9_-]`, so accept that charset rather than a
+ * UUID-only schema — a `.uuid()` constraint here silently 400s every `wf_` file.
+ */
+export const workspaceFileIdSchema = z
+  .string()
+  .min(1, 'File ID is required')
+  .max(128, 'File ID is too long')
+  .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
+
+/**
+ * Reference to an image embedded in a document: either a workspace storage `key`
+ * (serve-URL embeds) or a workspace file `id` (view-URL embeds) — exactly one. Shared
+ * by the in-app and public inline-image routes, which resolve it within a workspace.
+ */
+export const inlineFileRefQuerySchema = z
+  .object({
+    key: z.string().min(1).max(512).optional(),
+    fileId: workspaceFileIdSchema.optional(),
+  })
+  .refine((q) => (q.key ? 1 : 0) + (q.fileId ? 1 : 0) === 1, {
+    message: 'Provide exactly one of `key` or `fileId`',
+  })
+
+/**
  * Boolean query-string primitive that correctly handles the literal strings
  * `"true"` / `"false"` (case-insensitive) in addition to real booleans.
  *

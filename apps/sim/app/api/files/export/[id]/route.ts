@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
@@ -19,9 +20,6 @@ const logger = createLogger('FilesExportAPI')
 
 const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
-const VIEW_URL_RE =
-  /\/api\/files\/view\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi
-const MAX_EMBEDDED_IMAGES = 50
 
 function isMarkdown(originalName: string, contentType: string): boolean {
   if (MARKDOWN_MIME_TYPES.has(contentType)) return true
@@ -82,10 +80,7 @@ export const GET = withRouteHandler(
     })
     let mdContent = mdBuffer.toString('utf-8')
 
-    const imageIds = [...new Set([...mdContent.matchAll(VIEW_URL_RE)].map((m) => m[1]))].slice(
-      0,
-      MAX_EMBEDDED_IMAGES
-    )
+    const imageIds = extractEmbeddedImageIds(mdContent)
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
 
