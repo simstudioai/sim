@@ -15,11 +15,13 @@ const logger = createLogger('MistralParserTool')
 /**
  * Mistral OCR 4 standard pricing, in USD per page ($4 per 1,000 pages).
  *
- * This tool calls the synchronous `/v1/ocr` endpoint, so the standard (non-batch)
- * rate applies. Document AI / annotation pages are priced separately, but this tool
- * does not submit annotation requests.
+ * This tool calls the synchronous `/v1/ocr` endpoint with the `mistral-ocr-latest`
+ * alias, which Mistral repointed to OCR 4 (`mistral-ocr-4-0`) on 2026-06-23, so the
+ * standard (non-batch) OCR 4 rate applies. Document AI / annotation pages are priced
+ * separately, but this tool does not submit annotation requests.
  *
  * @see https://mistral.ai/news/ocr-4/
+ * @see https://docs.mistral.ai/getting-started/changelog
  */
 const MISTRAL_OCR_COST_PER_PAGE = 0.004
 
