@@ -176,7 +176,6 @@ describe('search modal store', () => {
     const { tools, categories } = useSearchModalStore.getState().data
     expect(tools.find((t) => t.id === 'gmail')?.integrationType).toBe(IntegrationType.Email)
 
-    // Core Blocks lead; then AI pinned first, then by count desc (Sales 2 > Email 1).
     expect(categories.map((c) => c.label)).toEqual(['Core Blocks', 'AI', 'Sales', 'Email'])
     expect(categories.find((c) => c.id === IntegrationType.Sales)).toEqual({
       id: 'sales',

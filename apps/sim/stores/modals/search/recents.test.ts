@@ -69,7 +69,6 @@ describe('useSearchRecentsStore', () => {
     }
     const { entries } = useSearchRecentsStore.getState()
     expect(Object.keys(entries)).toHaveLength(50)
-    // The oldest 10 (item-0..item-9) are dropped; the newest survive.
     expect(entries['tool:item-0']).toBeUndefined()
     expect(entries['tool:item-9']).toBeUndefined()
     expect(entries['tool:item-10']).toBeDefined()
