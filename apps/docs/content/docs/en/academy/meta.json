@@ -6,6 +6,7 @@
     "index",
     "---Workflows---",
     "workflows/intro",
+    "workflows/logs",
     "workflows/branching",
     "workflows/loops",
     "workflows/subworkflows",
