@@ -282,7 +282,8 @@ function WorkspaceSelect({
     <ChipDropdown
       multiple
       searchable
-      matchTriggerWidth={false}
+      align={fullWidth ? 'start' : 'end'}
+      matchTriggerWidth={fullWidth}
       options={options}
       value={workspaceIds}
       onChange={onChange}
@@ -519,7 +520,7 @@ export function AccessControl() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
   // Monotonic token for scope-affecting writes (workspace select + default
-  // toggle, which both set appliesToAllWorkspaces/workspaces). Only the most
+  // toggle, which both change the group's workspace scope). Only the most
   // recent write may reconcile or revert the local viewingGroup, so rapid
   // multi-select toggles can't settle on a stale, out-of-order response.
   const scopeWriteSeqRef = useRef(0)
@@ -797,17 +798,15 @@ export function AccessControl() {
   const handleCreatePermissionGroup = useCallback(async () => {
     if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
-    // Only the default group is organization-wide; every other group targets
-    // specific workspaces.
-    const appliesToAllWorkspaces = newGroupIsDefault
     try {
       await createPermissionGroup.mutateAsync({
         organizationId,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
         isDefault: newGroupIsDefault,
-        appliesToAllWorkspaces,
-        workspaceIds: appliesToAllWorkspaces ? undefined : newGroupWorkspaceIds,
+        // Only the default group is organization-wide; every other group targets
+        // specific workspaces (omitted for the default group).
+        workspaceIds: newGroupIsDefault ? undefined : newGroupWorkspaceIds,
       })
       setShowCreateModal(false)
       setNewGroupName('')
@@ -970,12 +969,9 @@ export function AccessControl() {
   const handleScopeChange = useCallback(
     async (workspaceIds: string[]) => {
       if (!viewingGroup || !organizationId) return
-      if (workspaceIds.length === 0) {
-        toast.error("Can't remove the last workspace", {
-          description: 'A group must target at least one workspace. Delete the group instead.',
-        })
-        return
-      }
+      // Zero workspaces is allowed: the group then governs nothing (the resolver
+      // inner-joins on the workspace link table, so an empty group never matches
+      // any workspace). Re-add a workspace to make it active again.
       const previous = viewingGroup
       const seq = ++scopeWriteSeqRef.current
 
@@ -983,7 +979,6 @@ export function AccessControl() {
         prev
           ? {
               ...prev,
-              appliesToAllWorkspaces: false,
               workspaces: organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
             }
           : null
@@ -992,7 +987,6 @@ export function AccessControl() {
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
-          appliesToAllWorkspaces: false,
           workspaceIds,
         })
 
@@ -1001,7 +995,6 @@ export function AccessControl() {
           prev
             ? {
                 ...prev,
-                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
                 workspaces: organizationWorkspaces.filter((ws) =>
                   result.permissionGroup.workspaceIds.includes(ws.id)
                 ),
@@ -1043,8 +1036,7 @@ export function AccessControl() {
             ? {
                 ...prev,
                 isDefault: result.permissionGroup.isDefault,
-                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
-                workspaces: result.permissionGroup.appliesToAllWorkspaces
+                workspaces: result.permissionGroup.isDefault
                   ? []
                   : organizationWorkspaces.filter((ws) =>
                       result.permissionGroup.workspaceIds.includes(ws.id)
@@ -1294,7 +1286,7 @@ export function AccessControl() {
                     {viewingGroup.workspaces.length === 0
                       ? 'Applies to no one yet — add workspaces below to choose who this group governs.'
                       : members.length === 0
-                        ? 'Applies to all members of its workspaces, including external members.'
+                        ? 'Applies to all members of its workspaces.'
                         : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}.`}
                   </p>
                 )}
@@ -1376,6 +1368,7 @@ export function AccessControl() {
           }}
           srTitle='Configure Permissions'
           size='xl'
+          className='h-[84vh]'
         >
           <ChipModalHeader
             onClose={() => {
@@ -1405,7 +1398,7 @@ export function AccessControl() {
               }
             />
             {configTab === 'members' && !viewingGroup.isDefault && (
-              <div className='flex flex-col gap-3'>
+              <div className='flex min-h-0 flex-1 flex-col gap-3'>
                 <div className='flex items-center justify-between gap-3'>
                   <span className='text-[var(--text-body)] text-sm'>
                     {members.length === 0
@@ -1431,9 +1424,11 @@ export function AccessControl() {
                     ))}
                   </div>
                 ) : members.length === 0 ? (
-                  <div className='py-6 text-center text-[var(--text-muted)] text-sm'>
-                    This group applies to everyone in its workspaces, including external members.
-                    Add members to restrict it to specific people.
+                  <div className='flex flex-1 items-center justify-center px-6 text-center'>
+                    <span className='max-w-md text-[var(--text-muted)] text-sm'>
+                      This group applies to everyone in its workspaces, including external members.
+                      Add members to restrict it to specific people.
+                    </span>
                   </div>
                 ) : (
                   <div className='-mx-2 flex flex-col gap-y-0.5'>
