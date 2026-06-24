@@ -418,10 +418,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        // Attach each workspace file's share status (batched to avoid N+1), using
-        // the same visibility vocabulary as the Manage Sharing operation. A file
-        // with no active public link reads as 'private' and exposes no link/config.
-        // Picker/upload input files have no canonical id, so they read as private.
         const shares = await getSharesForResources('file', selectedFileIds)
         const privateReadShare = () => ({
           visibility: 'private' as const,
