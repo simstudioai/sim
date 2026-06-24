@@ -14,6 +14,7 @@ import {
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   downloadFile,
@@ -37,14 +38,97 @@ const MAX_MOUNTED_FILES = 500
 const SNAPSHOT_MIN_ROWS = 500
 
 /**
- * Lifetime of the presigned URL handed to the sandbox to fetch a snapshot. Long enough to download
- * a large file at sandbox startup; the URL grants read to only that one version-pinned object.
+ * Lifetime of a presigned URL handed to the sandbox to fetch a mounted object (table snapshot or
+ * workspace file). Long enough to download a large file at sandbox startup; the URL grants read to
+ * only that one object.
  */
-const SNAPSHOT_URL_TTL_SECONDS = 600
+const MOUNT_URL_TTL_SECONDS = 600
+
+/**
+ * Per-file ceiling for URL-mounted workspace files. The bytes never transit the web process — the
+ * sandbox curls them straight from storage — so the bound is sandbox disk, not web heap (unlike the
+ * inline MAX_FILE_SIZE path).
+ */
+const MOUNT_URL_MAX_BYTES = 500 * 1024 * 1024
+
+/**
+ * Aggregate ceiling across all URL-mounted files in one request. URL mounts bypass the web heap (so
+ * they don't count against MAX_TOTAL_SIZE), but the sandbox still curls every byte onto its disk —
+ * this rejects an oversized request up front instead of filling the sandbox disk one slow curl at a
+ * time. Generous vs MAX_TOTAL_SIZE since the bytes never transit web memory.
+ */
+const MAX_TOTAL_URL_BYTES = 2 * 1024 * 1024 * 1024
 
 type SandboxFile =
   | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
   | { type: 'url'; path: string; url: string }
+
+/**
+ * Running byte totals for one resolveInputFiles call. `buffered` bytes pass through the web process
+ * (capped by MAX_TOTAL_SIZE); `url` bytes are curled straight into the sandbox (capped by
+ * MAX_TOTAL_URL_BYTES). Tracked separately because the two ceilings protect different resources —
+ * web heap vs sandbox disk.
+ */
+interface MountedBytes {
+  buffered: number
+  url: number
+}
+
+/**
+ * Mounts a stored workspace file into the sandbox and records its bytes against the running totals.
+ * With cloud storage the sandbox fetches the bytes itself from a presigned URL (no web-heap transit,
+ * per-file ceiling MOUNT_URL_MAX_BYTES, aggregate ceiling MAX_TOTAL_URL_BYTES); with local storage a
+ * presigned URL is an app-internal serve path a remote sandbox can't reach, so we buffer the bytes
+ * through the web process under the inline MAX_FILE_SIZE / MAX_TOTAL_SIZE guards.
+ */
+async function pushWorkspaceFileMount(
+  sandboxFiles: SandboxFile[],
+  record: WorkspaceFileRecord,
+  mountPath: string,
+  mounted: MountedBytes
+): Promise<void> {
+  if (hasCloudStorage()) {
+    if (record.size > MOUNT_URL_MAX_BYTES) {
+      throw new Error(
+        `Input file "${record.name}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
+      )
+    }
+    if (mounted.url + record.size > MAX_TOTAL_URL_BYTES) {
+      throw new Error(
+        `Mounting "${record.name}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+      )
+    }
+    const url = await generatePresignedDownloadUrl(
+      record.key,
+      record.storageContext ?? 'workspace',
+      MOUNT_URL_TTL_SECONDS
+    )
+    sandboxFiles.push({ type: 'url', path: mountPath, url })
+    mounted.url += record.size
+    return
+  }
+
+  if (record.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `Input file "${record.name}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+    )
+  }
+  if (mounted.buffered + record.size > MAX_TOTAL_SIZE) {
+    throw new Error(
+      `Mounting "${record.name}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
+    )
+  }
+  const buffer = await fetchWorkspaceFileBuffer(record)
+  const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
+    record.type || ''
+  )
+  sandboxFiles.push({
+    path: mountPath,
+    content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
+    encoding: isText ? undefined : 'base64',
+  })
+  mounted.buffered += buffer.length
+}
 
 interface CanonicalFileInput {
   path: string
@@ -89,10 +173,15 @@ export async function resolveInputFiles(
   inputDirectories?: unknown[]
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
-  let totalSize = 0
+  const mounted: MountedBytes = { buffered: 0, url: 0 }
   const betaEnabled = await isFeatureEnabled('mothership-beta')
 
   if (inputFiles?.length && workspaceId) {
+    if (inputFiles.length > MAX_MOUNTED_FILES) {
+      throw new Error(
+        `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
+      )
+    }
     const allFiles = await listWorkspaceFiles(workspaceId, {
       includeReservedSystemFiles: betaEnabled,
     })
@@ -124,33 +213,14 @@ export async function resolveInputFiles(
           `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
         )
       }
-      if (record.size > MAX_FILE_SIZE) {
-        throw new Error(
-          `Input file "${filePath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
-        )
-      }
-      if (totalSize + record.size > MAX_TOTAL_SIZE) {
-        throw new Error(
-          `Mounting "${filePath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
-        )
-      }
-      const buffer = await fetchWorkspaceFileBuffer(record)
-      totalSize += buffer.length
-      const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-        record.type || ''
-      )
-      const content = isText ? buffer.toString('utf-8') : buffer.toString('base64')
       const explicitSandboxPath =
         typeof fileRef === 'object' && fileRef !== null
           ? (fileRef as CanonicalFileInput).sandboxPath
           : undefined
-      sandboxFiles.push({
-        path:
-          explicitSandboxPath ||
-          (alias ? workflowAliasSandboxPath(alias.aliasPath) : getSandboxWorkspaceFilePath(record)),
-        content,
-        encoding: isText ? undefined : 'base64',
-      })
+      const mountPath =
+        explicitSandboxPath ||
+        (alias ? workflowAliasSandboxPath(alias.aliasPath) : getSandboxWorkspaceFilePath(record))
+      await pushWorkspaceFileMount(sandboxFiles, record, mountPath, mounted)
     }
   }
 
@@ -228,17 +298,6 @@ export async function resolveInputFiles(
         }
       }
       for (const record of descendants) {
-        if (record.size > MAX_FILE_SIZE) {
-          throw new Error(`Input file exceeds size limit: ${record.name}`)
-        }
-        if (totalSize + record.size > MAX_TOTAL_SIZE) {
-          throw new Error('Total input size limit exceeded while mounting directory')
-        }
-        const buffer = await fetchWorkspaceFileBuffer(record)
-        totalSize += buffer.length
-        const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-          record.type || ''
-        )
         const relativeFolder =
           record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
         const relativePath = alias
@@ -246,11 +305,7 @@ export async function resolveInputFiles(
               [relativeFolder, record.name].filter(Boolean).join('/').split('/')
             )
           : [relativeFolder, record.name].filter(Boolean).join('/')
-        sandboxFiles.push({
-          path: `${mountRoot}/${relativePath}`,
-          content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
-          encoding: isText ? undefined : 'base64',
-        })
+        await pushWorkspaceFileMount(sandboxFiles, record, `${mountRoot}/${relativePath}`, mounted)
       }
     }
   }
@@ -305,7 +360,7 @@ export async function resolveInputFiles(
           const url = await generatePresignedDownloadUrl(
             snapshot.key,
             'execution',
-            SNAPSHOT_URL_TTL_SECONDS
+            MOUNT_URL_TTL_SECONDS
           )
           sandboxFiles.push({ type: 'url', path: mountPath, url })
           continue
@@ -318,7 +373,7 @@ export async function resolveInputFiles(
             `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
           )
         }
-        if (totalSize + snapshot.size > MAX_TOTAL_SIZE) {
+        if (mounted.buffered + snapshot.size > MAX_TOTAL_SIZE) {
           throw new Error(
             `Mounting "${tableId}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller tables.`
           )
@@ -328,7 +383,7 @@ export async function resolveInputFiles(
           context: 'execution',
           maxBytes: MAX_FILE_SIZE,
         })
-        totalSize += buffer.length
+        mounted.buffered += buffer.length
         sandboxFiles.push({ path: mountPath, content: buffer.toString('utf-8') })
         continue
       }
