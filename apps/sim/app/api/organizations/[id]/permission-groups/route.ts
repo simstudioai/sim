@@ -55,7 +55,6 @@ export const GET = withRouteHandler(
         createdAt: permissionGroup.createdAt,
         updatedAt: permissionGroup.updatedAt,
         isDefault: permissionGroup.isDefault,
-        appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
         creatorName: user.name,
         creatorEmail: user.email,
       })
@@ -114,21 +113,20 @@ export const POST = withRouteHandler(
       const { name, description, config, isDefault } = parsed.data.body
 
       // Only the organization default group is org-wide; every other group
-      // targets specific workspaces (the contract rejects all-workspaces scope
-      // for non-default groups).
-      const appliesToAllWorkspaces = isDefault === true
-      const workspaceIds = appliesToAllWorkspaces
+      // targets specific workspaces. "Org-wide" is definitionally `isDefault`.
+      const isDefaultGroup = isDefault === true
+      const workspaceIds = isDefaultGroup
         ? []
         : Array.from(new Set(parsed.data.body.workspaceIds ?? []))
 
-      if (!appliesToAllWorkspaces && workspaceIds.length === 0) {
+      if (!isDefaultGroup && workspaceIds.length === 0) {
         return NextResponse.json(
           { error: 'Select at least one workspace when the group targets specific workspaces' },
           { status: 400 }
         )
       }
 
-      if (!appliesToAllWorkspaces) {
+      if (!isDefaultGroup) {
         const invalid = await findWorkspacesNotInOrganization(workspaceIds, organizationId)
         if (invalid.length > 0) {
           return NextResponse.json(
@@ -169,7 +167,6 @@ export const POST = withRouteHandler(
         createdAt: now,
         updatedAt: now,
         isDefault: isDefault || false,
-        appliesToAllWorkspaces,
       }
 
       await db.transaction(async (tx) => {
@@ -177,7 +174,7 @@ export const POST = withRouteHandler(
 
         // A new non-default group has no members, so it governs all members of
         // its workspaces; reject when another all-members group already does.
-        if (!appliesToAllWorkspaces) {
+        if (!isDefaultGroup) {
           const conflict = await findAllMembersWorkspaceConflict(
             { organizationId, excludeGroupId: newGroup.id, workspaceIds },
             tx
@@ -189,12 +186,12 @@ export const POST = withRouteHandler(
         }
 
         if (isDefault) {
-          // Demote the prior default to a non-default group. It must also drop
-          // the all-workspaces scope (only the default may be org-wide); it ends
-          // up with no workspaces (inert) until an admin re-scopes it.
+          // Demote the prior default to a non-default group (only the default may
+          // be org-wide); it ends up with no workspaces (inert) until an admin
+          // re-scopes it.
           await tx
             .update(permissionGroup)
-            .set({ isDefault: false, appliesToAllWorkspaces: false, updatedAt: now })
+            .set({ isDefault: false, updatedAt: now })
             .where(
               and(
                 eq(permissionGroup.organizationId, organizationId),
@@ -220,7 +217,6 @@ export const POST = withRouteHandler(
         permissionGroupId: newGroup.id,
         organizationId,
         userId: session.user.id,
-        appliesToAllWorkspaces,
         workspaceCount: workspaceIds.length,
       })
 
@@ -236,7 +232,6 @@ export const POST = withRouteHandler(
         metadata: {
           organizationId,
           isDefault: isDefault || false,
-          appliesToAllWorkspaces,
           workspaceCount: workspaceIds.length,
         },
         request: req,

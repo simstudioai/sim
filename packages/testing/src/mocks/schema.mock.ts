@@ -1027,7 +1027,6 @@ export const schemaMock = {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
     isDefault: 'isDefault',
-    appliesToAllWorkspaces: 'appliesToAllWorkspaces',
   },
   permissionGroupWorkspace: {
     id: 'id',

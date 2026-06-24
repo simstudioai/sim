@@ -3064,11 +3064,10 @@ export const credentialSetInvitation = pgTable(
  * an organization.
  *
  * Scope invariant: the organization's single default group (`isDefault`) is
- * org-wide (`appliesToAllWorkspaces = true`) and governs everyone not covered by
- * another group. Every non-default group
- * targets specific workspaces (`appliesToAllWorkspaces = false` with rows in
- * `permission_group_workspace`) — the all-workspaces scope is reserved for the
- * default group. Enforced by the API contracts/routes, not a DB constraint.
+ * org-wide and governs everyone not covered by another group. Every non-default
+ * group targets specific workspaces (rows in `permission_group_workspace`), and a
+ * non-default group with no rows governs nothing. Being org-wide is definitionally
+ * `isDefault` — there is no separate flag. Enforced by the API contracts/routes.
  *
  * Member invariant: a non-default group with no `permission_group_member` rows
  * governs every member of its workspaces (including external members); adding
@@ -3090,7 +3089,6 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
-    appliesToAllWorkspaces: boolean('applies_to_all_workspaces').notNull().default(true),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
@@ -3105,9 +3103,9 @@ export const permissionGroup = pgTable(
 )
 
 /**
- * Workspaces a `permission_group` targets when `applies_to_all_workspaces` is
- * false. Rows are absent for organization-wide groups. A group with zero rows
- * while `applies_to_all_workspaces = false` governs no workspace.
+ * Workspaces a non-default `permission_group` targets. Rows are absent for the
+ * organization-wide default group; a non-default group with zero rows governs no
+ * workspace.
  */
 export const permissionGroupWorkspace = pgTable(
   'permission_group_workspace',
