@@ -14,7 +14,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { getGitLabApiBase, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('WebhookProvider:GitLab')
 
@@ -120,6 +120,19 @@ export const gitlabHandler: WebhookProviderHandler = {
       throw new Error('GitLab Personal Access Token is required to create the webhook.')
     if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
 
+    // Validate the optional self-managed host up front so a structurally unsafe
+    // value surfaces as a clear error instead of an unhandled UnsafeGitLabHostError.
+    try {
+      getGitLabApiBase(host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        throw new Error(
+          'GitLab host is invalid. Provide a domain like gitlab.example.com (no protocol, path, or credentials).'
+        )
+      }
+      throw error
+    }
+
     const { getGitLabEventFlags } = await import('@/triggers/gitlab/utils')
     const secretToken = generateId()
     const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
@@ -173,6 +186,23 @@ export const gitlabHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Skipping GitLab webhook cleanup — missing token, project, or hook ID`
       )
       return
+    }
+
+    // A structurally unsafe host must not abort cleanup in non-strict mode — mirror
+    // the graceful skip used for missing credentials above.
+    try {
+      getGitLabApiBase(host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        if (ctx.strict) {
+          throw new Error('Cannot delete GitLab webhook: the configured host is invalid.')
+        }
+        logger.warn(
+          `[${ctx.requestId}] Skipping GitLab webhook cleanup — configured host is invalid`
+        )
+        return
+      }
+      throw error
     }
 
     const res = await secureFetchWithValidation(

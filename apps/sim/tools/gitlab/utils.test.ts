@@ -43,6 +43,17 @@ describe('normalizeGitLabHost', () => {
       expect(() => normalizeGitLabHost(host), host).toThrow(UnsafeGitLabHostError)
     }
   })
+
+  it('accepts bare IP literals at the STRUCTURAL layer by design (private/metadata IPs are rejected later by the fetch-layer DNS guard)', () => {
+    // This guard is structural only — it prevents authority confusion (userinfo,
+    // path, whitespace). SSRF to private/loopback/metadata addresses is the
+    // responsibility of validateUrlWithDNS / secureFetchWithValidation at fetch
+    // time, the single SSRF chokepoint shared by tools, webhooks, and connectors.
+    // These hosts are therefore structurally valid here, then blocked at fetch.
+    expect(normalizeGitLabHost('127.0.0.1')).toBe('127.0.0.1')
+    expect(normalizeGitLabHost('169.254.169.254')).toBe('169.254.169.254')
+    expect(normalizeGitLabHost('localhost')).toBe('localhost')
+  })
 })
 
 describe('getGitLabApiBase', () => {
