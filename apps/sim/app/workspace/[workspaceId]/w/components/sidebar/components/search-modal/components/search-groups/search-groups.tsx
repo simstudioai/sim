@@ -12,7 +12,6 @@ import {
   GitBranch,
   LifeBuoy,
   ListChecks,
-  type LucideIcon,
   Mail,
   Megaphone,
   MessageCircle,
@@ -57,7 +56,7 @@ import type {
  * Icon per integration category. Exhaustive over {@link IntegrationType} so a
  * newly added category is a compile error here rather than a silent fallback.
  */
-const INTEGRATION_CATEGORY_ICONS: Record<IntegrationType, LucideIcon> = {
+const INTEGRATION_CATEGORY_ICONS: Record<IntegrationType, ComponentType<{ className?: string }>> = {
   [IntegrationType.AI]: Sparkles,
   [IntegrationType.Analytics]: BarChart3,
   [IntegrationType.Commerce]: ShoppingCart,
@@ -77,7 +76,7 @@ const INTEGRATION_CATEGORY_ICONS: Record<IntegrationType, LucideIcon> = {
 }
 
 /** Resolves the icon for a browse category from its kind, then its integration slug. */
-function categoryIcon(category: SearchCategory): LucideIcon {
+function categoryIcon(category: SearchCategory): ComponentType<{ className?: string }> {
   if (category.kind === 'block') return Blocks
   if (category.kind === 'trigger') return Zap
   return INTEGRATION_CATEGORY_ICONS[category.id as IntegrationType] ?? Blocks
