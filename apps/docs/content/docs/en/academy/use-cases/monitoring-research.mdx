@@ -6,7 +6,6 @@ description: A scheduled agent that watches sources you care about, researches w
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
-import { WorkflowPreview, API_FETCH_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Use case" title="Monitoring & Automated Research" className="mt-2" />
 
@@ -42,7 +41,3 @@ Build a system that runs on a schedule, checks the sources you care about, resea
 A **Schedule trigger** kicks the workflow off. An **Agent** block with search tools gathers and reads sources, synthesizes what changed, and a final step delivers it — a Slack message, or a saved report [file](/academy/files/intro).
 
 This composes [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [files](/academy/files/intro).
-
-Here's the shape of it — a scheduled trigger, an agent that fetches and researches, and a delivered result:
-
-<WorkflowPreview workflow={API_FETCH_WORKFLOW} />

@@ -6,7 +6,6 @@ description: A table-backed system that takes thin lead records, enriches them i
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
-import { WorkflowPreview, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
 
 <VideoPlaceholder eyebrow="Use case" title="Sales Data Management & Enrichment" className="mt-2" />
 
@@ -42,7 +41,3 @@ Run your sales pipeline as data. Start with thin lead records in a table, enrich
 Leads live in a **table**. A **workflow column** runs per row: it enriches the record, an **Agent** block scores the fit, and the results are written straight back into the table. The table becomes both the queue and the record.
 
 This is [tables](/academy/tables/intro) and [agents](/academy/agents/intro) composed into a pipeline that operates at scale.
-
-Here's the shape of it — a workflow column that enriches each row, scores it, and writes it back:
-
-<WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} />
