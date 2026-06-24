@@ -319,12 +319,14 @@ export async function maybeBackfillGroupOutputs(opts: {
   }
   if (isTriggerDevEnabled) {
     try {
-      const [{ tableBackfillTask }, { tasks }] = await Promise.all([
+      const [{ tableBackfillTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-backfill'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableBackfillTask>('table-backfill', payload, {
         tags: [`tableId:${table.id}`, `jobId:${jobId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // Release the claim so a ghost `running` job doesn't block imports/deletes.

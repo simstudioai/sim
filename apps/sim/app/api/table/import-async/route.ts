@@ -115,12 +115,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.
     try {
-      const [{ tableImportTask }, { tasks }] = await Promise.all([
+      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/table-import'),
         import('@trigger.dev/sdk'),
+        import('@/lib/core/async-jobs/region'),
       ])
       await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
         tags: [`tableId:${table.id}`, `jobId:${importId}`],
+        region: await resolveTriggerRegion(),
       })
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the

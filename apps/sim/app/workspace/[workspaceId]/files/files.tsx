@@ -2,7 +2,7 @@
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
@@ -25,6 +25,7 @@ import {
 } from '@/components/emcn'
 import { Download, Send } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -197,6 +198,7 @@ export function Files() {
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
+  const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
   const createFolder = useCreateWorkspaceFileFolder()
@@ -699,6 +701,12 @@ export function Files() {
             })
           } catch (err) {
             logger.error('Error uploading file:', err)
+            const message = getErrorMessage(err)
+            if (/storage limit/i.test(message)) {
+              notifyLimit('storage', message)
+            } else {
+              toast.error(`Failed to upload "${allowedFiles[i].name}"`)
+            }
           }
         }
       } catch (err) {
@@ -708,7 +716,7 @@ export function Files() {
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     },
-    [workspaceId, canEdit, currentFolderId]
+    [workspaceId, canEdit, currentFolderId, notifyLimit]
   )
 
   const rowDragDropConfig = useMemo<RowDragDropConfig>(

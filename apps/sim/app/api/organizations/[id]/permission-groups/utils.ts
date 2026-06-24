@@ -88,7 +88,6 @@ export async function loadGroupInOrganization(
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
-      appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
     })
     .from(permissionGroup)
     .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))

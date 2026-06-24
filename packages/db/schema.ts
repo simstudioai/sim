@@ -917,6 +917,21 @@ export const userStats = pgTable('user_stats', {
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
+  /**
+   * Highest usage-limit threshold already emailed per category (e.g.
+   * `{ storage: 80, tables: 100 }`). Prevents re-spamming the same warning;
+   * re-arms when usage drops back below the re-arm band. Keyed by limit
+   * category ('storage' | 'tables'); seats live on `organization`.
+   *
+   * Dedup granularity is per billing account per category — intentionally NOT
+   * per table, so a user hitting the row limit on several tables gets one
+   * 'tables' warning, not one per table (the email still names the table that
+   * triggered it).
+   */
+  limitNotifications: jsonb('limit_notifications')
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
 })
 
 export const customTools = pgTable(
@@ -1077,12 +1092,28 @@ export interface PiiRedactionRule {
   entityTypes: string[]
   /** `null` = all workspaces; otherwise the single targeted workspace. */
   workspaceId: string | null
+  /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
+  language?: string
+}
+
+/**
+ * A per-workspace override of the org-level retention hours. Each field is
+ * tri-state: absent = inherit the org value; a number = that workspace's
+ * retention in hours; `null` = forever (never delete). `workspaceId` is unique
+ * across overrides.
+ */
+export interface RetentionOverride {
+  workspaceId: string
+  logRetentionHours?: number | null
+  softDeleteRetentionHours?: number | null
+  taskCleanupHours?: number | null
 }
 
 /**
  * Org-level data retention + governance settings. Retention-hours fall back to
  * plan defaults when unset. `piiRedaction.rules` are org-scoped; each rule
- * selects which workspaces it applies to.
+ * selects which workspaces it applies to. `retentionOverrides` lets individual
+ * workspaces override the org retention hours (enterprise only).
  */
 export interface DataRetentionSettings {
   logRetentionHours?: number | null
@@ -1092,6 +1123,8 @@ export interface DataRetentionSettings {
   piiRedaction?: {
     rules?: PiiRedactionRule[]
   } | null
+  /** Per-workspace overrides of the retention hours above (enterprise only). */
+  retentionOverrides?: RetentionOverride[] | null
 }
 
 export const organization = pgTable('organization', {
@@ -1122,6 +1155,15 @@ export const organization = pgTable('organization', {
    * changes; personal storage writes update `user_stats.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Highest usage-limit threshold already emailed per category for this org
+   * (e.g. `{ seats: 80, storage: 100 }`). Mirrors `user_stats.limitNotifications`
+   * for org-scoped (pooled) limits. Re-arms when usage drops below the re-arm band.
+   */
+  limitNotifications: jsonb('limit_notifications')
+    .$type<Record<string, number>>()
+    .notNull()
+    .default({}),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -3022,11 +3064,10 @@ export const credentialSetInvitation = pgTable(
  * an organization.
  *
  * Scope invariant: the organization's single default group (`isDefault`) is
- * org-wide (`appliesToAllWorkspaces = true`) and governs everyone not covered by
- * another group, including external workspace members. Every non-default group
- * targets specific workspaces (`appliesToAllWorkspaces = false` with rows in
- * `permission_group_workspace`) — the all-workspaces scope is reserved for the
- * default group. Enforced by the API contracts/routes, not a DB constraint.
+ * org-wide and governs everyone not covered by another group. Every non-default
+ * group targets specific workspaces (rows in `permission_group_workspace`), and a
+ * non-default group with no rows governs nothing. Being org-wide is definitionally
+ * `isDefault` — there is no separate flag. Enforced by the API contracts/routes.
  *
  * Member invariant: a non-default group with no `permission_group_member` rows
  * governs every member of its workspaces (including external members); adding
@@ -3048,7 +3089,6 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
-    appliesToAllWorkspaces: boolean('applies_to_all_workspaces').notNull().default(true),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
@@ -3063,9 +3103,9 @@ export const permissionGroup = pgTable(
 )
 
 /**
- * Workspaces a `permission_group` targets when `applies_to_all_workspaces` is
- * false. Rows are absent for organization-wide groups. A group with zero rows
- * while `applies_to_all_workspaces = false` governs no workspace.
+ * Workspaces a non-default `permission_group` targets. Rows are absent for the
+ * organization-wide default group; a non-default group with zero rows governs no
+ * workspace.
  */
 export const permissionGroupWorkspace = pgTable(
   'permission_group_workspace',

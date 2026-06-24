@@ -620,7 +620,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
     if (!config.enabled) return payload
 
-    return redactPIIFromExecution(payload, { entityTypes: config.entityTypes })
+    return redactPIIFromExecution(payload, {
+      entityTypes: config.entityTypes,
+      language: config.language,
+    })
   }
 
   async completeWorkflowExecution(params: {
@@ -1003,6 +1006,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           userEmail: emailContext.userEmail,
           userName: emailContext.userName || undefined,
           planName: emailContext.planName,
+          workspaceId: updatedLog.workspaceId,
           percentBefore,
           percentAfter,
           currentUsageAfter,
@@ -1019,6 +1023,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           scope: 'organization',
           organizationId: emailContext.organizationId,
           planName: emailContext.planName,
+          workspaceId: updatedLog.workspaceId,
           percentBefore,
           percentAfter,
           currentUsageAfter,

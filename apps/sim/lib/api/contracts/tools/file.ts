@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -41,6 +42,23 @@ export const fileManageMoveBodySchema = z.object({
 })
 
 export type FileManageMoveBody = z.input<typeof fileManageMoveBodySchema>
+
+export const fileManageSharingBodySchema = z
+  .object({
+    operation: z.literal('manage_sharing'),
+    workspaceId: z.string().min(1).optional(),
+    fileId: z.string().min(1).optional(),
+    fileInput: z.unknown().optional(),
+    isActive: z.boolean({ error: 'isActive is required for manage_sharing operation' }),
+    authType: shareAuthTypeSchema.optional(),
+    password: z.string().min(1).max(1024).optional(),
+    allowedEmails: z.array(z.string().min(1)).max(200).optional(),
+  })
+  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
+    message: 'Either fileId or fileInput is required for manage_sharing operation',
+  })
+
+export type FileManageSharingBody = z.input<typeof fileManageSharingBodySchema>
 
 export const fileManageReadBodySchema = z
   .object({
@@ -92,6 +110,7 @@ export const fileManageBodySchema = z.union([
   fileManageAppendBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
+  fileManageSharingBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
   fileManageCompressBodySchema,

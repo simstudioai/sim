@@ -45,7 +45,9 @@ export const companyInfoEnrichment: EnrichmentConfig = {
       buildParams: (inputs) => {
         const website = normalizeDomain(inputs.domain)
         if (!website) return null
-        return { website }
+        // `required` makes PDL 404 (free) when neither field we extract is
+        // present, instead of charging a credit for a match we'd discard.
+        return { website, required: 'employee_count OR summary' }
       },
       mapOutput: (output) => {
         const company = output.company as Record<string, unknown> | undefined

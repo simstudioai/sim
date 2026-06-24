@@ -31,10 +31,13 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
       buildParams: (inputs) => {
         const name = str(inputs.fullName)
         if (!name) return null
+        // `required` makes PDL 404 (free) when the profile has no phone,
+        // instead of charging a credit for a match we'd discard as a no-match.
         return filterUndefined({
           name,
           company: normalizeDomain(inputs.companyDomain) || undefined,
           min_likelihood: 6,
+          required: 'phone_numbers OR mobile_phone',
         })
       },
       mapOutput: (output) => {

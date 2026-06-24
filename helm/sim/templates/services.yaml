@@ -100,3 +100,24 @@ spec:
   selector:
     {{- include "sim.ollama.selectorLabels" . | nindent 4 }}
 {{- end }}
+
+{{- if .Values.pii.enabled }}
+---
+# Service for the Presidio PII redaction sidecar
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-pii
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.pii.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.pii.service.type }}
+  ports:
+    - port: {{ .Values.pii.service.port }}
+      targetPort: {{ .Values.pii.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sim.pii.selectorLabels" . | nindent 4 }}
+{{- end }}

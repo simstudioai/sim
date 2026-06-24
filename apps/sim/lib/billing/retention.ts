@@ -1,14 +1,18 @@
 import type { DataRetentionSettings } from '@sim/db/schema'
+import { coercePiiLanguage, DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
 
 export interface EffectivePiiRedaction {
   enabled: boolean
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
+  /** Language whose Presidio recognizers apply when masking. */
+  language: string
 }
 
 export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
   enabled: false,
   entityTypes: [],
+  language: DEFAULT_PII_LANGUAGE,
 }
 
 /**
@@ -34,5 +38,30 @@ export function resolveEffectivePiiRedaction(params: {
     ? rule.entityTypes.filter((t): t is string => typeof t === 'string')
     : []
   if (types.length === 0) return DEFAULT_PII_REDACTION
-  return { enabled: true, entityTypes: types }
+  const language = coercePiiLanguage(rule?.language) ?? DEFAULT_PII_LANGUAGE
+  return { enabled: true, entityTypes: types, language }
+}
+
+export type RetentionHoursKey =
+  | 'logRetentionHours'
+  | 'softDeleteRetentionHours'
+  | 'taskCleanupHours'
+
+/**
+ * Resolve the effective retention hours for one workspace and job type. A
+ * workspace override wins when it sets the field (a number, or `null` for
+ * forever); an omitted field inherits the org-level value. Returns `null` when
+ * nothing is configured (the dispatcher treats `null` as "skip").
+ */
+export function resolveEffectiveRetentionHours(params: {
+  orgSettings: DataRetentionSettings | null | undefined
+  workspaceId: string
+  key: RetentionHoursKey
+}): number | null {
+  const override = params.orgSettings?.retentionOverrides?.find(
+    (o) => o?.workspaceId === params.workspaceId
+  )
+  const overrideValue = override?.[params.key]
+  if (overrideValue !== undefined) return overrideValue
+  return params.orgSettings?.[params.key] ?? null
 }

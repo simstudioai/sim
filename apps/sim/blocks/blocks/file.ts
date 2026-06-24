@@ -822,9 +822,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
   type: 'file_v5',
   name: 'File',
-  description: 'Read, get content, fetch, write, append, compress, and decompress files',
+  description:
+    'Read, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, or extract a .zip archive into the workspace.',
+    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -849,6 +850,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Append', id: 'file_append' },
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
+        { label: 'Manage Sharing', id: 'file_manage_sharing' },
       ],
       value: () => 'file_read',
     },
@@ -1016,6 +1018,74 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       condition: { field: 'operation', value: 'file_decompress' },
       required: { field: 'operation', value: 'file_decompress' },
     },
+    {
+      id: 'shareFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'shareInput',
+      acceptedTypes: '*',
+      placeholder: 'Select a workspace file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'shareFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'shareInput',
+      placeholder: 'Workspace file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+      required: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'shareVisibility',
+      title: 'Visibility',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Private (disable link)', id: 'private' },
+        { label: 'Anyone with the link', id: 'public' },
+        { label: 'Password protected', id: 'password' },
+        { label: 'Email allowlist', id: 'email' },
+        { label: 'SSO', id: 'sso' },
+      ],
+      value: () => 'public',
+      condition: { field: 'operation', value: 'file_manage_sharing' },
+    },
+    {
+      id: 'sharePassword',
+      title: 'Password',
+      type: 'short-input' as SubBlockType,
+      password: true,
+      placeholder: 'Password for the public link',
+      condition: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: 'password' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: 'password' },
+      },
+    },
+    {
+      id: 'shareAllowedEmails',
+      title: 'Allowed Emails',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Comma- or newline-separated emails or @domain patterns',
+      condition: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: ['email', 'sso'] },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_manage_sharing',
+        and: { field: 'shareVisibility', value: ['email', 'sso'] },
+      },
+    },
   ],
   tools: {
     access: [
@@ -1026,6 +1096,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_append',
       'file_compress',
       'file_decompress',
+      'file_manage_sharing',
     ],
     config: {
       tool: (params) => params.operation || 'file_read',
@@ -1131,6 +1202,54 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           }
         }
 
+        if (operation === 'file_manage_sharing') {
+          const shareInput = params.shareInput
+          if (!shareInput) {
+            throw new Error('File is required to manage sharing')
+          }
+
+          const allowedEmails =
+            typeof params.shareAllowedEmails === 'string'
+              ? params.shareAllowedEmails
+                  .split(/[\n,]/)
+                  .map((email) => email.trim())
+                  .filter(Boolean)
+              : undefined
+
+          const visibility = (params.shareVisibility as string) || 'public'
+          const isActive = visibility !== 'private'
+          const shareParams = {
+            isActive,
+            // When disabling, leave authType unset so the stored access mode is preserved.
+            authType: isActive ? visibility : undefined,
+            password: params.sharePassword,
+            allowedEmails,
+            workspaceId: params._context?.workspaceId,
+          }
+
+          // Canonical IDs (advanced mode or upstream references) resolve directly.
+          const fileIds = parseReadFileIds(shareInput)
+          if (fileIds) {
+            if (Array.isArray(fileIds) && fileIds.length > 1) {
+              throw new Error('Manage Sharing accepts a single file at a time')
+            }
+            return { fileId: Array.isArray(fileIds) ? fileIds[0] : fileIds, ...shareParams }
+          }
+
+          // The basic picker yields a file object; it carries an id only sometimes,
+          // so prefer the id when present and otherwise pass the object for the
+          // route to resolve via its storage key.
+          const normalized = normalizeFileInput(shareInput, { single: true })
+          const file = normalized as Record<string, unknown> | null
+          if (!file) {
+            throw new Error('Could not determine the file to share')
+          }
+          if (typeof file.id === 'string' && file.id) {
+            return { fileId: file.id, ...shareParams }
+          }
+          return { fileInput: normalized, ...shareParams }
+        }
+
         if (operation === 'file_fetch') {
           const fileUrl = resolveHttpFileUrl(params.fileUrl)
 
@@ -1224,12 +1343,25 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'json',
       description: 'Selected .zip archive or canonical file ID to extract',
     },
+    shareInput: {
+      type: 'json',
+      description: 'Selected workspace file or canonical file ID to manage sharing for',
+    },
+    shareVisibility: {
+      type: 'string',
+      description: 'Link visibility: private, public, password, email, or sso',
+    },
+    sharePassword: { type: 'string', description: 'Password for a password-protected link' },
+    shareAllowedEmails: {
+      type: 'string',
+      description: 'Allowed emails or @domain patterns for email/SSO access',
+    },
   },
   outputs: {
     files: {
       type: 'file[]',
       description:
-        'Workspace file objects (read), fetched file objects (fetch), the compressed archive (compress), or extracted files (decompress)',
+        'Workspace file objects with share status (read), fetched file objects (fetch), the compressed archive (compress), or extracted files (decompress)',
     },
     contents: {
       type: 'array',
@@ -1253,7 +1385,24 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     url: {
       type: 'string',
-      description: 'URL to access the file (write and append)',
+      description:
+        'URL to access the file (write and append), or the public share link when shared; empty when set to private (manage sharing)',
+    },
+    isActive: {
+      type: 'boolean',
+      description: 'Whether the public link is enabled (manage sharing)',
+    },
+    authType: {
+      type: 'string',
+      description: 'Public link access mode: public, password, email, or sso (manage sharing)',
+    },
+    hasPassword: {
+      type: 'boolean',
+      description: 'Whether the public link is password-protected (manage sharing)',
+    },
+    allowedEmails: {
+      type: 'array',
+      description: 'Allowed emails/domains for email or SSO access (manage sharing)',
     },
   },
 }

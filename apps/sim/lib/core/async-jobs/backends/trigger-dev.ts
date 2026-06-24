@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { taskContext } from '@trigger.dev/core/v3'
 import { runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
+import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   type EnqueueOptions,
   JOB_STATUS,
@@ -84,6 +85,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     if (options?.delayMs && options.delayMs > 0) {
       triggerOptions.delay = new Date(Date.now() + options.delayMs)
     }
+    triggerOptions.region = await resolveTriggerRegion()
     const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
@@ -125,6 +127,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const taskId = JOB_TYPE_TO_TASK_ID[type]
     if (!taskId) throw new Error(`Unknown job type: ${type}`)
 
+    const region = await resolveTriggerRegion()
     const batchItems = items.map(({ payload, options }) => {
       const enrichedPayload =
         options?.metadata && typeof payload === 'object' && payload !== null
@@ -133,12 +136,12 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       const tags = buildTags(options)
       const batchItem: {
         payload: unknown
-        options?: { concurrencyKey?: string; tags?: string[] }
+        options?: { concurrencyKey?: string; tags?: string[]; region?: string }
       } = { payload: enrichedPayload }
-      const batchOpts: { concurrencyKey?: string; tags?: string[] } = {}
+      const batchOpts: { concurrencyKey?: string; tags?: string[]; region?: string } = { region }
       if (options?.concurrencyKey) batchOpts.concurrencyKey = options.concurrencyKey
       if (tags.length > 0) batchOpts.tags = tags
-      if (Object.keys(batchOpts).length > 0) batchItem.options = batchOpts
+      batchItem.options = batchOpts
       return batchItem
     })
 

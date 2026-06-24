@@ -111,13 +111,15 @@ export async function notifyTaskStateChange(taskId: string, state: TaskState): P
 
   if (isTriggerDevEnabled) {
     try {
-      const { a2aPushNotificationTask } = await import(
-        '@/background/a2a-push-notification-delivery'
-      )
+      const [{ a2aPushNotificationTask }, { resolveTriggerRegion }] = await Promise.all([
+        import('@/background/a2a-push-notification-delivery'),
+        import('@/lib/core/async-jobs/region'),
+      ])
       await a2aPushNotificationTask.trigger(
         { taskId, state },
         {
           tags: [`taskId:${taskId}`],
+          region: await resolveTriggerRegion(),
         }
       )
       logger.info('Push notification queued to trigger.dev', { taskId, state })

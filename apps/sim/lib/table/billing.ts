@@ -5,12 +5,87 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getTablePlanLimits, type PlanName, type TablePlanLimits } from '@/lib/table/constants'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('TableBilling')
+
+/** Warn band; an insert that crosses up into it (or up into 100%) triggers a notify. */
+const TABLE_WARN_PERCENT = 80
+const TABLE_REACHED_PERCENT = 100
+
+/** Whether adding rows pushed the count UP across `threshold` (pre below, post at/above). */
+function crossedUp(prePct: number, postPct: number, threshold: number): boolean {
+  return prePct < threshold && postPct >= threshold
+}
+
+/**
+ * Best-effort table row-limit email after an accepted insert. Resolves the
+ * workspace's billed account, then delegates scope resolution + dedup + send to
+ * {@link maybeNotifyLimit}. Never throws.
+ */
+async function maybeNotifyTableRowLimit(
+  workspaceId: string,
+  projectedRowCount: number,
+  limit: number
+): Promise<void> {
+  try {
+    const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+    if (!billedUserId) return
+
+    await maybeNotifyLimit({
+      category: 'tables',
+      billedUserId,
+      workspaceId,
+      currentUsage: projectedRowCount,
+      limit,
+      usageLabel: `${projectedRowCount.toLocaleString('en-US')} rows`,
+      limitLabel: `${limit.toLocaleString('en-US')} rows`,
+    })
+  } catch (error) {
+    logger.error('Error evaluating table row-limit notification:', error)
+  }
+}
+
+/**
+ * Fire-and-forget the table row-limit threshold email for an accepted insert.
+ * Edge-triggered: it only does any billing work when the write CROSSES UP into
+ * the warn (80%) or reached (100%) band — not on every near-limit insert — so a
+ * table sitting at e.g. 90% being inserted into pays nothing until it crosses
+ * 100%. Shared by every insert path ({@link assertRowCapacity} and the
+ * transactional upsert/import branches that check capacity with
+ * {@link wouldExceedRowLimit} instead). Pass the pre-insert `currentRowCount` and
+ * `addedRows` so both the pre and post percentages are known.
+ *
+ * Tables warn once per threshold and do not re-arm: a table that hit a threshold
+ * then dropped (via deletes, which have no notify hook) won't re-warn on a later
+ * climb. Deliberate trade-off — re-arm is storage-only (its single decrement
+ * hook) to avoid per-delete billing-table reads. The atomic claim still dedups
+ * concurrent crossings (no race).
+ */
+export function notifyTableRowUsage(params: {
+  workspaceId: string
+  currentRowCount: number
+  addedRows: number
+  limit: number
+}): void {
+  if (params.limit <= 0) return
+  const prePct = (params.currentRowCount / params.limit) * 100
+  const postPct = ((params.currentRowCount + params.addedRows) / params.limit) * 100
+  if (
+    crossedUp(prePct, postPct, TABLE_WARN_PERCENT) ||
+    crossedUp(prePct, postPct, TABLE_REACHED_PERCENT)
+  ) {
+    void maybeNotifyTableRowLimit(
+      params.workspaceId,
+      params.currentRowCount + params.addedRows,
+      params.limit
+    )
+  }
+}
 
 /**
  * Plan lookups hit billing + subscription tables (2-3 queries). Row-limit checks
@@ -132,17 +207,23 @@ export function wouldExceedRowLimit(
  * connection (and locks) risks pool starvation. Callers already inside a tx should
  * fetch the limit up front and use {@link wouldExceedRowLimit} instead.
  *
+ * Pure check (no side effects): returns the resolved limit so callers can fire
+ * {@link notifyTableRowUsage} AFTER their insert commits — a pre-commit notify
+ * would email (and burn the dedup claim) for a write that later rolls back.
+ *
+ * @returns the resolved plan row limit (-1 for unlimited)
  * @throws {TableRowLimitError} if `currentRowCount + addedRows` exceeds the limit
  */
 export async function assertRowCapacity(params: {
   workspaceId: string
   currentRowCount: number
   addedRows: number
-}): Promise<void> {
+}): Promise<number> {
   const limit = await getMaxRowsPerTable(params.workspaceId)
   if (wouldExceedRowLimit(limit, params.currentRowCount, params.addedRows)) {
     throw new TableRowLimitError(limit)
   }
+  return limit
 }
 
 /**

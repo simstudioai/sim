@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 export const userProfileSchema = z.object({
@@ -258,6 +258,11 @@ export const unsubscribePostContract = defineRouteContract({
     schema: unsubscribeActionResponseSchema,
   },
 })
+
+export type UnsubscribeData = ContractJsonResponse<typeof unsubscribeGetContract>
+export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribePostContract>
+export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
+export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
 export const usageLogsQuerySchema = z.object({
   source: z.enum(['workflow', 'wand', 'copilot']).optional(),
