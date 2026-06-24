@@ -4,9 +4,10 @@ import { devtools } from 'zustand/middleware'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { type BlockConfig, formatIntegrationType, type SubBlockConfig } from '@/blocks/types'
 import type {
   SearchBlockItem,
+  SearchCategory,
   SearchData,
   SearchDocItem,
   SearchModalState,
@@ -19,7 +20,48 @@ const initialData: SearchData = {
   triggers: [],
   toolOperations: [],
   docs: [],
+  categories: [],
   isInitialized: false,
+}
+
+/**
+ * Builds the browsable category list for the empty-state drill-down: core
+ * blocks and triggers first, then one entry per integration category present,
+ * alphabetized for a stable ordering.
+ */
+function buildCategories(
+  blocks: SearchBlockItem[],
+  triggers: SearchBlockItem[],
+  tools: SearchBlockItem[]
+): SearchCategory[] {
+  const categories: SearchCategory[] = []
+  if (blocks.length > 0) {
+    categories.push({ id: 'blocks', label: 'Core Blocks', kind: 'block', count: blocks.length })
+  }
+  if (triggers.length > 0) {
+    categories.push({ id: 'triggers', label: 'Triggers', kind: 'trigger', count: triggers.length })
+  }
+
+  const toolCountsByType = new Map<string, number>()
+  for (const tool of tools) {
+    if (!tool.integrationType) continue
+    toolCountsByType.set(
+      tool.integrationType,
+      (toolCountsByType.get(tool.integrationType) ?? 0) + 1
+    )
+  }
+
+  const integrationCategories = Array.from(
+    toolCountsByType,
+    ([id, count]): SearchCategory => ({
+      id,
+      label: formatIntegrationType(id),
+      kind: 'tool',
+      count,
+    })
+  ).sort((a, b) => a.label.localeCompare(b.label))
+
+  return [...categories, ...integrationCategories]
 }
 
 type CommandSearchableOption = {
@@ -104,7 +146,7 @@ export const useSearchModalStore = create<SearchModalState>()(
           if (block.category === 'blocks' && block.type !== 'starter') {
             regularBlocks.push(searchItem)
           } else if (block.category === 'tools') {
-            tools.push(searchItem)
+            tools.push({ ...searchItem, integrationType: block.integrationType })
           }
 
           if (block.docsLink) {
@@ -188,6 +230,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             triggers,
             toolOperations,
             docs,
+            categories: buildCategories(blocks, triggers, tools),
             isInitialized: true,
           },
         })

@@ -1,6 +1,6 @@
 import { createElement, type SVGProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BlockConfig } from '@/blocks/types'
+import { type BlockConfig, IntegrationType } from '@/blocks/types'
 
 const { mockGetAllBlocks, mockGetToolOperationsIndex, mockGetTriggersForSidebar } = vi.hoisted(
   () => ({
@@ -70,6 +70,7 @@ describe('search modal store', () => {
         triggers: [],
         toolOperations: [],
         docs: [],
+        categories: [],
         isInitialized: false,
       },
     })
@@ -147,5 +148,31 @@ describe('search modal store', () => {
         searchValue: expect.stringContaining('Fal.ai (Multi-Model)'),
       })
     )
+  })
+
+  it('carries integrationType onto tools and builds browse categories from it', () => {
+    const aiTool = createBlock({ type: 'image_generator_v2', integrationType: IntegrationType.AI })
+    const emailTool = createBlock({
+      type: 'gmail',
+      name: 'Gmail',
+      integrationType: IntegrationType.Email,
+    })
+    const coreBlock = createBlock({ type: 'function', name: 'Function', category: 'blocks' })
+
+    mockGetAllBlocks.mockReturnValue([aiTool, emailTool, coreBlock])
+
+    useSearchModalStore.getState().initializeData((blocks) => blocks)
+
+    const { tools, categories } = useSearchModalStore.getState().data
+    expect(tools.find((t) => t.id === 'gmail')?.integrationType).toBe(IntegrationType.Email)
+
+    // Core Blocks first, then integration categories alphabetized by label.
+    expect(categories.map((c) => c.label)).toEqual(['Core Blocks', 'AI', 'Email'])
+    expect(categories.find((c) => c.id === IntegrationType.AI)).toEqual({
+      id: 'ai',
+      label: 'AI',
+      kind: 'tool',
+      count: 1,
+    })
   })
 })
