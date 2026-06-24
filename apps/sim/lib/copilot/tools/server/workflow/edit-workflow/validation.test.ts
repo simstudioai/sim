@@ -25,6 +25,7 @@ const oauthBlockConfig = {
   name: 'Slack',
   outputs: {},
   subBlocks: [{ id: 'credential', type: 'oauth-input' }],
+  tools: { access: ['slack_message'] },
 }
 
 const routerBlockConfig = {
@@ -542,6 +543,16 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.validInputs.tools).toBeUndefined()
     expect(result.errors[0]?.error).toContain('unrecognized tool type')
+  })
+
+  it('rejects a known block that exposes no callable tools (not tool-capable)', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'condition', operation: 'x' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('cannot be attached as an agent tool')
   })
 
   it('reports every bad entry in a single error', () => {

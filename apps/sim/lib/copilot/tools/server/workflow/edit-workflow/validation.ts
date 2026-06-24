@@ -187,9 +187,19 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     return null
   }
 
-  // Integration/block-based tool: the type must be a real registry block type.
-  if (!KNOWN_NON_BLOCK_TOOL_TYPES.has(type) && !getBlock(type)) {
-    return `${where} has unrecognized tool type "${type}". Use "custom-tool" for custom tools, "mcp" for MCP tools, or a valid integration block type`
+  // Integration/block-based tool: the type must be a real registry block that
+  // actually exposes callable tools. A known block with an empty tools.access
+  // (control-flow blocks like condition/loop/parallel/router, or the agent block
+  // itself) can't attach as an agent tool, so the addition would not apply
+  // correctly even though the type "exists".
+  if (!KNOWN_NON_BLOCK_TOOL_TYPES.has(type)) {
+    const block = getBlock(type)
+    if (!block) {
+      return `${where} has unrecognized tool type "${type}". Use "custom-tool" for custom tools, "mcp" for MCP tools, or a valid integration block type`
+    }
+    if (!Array.isArray(block.tools?.access) || block.tools.access.length === 0) {
+      return `${where} block type "${type}" cannot be attached as an agent tool (it exposes no callable tools)`
+    }
   }
 
   return null
