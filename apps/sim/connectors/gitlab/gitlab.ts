@@ -14,10 +14,10 @@ import {
   parseTagDate,
   sizeLimitSkipReason,
 } from '@/connectors/utils'
+import { normalizeGitLabHost, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('GitLabConnector')
 
-const DEFAULT_HOST = 'gitlab.com'
 const PAGE_SIZE = 100
 /** Max repository file size to index. Larger blobs are skipped. */
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
@@ -175,16 +175,16 @@ interface GitLabProject {
 }
 
 /**
- * Normalizes the host config value: trims whitespace, strips any protocol
- * prefix and trailing slashes, and falls back to gitlab.com when empty.
+ * Normalizes the host config value via the shared GitLab host normalizer:
+ * trims, strips any protocol prefix and trailing slashes, rejects structurally
+ * unsafe hosts (userinfo, whitespace, embedded path), and falls back to
+ * gitlab.com when empty. Shared with the GitLab tools and webhook provider so
+ * every surface resolves and validates hosts identically.
+ *
+ * @throws {UnsafeGitLabHostError} when a non-empty host is structurally unsafe.
  */
 function normalizeHost(rawHost: unknown): string {
-  const host = typeof rawHost === 'string' ? rawHost.trim() : ''
-  if (!host) return DEFAULT_HOST
-  return host
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
-    .trim()
+  return normalizeGitLabHost(rawHost)
 }
 
 /**
@@ -941,7 +941,18 @@ export const gitlabConnector: ConnectorConfig = {
       return { valid: false, error: 'Max items must be a positive number' }
     }
 
-    const host = normalizeHost(sourceConfig.host)
+    let host: string
+    try {
+      host = normalizeHost(sourceConfig.host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        return {
+          valid: false,
+          error: 'Host must be a valid GitLab domain (e.g. gitlab.example.com)',
+        }
+      }
+      throw error
+    }
     const apiBase = buildApiBase(host)
     const encodedProject = encodeProjectId(project)
     const choice = getContentTypeChoice(sourceConfig)
