@@ -8,11 +8,15 @@ import {
 } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
-import { acquireForkEdgeLock, resolveForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
+import {
+  acquireForkEdgeLock,
+  acquireForkTargetLock,
+  resolveForkEdge,
+} from '@/lib/workspaces/fork/lineage/lineage'
 import { deleteWorkflowIdentityByIds } from '@/lib/workspaces/fork/mapping/mapping-store'
 import {
-  deletePromoteRun,
-  getPromoteRunForRollback,
+  deleteAllPromoteRunsForTarget,
+  getLatestPromoteRunForTarget,
 } from '@/lib/workspaces/fork/promote/promote-run-store'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 
@@ -60,9 +64,18 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     throw new ForkError('These workspaces are not a direct fork edge', 400)
   }
 
-  const run = await getPromoteRunForRollback(db, targetWorkspaceId, edge.childWorkspaceId)
+  // Only the most recent sync into the target is undoable. Undoing an older
+  // sibling's sync while a newer one stands would partially revert the target and
+  // strand the newer sync's changes (and its now-stale undo point).
+  const run = await getLatestPromoteRunForTarget(db, targetWorkspaceId)
   if (!run) {
     throw new ForkError('There is no promote to undo for this workspace', 404)
+  }
+  if (run.childWorkspaceId !== edge.childWorkspaceId) {
+    throw new ForkError(
+      'A newer sync into this workspace exists; reopen and undo the most recent sync.',
+      409
+    )
   }
 
   const { updated, created, archived } = run.snapshot
@@ -93,6 +106,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   // Un-archive the orphans the promote archived BEFORE reactivating them.
   if (archived.length > 0) {
     await db.transaction(async (tx) => {
+      await acquireForkTargetLock(tx, targetWorkspaceId)
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
       await tx
         .update(workflow)
@@ -151,15 +165,16 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   // Reactivation fully succeeded: remove the workflows the promote created,
   // dissolve the identity rows it created, and consume the undo point.
   await db.transaction(async (tx) => {
+    await acquireForkTargetLock(tx, targetWorkspaceId)
     await acquireForkEdgeLock(tx, edge.childWorkspaceId)
 
-    // Under the lock, confirm the undo point is still the one we rolled back. A
-    // concurrent promote upserts the run in place (new id); if that happened, abort
-    // the cleanup so we never delete or archive against a newer promote's state.
-    const current = await getPromoteRunForRollback(tx, targetWorkspaceId, edge.childWorkspaceId)
+    // Under the target lock, confirm our run is still the newest sync into the
+    // target. A concurrent promote (same edge or a sibling) would make it stale;
+    // abort so we never clean up against a newer sync's state.
+    const current = await getLatestPromoteRunForTarget(tx, targetWorkspaceId)
     if (!current || current.id !== run.id) {
       throw new ForkError(
-        'This promote was superseded by a newer promote on the same edge; reopen and retry the undo.',
+        'This undo was superseded by a newer sync into the target; reopen and retry.',
         409
       )
     }
@@ -183,7 +198,9 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
       )
     }
 
-    await deletePromoteRun(tx, edge.childWorkspaceId, targetWorkspaceId)
+    // Single-level undo: drop every undo point for this target (not just ours) so
+    // no older sibling sync becomes undoable once this one is undone.
+    await deleteAllPromoteRunsForTarget(tx, targetWorkspaceId)
   })
 
   for (const workflowId of undeployIds) void notifyForkWorkflowChanged(workflowId)

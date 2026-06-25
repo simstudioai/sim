@@ -12,9 +12,13 @@ import {
 } from '@/lib/workspaces/fork/copy/copy-workflows'
 import {
   getActiveDeploymentVersionNumber,
-  readDeployedState,
+  loadSourceDeployedStates,
 } from '@/lib/workspaces/fork/copy/deploy-bridge'
-import { acquireForkEdgeLock, type ForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
+import {
+  acquireForkEdgeLock,
+  acquireForkTargetLock,
+  type ForkEdge,
+} from '@/lib/workspaces/fork/lineage/lineage'
 import {
   type ForkMappingUpsert,
   upsertEdgeMappings,
@@ -101,7 +105,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
 
+  // Read the source's deployed workflows + states BEFORE the transaction so these
+  // heavy per-workflow reads never check out a second pooled connection from inside
+  // the promote tx (which can deadlock the pool at saturation). The source is
+  // read-only here, so this pre-tx snapshot is exactly what gets force-pushed.
+  const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(sourceWorkspaceId)
+
   const txResult: PromoteTxBlocked | PromoteTxApplied = await db.transaction(async (tx) => {
+    // Target lock before edge lock (consistent ordering): the target lock serializes
+    // every sync into this target so sibling forks can't interleave writes, and so
+    // rollback's "newest sync" check stays race-free against a concurrent promote.
+    await acquireForkTargetLock(tx, targetWorkspaceId)
     await acquireForkEdgeLock(tx, edge.childWorkspaceId)
 
     const plan = await computeForkPromotePlan({
@@ -110,6 +124,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       sourceWorkspaceId,
       targetWorkspaceId,
       direction,
+      deployedSourceWorkflows: deployedWorkflows,
+      sourceStates,
     })
 
     if (plan.unmappedRequired.length > 0) {
@@ -143,12 +159,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     const createdTargetIds: string[] = []
     const writtenItems: typeof plan.items = []
     for (const item of plan.items) {
-      // Re-read the source's deployed state one workflow at a time so peak memory
-      // stays at a single workflow state. Only items actually written below feed
-      // the snapshot, identity rows, and deploy list - a source that lost its
-      // active deployment between plan and copy is skipped cleanly (no phantom
-      // mapping/deploy of a never-created target).
-      const sourceState = await readDeployedState(item.sourceWorkflowId, sourceWorkspaceId)
+      // Use the pre-read source state (loaded above, before the tx). An item only
+      // exists when its state was present at read time, so this lookup hits; the
+      // guard stays as defense so the written counts below never over-report.
+      const sourceState = sourceStates.get(item.sourceWorkflowId)
       if (!sourceState) continue
       if (item.mode === 'replace') {
         const priorVersion = await getActiveDeploymentVersionNumber(tx, item.targetWorkflowId)

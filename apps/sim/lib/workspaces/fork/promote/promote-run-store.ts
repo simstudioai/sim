@@ -100,49 +100,29 @@ export async function upsertPromoteRun(
   return id
 }
 
-/** Remove one direction's undo point (keyed by target) after a successful rollback. */
-export async function deletePromoteRun(
+/**
+ * Remove EVERY undo point targeting this workspace. Called after a rollback so the
+ * undo is single-level: only the latest sync into a target is ever undoable, and
+ * once it is undone there is no stack of older syncs to walk back into.
+ */
+export async function deleteAllPromoteRunsForTarget(
   tx: DbOrTx,
-  childWorkspaceId: string,
   targetWorkspaceId: string
 ): Promise<void> {
   await tx
     .delete(workspaceForkPromoteRun)
-    .where(
-      and(
-        eq(workspaceForkPromoteRun.childWorkspaceId, childWorkspaceId),
-        eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId)
-      )
-    )
+    .where(eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId))
 }
 
 /**
- * The undo point targeting this workspace, with the edge counterpart needed to
- * call rollback. `sourceWorkspaceId` is the "other" workspace the promote came
- * from (rollback resolves the edge from target + other).
+ * The newest undo point targeting this workspace. A workspace can be the target of
+ * several edges (pushes from its children, a pull from its parent), so order by
+ * recency: this is the ONLY undoable sync - older ones are stale the moment a newer
+ * sync lands, and rollback refuses them.
  */
-export async function getUndoableRunForTarget(
+export async function getLatestPromoteRunForTarget(
   executor: DbOrTx,
   targetWorkspaceId: string
-): Promise<{ sourceWorkspaceId: string; direction: 'push' | 'pull' } | null> {
-  const [row] = await executor
-    .select({
-      sourceWorkspaceId: workspaceForkPromoteRun.sourceWorkspaceId,
-      direction: workspaceForkPromoteRun.direction,
-    })
-    .from(workspaceForkPromoteRun)
-    .where(eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId))
-    // A workspace can be the target of several edges; surface the most recent.
-    .orderBy(desc(workspaceForkPromoteRun.createdAt))
-    .limit(1)
-  return row ?? null
-}
-
-/** The undo point whose target is this workspace and whose edge counterpart is `otherWorkspaceId`. */
-export async function getPromoteRunForRollback(
-  executor: DbOrTx,
-  targetWorkspaceId: string,
-  childWorkspaceId: string
 ): Promise<PromoteRunRow | null> {
   const [row] = await executor
     .select({
@@ -155,13 +135,22 @@ export async function getPromoteRunForRollback(
       createdAt: workspaceForkPromoteRun.createdAt,
     })
     .from(workspaceForkPromoteRun)
-    .where(
-      and(
-        eq(workspaceForkPromoteRun.childWorkspaceId, childWorkspaceId),
-        eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId)
-      )
-    )
+    .where(eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId))
+    .orderBy(desc(workspaceForkPromoteRun.createdAt))
     .limit(1)
   if (!row) return null
   return { ...row, snapshot: row.snapshot as PromoteRunSnapshot }
+}
+
+/**
+ * The "other" workspace and direction of the latest sync into this target, for the
+ * UI's undo affordance. `sourceWorkspaceId` is the workspace the sync came from
+ * (rollback resolves the edge from target + other).
+ */
+export async function getUndoableRunForTarget(
+  executor: DbOrTx,
+  targetWorkspaceId: string
+): Promise<{ sourceWorkspaceId: string; direction: 'push' | 'pull' } | null> {
+  const run = await getLatestPromoteRunForTarget(executor, targetWorkspaceId)
+  return run ? { sourceWorkspaceId: run.sourceWorkspaceId, direction: run.direction } : null
 }

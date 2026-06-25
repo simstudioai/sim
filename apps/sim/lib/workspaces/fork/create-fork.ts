@@ -17,7 +17,7 @@ import {
   copyWorkflowStateIntoTarget,
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
-import { listDeployedWorkflows, readDeployedState } from '@/lib/workspaces/fork/copy/deploy-bridge'
+import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import {
   type ForkMappingUpsert,
   type ForkResourceType,
@@ -28,7 +28,6 @@ import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references
 import type { WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkspaceForkCreate')
 
@@ -88,16 +87,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   const selection = params.selection ?? EMPTY_SELECTION
   const childName = params.name?.trim() || `${source.name} (fork)`
 
-  // Read the source's deployed workflows + states BEFORE the transaction. These are
-  // global-pool reads of the (unchanged) source; issuing them inside the fork tx
-  // would trip the cross-connection tripwire (and check out a second pooled
-  // connection that can deadlock at saturation).
-  const deployedWorkflows = await listDeployedWorkflows(db, source.id)
-  const sourceStates = new Map<string, WorkflowState>()
-  for (const wf of deployedWorkflows) {
-    const state = await readDeployedState(wf.id, source.id)
-    if (state) sourceStates.set(wf.id, state)
-  }
+  // Read the source's deployed workflows + states BEFORE the transaction so these
+  // global-pool reads don't check out a second pooled connection from inside the
+  // fork tx (which can deadlock the pool at saturation).
+  const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(source.id)
 
   const { result, blobTasks, contentPlan } = await db.transaction(async (tx) => {
     const now = new Date()

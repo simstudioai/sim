@@ -87,10 +87,26 @@ export async function resolveForkEdge(
 
 /**
  * Serialize concurrent promote/rollback on a fork edge with a transaction-scoped
- * advisory lock keyed by the edge (the child workspace id). `hashtext` is 32-bit,
- * so distinct edges can share a lock slot - at worst unnecessary serialization,
- * never a correctness issue.
+ * advisory lock keyed by the edge (the child workspace id). `hashtextextended`
+ * (64-bit, matching every other advisory lock in the repo) makes a collision
+ * between distinct keys astronomically unlikely; a collision would only cause
+ * unnecessary serialization, never a correctness issue.
  */
 export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`fork-edge:${childWorkspaceId}`}))`)
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-edge:${childWorkspaceId}`}, 0))`
+  )
+}
+
+/**
+ * Serialize every promote/rollback whose TARGET is this workspace. Sibling forks
+ * promote into the same parent on different edge locks, so the edge lock alone does
+ * not serialize them; this lock does, keeping concurrent syncs into one target from
+ * interleaving and keeping rollback's "newest sync" check race-free. Always acquire
+ * this BEFORE {@link acquireForkEdgeLock} so the two are taken in a consistent order.
+ */
+export async function acquireForkTargetLock(tx: DbOrTx, targetWorkspaceId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-target:${targetWorkspaceId}`}, 0))`
+  )
 }

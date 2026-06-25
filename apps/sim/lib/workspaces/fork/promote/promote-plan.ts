@@ -2,7 +2,7 @@ import { workflow } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { listDeployedWorkflows, readDeployedState } from '@/lib/workspaces/fork/copy/deploy-bridge'
+import type { DeployedWorkflowSummary } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import type { ForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
 import { detectForkCascadeReferences } from '@/lib/workspaces/fork/mapping/cascade'
 import { buildForkResolver, getEdgeMappingRows } from '@/lib/workspaces/fork/mapping/mapping-store'
@@ -13,6 +13,7 @@ import {
   type ForkReferenceResolver,
   scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export interface ForkPromotePlanItem {
   sourceWorkflowId: string
@@ -100,8 +101,23 @@ export async function computeForkPromotePlan(params: {
   sourceWorkspaceId: string
   targetWorkspaceId: string
   direction: 'push' | 'pull'
+  /**
+   * Source deployed workflows + their states, read by the caller BEFORE its
+   * transaction (see `loadSourceDeployedStates`) so the plan never checks out a
+   * second pooled connection from inside a tx.
+   */
+  deployedSourceWorkflows: DeployedWorkflowSummary[]
+  sourceStates: Map<string, WorkflowState>
 }): Promise<ForkPromotePlan> {
-  const { executor, edge, sourceWorkspaceId, targetWorkspaceId, direction } = params
+  const {
+    executor,
+    edge,
+    sourceWorkspaceId,
+    targetWorkspaceId,
+    direction,
+    deployedSourceWorkflows,
+    sourceStates,
+  } = params
 
   const mappingRows = await getEdgeMappingRows(executor, edge.childWorkspaceId)
   const [targetEnvKeys, sourceEnvKeys] = await Promise.all([
@@ -118,8 +134,7 @@ export async function computeForkPromotePlan(params: {
     else identityMap.set(row.childResourceId, row.parentResourceId)
   }
 
-  const [deployedSourceWorkflows, targetWorkflows, sourceWorkflowRows] = await Promise.all([
-    listDeployedWorkflows(executor, sourceWorkspaceId),
+  const [targetWorkflows, sourceWorkflowRows] = await Promise.all([
     executor
       .select({ id: workflow.id, name: workflow.name, updatedAt: workflow.updatedAt })
       .from(workflow)
@@ -138,13 +153,12 @@ export async function computeForkPromotePlan(params: {
   // parent's originals; undeployed sources are simply skipped (target left as-is).
   const existingSourceIds = new Set(sourceWorkflowRows.map((w) => w.id))
 
-  // Build the items and scan references in one pass, loading each source's deployed
-  // state, scanning it, then discarding it - peak memory stays at one workflow state
-  // (the deployed-state cache, bounded globally, retains originals for the copy loop).
+  // Build the items and scan references in one pass from the pre-read source states
+  // (loaded before the caller's transaction; see loadSourceDeployedStates).
   const items: ForkPromotePlanItem[] = []
   const referenceByKey = new Map<string, ForkReference>()
   for (const source of deployedSourceWorkflows) {
-    const sourceState = await readDeployedState(source.id, sourceWorkspaceId)
+    const sourceState = sourceStates.get(source.id)
     if (!sourceState) continue
 
     const mappedTargetId = identityMap.get(source.id)
@@ -180,12 +194,14 @@ export async function computeForkPromotePlan(params: {
     items,
   })
 
+  const writtenTargetIds = new Set(items.map((item) => item.targetWorkflowId))
   const archivedTargetIds: string[] = []
   for (const row of mappingRows) {
     if (row.resourceType !== 'workflow' || row.childResourceId == null) continue
     const mappedSourceId = sourceIsParent ? row.parentResourceId : row.childResourceId
     const mappedTargetId = sourceIsParent ? row.childResourceId : row.parentResourceId
     if (existingSourceIds.has(mappedSourceId)) continue
+    if (writtenTargetIds.has(mappedTargetId)) continue
     if (targetActiveIds.has(mappedTargetId)) archivedTargetIds.push(mappedTargetId)
   }
   const archivedTargets = archivedTargetIds.map((id) => ({

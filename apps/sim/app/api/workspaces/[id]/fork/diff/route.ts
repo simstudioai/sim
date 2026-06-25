@@ -4,6 +4,7 @@ import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 
@@ -21,12 +22,17 @@ export const GET = withRouteHandler(
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
+    const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(
+      auth.sourceWorkspaceId
+    )
     const plan = await computeForkPromotePlan({
       executor: db,
       edge: auth.edge,
       sourceWorkspaceId: auth.sourceWorkspaceId,
       targetWorkspaceId: auth.targetWorkspaceId,
       direction,
+      deployedSourceWorkflows: deployedWorkflows,
+      sourceStates,
     })
 
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({

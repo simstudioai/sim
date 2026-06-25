@@ -58,6 +58,31 @@ export async function getActiveDeploymentVersionNumber(
 }
 
 /**
+ * Read a source workspace's deployed workflows and each one's active deployed state
+ * on the global pool. Fork/promote callers MUST run this BEFORE opening their
+ * transaction: doing these heavy per-workflow reads inside the tx checks out a
+ * SECOND pooled connection while the tx holds the first, which can deadlock the
+ * pool at saturation (primary pool max is 15). The source is read-only for the
+ * operation, so a pre-transaction snapshot is the value that gets force-pushed.
+ *
+ * Holds every source state in memory at once (bounded by the workspace's deployed
+ * workflow count) - the apply step needs each state to write its target inside the
+ * single atomic transaction, so it cannot stream them one at a time.
+ */
+export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promise<{
+  deployedWorkflows: DeployedWorkflowSummary[]
+  sourceStates: Map<string, WorkflowState>
+}> {
+  const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
+  const sourceStates = new Map<string, WorkflowState>()
+  for (const wf of deployedWorkflows) {
+    const state = await readDeployedState(wf.id, sourceWorkspaceId)
+    if (state) sourceStates.set(wf.id, state)
+  }
+  return { deployedWorkflows, sourceStates }
+}
+
+/**
  * Read a workflow's active deployed state as a `WorkflowState`. Returns null ONLY
  * when the workflow genuinely has no active deployment (a legitimate skip); real
  * DB/migration errors propagate so the caller fails loudly instead of silently
