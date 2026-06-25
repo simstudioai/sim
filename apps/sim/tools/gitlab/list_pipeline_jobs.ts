@@ -1,17 +1,17 @@
 import type {
-  GitLabListMergeRequestsParams,
-  GitLabListMergeRequestsResponse,
+  GitLabListPipelineJobsParams,
+  GitLabListPipelineJobsResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabListMergeRequestsTool: ToolConfig<
-  GitLabListMergeRequestsParams,
-  GitLabListMergeRequestsResponse
+export const gitlabListPipelineJobsTool: ToolConfig<
+  GitLabListPipelineJobsParams,
+  GitLabListPipelineJobsResponse
 > = {
-  id: 'gitlab_list_merge_requests',
-  name: 'GitLab List Merge Requests',
-  description: 'List merge requests in a GitLab project',
+  id: 'gitlab_list_pipeline_jobs',
+  name: 'GitLab List Pipeline Jobs',
+  description: 'List jobs for a GitLab pipeline',
   version: '1.0.0',
 
   params: {
@@ -33,41 +33,23 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    state: {
-      type: 'string',
-      required: false,
+    pipelineId: {
+      type: 'number',
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Filter by state (opened, closed, merged, all)',
+      description: 'Pipeline ID',
     },
-    labels: {
+    scope: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of label names',
+      description: 'Filter jobs by scope (e.g. created, running, success, failed)',
     },
-    sourceBranch: {
-      type: 'string',
+    includeRetried: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by source branch',
-    },
-    targetBranch: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by target branch',
-    },
-    orderBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Order by field (created_at, updated_at)',
-    },
-    sort: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort direction (asc, desc)',
+      description: 'Whether to include retried jobs',
     },
     perPage: {
       type: 'number',
@@ -88,17 +70,13 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       const encodedId = encodeURIComponent(String(params.projectId).trim())
       const queryParams = new URLSearchParams()
 
-      if (params.state) queryParams.append('state', params.state)
-      if (params.labels) queryParams.append('labels', params.labels)
-      if (params.sourceBranch) queryParams.append('source_branch', params.sourceBranch)
-      if (params.targetBranch) queryParams.append('target_branch', params.targetBranch)
-      if (params.orderBy) queryParams.append('order_by', params.orderBy)
-      if (params.sort) queryParams.append('sort', params.sort)
+      if (params.scope) queryParams.append('scope', params.scope)
+      if (params.includeRetried) queryParams.append('include_retried', 'true')
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/jobs${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -116,26 +94,26 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       }
     }
 
-    const mergeRequests = await response.json()
+    const jobs = await response.json()
     const total = response.headers.get('x-total')
 
     return {
       success: true,
       output: {
-        mergeRequests,
-        total: total ? Number.parseInt(total, 10) : mergeRequests.length,
+        jobs: jobs ?? [],
+        total: total ? Number.parseInt(total, 10) : (jobs?.length ?? 0),
       },
     }
   },
 
   outputs: {
-    mergeRequests: {
+    jobs: {
       type: 'array',
-      description: 'List of GitLab merge requests',
+      description: 'List of pipeline jobs',
     },
     total: {
       type: 'number',
-      description: 'Total number of merge requests',
+      description: 'Total number of jobs',
     },
   },
 }

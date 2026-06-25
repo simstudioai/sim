@@ -1,17 +1,17 @@
 import type {
-  GitLabCreateMergeRequestNoteParams,
-  GitLabCreateNoteResponse,
+  GitLabGetMergeRequestChangesParams,
+  GitLabGetMergeRequestChangesResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabCreateMergeRequestNoteTool: ToolConfig<
-  GitLabCreateMergeRequestNoteParams,
-  GitLabCreateNoteResponse
+export const gitlabGetMergeRequestChangesTool: ToolConfig<
+  GitLabGetMergeRequestChangesParams,
+  GitLabGetMergeRequestChangesResponse
 > = {
-  id: 'gitlab_create_merge_request_note',
-  name: 'GitLab Create Merge Request Comment',
-  description: 'Add a comment to a GitLab merge request',
+  id: 'gitlab_get_merge_request_changes',
+  name: 'GitLab Get Merge Request Changes',
+  description: 'Get the file changes (diffs) of a GitLab merge request',
   version: '1.0.0',
 
   params: {
@@ -39,26 +39,16 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Merge request internal ID (IID)',
     },
-    body: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Comment body (Markdown supported)',
-    },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/notes`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/changes`
     },
-    method: 'POST',
+    method: 'GET',
     headers: (params) => ({
-      'Content-Type': 'application/json',
       'PRIVATE-TOKEN': params.accessToken,
-    }),
-    body: (params) => ({
-      body: params.body,
     }),
   },
 
@@ -72,20 +62,41 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       }
     }
 
-    const note = await response.json()
+    const data = await response.json()
+    const changes = data.changes ?? []
 
     return {
       success: true,
       output: {
-        note,
+        iid: data.iid ?? null,
+        title: data.title ?? null,
+        state: data.state ?? null,
+        changes,
+        changesCount: changes.length,
       },
     }
   },
 
   outputs: {
-    note: {
-      type: 'object',
-      description: 'The created comment',
+    iid: {
+      type: 'number',
+      description: 'The merge request internal ID',
+    },
+    title: {
+      type: 'string',
+      description: 'The merge request title',
+    },
+    state: {
+      type: 'string',
+      description: 'The merge request state',
+    },
+    changes: {
+      type: 'array',
+      description: 'List of file changes (diffs)',
+    },
+    changesCount: {
+      type: 'number',
+      description: 'Number of changed files',
     },
   },
 }

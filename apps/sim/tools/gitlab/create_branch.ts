@@ -1,14 +1,14 @@
-import type { GitLabCreatePipelineParams, GitLabCreatePipelineResponse } from '@/tools/gitlab/types'
+import type { GitLabCreateBranchParams, GitLabCreateBranchResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabCreatePipelineTool: ToolConfig<
-  GitLabCreatePipelineParams,
-  GitLabCreatePipelineResponse
+export const gitlabCreateBranchTool: ToolConfig<
+  GitLabCreateBranchParams,
+  GitLabCreateBranchResponse
 > = {
-  id: 'gitlab_create_pipeline',
-  name: 'GitLab Create Pipeline',
-  description: 'Trigger a new pipeline in a GitLab project',
+  id: 'gitlab_create_branch',
+  name: 'GitLab Create Branch',
+  description: 'Create a new branch in a GitLab project repository',
   version: '1.0.0',
 
   params: {
@@ -30,42 +30,32 @@ export const gitlabCreatePipelineTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
+    branch: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Name of the new branch',
+    },
     ref: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Branch or tag to run the pipeline on',
-    },
-    variables: {
-      type: 'array',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Array of variables for the pipeline (each with key, value, and optional variable_type)',
+      description: 'Source branch/tag/SHA',
     },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipeline`
+      const queryParams = new URLSearchParams()
+      queryParams.append('branch', String(params.branch))
+      queryParams.append('ref', String(params.ref))
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/branches?${queryParams.toString()}`
     },
     method: 'POST',
     headers: (params) => ({
-      'Content-Type': 'application/json',
       'PRIVATE-TOKEN': params.accessToken,
     }),
-    body: (params) => {
-      const body: Record<string, any> = {
-        ref: params.ref,
-      }
-
-      if (params.variables && params.variables.length > 0) {
-        body.variables = params.variables
-      }
-
-      return body
-    },
   },
 
   transformResponse: async (response) => {
@@ -78,20 +68,35 @@ export const gitlabCreatePipelineTool: ToolConfig<
       }
     }
 
-    const pipeline = await response.json()
+    const data = await response.json()
 
     return {
       success: true,
       output: {
-        pipeline,
+        name: data.name ?? null,
+        webUrl: data.web_url ?? null,
+        protected: data.protected ?? null,
+        commit: data.commit ?? null,
       },
     }
   },
 
   outputs: {
-    pipeline: {
+    name: {
+      type: 'string',
+      description: 'The created branch name',
+    },
+    webUrl: {
+      type: 'string',
+      description: 'The web URL of the branch',
+    },
+    protected: {
+      type: 'boolean',
+      description: 'Whether the branch is protected',
+    },
+    commit: {
       type: 'object',
-      description: 'The created GitLab pipeline',
+      description: 'The commit the branch points to',
     },
   },
 }

@@ -1,17 +1,17 @@
 import type {
-  GitLabListMergeRequestsParams,
-  GitLabListMergeRequestsResponse,
+  GitLabListRepositoryTreeParams,
+  GitLabListRepositoryTreeResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabListMergeRequestsTool: ToolConfig<
-  GitLabListMergeRequestsParams,
-  GitLabListMergeRequestsResponse
+export const gitlabListRepositoryTreeTool: ToolConfig<
+  GitLabListRepositoryTreeParams,
+  GitLabListRepositoryTreeResponse
 > = {
-  id: 'gitlab_list_merge_requests',
-  name: 'GitLab List Merge Requests',
-  description: 'List merge requests in a GitLab project',
+  id: 'gitlab_list_repository_tree',
+  name: 'GitLab List Repository Tree',
+  description: 'List files and directories in a GitLab project repository',
   version: '1.0.0',
 
   params: {
@@ -33,41 +33,23 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    state: {
+    path: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by state (opened, closed, merged, all)',
+      description: 'Path inside the repository to list',
     },
-    labels: {
+    ref: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of label names',
+      description: 'Branch, tag, or commit SHA to list from',
     },
-    sourceBranch: {
-      type: 'string',
+    recursive: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by source branch',
-    },
-    targetBranch: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by target branch',
-    },
-    orderBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Order by field (created_at, updated_at)',
-    },
-    sort: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort direction (asc, desc)',
+      description: 'Whether to list files recursively',
     },
     perPage: {
       type: 'number',
@@ -88,17 +70,14 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       const encodedId = encodeURIComponent(String(params.projectId).trim())
       const queryParams = new URLSearchParams()
 
-      if (params.state) queryParams.append('state', params.state)
-      if (params.labels) queryParams.append('labels', params.labels)
-      if (params.sourceBranch) queryParams.append('source_branch', params.sourceBranch)
-      if (params.targetBranch) queryParams.append('target_branch', params.targetBranch)
-      if (params.orderBy) queryParams.append('order_by', params.orderBy)
-      if (params.sort) queryParams.append('sort', params.sort)
+      if (params.path) queryParams.append('path', params.path)
+      if (params.ref) queryParams.append('ref', params.ref)
+      if (params.recursive) queryParams.append('recursive', 'true')
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/tree${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -116,26 +95,26 @@ export const gitlabListMergeRequestsTool: ToolConfig<
       }
     }
 
-    const mergeRequests = await response.json()
+    const tree = await response.json()
     const total = response.headers.get('x-total')
 
     return {
       success: true,
       output: {
-        mergeRequests,
-        total: total ? Number.parseInt(total, 10) : mergeRequests.length,
+        tree: tree ?? [],
+        total: total ? Number.parseInt(total, 10) : (tree?.length ?? 0),
       },
     }
   },
 
   outputs: {
-    mergeRequests: {
+    tree: {
       type: 'array',
-      description: 'List of GitLab merge requests',
+      description: 'List of repository tree entries',
     },
     total: {
       type: 'number',
-      description: 'Total number of merge requests',
+      description: 'Total number of tree entries',
     },
   },
 }
