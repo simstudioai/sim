@@ -99,87 +99,95 @@ export function parseDelimitedList(value: string | undefined): string[] {
 }
 
 /**
- * Builds the `Metadata` object for a Tooling API CustomField create/update body.
- * Applies type-specific defaults so common field types work without the caller
- * supplying every property (e.g. Text defaults to length 255).
- * @param params - The custom field metadata params
- * @param fallbackLabel - Label to use when none is provided
- * @returns The Salesforce CustomField Metadata object
- * @throws Error if the field type is missing
- * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
+ * Shape of the custom field metadata inputs accepted from tool params.
+ * Numeric dimensions arrive as real numbers from the LLM (param `type: 'number'`)
+ * or as strings from block inputs, so both forms are accepted.
  */
-export function buildCustomFieldMetadata(
-  params: {
-    fieldType?: string
-    label?: string
-    length?: string
-    precision?: string
-    scale?: string
-    visibleLines?: string
-    required?: boolean | string
-    unique?: boolean | string
-    externalId?: boolean | string
-    defaultValue?: string
-    description?: string
-    inlineHelpText?: string
-    picklistValues?: string
-  },
-  fallbackLabel: string
-): Record<string, any> {
-  const fieldType = params.fieldType?.trim()
-  if (!fieldType) {
-    throw new Error('Field Type is required (e.g., Text, Number, Checkbox, Date, Picklist).')
-  }
+export interface CustomFieldMetadataInput {
+  fieldType?: string
+  label?: string
+  length?: number | string
+  precision?: number | string
+  scale?: number | string
+  visibleLines?: number | string
+  required?: boolean | string
+  unique?: boolean | string
+  externalId?: boolean | string
+  defaultValue?: string
+  description?: string
+  inlineHelpText?: string
+  picklistValues?: string
+}
 
-  const toNumber = (value?: string): number | undefined => {
-    if (value === undefined || value === null || String(value).trim() === '') return undefined
-    const parsed = Number(value)
-    return Number.isNaN(parsed) ? undefined : parsed
-  }
+/**
+ * Coerces a numeric-ish metadata value (number or string) into a number.
+ * @returns The parsed number, or undefined when unset or unparseable
+ */
+function toFieldNumber(value?: number | string): number | undefined {
+  if (value === undefined || value === null || String(value).trim() === '') return undefined
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
 
-  const metadata: Record<string, any> = {
-    type: fieldType,
-    label: params.label?.trim() || fallbackLabel,
-  }
+/**
+ * Overlays only the explicitly-provided custom field properties onto `target`,
+ * leaving any property the caller did not supply untouched. Shared by create
+ * (onto a fresh object) and update (onto the field's existing metadata), so an
+ * update never fabricates values for omitted properties.
+ * @param target - The metadata object to mutate in place
+ * @param params - The provided custom field metadata inputs
+ */
+function applyProvidedFieldMetadata(
+  target: Record<string, any>,
+  params: CustomFieldMetadataInput
+): void {
+  if (params.fieldType?.trim()) target.type = params.fieldType.trim()
+  if (params.label?.trim()) target.label = params.label.trim()
 
-  const length = toNumber(params.length)
-  if (length !== undefined) metadata.length = length
-  const precision = toNumber(params.precision)
-  if (precision !== undefined) metadata.precision = precision
-  const scale = toNumber(params.scale)
-  if (scale !== undefined) metadata.scale = scale
-  const visibleLines = toNumber(params.visibleLines)
-  if (visibleLines !== undefined) metadata.visibleLines = visibleLines
+  const length = toFieldNumber(params.length)
+  if (length !== undefined) target.length = length
+  const precision = toFieldNumber(params.precision)
+  if (precision !== undefined) target.precision = precision
+  const scale = toFieldNumber(params.scale)
+  if (scale !== undefined) target.scale = scale
+  const visibleLines = toFieldNumber(params.visibleLines)
+  if (visibleLines !== undefined) target.visibleLines = visibleLines
 
   const required = normalizeBoolean(params.required)
-  if (required !== undefined) metadata.required = required
+  if (required !== undefined) target.required = required
   const unique = normalizeBoolean(params.unique)
-  if (unique !== undefined) metadata.unique = unique
+  if (unique !== undefined) target.unique = unique
   const externalId = normalizeBoolean(params.externalId)
-  if (externalId !== undefined) metadata.externalId = externalId
+  if (externalId !== undefined) target.externalId = externalId
 
-  if (params.description?.trim()) metadata.description = params.description.trim()
-  if (params.inlineHelpText?.trim()) metadata.inlineHelpText = params.inlineHelpText.trim()
+  if (params.description?.trim()) target.description = params.description.trim()
+  if (params.inlineHelpText?.trim()) target.inlineHelpText = params.inlineHelpText.trim()
 
   if (params.defaultValue !== undefined && String(params.defaultValue).trim() !== '') {
-    metadata.defaultValue =
-      fieldType === 'Checkbox'
+    target.defaultValue =
+      target.type === 'Checkbox'
         ? (normalizeBoolean(params.defaultValue) ?? false)
         : params.defaultValue
-  } else if (fieldType === 'Checkbox') {
-    metadata.defaultValue = false
   }
 
   const picklistValues = parseDelimitedList(params.picklistValues)
   if (picklistValues.length > 0) {
-    metadata.valueSet = {
+    target.valueSet = {
       valueSetDefinition: {
         sorted: false,
         value: picklistValues.map((value) => ({ fullName: value, default: false, label: value })),
       },
     }
   }
+}
 
+/**
+ * Applies type-specific defaults required by Salesforce when the caller did not
+ * supply them, so common field types work out of the box on create.
+ * @param metadata - The metadata object to mutate in place (must have a `type`)
+ */
+function applyFieldTypeDefaults(metadata: Record<string, any>): void {
+  const fieldType = metadata.type
   if (fieldType === 'Text' && metadata.length === undefined) {
     metadata.length = 255
   }
@@ -197,7 +205,57 @@ export function buildCustomFieldMetadata(
     if (metadata.precision === undefined) metadata.precision = 18
     if (metadata.scale === undefined) metadata.scale = 0
   }
+  // Checkbox fields require a default value; Salesforce rejects them without one.
+  if (fieldType === 'Checkbox' && metadata.defaultValue === undefined) {
+    metadata.defaultValue = false
+  }
+}
 
+/**
+ * Builds the `Metadata` object for a Tooling API CustomField create body.
+ * Applies type-specific defaults so common field types work without the caller
+ * supplying every property (e.g. Text defaults to length 255).
+ * @param params - The custom field metadata params
+ * @param fallbackLabel - Label to use when none is provided
+ * @returns The Salesforce CustomField Metadata object
+ * @throws Error if the field type is missing
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
+ */
+export function buildCustomFieldMetadata(
+  params: CustomFieldMetadataInput,
+  fallbackLabel: string
+): Record<string, any> {
+  const fieldType = params.fieldType?.trim()
+  if (!fieldType) {
+    throw new Error('Field Type is required (e.g., Text, Number, Checkbox, Date, Picklist).')
+  }
+
+  const metadata: Record<string, any> = {
+    type: fieldType,
+    label: params.label?.trim() || fallbackLabel,
+  }
+  applyProvidedFieldMetadata(metadata, params)
+  applyFieldTypeDefaults(metadata)
+  return metadata
+}
+
+/**
+ * Merges caller-provided custom field changes onto a field's existing metadata
+ * for a Tooling API update. The Tooling API PATCH replaces the whole `Metadata`
+ * compound, so we start from the field's current metadata (read first) and
+ * overlay only what changed — never fabricating defaults or labels that would
+ * silently clobber unspecified properties.
+ * @param existing - The field's current `Metadata` object (from a GET)
+ * @param params - The provided custom field changes
+ * @returns The merged Salesforce CustomField Metadata object
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
+ */
+export function mergeCustomFieldMetadata(
+  existing: Record<string, any> | undefined,
+  params: CustomFieldMetadataInput
+): Record<string, any> {
+  const metadata: Record<string, any> = { ...(existing ?? {}) }
+  applyProvidedFieldMetadata(metadata, params)
   return metadata
 }
 

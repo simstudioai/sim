@@ -1077,7 +1077,7 @@ Update an existing custom field on a Salesforce object using the Tooling API
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
 | `fieldId` | string | Yes | Tooling API Id of the custom field to update \(find it via the Tooling Query tool\) |
-| `fieldType` | string | Yes | Field data type \(must match the existing field\): Text, Number, Checkbox, Date, Picklist, etc. |
+| `fieldType` | string | No | Only provide to change the field's data type \(e.g., Text, Number, Picklist\); omit to keep the existing type |
 | `label` | string | No | Display label shown in the UI |
 | `length` | number | No | Maximum length for Text, LongTextArea, Html, or MultiselectPicklist fields |
 | `precision` | number | No | Total number of digits for Number, Currency, or Percent fields |

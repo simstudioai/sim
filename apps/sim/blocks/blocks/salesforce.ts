@@ -706,7 +706,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         { label: 'Picklist (Multi-Select)', id: 'MultiselectPicklist' },
       ],
       condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
-      required: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+      required: { field: 'operation', value: ['create_custom_field'] },
     },
     {
       id: 'label',

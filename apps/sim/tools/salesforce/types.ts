@@ -1960,12 +1960,12 @@ export interface SalesforceListObjectsResponse {
  * - Picklist / MultiselectPicklist: `picklistValues`
  */
 interface SalesforceCustomFieldMetadataParams {
-  fieldType: string
+  fieldType?: string
   label?: string
-  length?: string
-  precision?: string
-  scale?: string
-  visibleLines?: string
+  length?: number | string
+  precision?: number | string
+  scale?: number | string
+  visibleLines?: number | string
   required?: boolean | string
   unique?: boolean | string
   externalId?: boolean | string
