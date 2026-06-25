@@ -40,7 +40,7 @@ export const gitlabCancelPipelineTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/cancel`
     },
     method: 'POST',

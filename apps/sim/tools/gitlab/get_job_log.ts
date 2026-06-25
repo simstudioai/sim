@@ -1,14 +1,11 @@
-import type { GitLabRetryPipelineParams, GitLabRetryPipelineResponse } from '@/tools/gitlab/types'
+import type { GitLabGetJobLogParams, GitLabGetJobLogResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabRetryPipelineTool: ToolConfig<
-  GitLabRetryPipelineParams,
-  GitLabRetryPipelineResponse
-> = {
-  id: 'gitlab_retry_pipeline',
-  name: 'GitLab Retry Pipeline',
-  description: 'Retry a failed GitLab pipeline',
+export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJobLogResponse> = {
+  id: 'gitlab_get_job_log',
+  name: 'GitLab Get Job Log',
+  description: 'Get the log (trace) of a GitLab job',
   version: '1.0.0',
 
   params: {
@@ -30,20 +27,20 @@ export const gitlabRetryPipelineTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    pipelineId: {
+    jobId: {
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Pipeline ID',
+      description: 'Job ID',
     },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/retry`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${params.jobId}/trace`
     },
-    method: 'POST',
+    method: 'GET',
     headers: (params) => ({
       'PRIVATE-TOKEN': params.accessToken,
     }),
@@ -59,20 +56,20 @@ export const gitlabRetryPipelineTool: ToolConfig<
       }
     }
 
-    const pipeline = await response.json()
+    const log = await response.text()
 
     return {
       success: true,
       output: {
-        pipeline,
+        log,
       },
     }
   },
 
   outputs: {
-    pipeline: {
-      type: 'object',
-      description: 'The retried GitLab pipeline',
+    log: {
+      type: 'string',
+      description: 'The job log (trace) output',
     },
   },
 }

@@ -85,7 +85,7 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
       const queryParams = new URLSearchParams()
 
       if (params.state) queryParams.append('state', params.state)

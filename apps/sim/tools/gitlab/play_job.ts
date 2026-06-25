@@ -1,14 +1,11 @@
-import type { GitLabRetryPipelineParams, GitLabRetryPipelineResponse } from '@/tools/gitlab/types'
+import type { GitLabPlayJobParams, GitLabPlayJobResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabRetryPipelineTool: ToolConfig<
-  GitLabRetryPipelineParams,
-  GitLabRetryPipelineResponse
-> = {
-  id: 'gitlab_retry_pipeline',
-  name: 'GitLab Retry Pipeline',
-  description: 'Retry a failed GitLab pipeline',
+export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobResponse> = {
+  id: 'gitlab_play_job',
+  name: 'GitLab Play Job',
+  description: 'Trigger (play) a manual GitLab job',
   version: '1.0.0',
 
   params: {
@@ -30,18 +27,18 @@ export const gitlabRetryPipelineTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    pipelineId: {
+    jobId: {
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Pipeline ID',
+      description: 'Job ID',
     },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/retry`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${params.jobId}/play`
     },
     method: 'POST',
     headers: (params) => ({
@@ -59,20 +56,35 @@ export const gitlabRetryPipelineTool: ToolConfig<
       }
     }
 
-    const pipeline = await response.json()
+    const data = await response.json()
 
     return {
       success: true,
       output: {
-        pipeline,
+        id: data.id ?? null,
+        name: data.name ?? null,
+        status: data.status ?? null,
+        webUrl: data.web_url ?? null,
       },
     }
   },
 
   outputs: {
-    pipeline: {
-      type: 'object',
-      description: 'The retried GitLab pipeline',
+    id: {
+      type: 'number',
+      description: 'The job ID',
+    },
+    name: {
+      type: 'string',
+      description: 'The job name',
+    },
+    status: {
+      type: 'string',
+      description: 'The job status',
+    },
+    webUrl: {
+      type: 'string',
+      description: 'The web URL of the job',
     },
   },
 }
