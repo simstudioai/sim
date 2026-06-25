@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
-  ChipTag,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +15,7 @@ import {
   Plus,
   Send,
   Skeleton,
+  Tooltip,
 } from '@/components/emcn'
 import { ManageWorkspace, PanelLeft, Rocket, Shuffle } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -392,6 +392,10 @@ function WorkspaceHeaderImpl({
                     const initial = (stripped[0] || workspace.name[0] || 'W').toUpperCase()
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
+                    const forkedFromName = workspace.forkedFromWorkspaceId
+                      ? (workspaces.find((w) => w.id === workspace.forkedFromWorkspaceId)?.name ??
+                        'another workspace')
+                      : null
 
                     return (
                       <div key={workspace.id}>
@@ -510,6 +514,16 @@ function WorkspaceHeaderImpl({
                             <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                               {workspace.name}
                             </span>
+                            {forkedFromName ? (
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <span className='flex size-[18px] flex-shrink-0 items-center justify-center'>
+                                    <Shuffle className='size-[12px] text-[var(--text-tertiary)]' />
+                                  </span>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content>Fork of {forkedFromName}</Tooltip.Content>
+                              </Tooltip.Root>
+                            ) : null}
                             <button
                               type='button'
                               aria-label='Workspace options'
@@ -560,11 +574,6 @@ function WorkspaceHeaderImpl({
                   </Chip>
                   {forkingAvailable ? (
                     <>
-                      {forkLineage?.parent ? (
-                        <div className='px-2 pb-1'>
-                          <ChipTag variant='gray'>Fork of {forkLineage.parent.name}</ChipTag>
-                        </div>
-                      ) : null}
                       <Chip
                         leftIcon={Shuffle}
                         onClick={() => {
