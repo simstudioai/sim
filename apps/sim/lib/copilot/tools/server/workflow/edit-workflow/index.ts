@@ -44,6 +44,7 @@ import {
 } from './lint'
 import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } from './types'
 import {
+  collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
   preValidateCredentialInputs,
   UNRESOLVABLE_AT_LINT_NOTE,
@@ -187,6 +188,31 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         )
       } catch (error) {
         logger.warn('Selector ID validation failed', {
+          error: toError(error).message,
+        })
+      }
+
+      // Resolve agent-block tool/skill references (custom tools, MCP servers,
+      // skills). A well-shaped entry whose id does not resolve is dropped at
+      // runtime, so the agent silently loses the tool/skill - surface it through
+      // the same lint + input-validation channels as credential/resource refs.
+      try {
+        const toolReferences = await collectUnresolvedAgentToolReferences(modifiedWorkflowState, {
+          userId: context.userId,
+          workspaceId,
+        })
+        unresolvedReferences.push(...toolReferences)
+        validationErrors.push(
+          ...toolReferences.map((ref) => ({
+            blockId: ref.blockId,
+            blockType: ref.blockType ?? 'agent',
+            field: ref.field,
+            value: ref.value,
+            error: ref.reason,
+          }))
+        )
+      } catch (error) {
+        logger.warn('Agent tool/skill reference validation failed', {
           error: toError(error).message,
         })
       }
