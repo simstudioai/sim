@@ -20,7 +20,13 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   type FileInputOptions,
+  MoreHorizontal,
   Search,
   TagInput,
   type TagItem,
@@ -516,13 +522,26 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <Chip
-                            variant='destructive'
-                            onClick={() => handleRemoveMember(member.id)}
-                            disabled={removeMember.isPending}
-                          >
-                            Remove
-                          </Chip>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type='button'
+                                aria-label='Member actions'
+                                className={chipVariants({ flush: true })}
+                              >
+                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                className='text-[var(--text-error)]'
+                                onSelect={() => handleRemoveMember(member.id)}
+                                disabled={removeMember.isPending}
+                              >
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     )
@@ -561,25 +580,41 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <Chip
-                            onClick={() => handleResendInvitation(invitation.id, email)}
-                            disabled={
-                              resendingInvitations.has(invitation.id) ||
-                              (resendCooldowns[invitation.id] ?? 0) > 0
-                            }
-                          >
-                            {resendingInvitations.has(invitation.id)
-                              ? 'Sending...'
-                              : resendCooldowns[invitation.id]
-                                ? `Resend (${resendCooldowns[invitation.id]}s)`
-                                : 'Resend'}
-                          </Chip>
-                          <Chip
-                            onClick={() => handleCancelInvitation(invitation.id)}
-                            disabled={cancellingInvitations.has(invitation.id)}
-                          >
-                            {cancellingInvitations.has(invitation.id) ? 'Cancelling...' : 'Cancel'}
-                          </Chip>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type='button'
+                                aria-label='Invitation actions'
+                                className={chipVariants({ flush: true })}
+                              >
+                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                onSelect={() => handleResendInvitation(invitation.id, email)}
+                                disabled={
+                                  resendingInvitations.has(invitation.id) ||
+                                  (resendCooldowns[invitation.id] ?? 0) > 0
+                                }
+                              >
+                                {resendingInvitations.has(invitation.id)
+                                  ? 'Sending...'
+                                  : resendCooldowns[invitation.id]
+                                    ? `Resend (${resendCooldowns[invitation.id]}s)`
+                                    : 'Resend'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className='text-[var(--text-error)]'
+                                onSelect={() => handleCancelInvitation(invitation.id)}
+                                disabled={cancellingInvitations.has(invitation.id)}
+                              >
+                                {cancellingInvitations.has(invitation.id)
+                                  ? 'Cancelling...'
+                                  : 'Cancel'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     )
@@ -729,14 +764,30 @@ export function CredentialSets() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className='flex items-center gap-2'>
-                                  <Chip onClick={() => setViewingSet(set)}>Details</Chip>
-                                  <Chip
-                                    onClick={() => handleDeleteClick(set)}
-                                    disabled={deletingSetIds.has(set.id)}
-                                  >
-                                    {deletingSetIds.has(set.id) ? 'Deleting...' : 'Delete'}
-                                  </Chip>
+                                <div className='flex items-center gap-1'>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        type='button'
+                                        aria-label='Group actions'
+                                        className={chipVariants({ flush: true })}
+                                      >
+                                        <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align='end'>
+                                      <DropdownMenuItem onSelect={() => setViewingSet(set)}>
+                                        Details
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className='text-[var(--text-error)]'
+                                        onSelect={() => handleDeleteClick(set)}
+                                        disabled={deletingSetIds.has(set.id)}
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </div>
                             ))}

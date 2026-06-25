@@ -21,6 +21,7 @@ export const permissionGroupConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable().optional(),
   allowedModelProviders: z.array(z.string()).nullable().optional(),
   deniedModels: z.array(z.string()).optional(),
+  deniedTools: z.array(z.string()).optional(),
   hideTraceSpans: z.boolean().optional(),
   hideKnowledgeBaseTab: z.boolean().optional(),
   hideTablesTab: z.boolean().optional(),
@@ -52,6 +53,13 @@ export interface PermissionGroupConfig {
    * group, checked after `allowedModelProviders`. Empty means nothing is blocked.
    */
   deniedModels: string[]
+  /**
+   * Snake_case tool IDs (e.g. `slack_canvas`) blocked for this group, checked
+   * after the block-level `allowedIntegrations` gate. Lets an admin allow an
+   * integration but deny specific operations within it. Empty means nothing is
+   * blocked.
+   */
+  deniedTools: string[]
   hideTraceSpans: boolean
   hideKnowledgeBaseTab: boolean
   hideTablesTab: boolean
@@ -80,6 +88,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   allowedIntegrations: null,
   allowedModelProviders: null,
   deniedModels: [],
+  deniedTools: [],
   hideTraceSpans: false,
   hideKnowledgeBaseTab: false,
   hideTablesTab: false,
@@ -115,6 +124,9 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     allowedModelProviders: Array.isArray(c.allowedModelProviders) ? c.allowedModelProviders : null,
     deniedModels: Array.isArray(c.deniedModels)
       ? c.deniedModels.filter((m): m is string => typeof m === 'string')
+      : [],
+    deniedTools: Array.isArray(c.deniedTools)
+      ? c.deniedTools.filter((t): t is string => typeof t === 'string')
       : [],
     hideTraceSpans: typeof c.hideTraceSpans === 'boolean' ? c.hideTraceSpans : false,
     hideKnowledgeBaseTab:

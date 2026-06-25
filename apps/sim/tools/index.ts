@@ -936,10 +936,15 @@ export async function executeTool(
             ? 'mcp'
             : undefined
 
-    if (toolKind && scope.userId && scope.workspaceId) {
+    // Single chokepoint for every tool execution. Asserts both the tool-kind
+    // gates (mcp/custom/skill) and the per-tool denylist (`deniedTools`), so an
+    // admin can allow an integration block yet deny specific operations within
+    // it. Runs for all tools, not just kinded ones.
+    if (scope.userId && scope.workspaceId) {
       await assertPermissionsAllowed({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
+        toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
       })

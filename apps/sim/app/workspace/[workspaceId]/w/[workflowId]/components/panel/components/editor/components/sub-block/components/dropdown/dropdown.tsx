@@ -14,6 +14,7 @@ import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -98,6 +99,7 @@ export const Dropdown = memo(function Dropdown({
   searchable = false,
 }: DropdownProps) {
   const activeSearchTarget = useActiveSearchTarget()
+  const { isToolAllowed } = usePermissionConfig()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -214,19 +216,43 @@ export const Dropdown = memo(function Dropdown({
     return opts
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
+  /**
+   * Operation IDs whose resolved tool is denied by the caller's permission
+   * group. Only the `operation` selector of a block with a tool selector is
+   * gated. Denied operations are hidden from the picker (still resolvable for
+   * label display); the server is the authoritative gate regardless.
+   */
+  const deniedOperationIds = useMemo(() => {
+    const denied = new Set<string>()
+    if (subBlockId !== 'operation') return denied
+    const selectTool = blockConfig?.tools?.config?.tool
+    if (!selectTool) return denied
+    for (const opt of allOptions) {
+      const optionId = typeof opt === 'string' ? opt : opt.id
+      try {
+        const toolId = selectTool({ operation: optionId })
+        if (toolId && !isToolAllowed(toolId)) denied.add(optionId)
+      } catch {
+        // Selector couldn't resolve a tool from the operation alone — leave the
+        // option visible; runtime enforcement still applies.
+      }
+    }
+    return denied
+  }, [subBlockId, blockConfig, allOptions, isToolAllowed])
+
   const comboboxOptions = useMemo((): ComboboxOption[] => {
     return allOptions.map((opt) => {
       if (typeof opt === 'string') {
-        return { label: opt.toLowerCase(), value: opt }
+        return { label: opt.toLowerCase(), value: opt, hidden: deniedOperationIds.has(opt) }
       }
       return {
         label: opt.label.toLowerCase(),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
-        hidden: opt.hidden,
+        hidden: opt.hidden || deniedOperationIds.has(opt.id),
       }
     })
-  }, [allOptions])
+  }, [allOptions, deniedOperationIds])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
@@ -238,8 +264,9 @@ export const Dropdown = memo(function Dropdown({
       return defaultValue
     }
 
-    if (comboboxOptions.length > 0) {
-      return comboboxOptions[0].value
+    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
+    if (firstSelectable) {
+      return firstSelectable.value
     }
 
     return undefined

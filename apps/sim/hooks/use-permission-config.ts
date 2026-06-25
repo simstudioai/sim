@@ -23,6 +23,7 @@ export interface PermissionConfigResult {
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
   isModelAllowed: (model: string) => boolean
+  isToolAllowed: (toolId: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
 }
@@ -113,6 +114,13 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.deniedModels])
 
+  const isToolAllowed = useMemo(() => {
+    return (toolId: string) => {
+      if (config.deniedTools.length === 0) return true
+      return !config.deniedTools.includes(toolId)
+    }
+  }, [config.deniedTools])
+
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
       if (mergedAllowedIntegrations === null) return blocks
@@ -156,6 +164,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     }),
@@ -168,6 +177,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
     ]
