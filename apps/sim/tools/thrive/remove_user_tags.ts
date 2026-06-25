@@ -54,7 +54,7 @@ export const removeUserTagsTool: ToolConfig<ThriveRemoveUserTagsParams, ThriveMe
     body: (params) => ({
       op: 'remove',
       path: 'tags',
-      value: parseThriveArray<string>(params.tags),
+      value: parseThriveArray<string>(params.tags, 'tags'),
     }),
   },
 

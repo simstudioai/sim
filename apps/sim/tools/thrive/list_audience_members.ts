@@ -60,12 +60,6 @@ export const listAudienceMembersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results per page (1-1000, default 100)',
     },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of results to page through (1-100, default 100)',
-    },
   },
 
   request: {
@@ -75,7 +69,6 @@ export const listAudienceMembersTool: ToolConfig<
       )
       appendThriveQuery(url, 'page', params.page)
       appendThriveQuery(url, 'perPage', params.perPage)
-      appendThriveQuery(url, 'limit', params.limit)
       return url.toString()
     },
     method: 'GET',

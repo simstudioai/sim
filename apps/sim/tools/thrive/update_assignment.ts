@@ -87,7 +87,10 @@ export const updateAssignmentTool: ToolConfig<
       if (params.completionPeriod !== undefined) body.completionPeriod = params.completionPeriod
       if (params.recurrence !== undefined) body.recurrence = params.recurrence
       if (params.alternativeContentIds) {
-        body.alternativeContentIds = parseThriveArray<string>(params.alternativeContentIds)
+        body.alternativeContentIds = parseThriveArray<string>(
+          params.alternativeContentIds,
+          'alternativeContentIds'
+        )
       }
       return body
     },

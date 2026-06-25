@@ -532,7 +532,6 @@ export interface ThriveListAudiencesParams extends ThriveBaseParams {
   updatedSince?: string
   page?: number
   perPage?: number
-  limit?: number
 }
 
 export interface ThriveCreateAudienceParams extends ThriveBaseParams {
@@ -561,7 +560,6 @@ export interface ThriveListAudienceMembersParams extends ThriveBaseParams {
   audienceId: string
   page?: number
   perPage?: number
-  limit?: number
 }
 
 export interface ThriveAudienceUsersParams extends ThriveBaseParams {
@@ -619,7 +617,6 @@ export interface ThriveListAssignmentsParams extends ThriveBaseParams {
   updatedSince?: string
   page?: number
   perPage?: number
-  limit?: number
 }
 
 export interface ThriveCreateAssignmentParams extends ThriveBaseParams {
@@ -656,7 +653,6 @@ export interface ThriveListEnrolmentsParams extends ThriveBaseParams {
   status?: string
   page?: number
   perPage?: number
-  limit?: number
 }
 
 export interface ThriveGetEnrolmentParams extends ThriveBaseParams {
@@ -690,7 +686,6 @@ export interface ThriveListCompletionsParams extends ThriveBaseParams {
   completedDateRangeEnd?: string
   page?: number
   perPage?: number
-  limit?: number
 }
 
 export interface ThriveGetCompletionParams extends ThriveBaseParams {

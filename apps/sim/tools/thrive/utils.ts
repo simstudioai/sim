@@ -44,21 +44,36 @@ export function appendThriveQuery(
 
 /**
  * Parses a value that may be a JSON array string (from LLM/user input) or an
- * already-parsed array into a typed array. Returns an empty array on failure.
+ * already-parsed array into a typed array. An empty/whitespace string yields an
+ * empty array; malformed JSON throws so the caller sees a clear error rather
+ * than silently sending an empty collection.
  */
-export function parseThriveArray<T = unknown>(value: unknown): T[] {
+export function parseThriveArray<T = unknown>(value: unknown, fieldName = 'array'): T[] {
   if (Array.isArray(value)) return value as T[]
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (trimmed === '') return []
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(trimmed)
-      return Array.isArray(parsed) ? (parsed as T[]) : [parsed as T]
+      parsed = JSON.parse(trimmed)
     } catch {
-      return []
+      throw new Error(`Invalid JSON provided for ${fieldName}: expected a JSON array`)
     }
+    return Array.isArray(parsed) ? (parsed as T[]) : [parsed as T]
   }
   return []
+}
+
+/**
+ * Parses a JSON object string (from LLM/user input), throwing a descriptive
+ * error on malformed JSON so it is never silently dropped.
+ */
+export function parseThriveJsonObject(value: string, fieldName: string): Record<string, unknown> {
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error(`Invalid JSON provided for ${fieldName}: expected a JSON object`)
+  }
 }
 
 /**

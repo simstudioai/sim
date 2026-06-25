@@ -73,12 +73,6 @@ export const listEnrolmentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results per page (1-100, default 100)',
     },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of items to retrieve per page (1-100, default 100)',
-    },
   },
 
   request: {
@@ -91,7 +85,6 @@ export const listEnrolmentsTool: ToolConfig<
       appendThriveQuery(url, 'status', params.status)
       appendThriveQuery(url, 'page', params.page)
       appendThriveQuery(url, 'perPage', params.perPage)
-      appendThriveQuery(url, 'limit', params.limit)
       return url.toString()
     },
     method: 'GET',

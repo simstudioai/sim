@@ -17,14 +17,6 @@ const PAGINATED_OPS = [
   'list_tags',
 ]
 
-const LIMIT_OPS = [
-  'list_audiences',
-  'list_audience_members',
-  'list_assignments',
-  'list_enrolments',
-  'list_completions',
-]
-
 const UPDATED_SINCE_OPS = [
   'search_users',
   'list_audiences',
@@ -768,14 +760,6 @@ export const ThriveBlock: BlockConfig = {
       condition: { field: 'operation', value: PAGINATED_OPS },
       mode: 'advanced',
     },
-    {
-      id: 'limit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Items per page (alternative to Per Page)',
-      condition: { field: 'operation', value: LIMIT_OPS },
-      mode: 'advanced',
-    },
   ],
 
   tools: {
@@ -832,7 +816,7 @@ export const ThriveBlock: BlockConfig = {
       tool: (params) => `thrive_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        const numberFields = ['page', 'perPage', 'limit', 'completionPeriod', 'recurrence']
+        const numberFields = ['page', 'perPage', 'completionPeriod', 'recurrence']
         for (const field of numberFields) {
           const value = params[field]
           if (value !== undefined && value !== '') result[field] = Number(value)
@@ -928,7 +912,6 @@ export const ThriveBlock: BlockConfig = {
     updatedSince: { type: 'string', description: 'Return items updated on/after this date/time' },
     page: { type: 'number', description: 'Page number for pagination' },
     perPage: { type: 'number', description: 'Number of results per page' },
-    limit: { type: 'number', description: 'Items per page (alternative to perPage)' },
   },
 
   outputs: {

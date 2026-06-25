@@ -84,7 +84,10 @@ export const createAssignmentTool: ToolConfig<
         contentId: params.contentId,
       }
       if (params.alternativeContentIds) {
-        body.alternativeContentIds = parseThriveArray<string>(params.alternativeContentIds)
+        body.alternativeContentIds = parseThriveArray<string>(
+          params.alternativeContentIds,
+          'alternativeContentIds'
+        )
       }
       if (params.hideAlternativeContent !== undefined) {
         body.hideAlternativeContent = params.hideAlternativeContent

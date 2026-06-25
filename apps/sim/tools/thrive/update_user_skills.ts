@@ -53,7 +53,11 @@ export const updateUserSkillsTool: ToolConfig<ThriveUpdateUserSkillsParams, Thri
         `${getThriveBaseUrl(params.host, 'v1')}/users/${encodeURIComponent(params.userId)}/skills`,
       method: 'PATCH',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
-      body: (params) => ({ op: 'update', path: 'skills', value: parseThriveArray(params.skills) }),
+      body: (params) => ({
+        op: 'update',
+        path: 'skills',
+        value: parseThriveArray(params.skills, 'skills'),
+      }),
     },
 
     transformResponse: async (response: Response): Promise<ThriveMessageResponse> => {

@@ -51,7 +51,7 @@ export const addUserTagsTool: ToolConfig<ThriveAddUserTagsParams, ThriveMessageR
       `${getThriveBaseUrl(params.host, 'v1')}/users/${encodeURIComponent(params.userId)}/tags`,
     method: 'POST',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
-    body: (params) => ({ tags: parseThriveArray<string>(params.tags) }),
+    body: (params) => ({ tags: parseThriveArray<string>(params.tags, 'tags') }),
   },
 
   transformResponse: async (response: Response): Promise<ThriveMessageResponse> => {

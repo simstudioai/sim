@@ -1,6 +1,11 @@
 import type { ThriveUpdateUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
-import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
+import {
+  getThriveBaseUrl,
+  getThriveHeaders,
+  parseThriveJsonObject,
+  parseThriveResponse,
+} from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserResponse> = {
@@ -141,11 +146,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
       if (params.sso !== undefined) body.sso = params.sso
       if (params.domain !== undefined) body.domain = params.domain
       if (params.additionalFields) {
-        try {
-          body.additionalFields = JSON.parse(params.additionalFields)
-        } catch {
-          // Ignore malformed custom-field JSON.
-        }
+        body.additionalFields = parseThriveJsonObject(params.additionalFields, 'additionalFields')
       }
       return body
     },

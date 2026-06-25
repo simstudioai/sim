@@ -82,12 +82,6 @@ export const listCompletionsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results per page (1-1000, default 1000)',
     },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Number of items to retrieve per page (1-1000, default 1000)',
-    },
   },
 
   request: {
@@ -100,7 +94,6 @@ export const listCompletionsTool: ToolConfig<
       appendThriveQuery(url, 'completedDateRangeEnd', params.completedDateRangeEnd)
       appendThriveQuery(url, 'page', params.page)
       appendThriveQuery(url, 'perPage', params.perPage)
-      appendThriveQuery(url, 'limit', params.limit)
       return url.toString()
     },
     method: 'GET',

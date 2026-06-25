@@ -57,7 +57,7 @@ export const replaceAudienceManagersTool: ToolConfig<
       `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/managers`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
-    body: (params) => JSON.stringify(parseThriveArray(params.managers)),
+    body: (params) => JSON.stringify(parseThriveArray(params.managers, 'managers')),
   },
 
   transformResponse: async (response: Response): Promise<ThriveAddUsersResponse> => {

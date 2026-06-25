@@ -57,7 +57,7 @@ export const replaceAudienceMembersTool: ToolConfig<
       `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/members`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
-    body: (params) => JSON.stringify(parseThriveArray<string>(params.users)),
+    body: (params) => JSON.stringify(parseThriveArray<string>(params.users, 'users')),
   },
 
   transformResponse: async (response: Response): Promise<ThriveAddUsersResponse> => {
