@@ -72,7 +72,11 @@ export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>
         popup = document.createElement('div')
         popup.className = 'fixed top-0 left-0 z-[var(--z-popover)]'
         popup.appendChild(component.element)
-        document.body.appendChild(popup)
+        // Mount inside the host dialog when the editor is in a modal: Radix's scroll-lock blocks wheel
+        // events outside the dialog subtree, so a body-level popup can't be scrolled. `position: fixed`
+        // keeps it viewport-positioned (the modal centers via flex, no transform) so it isn't clipped.
+        const host = props.editor.view.dom.closest('[role="dialog"]') ?? document.body
+        host.appendChild(popup)
         boundEditor = props.editor
         boundEditor.on('destroy', teardown)
         const reference = { getBoundingClientRect: () => props.clientRect?.() ?? new DOMRect() }

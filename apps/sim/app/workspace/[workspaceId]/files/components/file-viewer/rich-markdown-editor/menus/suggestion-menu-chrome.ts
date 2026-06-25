@@ -6,7 +6,7 @@
 
 /** The floating panel: bordered card with the enter animation, width-capped like the chat mention menu. */
 export const SUGGESTION_SURFACE_CLASS =
-  'min-w-[220px] max-w-[min(300px,calc(100vw-32px))] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
+  'min-w-[220px] max-w-[320px] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
 
 /**
  * A scrollable list body, added alongside {@link SUGGESTION_SURFACE_CLASS}. Caps the height and scrolls

@@ -26,7 +26,7 @@ const RichMarkdownField = dynamic(
     ).then((m) => m.RichMarkdownField),
   {
     ssr: false,
-    loading: () => <div className={cn('min-h-[120px]', chipFieldSurfaceClass)} />,
+    loading: () => <div className={cn('min-h-[240px]', chipFieldSurfaceClass)} />,
   }
 )
 
