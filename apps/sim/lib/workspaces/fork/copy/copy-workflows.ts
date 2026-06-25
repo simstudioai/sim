@@ -241,9 +241,8 @@ export async function copyWorkflowStateIntoTarget(
     }
 
     // double-cast-allowed: SubBlockState is structurally a SubBlockRecord entry but lacks the open index signature SubBlockRecord declares
-    let subBlocks: SubBlockRecord = sanitizeSubBlocksForDuplicate(
-      (block.subBlocks ?? {}) as unknown as SubBlockRecord
-    )
+    const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
+    let subBlocks: SubBlockRecord = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
     if (transformSubBlocks) {
       subBlocks = transformSubBlocks(subBlocks)
     }
