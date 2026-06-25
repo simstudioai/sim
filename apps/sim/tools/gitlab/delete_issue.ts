@@ -38,7 +38,7 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
 
     request: {
       url: (params) => {
-        const encodedId = encodeURIComponent(String(params.projectId))
+        const encodedId = encodeURIComponent(String(params.projectId).trim())
         return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues/${params.issueIid}`
       },
       method: 'DELETE',

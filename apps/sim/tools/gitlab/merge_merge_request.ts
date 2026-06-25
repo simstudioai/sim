@@ -73,7 +73,7 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/merge`
     },
     method: 'PUT',

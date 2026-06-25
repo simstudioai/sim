@@ -1,17 +1,11 @@
-import type {
-  GitLabCreateMergeRequestNoteParams,
-  GitLabCreateNoteResponse,
-} from '@/tools/gitlab/types'
+import type { GitLabCreateFileParams, GitLabCreateFileResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabCreateMergeRequestNoteTool: ToolConfig<
-  GitLabCreateMergeRequestNoteParams,
-  GitLabCreateNoteResponse
-> = {
-  id: 'gitlab_create_merge_request_note',
-  name: 'GitLab Create Merge Request Comment',
-  description: 'Add a comment to a GitLab merge request',
+export const gitlabCreateFileTool: ToolConfig<GitLabCreateFileParams, GitLabCreateFileResponse> = {
+  id: 'gitlab_create_file',
+  name: 'GitLab Create File',
+  description: 'Create a new file in a GitLab project repository',
   version: '1.0.0',
 
   params: {
@@ -33,24 +27,37 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Project ID or URL-encoded path',
     },
-    mergeRequestIid: {
-      type: 'number',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Merge request internal ID (IID)',
-    },
-    body: {
+    filePath: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comment body (Markdown supported)',
+      description: 'Path to the file in the repository',
+    },
+    branch: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Branch to commit the new file to',
+    },
+    content: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'File content',
+    },
+    commitMessage: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Commit message',
     },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/notes`
+      const encodedPath = encodeURIComponent(String(params.filePath))
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/files/${encodedPath}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -58,7 +65,10 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => ({
-      body: params.body,
+      branch: params.branch,
+      content: params.content,
+      commit_message: params.commitMessage,
+      encoding: 'text',
     }),
   },
 
@@ -72,20 +82,25 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
       }
     }
 
-    const note = await response.json()
+    const data = await response.json()
 
     return {
       success: true,
       output: {
-        note,
+        filePath: data.file_path ?? null,
+        branch: data.branch ?? null,
       },
     }
   },
 
   outputs: {
-    note: {
-      type: 'object',
-      description: 'The created comment',
+    filePath: {
+      type: 'string',
+      description: 'The created file path',
+    },
+    branch: {
+      type: 'string',
+      description: 'The branch the file was committed to',
     },
   },
 }

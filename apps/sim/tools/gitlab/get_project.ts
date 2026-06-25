@@ -31,7 +31,7 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}`
     },
     method: 'GET',
