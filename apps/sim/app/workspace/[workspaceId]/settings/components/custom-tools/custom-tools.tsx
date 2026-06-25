@@ -5,7 +5,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
+import {
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MoreHorizontal,
+  Search,
+} from '@/components/emcn'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -134,14 +145,30 @@ export function CustomTools() {
                         </p>
                       )}
                     </div>
-                    <div className='flex flex-shrink-0 items-center gap-2'>
-                      <Chip onClick={() => setEditingTool(tool.id)}>Edit</Chip>
-                      <Chip
-                        onClick={() => handleDeleteClick(tool.id)}
-                        disabled={deletingTools.has(tool.id)}
-                      >
-                        {deletingTools.has(tool.id) ? 'Deleting...' : 'Delete'}
-                      </Chip>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type='button'
+                            aria-label='Tool actions'
+                            className={chipVariants({ flush: true })}
+                          >
+                            <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem onSelect={() => setEditingTool(tool.id)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className='text-[var(--text-error)]'
+                            onSelect={() => handleDeleteClick(tool.id)}
+                            disabled={deletingTools.has(tool.id)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 ))}

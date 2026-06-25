@@ -17,6 +17,7 @@ const {
     allowedIntegrations: null,
     allowedModelProviders: null,
     deniedModels: [],
+    deniedTools: [],
     hideTraceSpans: false,
     hideKnowledgeBaseTab: false,
     hideTablesTab: false,
@@ -142,6 +143,7 @@ import {
   ProviderNotAllowedError,
   PublicFileSharingNotAllowedError,
   SkillsNotAllowedError,
+  ToolNotAllowedError,
   validateBlockType,
   validateMcpToolsAllowed,
   validateModelProvider,
@@ -595,6 +597,69 @@ describe('assertPermissionsAllowed', () => {
       workspaceId: 'workspace-1',
       blockType: 'notion',
     })
+  })
+
+  it('throws ToolNotAllowedError when the tool is on the denylist', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+  })
+
+  it('allows a tool that is not on the denylist', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolId: 'slack_message',
+    })
+  })
+
+  it('allows every tool when the denylist is empty', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: [] } }]
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolId: 'slack_canvas',
+    })
+  })
+
+  it('denies a tool even when its block is allowed by the integration allowlist', async () => {
+    mockWorkspaceGroups.value = [
+      { config: { allowedIntegrations: ['slack'], deniedTools: ['slack_canvas'] } },
+    ]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        blockType: 'slack',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+  })
+
+  it('still enforces the tool denylist for an exempt block type', async () => {
+    mockWorkspaceGroups.value = [{ config: { deniedTools: ['slack_canvas'] } }]
+    mockGetBlock.mockImplementation((type) =>
+      type === 'slack' ? { hideFromToolbar: true } : undefined
+    )
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        blockType: 'slack',
+        toolId: 'slack_canvas',
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
   })
 
   it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {

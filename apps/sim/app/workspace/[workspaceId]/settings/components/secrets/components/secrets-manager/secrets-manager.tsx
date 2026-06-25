@@ -5,7 +5,19 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, ChipInput, Search, Tooltip, Trash, toast } from '@/components/emcn'
+import {
+  Chip,
+  ChipInput,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MoreHorizontal,
+  Search,
+  Tooltip,
+  toast,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -31,8 +43,54 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
-const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
-const COL_SPAN_ALL = 'col-span-5'
+const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
+const COL_SPAN_ALL = 'col-span-4'
+
+/** Copies a secret's name and confirms with a toast. */
+function copyName(key: string) {
+  void navigator.clipboard.writeText(key)
+  toast.success('Copied name to clipboard')
+}
+
+interface SecretRowMenuProps {
+  /** Copies the secret's name. */
+  onCopyName: () => void
+  /** Opens credential details; omit when the row has no backing credential. */
+  onViewDetails?: () => void
+  /** Deletes the secret (or clears the draft row); omit when the caller can't delete. */
+  onDelete?: () => void
+}
+
+/**
+ * Trailing `...` actions menu for a secret row. Mirrors the Teammates /
+ * Organization member menu so the settings experience is consistent.
+ */
+function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type='button'
+          aria-label='Secret actions'
+          className={cn(chipVariants({ flush: true }), 'ml-2')}
+        >
+          <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {onViewDetails && (
+          <DropdownMenuItem onSelect={onViewDetails}>View details</DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={onCopyName}>Copy name</DropdownMenuItem>
+        {onDelete && (
+          <DropdownMenuItem className='text-[var(--text-error)]' onSelect={onDelete}>
+            Delete
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 const generateRowId = (() => {
   let counter = 0
@@ -201,23 +259,11 @@ function WorkspaceVariableRow({
         canEdit={canEdit}
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
       />
-      <Chip
-        onClick={() => onViewDetails(envKey)}
-        disabled={!hasCredential}
-        className={cn('ml-2', !hasCredential && 'opacity-40')}
-      >
-        Details
-      </Chip>
-      {canEdit ? (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Chip leftIcon={Trash} onClick={() => onDelete(envKey)} aria-label='Delete secret' />
-          </Tooltip.Trigger>
-          <Tooltip.Content>Delete secret</Tooltip.Content>
-        </Tooltip.Root>
-      ) : (
-        <div />
-      )}
+      <SecretRowMenu
+        onCopyName={() => copyName(envKey)}
+        onViewDetails={hasCredential ? () => onViewDetails(envKey) : undefined}
+        onDelete={canEdit ? () => onDelete(envKey) : undefined}
+      />
     </div>
   )
 }
@@ -262,22 +308,19 @@ function NewWorkspaceVariableRow({
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
         name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
-        className='col-span-2 ml-0'
+        className='ml-0'
       />
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Chip
-            leftIcon={Trash}
-            onClick={() => {
-              onUpdate(index, 'key', '')
-              onUpdate(index, 'value', '')
-            }}
-            disabled={!hasContent}
-            aria-label='Delete secret'
-          />
-        </Tooltip.Trigger>
-        {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
-      </Tooltip.Root>
+      {hasContent ? (
+        <SecretRowMenu
+          onCopyName={() => copyName(envVar.key)}
+          onDelete={() => {
+            onUpdate(index, 'key', '')
+            onUpdate(index, 'value', '')
+          }}
+        />
+      ) : (
+        <div />
+      )}
       {keyError && (
         <div
           className={cn(
@@ -862,19 +905,16 @@ export function SecretsManager() {
           readOnly={isConflicted}
           placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
           name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
-          className={cn('col-span-2', isConflicted && 'cursor-not-allowed opacity-50')}
+          className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Chip
-              leftIcon={Trash}
-              onClick={() => removeEnvVar(originalIndex)}
-              disabled={!hasContent}
-              aria-label='Delete secret'
-            />
-          </Tooltip.Trigger>
-          {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
-        </Tooltip.Root>
+        {hasContent ? (
+          <SecretRowMenu
+            onCopyName={() => copyName(envVar.key)}
+            onDelete={() => removeEnvVar(originalIndex)}
+          />
+        ) : (
+          <div />
+        )}
         {keyError && (
           <div
             className={cn(

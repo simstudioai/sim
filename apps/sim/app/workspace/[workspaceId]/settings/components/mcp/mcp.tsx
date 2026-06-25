@@ -12,6 +12,12 @@ import {
   Chip,
   ChipConfirmModal,
   ChipInput,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MoreHorizontal,
   Search,
   Tooltip,
 } from '@/components/emcn'
@@ -120,10 +126,27 @@ function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
-        <Chip onClick={onViewDetails}>Details</Chip>
-        <Chip onClick={onRemove} disabled={isDeleting}>
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </Chip>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type='button'
+              aria-label='Server actions'
+              className={chipVariants({ flush: true })}
+            >
+              <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem onSelect={onViewDetails}>Details</DropdownMenuItem>
+            <DropdownMenuItem
+              className='text-[var(--text-error)]'
+              onSelect={onRemove}
+              disabled={isDeleting}
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
