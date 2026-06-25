@@ -159,7 +159,8 @@ export async function copyForkResourceContainers(
       .where(
         and(
           inArray(mcpServers.id, selection.mcpServers),
-          eq(mcpServers.workspaceId, sourceWorkspaceId)
+          eq(mcpServers.workspaceId, sourceWorkspaceId),
+          isNull(mcpServers.deletedAt)
         )
       )
     // `generateMcpServerId` is deterministic on (workspace, url), so two selected
@@ -319,10 +320,16 @@ export async function copyForkResourceContent(params: {
     try {
       let afterDocId: string | null = null
       for (;;) {
+        // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
+        // how the rest of the KB system treats them as gone (chunks/tags/search filter
+        // both). A fork must not resurrect documents removed from the source base.
+        const liveDocs = and(
+          eq(document.knowledgeBaseId, kb.sourceId),
+          isNull(document.deletedAt),
+          isNull(document.archivedAt)
+        )
         const where: SQL<unknown> | undefined =
-          afterDocId === null
-            ? eq(document.knowledgeBaseId, kb.sourceId)
-            : and(eq(document.knowledgeBaseId, kb.sourceId), gt(document.id, afterDocId))
+          afterDocId === null ? liveDocs : and(liveDocs, gt(document.id, afterDocId))
         const docs = await db
           .select()
           .from(document)
@@ -332,9 +339,14 @@ export async function copyForkResourceContent(params: {
         if (docs.length === 0) break
         for (const doc of docs) {
           const childDocId = generateId()
-          await db
-            .insert(document)
-            .values({ ...doc, id: childDocId, knowledgeBaseId: kb.childId, connectorId: null })
+          await db.insert(document).values({
+            ...doc,
+            id: childDocId,
+            knowledgeBaseId: kb.childId,
+            connectorId: null,
+            deletedAt: null,
+            archivedAt: null,
+          })
           await copyDocumentEmbeddings(doc.id, childDocId, kb.childId)
         }
         afterDocId = docs[docs.length - 1].id
