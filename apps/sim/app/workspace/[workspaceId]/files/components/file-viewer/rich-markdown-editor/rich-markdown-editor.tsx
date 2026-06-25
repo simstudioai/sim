@@ -194,6 +194,11 @@ export function LoadedRichMarkdownEditor({
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
 
+  // The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
+  // captured when the command ran, so the upload inserts where `/Image` was typed.
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const pendingImagePosRef = useRef<number | null>(null)
+
   // Upload then insert each image at `at` (paste caret / drop point), sequentially; held in a ref so handlers reach the latest.
   const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
     Promise.resolve()
@@ -293,6 +298,19 @@ export function LoadedRichMarkdownEditor({
   })
   editorInstanceRef.current = editor
 
+  // Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
+  // shared across instances). Reads only refs, so the handler stays stable across the editor's life.
+  useEffect(() => {
+    if (!editor) return
+    editor.storage.slashCommand.insertImage = (at: number) => {
+      pendingImagePosRef.current = at
+      imageInputRef.current?.click()
+    }
+    return () => {
+      editor.storage.slashCommand.insertImage = null
+    }
+  }, [editor])
+
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 
   const pendingStreamBodyRef = useRef<string | null>(null)
@@ -386,6 +404,22 @@ export function LoadedRichMarkdownEditor({
     >
       {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
+      <input
+        ref={imageInputRef}
+        type='file'
+        accept='image/*'
+        multiple
+        hidden
+        onChange={(event) => {
+          const input = event.currentTarget
+          const images = Array.from(input.files ?? []).filter((f) => f.type.startsWith('image/'))
+          const at =
+            pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
+          pendingImagePosRef.current = null
+          input.value = ''
+          if (images.length > 0) void insertImagesRef.current(images, at)
+        }}
+      />
       <EditorContent
         editor={editor}
         className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'

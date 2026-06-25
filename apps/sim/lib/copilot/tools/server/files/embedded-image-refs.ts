@@ -1,7 +1,25 @@
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
+import { extractEmbeddedFileRefs } from '@/lib/uploads/utils/embedded-image-ref'
 
-/** The canonical embed form the file agent writes for workspace images: `/api/files/view/<fileId>`. */
+/** View-URL embed (`/api/files/view/<id>`) — the only form the file agent writes; see {@link findUnembeddableImageRefs}. */
 const VIEW_EMBED_RE = /\/api\/files\/view\/([A-Za-z0-9_-]+)/g
+
+/**
+ * De-duplicated workspace file **ids** embedded in `content` (view URL or in-app workspace path).
+ * Shares the {@link extractEmbeddedFileRefs} grammar with the frontend renderer so the referenced-by-doc
+ * gate authorizes exactly what the client links. Resolution and access are checked by the caller.
+ */
+export function extractEmbeddedImageIds(content: string): string[] {
+  return extractEmbeddedFileRefs(content).ids
+}
+
+/**
+ * De-duplicated workspace storage **keys** (`workspace/<wsId>/…`) embedded in `content` via the serve URL.
+ * Same shared grammar as {@link extractEmbeddedImageIds}.
+ */
+export function extractEmbeddedImageKeys(content: string): string[] {
+  return extractEmbeddedFileRefs(content).keys
+}
 
 /**
  * Returns the ids of `/api/files/view/<id>` image embeds in `content` that will not render or survive a

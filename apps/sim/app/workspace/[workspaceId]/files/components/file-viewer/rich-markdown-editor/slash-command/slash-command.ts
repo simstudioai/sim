@@ -3,8 +3,19 @@ import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { ReactRenderer } from '@tiptap/react'
 import Suggestion, { type SuggestionOptions, type SuggestionProps } from '@tiptap/suggestion'
-import { filterSlashCommands, type SlashCommandContext, type SlashCommandItem } from './commands'
+import {
+  filterSlashCommands,
+  type SlashCommandContext,
+  type SlashCommandItem,
+  type SlashCommandStorage,
+} from './commands'
 import { SlashCommandList, type SlashCommandListHandle } from './slash-command-list'
+
+declare module '@tiptap/core' {
+  interface Storage {
+    slashCommand: SlashCommandStorage
+  }
+}
 
 type SlashSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>
 
@@ -76,8 +87,12 @@ function renderSlashSuggestion(): ReturnType<NonNullable<SuggestionOptions['rend
  * Adds the `/` slash-command menu to the editor. Typing `/` at the start of a block — or after
  * whitespace — opens {@link SlashCommandList}; selecting an item runs its block transform.
  */
-export const SlashCommand = Extension.create({
+export const SlashCommand = Extension.create<Record<string, never>, SlashCommandStorage>({
   name: 'slashCommand',
+
+  addStorage() {
+    return { insertImage: null }
+  },
 
   addProseMirrorPlugins() {
     return [
