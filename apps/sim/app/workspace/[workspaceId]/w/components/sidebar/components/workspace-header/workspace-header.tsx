@@ -558,6 +558,47 @@ function WorkspaceHeaderImpl({
                   >
                     New workspace
                   </Chip>
+                  {forkingAvailable ? (
+                    <>
+                      {forkLineage?.parent ? (
+                        <div className='px-2 pb-1'>
+                          <ChipTag variant='gray'>Fork of {forkLineage.parent.name}</ChipTag>
+                        </div>
+                      ) : null}
+                      <Chip
+                        leftIcon={Shuffle}
+                        onClick={() => {
+                          setIsWorkspaceMenuOpen(false)
+                          if (!canCreateWorkspace) {
+                            if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                            return
+                          }
+                          setIsForkModalOpen(true)
+                        }}
+                        disabled={isCreatingWorkspace}
+                        title={createWorkspaceDisabledReason ?? undefined}
+                        fullWidth
+                        flush
+                        className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
+                      >
+                        Fork workspace
+                      </Chip>
+                      {forkLineage && (forkLineage.parent || forkLineage.children.length > 0) ? (
+                        <Chip
+                          leftIcon={Rocket}
+                          onClick={() => {
+                            setIsWorkspaceMenuOpen(false)
+                            setIsPromoteModalOpen(true)
+                          }}
+                          fullWidth
+                          flush
+                          className='w-full select-none'
+                        >
+                          {forkLineage?.parent ? 'Sync workspace' : 'Manage forks'}
+                        </Chip>
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
 
                 <DropdownMenuSeparator className='mx-0' />
@@ -595,49 +636,6 @@ function WorkspaceHeaderImpl({
                 >
                   Manage workspace
                 </Chip>
-
-                {forkingAvailable ? (
-                  <>
-                    <DropdownMenuSeparator className='mx-0' />
-                    {forkLineage?.parent ? (
-                      <div className='px-2 pb-1'>
-                        <ChipTag variant='gray'>Fork of {forkLineage.parent.name}</ChipTag>
-                      </div>
-                    ) : null}
-                    <Chip
-                      leftIcon={Shuffle}
-                      onClick={() => {
-                        setIsWorkspaceMenuOpen(false)
-                        if (!canCreateWorkspace) {
-                          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                          return
-                        }
-                        setIsForkModalOpen(true)
-                      }}
-                      disabled={isCreatingWorkspace}
-                      title={createWorkspaceDisabledReason ?? undefined}
-                      fullWidth
-                      flush
-                      className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
-                    >
-                      Fork workspace
-                    </Chip>
-                    {forkLineage && (forkLineage.parent || forkLineage.children.length > 0) ? (
-                      <Chip
-                        leftIcon={Rocket}
-                        onClick={() => {
-                          setIsWorkspaceMenuOpen(false)
-                          setIsPromoteModalOpen(true)
-                        }}
-                        fullWidth
-                        flush
-                        className='w-full select-none'
-                      >
-                        Sync…
-                      </Chip>
-                    ) : null}
-                  </>
-                ) : null}
               </>
             )}
           </DropdownMenuContent>

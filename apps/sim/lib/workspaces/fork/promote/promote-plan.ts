@@ -55,6 +55,37 @@ export interface ForkPromotePlan {
 }
 
 /**
+ * Build the cross-workflow reference map used to rewrite `workflow-selector`,
+ * `manualWorkflowId`, and `workflow_input` references inside promoted workflows.
+ *
+ * Seeded from the persistent identity mappings - not just the workflows in THIS
+ * push - so a reference to a mapped sibling that isn't part of the current push
+ * (e.g. a workflow undeployed in the source but still existing and already
+ * deployed in the target) repoints at the existing target instead of clearing.
+ * Only pairs whose source still EXISTS and whose target is still ACTIVE are
+ * seeded: a deleted source (whose target is archived this push) stays unmapped so
+ * its inbound references clear, and a target archived by a prior push is never
+ * re-pointed at. The push's own items are overlaid last, so a created workflow
+ * contributes its fresh target id and a replaced one re-sets the same id.
+ */
+export function buildPromoteWorkflowIdMap(params: {
+  identityMap: Map<string, string>
+  existingSourceIds: Set<string>
+  targetActiveIds: Set<string>
+  items: Array<{ sourceWorkflowId: string; targetWorkflowId: string }>
+}): Map<string, string> {
+  const { identityMap, existingSourceIds, targetActiveIds, items } = params
+  const workflowIdMap = new Map<string, string>()
+  for (const [sourceId, targetId] of identityMap) {
+    if (existingSourceIds.has(sourceId) && targetActiveIds.has(targetId)) {
+      workflowIdMap.set(sourceId, targetId)
+    }
+  }
+  for (const item of items) workflowIdMap.set(item.sourceWorkflowId, item.targetWorkflowId)
+  return workflowIdMap
+}
+
+/**
  * Compute everything a promote needs without mutating. Only the source's
  * **deployed** workflows participate; each plan item carries the source's active
  * deployed state. Targets matched by the persisted workflow identity map are
@@ -111,7 +142,6 @@ export async function computeForkPromotePlan(params: {
   // state, scanning it, then discarding it - peak memory stays at one workflow state
   // (the deployed-state cache, bounded globally, retains originals for the copy loop).
   const items: ForkPromotePlanItem[] = []
-  const workflowIdMap = new Map<string, string>()
   const referenceByKey = new Map<string, ForkReference>()
   for (const source of deployedSourceWorkflows) {
     const sourceState = await readDeployedState(source.id, sourceWorkspaceId)
@@ -120,7 +150,6 @@ export async function computeForkPromotePlan(params: {
     const mappedTargetId = identityMap.get(source.id)
     const isReplace = Boolean(mappedTargetId && targetActiveIds.has(mappedTargetId))
     const targetWorkflowId = isReplace ? (mappedTargetId as string) : generateId()
-    workflowIdMap.set(source.id, targetWorkflowId)
     items.push({
       sourceWorkflowId: source.id,
       targetWorkflowId,
@@ -143,6 +172,13 @@ export async function computeForkPromotePlan(params: {
       referenceByKey.set(`${reference.kind}:${reference.sourceId}`, reference)
     }
   }
+
+  const workflowIdMap = buildPromoteWorkflowIdMap({
+    identityMap,
+    existingSourceIds,
+    targetActiveIds,
+    items,
+  })
 
   const archivedTargetIds: string[] = []
   for (const row of mappingRows) {

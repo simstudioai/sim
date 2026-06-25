@@ -81,9 +81,11 @@ function MappingRow({
 }
 
 /**
- * Force push/pull workflows along a fork edge: pick a direction, map required
- * secrets (and optional resources), preview the per-workflow change set, and
- * sync — with a force-confirm when the target has drifted since the last sync.
+ * Fork sync surface. From a fork (has a parent) it runs a force push/pull along the
+ * parent edge: pick a direction, map required secrets and optional resources,
+ * preview the per-workflow change set, and sync - with a force-confirm on drift.
+ * From a fork root (no parent) it lists the forks for management. Either way, the
+ * last sync into this workspace can be rolled back to its prior deployed versions.
  */
 export function PromoteWorkspaceModal({
   open,
@@ -93,38 +95,26 @@ export function PromoteWorkspaceModal({
   childWorkspaces,
   undoableRun,
 }: PromoteWorkspaceModalProps) {
+  // Sync is only ever performed along the parent edge (from a fork toward its
+  // parent). Child edges are intentionally not exposed here - a parent manages its
+  // forks (read-only list) rather than pushing/pulling into them.
   const edgeOptions = useMemo<EdgeOption[]>(() => {
-    const options: EdgeOption[] = []
-    if (parent) {
-      options.push({
+    if (!parent) return []
+    return [
+      {
         value: `push:${parent.id}`,
-        label: `Push to ${parent.name} (parent)`,
+        label: `Push to ${parent.name}`,
         otherWorkspaceId: parent.id,
         direction: 'push',
-      })
-      options.push({
+      },
+      {
         value: `pull:${parent.id}`,
-        label: `Pull from ${parent.name} (parent)`,
+        label: `Pull from ${parent.name}`,
         otherWorkspaceId: parent.id,
         direction: 'pull',
-      })
-    }
-    for (const child of childWorkspaces) {
-      options.push({
-        value: `push:${child.id}`,
-        label: `Push to ${child.name} (child)`,
-        otherWorkspaceId: child.id,
-        direction: 'push',
-      })
-      options.push({
-        value: `pull:${child.id}`,
-        label: `Pull from ${child.name} (child)`,
-        otherWorkspaceId: child.id,
-        direction: 'pull',
-      })
-    }
-    return options
-  }, [parent, childWorkspaces])
+      },
+    ]
+  }, [parent])
 
   const [selectedKey, setSelectedKey] = useState('')
   const [targets, setTargets] = useState<Record<string, string>>({})
@@ -143,6 +133,8 @@ export function PromoteWorkspaceModal({
   const selected = edgeOptions.find((option) => option.value === selectedKey)
   const otherWorkspaceId = selected?.otherWorkspaceId
   const direction = selected?.direction ?? 'push'
+  // No parent edge → this workspace is a fork root; the modal manages its forks.
+  const isManage = parent == null
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled: open })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled: open })
@@ -249,9 +241,137 @@ export function PromoteWorkspaceModal({
 
   return (
     <>
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Sync workspace'>
-        <ChipModalHeader onClose={() => onOpenChange(false)}>Sync</ChipModalHeader>
+      <ChipModal
+        open={open}
+        onOpenChange={onOpenChange}
+        srTitle={isManage ? 'Manage forks' : 'Sync workspace'}
+      >
+        <ChipModalHeader onClose={() => onOpenChange(false)}>
+          {isManage ? 'Manage Forks' : 'Sync workspace'}
+        </ChipModalHeader>
         <ChipModalBody>
+          {isManage ? (
+            <ChipModalField type='custom' title='Forks'>
+              {childWorkspaces.length === 0 ? (
+                <div className='text-[var(--text-secondary)] text-sm'>No forks yet.</div>
+              ) : (
+                <div className='flex max-h-64 flex-col gap-1 overflow-y-auto'>
+                  {childWorkspaces.map((fork) => (
+                    <div key={fork.id} className='truncate text-[var(--text-body)] text-sm'>
+                      {fork.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ChipModalField>
+          ) : (
+            <>
+              <ChipModalField
+                type='dropdown'
+                title='Direction'
+                value={selectedKey}
+                onChange={setSelectedKey}
+                options={edgeOptions}
+                placeholder='Select direction'
+                align='start'
+              />
+
+              <ChipModalField type='custom' title='Preview'>
+                <div className='text-[var(--text-secondary)] text-sm'>{previewLabel}</div>
+                {diff.data?.drift ? (
+                  <div className='mt-1 text-[var(--text-secondary)] text-xs'>
+                    Target changed since the last sync — syncing will overwrite those changes.
+                  </div>
+                ) : null}
+              </ChipModalField>
+
+              {workflowChanges.length > 0 ? (
+                <ChipModalField type='custom' title='Workflows'>
+                  <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
+                    {workflowChanges.map((change, index) => {
+                      const renamed = change.currentName !== change.otherName
+                      return (
+                        <div
+                          key={`${change.action}:${change.currentName}:${index}`}
+                          className='flex items-center justify-between gap-2'
+                        >
+                          <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+                            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+                              {change.currentName}
+                            </span>
+                            {renamed ? (
+                              <>
+                                <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
+                                <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                                  {change.otherName}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                          {change.action !== 'update' ? (
+                            <ChipTag variant='gray' className='shrink-0'>
+                              {WORKFLOW_ACTION_LABEL[change.action]}
+                            </ChipTag>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </ChipModalField>
+              ) : null}
+
+              {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
+              (diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
+                <ChipModalField type='custom' title='Heads up'>
+                  {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ? (
+                    <div className='text-[var(--text-secondary)] text-xs'>
+                      {diff.data?.mcpReauthServerIds.length} MCP server(s) use OAuth and must be
+                      re-authorized in the target workspace.
+                    </div>
+                  ) : null}
+                  {(diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
+                    <div className='mt-1 text-[var(--text-secondary)] text-xs'>
+                      {diff.data?.inlineSecretSources.length} inline secret(s) can't be auto-mapped
+                      — set them in the target workspace.
+                    </div>
+                  ) : null}
+                </ChipModalField>
+              ) : null}
+
+              {requiredEntries.length > 0 ? (
+                <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
+                  Credentials & secrets
+                </div>
+              ) : null}
+              {requiredEntries.map((entry) => (
+                <MappingRow
+                  key={entryKey(entry)}
+                  entry={entry}
+                  value={targets[entryKey(entry)] ?? ''}
+                  onChange={(value) =>
+                    setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+                  }
+                />
+              ))}
+
+              {optionalEntries.length > 0 ? (
+                <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
+                  Additional resources
+                </div>
+              ) : null}
+              {optionalEntries.map((entry) => (
+                <MappingRow
+                  key={entryKey(entry)}
+                  entry={entry}
+                  value={targets[entryKey(entry)] ?? ''}
+                  onChange={(value) =>
+                    setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+                  }
+                />
+              ))}
+            </>
+          )}
+
           {undoableRun ? (
             <ChipModalField type='custom' title='Undo last sync'>
               <div className='flex items-center justify-between gap-3'>
@@ -260,128 +380,30 @@ export function PromoteWorkspaceModal({
                   it restores each workflow's prior deployed version.
                 </div>
                 <Chip
-                  variant='border'
+                  variant='destructive'
                   onClick={() => setConfirmRollbackOpen(true)}
                   disabled={submitting}
                 >
-                  Undo
+                  Rollback
                 </Chip>
               </div>
             </ChipModalField>
           ) : null}
-
-          <ChipModalField
-            type='dropdown'
-            title='Direction'
-            value={selectedKey}
-            onChange={setSelectedKey}
-            options={edgeOptions}
-            placeholder='Select direction'
-            align='start'
-          />
-
-          <ChipModalField type='custom' title='Preview'>
-            <div className='text-[var(--text-secondary)] text-sm'>{previewLabel}</div>
-            {diff.data?.drift ? (
-              <div className='mt-1 text-[var(--text-secondary)] text-xs'>
-                Target changed since the last sync — syncing will overwrite those changes.
-              </div>
-            ) : null}
-          </ChipModalField>
-
-          {workflowChanges.length > 0 ? (
-            <ChipModalField type='custom' title='Workflows'>
-              <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
-                {workflowChanges.map((change, index) => {
-                  const renamed = change.currentName !== change.otherName
-                  return (
-                    <div
-                      key={`${change.action}:${change.currentName}:${index}`}
-                      className='flex items-center justify-between gap-2'
-                    >
-                      <div className='flex min-w-0 flex-1 items-center gap-1.5'>
-                        <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                          {change.currentName}
-                        </span>
-                        {renamed ? (
-                          <>
-                            <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                            <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                              {change.otherName}
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                      {change.action !== 'update' ? (
-                        <ChipTag variant='gray' className='shrink-0'>
-                          {WORKFLOW_ACTION_LABEL[change.action]}
-                        </ChipTag>
-                      ) : null}
-                    </div>
-                  )
-                })}
-              </div>
-            </ChipModalField>
-          ) : null}
-
-          {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
-          (diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
-            <ChipModalField type='custom' title='Heads up'>
-              {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ? (
-                <div className='text-[var(--text-secondary)] text-xs'>
-                  {diff.data?.mcpReauthServerIds.length} MCP server(s) use OAuth and must be
-                  re-authorized in the target workspace.
-                </div>
-              ) : null}
-              {(diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
-                <div className='mt-1 text-[var(--text-secondary)] text-xs'>
-                  {diff.data?.inlineSecretSources.length} inline secret(s) can't be auto-mapped —
-                  set them in the target workspace.
-                </div>
-              ) : null}
-            </ChipModalField>
-          ) : null}
-
-          {requiredEntries.length > 0 ? (
-            <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
-              Credentials & secrets
-            </div>
-          ) : null}
-          {requiredEntries.map((entry) => (
-            <MappingRow
-              key={entryKey(entry)}
-              entry={entry}
-              value={targets[entryKey(entry)] ?? ''}
-              onChange={(value) => setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))}
-            />
-          ))}
-
-          {optionalEntries.length > 0 ? (
-            <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
-              Additional resources
-            </div>
-          ) : null}
-          {optionalEntries.map((entry) => (
-            <MappingRow
-              key={entryKey(entry)}
-              entry={entry}
-              value={targets[entryKey(entry)] ?? ''}
-              onChange={(value) => setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))}
-            />
-          ))}
         </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => onOpenChange(false)}
-          cancelDisabled={submitting}
-          primaryAction={{
-            label: submitting ? 'Working...' : 'Sync',
-            onClick: () => void runPromote(false),
-            disabled: submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading,
-            disabledTooltip: requiredComplete
-              ? undefined
-              : 'Map all required credentials and secrets first',
-          }}
-        />
+        {isManage ? null : (
+          <ChipModalFooter
+            onCancel={() => onOpenChange(false)}
+            cancelDisabled={submitting}
+            primaryAction={{
+              label: submitting ? 'Working...' : 'Sync',
+              onClick: () => void runPromote(false),
+              disabled: submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading,
+              disabledTooltip: requiredComplete
+                ? undefined
+                : 'Map all required credentials and secrets first',
+            }}
+          />
+        )}
       </ChipModal>
 
       <ChipConfirmModal
@@ -416,10 +438,10 @@ export function PromoteWorkspaceModal({
           ' and removes workflows the sync created. Continue?',
         ]}
         confirm={{
-          label: 'Undo sync',
+          label: 'Rollback',
           onClick: () => void runRollback(),
           pending: submitting,
-          pendingLabel: 'Undoing...',
+          pendingLabel: 'Rolling back...',
         }}
       />
     </>
