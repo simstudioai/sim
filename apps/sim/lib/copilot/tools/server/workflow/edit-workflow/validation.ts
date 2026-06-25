@@ -16,6 +16,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
 import { EDGE, normalizeName } from '@/executor/constants'
 import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { getTool } from '@/tools/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
@@ -1213,7 +1214,10 @@ export async function collectUnresolvedAgentToolReferences(
 /**
  * Pre-validates credential and apiKey inputs in operations before they are applied.
  * - Validates oauth-input (credential) IDs are accessible to the user in the workflow workspace
- * - Filters out apiKey inputs for hosted models when isHosted is true
+ * - Filters out apiKey inputs when isHosted is true and the key is platform-managed: either a
+ *   hosted LLM model (model in getHostedModels) or a block whose active tool declares
+ *   `hosting` (e.g. Fal-backed video/image generators) - the canonical signal also used by
+ *   injectHostedKeyIfNeeded at execution
  * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
  * Returns validation errors for any removed inputs.
  */
@@ -1242,7 +1246,9 @@ export async function preValidateCredentialInputs(
     operationIndex: number
     blockId: string
     blockType: string
-    model: string
+    fieldName: string
+    reason: 'hosted_model' | 'hosted_tool'
+    model?: string
     nestedBlockId?: string
   }> = []
 
@@ -1297,7 +1303,75 @@ export async function preValidateCredentialInputs(
         operationIndex: opIndex,
         blockId,
         blockType,
+        fieldName: 'apiKey',
+        reason: 'hosted_model',
         model: modelValue,
+        nestedBlockId,
+      })
+    }
+  }
+
+  /**
+   * Collect inputs targeting a hosted tool's key param. `tool.hosting` is the canonical
+   * "Sim provides this key" signal — the same one injectHostedKeyIfNeeded uses at execution. It
+   * names the managed field (`apiKeyParam`) and gates per-provider (`enabled`). We resolve the
+   * tool the block's current inputs select (via the block's `tools.config.tool` selector), so
+   * multi-provider blocks (video routing falai -> video_falai) and per-provider gates
+   * (image_generate, falai-only) match execution exactly. The UI hides these fields, but the
+   * copilot can still author them, so strip them here.
+   */
+  function collectHostedToolApiKeyInput(
+    blockConfig: ReturnType<typeof getBlock>,
+    inputs: Record<string, unknown>,
+    toolParams: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!isHosted || !blockConfig?.tools) return
+
+    // Resolve which tool(s) the current inputs select. With a selector there is exactly one active
+    // tool; without one, every accessible tool is a candidate.
+    let candidateToolIds: string[]
+    const toolSelector = blockConfig.tools.config?.tool
+    if (toolSelector) {
+      try {
+        candidateToolIds = [toolSelector(toolParams)]
+      } catch {
+        return
+      }
+    } else {
+      candidateToolIds = blockConfig.tools.access ?? []
+    }
+
+    const managedFieldIds = new Set<string>()
+    for (const toolId of candidateToolIds) {
+      const tool = getTool(toolId)
+      if (!tool?.hosting) continue
+      if (tool.hosting.enabled && !tool.hosting.enabled(toolParams)) continue
+      managedFieldIds.add(tool.hosting.apiKeyParam)
+    }
+
+    for (const fieldId of managedFieldIds) {
+      const value = inputs[fieldId]
+      if (typeof value !== 'string' || value.trim() === '') continue
+
+      const alreadyCollected = hostedApiKeyInputs.some(
+        (e) =>
+          e.operationIndex === opIndex &&
+          e.blockId === blockId &&
+          e.nestedBlockId === nestedBlockId &&
+          e.fieldName === fieldId
+      )
+      if (alreadyCollected) continue
+
+      hostedApiKeyInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: fieldId,
+        reason: 'hosted_tool',
         nestedBlockId,
       })
     }
@@ -1344,6 +1418,31 @@ export async function preValidateCredentialInputs(
           op.block_id,
           op.params.type
         )
+
+        // The active tool depends on inputs (e.g. provider). On edit ops that don't restate
+        // provider, merge the existing block's subblock values so the tool selector and its
+        // `enabled` gate resolve correctly.
+        let toolParams = op.params.inputs as Record<string, unknown>
+        if (op.operation_type === 'edit' && workflowState) {
+          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
+            | Record<string, unknown>
+            | undefined
+          const existingSubBlocks = existingBlock?.subBlocks as
+            | Record<string, { value?: unknown } | null | undefined>
+            | undefined
+          if (existingSubBlocks) {
+            toolParams = { ...buildSubBlockValues(existingSubBlocks), ...toolParams }
+          }
+        }
+
+        collectHostedToolApiKeyInput(
+          blockConfig,
+          op.params.inputs as Record<string, unknown>,
+          toolParams,
+          opIndex,
+          op.block_id,
+          op.params.type
+        )
       }
     }
 
@@ -1373,6 +1472,15 @@ export async function preValidateCredentialInputs(
         // Check for apiKey inputs on hosted models in nested block
         const modelValue = childInputs.model as string | undefined
         collectHostedApiKeyInput(childInputs, modelValue, opIndex, op.block_id, childType, childId)
+        collectHostedToolApiKeyInput(
+          childBlockConfig,
+          childInputs,
+          childInputs,
+          opIndex,
+          op.block_id,
+          childType,
+          childId
+        )
       })
     }
   })
@@ -1389,10 +1497,16 @@ export async function preValidateCredentialInputs(
 
   // Filter out apiKey inputs for hosted models and add validation errors
   if (hasHostedApiKeysToFilter) {
-    logger.info('Filtering apiKey inputs for hosted models', { count: hostedApiKeyInputs.length })
+    logger.info('Filtering platform-managed apiKey inputs', { count: hostedApiKeyInputs.length })
+
+    const stripMessage = (input: (typeof hostedApiKeyInputs)[number]): string =>
+      input.reason === 'hosted_tool'
+        ? `Cannot set "${input.fieldName}" for "${input.blockType}" - it is managed by Sim on the hosted platform. Leave "${input.fieldName}" unset.`
+        : `Cannot set API key for hosted model "${input.model}" - API keys are managed by the platform when using hosted models`
 
     for (const apiKeyInput of hostedApiKeyInputs) {
       const op = filteredOperations[apiKeyInput.operationIndex]
+      const field = apiKeyInput.fieldName
 
       // Handle nested block apiKey filtering
       if (apiKeyInput.nestedBlockId) {
@@ -1401,36 +1515,40 @@ export async function preValidateCredentialInputs(
           | undefined
         const nestedBlock = nestedNodes?.[apiKeyInput.nestedBlockId]
         const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
-        if (nestedInputs?.apiKey) {
-          nestedInputs.apiKey = undefined
-          logger.debug('Filtered apiKey for hosted model in nested block', {
+        if (nestedInputs?.[field]) {
+          nestedInputs[field] = undefined
+          logger.debug('Filtered platform-managed apiKey in nested block', {
             parentBlockId: apiKeyInput.blockId,
             nestedBlockId: apiKeyInput.nestedBlockId,
+            field,
+            reason: apiKeyInput.reason,
             model: apiKeyInput.model,
           })
 
           errors.push({
             blockId: apiKeyInput.nestedBlockId,
             blockType: apiKeyInput.blockType,
-            field: 'apiKey',
+            field,
             value: '[redacted]',
-            error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+            error: stripMessage(apiKeyInput),
           })
         }
-      } else if (op.params?.inputs?.apiKey) {
+      } else if (op.params?.inputs?.[field]) {
         // Handle main block apiKey filtering
-        op.params.inputs.apiKey = undefined
-        logger.debug('Filtered apiKey for hosted model', {
+        op.params.inputs[field] = undefined
+        logger.debug('Filtered platform-managed apiKey', {
           blockId: apiKeyInput.blockId,
+          field,
+          reason: apiKeyInput.reason,
           model: apiKeyInput.model,
         })
 
         errors.push({
           blockId: apiKeyInput.blockId,
           blockType: apiKeyInput.blockType,
-          field: 'apiKey',
+          field,
           value: '[redacted]',
-          error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+          error: stripMessage(apiKeyInput),
         })
       }
     }
