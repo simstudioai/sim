@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type CSSProperties, type ReactNode, useState } from 'react'
 import { ThinkingLoader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -10,9 +10,22 @@ interface LogoMarkProps {
 }
 
 /**
+ * Loader ink that matches the wordmark — keeps the loader's default radial gloss
+ * (center darker, edge lifted ~24% toward white, the same relative step as the
+ * stock `#2c2c2c → #5f5f5f`) but recentres it on `var(--text-body)`, the
+ * navbar's text color, so each blob's center matches the static "sim" mark it
+ * dissolves from. Glow off so nothing over-lightens the silhouette.
+ */
+const LOADER_INK = {
+  '--tl-grad-inner': 'var(--text-body)',
+  '--tl-grad-outer': 'color-mix(in srgb, var(--text-body) 76%, #fff)',
+  '--tl-glow': 'transparent',
+} as CSSProperties
+
+/**
  * Navbar logo with a hover easter egg: the static "sim" wordmark dissolves into
- * the cycling thinking loader, which shares the wordmark's `#4F4F4F → #6F6F6F`
- * gradient and inner glow — so the mark appears to come alive in the same
+ * the cycling thinking loader, inked to match the wordmark's solid
+ * `--text-body` fill — so the mark appears to come alive in the same
  * material. The wordmark stays server-rendered (passed as children) and
  * crawlable; only this hover shell is client. The loader mounts on hover (no
  * idle timers) and sits behind the wordmark, revealed as the wordmark fades.
@@ -46,7 +59,7 @@ export function LogoMark({ children }: LogoMarkProps) {
       </span>
       {hovered ? (
         <span aria-hidden className='absolute inset-0 z-0 flex items-center justify-center'>
-          <ThinkingLoader size={28} startVariant='corners' />
+          <ThinkingLoader size={28} startVariant='corners' style={LOADER_INK} />
         </span>
       ) : null}
     </span>

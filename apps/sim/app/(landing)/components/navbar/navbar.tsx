@@ -4,8 +4,8 @@ import {
   GitHubChip,
   LogoMark,
   MobileNav,
-  NavMenuChip,
   NavbarShell,
+  NavMenuChip,
   SimWordmark,
 } from '@/app/(landing)/components/navbar/components'
 

@@ -1,4 +1,3 @@
-import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
 import {
   CalloutFrame,
   FeatureStage,
@@ -6,6 +5,7 @@ import {
 import { FormationGraph } from '@/app/(landing)/components/features/components/formation-graph/formation-graph'
 import { IntegrationsCallout } from '@/app/(landing)/components/features/components/integrations-callout/integrations-callout'
 import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'
+import { LogsTablePreview } from '@/app/(landing)/components/features/components/logs-table-preview'
 
 /**
  * Landing features — how Sim works, as a platform lifecycle. Four beats, in the

@@ -58,16 +58,16 @@ export function WorkflowBlockContent({ block }: WorkflowBlockProps) {
 }
 
 /**
- * A pure presentational workflow block card, faithful to the real WorkflowBlock:
- * a fixed-width card with an icon-tile header and optional label → value rows,
- * plus decorative handle nubs on its left and right edges. Stateless and
- * client-free — positioning and the rise animation are owned by the parent stage.
+ * The decorative edge-handle nubs for a block — an inbound nub on the left
+ * unless the block is a trigger, an outbound nub on the right unless it's
+ * terminal. Absolutely positioned, so the caller must be a `relative` (or
+ * otherwise positioned) box of the block's width. Shared so the morphed chat
+ * card (GitHub, rendered as content-only) can carry the same handles as the
+ * real {@link WorkflowBlock} satellites.
  */
-export function WorkflowBlock({ block }: WorkflowBlockProps) {
+export function BlockHandles({ block }: WorkflowBlockProps) {
   return (
-    <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
-      <WorkflowBlockContent block={block} />
-
+    <>
       {!block.isTrigger && (
         <span
           aria-hidden
@@ -80,6 +80,21 @@ export function WorkflowBlock({ block }: WorkflowBlockProps) {
           className='-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)]'
         />
       )}
+    </>
+  )
+}
+
+/**
+ * A pure presentational workflow block card, faithful to the real WorkflowBlock:
+ * a fixed-width card with an icon-tile header and optional label → value rows,
+ * plus decorative handle nubs on its left and right edges. Stateless and
+ * client-free — positioning and the rise animation are owned by the parent stage.
+ */
+export function WorkflowBlock({ block }: WorkflowBlockProps) {
+  return (
+    <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
+      <WorkflowBlockContent block={block} />
+      <BlockHandles block={block} />
     </div>
   )
 }

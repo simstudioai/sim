@@ -176,6 +176,18 @@ export interface SceneBlock {
   top: number
 }
 
+/**
+ * Block 1 (GitHub) in scene space. It's the morphed chat card — rendered
+ * content-only and clipped by the card's `overflow-hidden` — so its edge-handle
+ * nub is drawn separately at this position, matching where a satellite block
+ * (and its handle) would sit.
+ */
+export const SCENE_BLOCK1: SceneBlock = {
+  block: BLOCKS[0],
+  left: toSceneX(BLOCKS[0].x),
+  top: toSceneY(BLOCKS[0].y),
+}
+
 /** Blocks 2…N, positioned relative to the centered first block. */
 export const SCENE_SATELLITES: SceneBlock[] = BLOCKS.slice(1).map((block) => ({
   block,
@@ -212,7 +224,7 @@ export const SCENE_OVERVIEW_TRANSLATE = { x: -204, y: -43 } as const
  * The typed prompt, encoded as ordered atoms the typewriter reveals one at a
  * time. A `char` atom is a single character; a `mention` atom pops in
  * atomically as an inline icon-chip — exactly how the real input renders an
- * `@github` / `@Jira` mention.
+ * `@GitHub` / `@Jira` mention.
  */
 export type PromptAtom =
   | { kind: 'char'; char: string }
@@ -220,7 +232,7 @@ export type PromptAtom =
 
 const PROMPT_SEGMENTS: Array<string | { label: string; icon: IconComponent }> = [
   'Create me a ',
-  { label: 'github', icon: GithubIcon },
+  { label: 'GitHub', icon: GithubIcon },
   ' PR review bot that connects to ',
   { label: 'Jira', icon: JiraIcon },
 ]

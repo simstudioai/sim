@@ -81,7 +81,7 @@ export function Hero() {
         for AI automations.
       </h1>
 
-      <p className='text-lg text-[var(--text-body)] leading-[1.5] max-sm:text-md [&>br]:max-sm:hidden'>
+      <p className='text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-md [&>br]:max-sm:hidden'>
         Sim is the collaborative workspace to build, deploy, <br /> and manage AI agents and
         workflows.
       </p>
@@ -101,7 +101,7 @@ export function Hero() {
 
       <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end max-sm:mt-8 max-xl:static max-xl:mt-10 max-xl:w-full'>
         <div className='flex flex-col gap-[22px]'>
-          <p className='text-sm text-[var(--text-muted)]'>Trusted by technical teams at</p>
+          <p className='text-[var(--text-muted)] text-sm'>Trusted by technical teams at</p>
           <Logos layout='grid' />
         </div>
       </div>

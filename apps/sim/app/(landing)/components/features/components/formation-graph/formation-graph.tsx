@@ -12,7 +12,8 @@ import { cn } from '@/lib/core/utils/cn'
  * canvas. The three parallel agents carry a live "Running" status; they converge
  * on a single Synthesis agent that merges their work. Decorative (`aria-hidden`).
  */
-const CARD = 'absolute w-[184px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
+const CARD =
+  'absolute w-[184px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'
 const TILE =
   'flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--text-body)]'
 
@@ -28,7 +29,9 @@ interface AgentCardProps {
 function AgentCard({ className, name, status, model }: AgentCardProps) {
   return (
     <div className={cn(CARD, className)}>
-      <div className={cn('flex items-center gap-2.5 p-2', model && 'border-[var(--border)] border-b')}>
+      <div
+        className={cn('flex items-center gap-2.5 p-2', model && 'border-[var(--border)] border-b')}
+      >
         <div className={TILE}>
           <AgentIcon className='size-[16px] text-white' />
         </div>

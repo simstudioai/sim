@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  type Edge,
-  edgesToPaths,
-  isoProject,
-  rotate2,
-} from '@/app/(landing)/components/mothership/components/iso-marks/use-goo-mark'
-import {
   normalizeReach,
   type Pt,
   sampleClosed,
   toPath,
 } from '@/app/(landing)/components/mothership/components/goo-marks/use-goo-hover'
+import {
+  type Edge,
+  edgesToPaths,
+  isoProject,
+  rotate2,
+} from '@/app/(landing)/components/mothership/components/iso-marks/use-goo-mark'
 
 /**
  * Internal tuning lab for the Sim brand marks. Renders each mark with live
@@ -92,8 +92,26 @@ const MARKS: LabMark[] = [
     defaultGoo: 0.8,
     defaultSize: 160,
     params: [
-      { key: 'planes', label: 'Planes', min: 1, max: 5, step: 1, rest: 3, hover: 3, structural: true },
-      { key: 'divisions', label: 'Divisions', min: 1, max: 6, step: 1, rest: 2, hover: 2, structural: true },
+      {
+        key: 'planes',
+        label: 'Planes',
+        min: 1,
+        max: 5,
+        step: 1,
+        rest: 3,
+        hover: 3,
+        structural: true,
+      },
+      {
+        key: 'divisions',
+        label: 'Divisions',
+        min: 1,
+        max: 6,
+        step: 1,
+        rest: 2,
+        hover: 2,
+        structural: true,
+      },
       { key: 'gap', label: 'Gap', min: 0, max: 40, step: 0.5, rest: 6, hover: 20 },
       { key: 'tilt', label: 'Tilt', min: 0, max: 1, step: 0.01, rest: 0.36, hover: 0.25 },
       { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 1.2 },
@@ -130,7 +148,16 @@ const MARKS: LabMark[] = [
     defaultGoo: 0.8,
     defaultSize: 160,
     params: [
-      { key: 'boxes', label: 'Boxes', min: 2, max: 6, step: 1, rest: 4, hover: 4, structural: true },
+      {
+        key: 'boxes',
+        label: 'Boxes',
+        min: 2,
+        max: 6,
+        step: 1,
+        rest: 4,
+        hover: 4,
+        structural: true,
+      },
       { key: 'gap', label: 'Gap', min: 0, max: 20, step: 0.5, rest: 2.5, hover: 9 },
       { key: 'twist', label: 'Twist (deg)', min: 0, max: 90, step: 1, rest: 14, hover: 34 },
       { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 1.2 },
@@ -156,7 +183,16 @@ const MARKS: LabMark[] = [
     defaultGoo: 0.8,
     defaultSize: 160,
     params: [
-      { key: 'tilt', label: 'Tilt', min: 0, max: 1, step: 0.01, rest: 0.5, hover: 0.5, structural: true },
+      {
+        key: 'tilt',
+        label: 'Tilt',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        rest: 0.5,
+        hover: 0.5,
+        structural: true,
+      },
       { key: 'inner', label: 'Inner scale', min: 0.1, max: 1, step: 0.01, rest: 0.42, hover: 0.9 },
       { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 1.2 },
     ],
@@ -177,7 +213,16 @@ const MARKS: LabMark[] = [
     params: [
       { key: 'a', label: 'Freq A', min: 1, max: 7, step: 1, rest: 3, hover: 3, structural: true },
       { key: 'b', label: 'Freq B', min: 1, max: 7, step: 1, rest: 2, hover: 2, structural: true },
-      { key: 'amp', label: 'Amplitude', min: 10, max: 48, step: 1, rest: 40, hover: 40, structural: true },
+      {
+        key: 'amp',
+        label: 'Amplitude',
+        min: 10,
+        max: 48,
+        step: 1,
+        rest: 40,
+        hover: 40,
+        structural: true,
+      },
       { key: 'phase', label: 'Phase', min: 0, max: 6.28, step: 0.01, rest: 1.5708, hover: 1.9708 },
     ],
     build: (p) => {
@@ -366,7 +411,12 @@ export function MarksLab() {
   const gradR = lerp(cfg.gradient.r.rest, cfg.gradient.r.hover, amt)
   const d = mark.build(resolved)
 
-  const setPair = (group: 'params' | 'stroke' | 'goo', key: string, side: 'rest' | 'hover', v: number) =>
+  const setPair = (
+    group: 'params' | 'stroke' | 'goo',
+    key: string,
+    side: 'rest' | 'hover',
+    v: number
+  ) =>
     setConfigs((prev) => {
       const next = structuredClone(prev)
       const target = group === 'params' ? next[markId].params[key] : next[markId][group]
@@ -464,9 +514,7 @@ export function MarksLab() {
 
         <div className='grid grid-cols-[1fr_380px] gap-6'>
           <div className='flex flex-col gap-4'>
-            <div
-              className='flex min-h-[360px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[#ffffff]'
-            >
+            <div className='flex min-h-[360px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[#ffffff]'>
               <svg
                 viewBox='0 0 100 100'
                 width={cfg.size}
@@ -528,7 +576,14 @@ export function MarksLab() {
                   }}
                 />
               </div>
-              <Slider label='Size' value={cfg.size} min={60} max={300} step={2} onChange={setSize} />
+              <Slider
+                label='Size'
+                value={cfg.size}
+                min={60}
+                max={300}
+                step={2}
+                onChange={setSize}
+              />
             </div>
           </div>
 
@@ -563,9 +618,19 @@ export function MarksLab() {
             </div>
 
             <div className={`${panel} flex flex-col gap-3`}>
-              <div className={sectionLabel}>Gradient — radial stops + position (moves on hover)</div>
-              <ColorRow label='From' value={cfg.gradient.from} onChange={(v) => setGradColor('from', v)} />
-              <ColorRow label='To' value={cfg.gradient.to} onChange={(v) => setGradColor('to', v)} />
+              <div className={sectionLabel}>
+                Gradient — radial stops + position (moves on hover)
+              </div>
+              <ColorRow
+                label='From'
+                value={cfg.gradient.from}
+                onChange={(v) => setGradColor('from', v)}
+              />
+              <ColorRow
+                label='To'
+                value={cfg.gradient.to}
+                onChange={(v) => setGradColor('to', v)}
+              />
               <PairRow
                 label='Center X'
                 def={{ min: 0, max: 100, step: 1 }}

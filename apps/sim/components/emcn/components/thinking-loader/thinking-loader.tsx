@@ -135,18 +135,11 @@ const VARIANT_SHAPES: Record<ThinkingLoaderVariant, ReactNode> = {
   ),
   squeeze: (
     <>
-      <path
-        d='M 21.36 37.5 A 31.25 31.25 0 0 1 78.64 37.5'
-        fill='none'
-        stroke='currentColor'
-        strokeWidth='12.5'
-      />
-      <path
-        d='M 21.36 62.5 A 31.25 31.25 0 0 0 78.64 62.5'
-        fill='none'
-        stroke='currentColor'
-        strokeWidth='12.5'
-      />
+      {/* Arcs are stroked, not filled — they inherit the group's gradient stroke
+          (so the O is shaded identically to every other shape); the group pins
+          stroke-width to 0, so each arc re-asserts its own 12.5. */}
+      <path d='M 21.36 37.5 A 31.25 31.25 0 0 1 78.64 37.5' fill='none' strokeWidth='12.5' />
+      <path d='M 21.36 62.5 A 31.25 31.25 0 0 0 78.64 62.5' fill='none' strokeWidth='12.5' />
       <rect className={styles.squeezeBarL} x='15' y='37.5' width='12.5' height='25' />
       <rect className={styles.squeezeBarR} x='72.5' y='37.5' width='12.5' height='25' />
     </>
@@ -215,6 +208,12 @@ export interface ThinkingLoaderProps {
    * doesn't read oversized next to the glyph.
    */
   labelRatio?: number
+  /**
+   * Paint the label with the sweeping Claude-style shimmer (default). Set
+   * `false` for a static label in solid `--text-body` ink — no gradient, no
+   * sweep — while the phrase crossfade still applies.
+   */
+  shimmer?: boolean
   /** Layout-only classes (margins, alignment). The loader owns its chrome. */
   className?: string
   /**
@@ -248,6 +247,7 @@ export function ThinkingLoader({
   label,
   phase,
   labelRatio = 0.7,
+  shimmer = true,
   className,
   style,
 }: ThinkingLoaderProps) {
@@ -257,7 +257,9 @@ export function ThinkingLoader({
   const clipId = `tl-clip-${id}`
   const windowClipId = `tl-window-${id}`
   const gradientId = `tl-grad-${id}`
-  const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>(startVariant ?? 'metaballs')
+  const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>(
+    startVariant ?? 'metaballs'
+  )
   const cycling = variant === undefined
 
   useEffect(() => {
@@ -399,7 +401,12 @@ export function ThinkingLoader({
           <rect x='12.5' y='12.5' width='75' height='75' />
         </clipPath>
       </defs>
-      <g filter={`url(#${filterId})`} fill={`url(#${gradientId})`}>
+      <g
+        filter={`url(#${filterId})`}
+        fill={`url(#${gradientId})`}
+        stroke={`url(#${gradientId})`}
+        strokeWidth={0}
+      >
         {stages.map((v) => (
           <g
             key={v}
@@ -430,11 +437,11 @@ export function ThinkingLoader({
       <span className={styles.labelStack}>
         {exitingLabel ? (
           <span key={exitingLabel} className={cn(styles.labelLayer, styles.labelOut)}>
-            <span className={styles.label}>{exitingLabel}</span>
+            <span className={shimmer ? styles.label : styles.labelStatic}>{exitingLabel}</span>
           </span>
         ) : null}
         <span key={shownLabel} className={cn(styles.labelLayer, styles.labelIn)}>
-          <span className={styles.label}>{shownLabel}</span>
+          <span className={shimmer ? styles.label : styles.labelStatic}>{shownLabel}</span>
         </span>
       </span>
     </span>

@@ -135,7 +135,10 @@ export function LandingPreviewSidebar({
           )}
         >
           <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='truncate text-[13px] text-[var(--text-body)]' style={{ fontWeight: 450 }}>
+          <span
+            className='truncate text-[13px] text-[var(--text-body)]'
+            style={{ fontWeight: 450 }}
+          >
             Home
           </span>
         </button>

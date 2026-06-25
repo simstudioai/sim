@@ -154,7 +154,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         >
           <div className='w-[280px] select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
             <div className='border-[var(--border)] border-b p-2'>
-              <span className='font-medium text-[var(--text-primary)] text-[16px]'>Note</span>
+              <span className='font-medium text-[16px] text-[var(--text-primary)]'>Note</span>
             </div>
             <div className='p-2.5'>
               <NoteMarkdown content={markdown} />
@@ -199,7 +199,9 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               >
                 {Icon && <Icon className='size-[16px] text-white' />}
               </div>
-              <span className='truncate font-medium text-[var(--text-primary)] text-[16px]'>{name}</span>
+              <span className='truncate font-medium text-[16px] text-[var(--text-primary)]'>
+                {name}
+              </span>
             </div>
           </div>
 
@@ -273,7 +275,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
           )}
 
           {isHighlighted && (
-            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[var(--text-primary)] ring-[1.75px]' />
+            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-primary)]' />
           )}
         </div>
       </m.div>
@@ -300,7 +302,10 @@ function NoteMarkdown({ content }: { content: string }) {
 
         if (trimmed.startsWith('### ')) {
           return (
-            <p key={i} className='font-semibold text-[16px] text-[var(--text-primary)] leading-[1.3]'>
+            <p
+              key={i}
+              className='font-semibold text-[16px] text-[var(--text-primary)] leading-[1.3]'
+            >
               {trimmed.slice(4)}
             </p>
           )

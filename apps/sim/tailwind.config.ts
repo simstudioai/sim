@@ -211,9 +211,9 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
-        'hero-click-ring': {
-          from: { opacity: '0.55', transform: 'scale(0.3)' },
-          to: { opacity: '0', transform: 'scale(1.6)' },
+        'hero-cursor-press': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '45%': { transform: 'scale(0.8)' },
         },
         'hero-modal-in': {
           from: { opacity: '0', transform: 'translateY(10px) scale(0.97)' },
@@ -235,11 +235,6 @@ export default {
         'hero-edge-draw': {
           to: { strokeDashoffset: '0' },
         },
-        'hero-greeting-reveal': {
-          '0%': { opacity: '0', backgroundPosition: '0 0' },
-          '30%': { opacity: '1' },
-          '100%': { opacity: '1', backgroundPosition: '200% 0' },
-        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
@@ -256,13 +251,11 @@ export default {
         'collapsible-down': 'collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1)',
         'collapsible-up': 'collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1)',
         'hero-stage-fade': 'hero-stage-fade 420ms cubic-bezier(0.23, 1, 0.32, 1) both',
-        'hero-click-ring': 'hero-click-ring 360ms ease-out forwards',
+        'hero-cursor-press': 'hero-cursor-press 340ms cubic-bezier(0.23, 1, 0.32, 1)',
         'hero-modal-in': 'hero-modal-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'hero-file-drop': 'hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'hero-node-pop': 'hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'hero-edge-draw': 'hero-edge-draw 520ms ease-out forwards',
-        'hero-greeting-reveal':
-          'hero-greeting-reveal 1600ms cubic-bezier(0.23, 1, 0.32, 1) 220ms both',
       },
     },
   },

@@ -105,6 +105,13 @@
   background-image: linear-gradient(90deg, #b9b9b9 40%, #f8f8f8 50%, #b9b9b9 60%);
 }
 
+/* Static label (shimmer off): the phrase in solid body ink, no gradient sweep. */
+.labelStatic {
+  font-size: var(--tl-label-size, 14px);
+  font-weight: 450;
+  color: var(--text-body);
+}
+
 @keyframes label-shimmer {
   to {
     background-position: 200% 0;

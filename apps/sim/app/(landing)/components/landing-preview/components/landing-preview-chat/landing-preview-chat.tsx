@@ -78,7 +78,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
           <>
             <div
               className={cn(
-                'max-w-[85%] self-end rounded-2xl bg-[var(--surface-1)] px-3.5 py-2 text-[var(--text-primary)] text-[13.5px] leading-[1.45] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
+                'max-w-[85%] self-end rounded-2xl bg-[var(--surface-1)] px-3.5 py-2 text-[13.5px] text-[var(--text-primary)] leading-[1.45] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
                 showUser ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
               )}
             >
@@ -90,7 +90,7 @@ export function LandingPreviewChat({ chat, chatName, animationKey }: LandingPrev
               {showAssistant && (
                 <p
                   className={cn(
-                    'max-w-[92%] text-[var(--text-primary)] text-[13.5px] leading-[1.5] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
+                    'max-w-[92%] text-[13.5px] text-[var(--text-primary)] leading-[1.5] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
                     showAssistant ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
                   )}
                 >

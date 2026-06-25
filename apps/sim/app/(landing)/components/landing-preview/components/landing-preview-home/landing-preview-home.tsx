@@ -219,7 +219,9 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <div className='overflow-hidden'>
                           <div className='flex flex-col gap-1.5 pt-0.5'>
                             <ToolCallRow
-                              icon={<Table className='h-[15px] w-[15px] text-[var(--text-muted)]' />}
+                              icon={
+                                <Table className='h-[15px] w-[15px] text-[var(--text-muted)]' />
+                              }
                               title='Read Customer Leads'
                             />
                           </div>

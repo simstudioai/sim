@@ -41,6 +41,13 @@ const GH_CONTENT_HEIGHT = 77
 /** The chat card's width (compose/conversation). */
 const CHAT_CARD_WIDTH = 460
 /**
+ * Natural height of the compose card on first paint — `py-2` (16) + the input
+ * row (32) + `gap-2` (8) + the action row (28). Seeds the card so it renders at
+ * its true height immediately and never transitions/resizes on load; the
+ * observer keeps it exact thereafter. Must track the content's padding/spacing.
+ */
+const COMPOSE_CARD_HEIGHT = 84
+/**
  * Card width/height once morphed into the first block (block content × focus
  * scale). Deliberately smaller than the chat card so the morph reads as a
  * visible SHRINK + reshape, not a same-size content crossfade.
@@ -72,19 +79,19 @@ interface StageHomeProps {
   cardRef: RefObject<HTMLDivElement | null>
   /**
    * Reveal the greeting headline. Held back until the input is being composed,
-   * then shimmers in. Its space is always reserved, so revealing it never shifts
-   * the layout.
+   * then fades in on the `hero-stage-fade` keyframe, slowed to 1.2s (≈3× the
+   * scene's stock 420ms) so the headline eases in gently. Its space is always
+   * reserved, so revealing it never shifts the layout.
    */
   showGreeting?: boolean
   /** Press the send button (scale it down) — driven by the click beat. */
   pressed?: boolean
 }
 
-/** Staggered enter for a chat bubble — translateY + opacity + blur, interruptible. */
-const ENTER_BASE =
-  'transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.2,0,0,1)]'
+/** Staggered enter for a chat bubble — translateY + opacity, interruptible. */
+const ENTER_BASE = 'transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
-  shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
+  shown ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
 
 const Caret = () => (
   <span
@@ -151,10 +158,16 @@ export function StageHome({
   // per-frame (via `--hero-card-h`) in lockstep with the camera, so the grow can't
   // shake. Every other beat lets the card own + CSS-transition its own height.
   const growControlled = mode === 'sending'
+  // Hold the card height steady — no CSS height-transition — through both the
+  // parent-driven grow (`sending`) AND the loader slide + camera track
+  // (`thinking`). The slide pans the camera by measuring the dock's live
+  // position each frame and assumes the card holds its size; transitioning
+  // height there makes the card resize under that measurement, so it jitters.
+  const holdCardHeight = growControlled || mode === 'thinking'
   const contentRef = useRef<HTMLDivElement>(null)
   // Seeded at the natural compose height so the send button is never clipped on
   // the very first paint; the observer below keeps it exact from then on.
-  const [cardHeight, setCardHeight] = useState(96)
+  const [cardHeight, setCardHeight] = useState(COMPOSE_CARD_HEIGHT)
 
   // Hug the chat column: measure its natural height and animate the card to it.
   // Guard against a collapsed/unpainted layout (width ~0) measuring a
@@ -203,12 +216,7 @@ export function StageHome({
           )}
         >
           {showGreeting ? (
-            <p
-              className={cn(
-                'font-season text-[30px] leading-[40px]',
-                'animate-hero-greeting-reveal bg-clip-text text-transparent [-webkit-background-clip:text] [background-image:linear-gradient(90deg,var(--text-primary)_40%,var(--text-subtle)_50%,var(--text-primary)_60%)] [background-size:200%_100%] motion-reduce:animate-none motion-reduce:bg-clip-border motion-reduce:text-[var(--text-primary)] motion-reduce:[-webkit-background-clip:border-box] motion-reduce:[background-image:none]'
-              )}
-            >
+            <p className='font-season text-[30px] text-[var(--text-primary)] leading-[40px] [animation:hero-stage-fade_1200ms_cubic-bezier(0.23,1,0.32,1)_both]'>
               {HOME_GREETING}
             </p>
           ) : null}
@@ -224,11 +232,12 @@ export function StageHome({
             // kept THROUGHOUT — including once morphed into the workflow block —
             // so it stays the same white card, just resized.
             'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
-            // While the parent drives the height per-frame (the send-bubble grow),
-            // do NOT CSS-transition height — the per-frame writes ARE the animation;
-            // a transition would lag behind them and fight the camera. Every other
-            // beat eases width/height/transform with the shared curve.
-            growControlled
+            // While the height is held (the parent-driven send-bubble grow, and the
+            // loader slide where the card keeps its size), do NOT CSS-transition
+            // height — a transition would fight the per-frame camera/dock tracking
+            // and read as jitter. Every other beat eases width/height/transform with
+            // the shared curve.
+            holdCardHeight
               ? 'transition-[width,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
               : 'transition-[width,height,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
             // Nudge up to cancel the chat column's greeting+gap offset, so the
@@ -242,23 +251,26 @@ export function StageHome({
             height: isBlock
               ? BLOCK_CARD_HEIGHT
               : growControlled
-                ? 'var(--hero-card-h, 96px)'
+                ? `var(--hero-card-h, ${COMPOSE_CARD_HEIGHT}px)`
                 : cardHeight,
           }}
         >
           {/* Chat content — ONE column: the user message (the typewriter input,
               then the sent bubble) over an action row (the send button + the
-              loader's dock, then the reply). While the bubble grows the card in
-              (`sending`), the column is anchored to the BOTTOM so the send button /
-              loader stays put and the card expands UPWARD to reveal the bubble —
-              the bottom edge never moves. Every other beat is top-anchored (the
-              content fills the card, so it reads the same either way), which keeps
-              the block-morph and the reply grow behaving as before. */}
+              loader's dock, then the reply). The column stays anchored to the
+              BOTTOM through the send-bubble grow AND the loader slide (the whole
+              `holdCardHeight` window): during the grow the card expands UPWARD to
+              reveal the bubble, and through the slide the bottom edge never moves —
+              so the dock/send button the camera tracks can't shift as the height
+              source switches. Re-anchoring there would nudge them a sub-pixel and
+              the slide's camera would chase it (a visible jitter). Every other beat
+              is top-anchored (content fills the card, so it reads the same either
+              way), which keeps the block-morph and the reply grow behaving as before. */}
           <div
             ref={contentRef}
             className={cn(
-              'absolute inset-x-0 flex flex-col gap-2 p-3.5 transition-opacity duration-[220ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
-              growControlled ? 'bottom-0' : 'top-0',
+              'absolute inset-x-0 flex flex-col gap-2 px-2.5 py-2 transition-opacity duration-[220ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
+              holdCardHeight ? 'bottom-0' : 'top-0',
               isBlock && 'pointer-events-none opacity-0'
             )}
           >
@@ -278,7 +290,9 @@ export function StageHome({
                 )}
               >
                 {isEmpty ? (
-                  <span className='text-[var(--text-subtle)]'>Ask Sim to build an agent…</span>
+                  <span className='font-[380] text-[var(--text-subtle)]'>
+                    Ask Sim to build an agent…
+                  </span>
                 ) : (
                   <>
                     <PromptAtoms atoms={visible} />
@@ -288,15 +302,11 @@ export function StageHome({
               </div>
               <div
                 className={cn(
-                  'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
+                  'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-5)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
                   ENTER_BASE,
-                  // Hold the bubble's fade-in until the card has finished growing
-                  // upward to make room for it. The bubble is already in flow (so
-                  // the card measures the right height and expands to fit), but its
-                  // opacity/translate/blur reveal waits out the parent-driven grow
-                  // (GROW_MS) plus a short beat — so the card settles fully before
-                  // the bubble appears, instead of racing the expanding edge.
-                  mode === 'sending' && 'delay-[700ms]',
+                  // The bubble pops in immediately as send lands — it's in flow, so
+                  // the card grows upward to fit it while its reveal (opacity/
+                  // translate) plays in lockstep, reading as an instant "sent".
                   showBubble
                     ? enterState(true)
                     : cn('pointer-events-none absolute top-0 right-0', enterState(false))

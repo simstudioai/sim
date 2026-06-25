@@ -18,12 +18,16 @@ import {
   type KbStage,
   StageKb,
 } from '@/app/(landing)/components/hero/components/hero-visual/stage-kb'
-import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
+import {
+  BlockHandles,
+  WorkflowBlock,
+} from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   ANSWER_MS_PER_CHAR,
   ANSWER_TEXT,
   BLOCK_WIDTH,
   PROMPT_ATOMS,
+  SCENE_BLOCK1,
   SCENE_EDGES,
   SCENE_OVERVIEW_SCALE,
   SCENE_OVERVIEW_TRANSLATE,
@@ -103,17 +107,24 @@ const STEPS: Array<[Phase, number]> = [
   ['home', 900],
   ['clickInput', 360],
   ['typing', PROMPT_ATOMS.length * TYPE_MS_PER_ATOM + 400],
+  // The camera zooms into the send button DURING `toSend` (concurrent with the
+  // cursor dragging over to it), so the two read as one motion — no arrive-then-
+  // zoom pause. `zoomSend` is just the short settle while the zoom finishes.
   ['toSend', 700],
-  ['zoomSend', 900],
+  ['zoomSend', 350],
   // Beat 1: a quick press, then the disc morphs into the loader (compose height
   // held). Beat 2: one cycle shape while the bubble pops in. Beat 3: slide left.
   ['clickSend', 300],
   ['discMorph', 560],
   ['cycleHold', 1000],
   ['loaderSlide', LOADER_SLIDE_MS],
-  ['phrases', 4000],
+  // The loader shows ~2 shapes total (the cycleHold shape + one during the
+  // slide); the moment it docks left it goes straight to the zoom-out and reply
+  // rather than dwelling on more cycle shapes — so `phrases`/`phrasesWide` are
+  // just brief settles around the `phrasesOut` zoom-out, not a loading hold.
+  ['phrases', 700],
   ['phrasesOut', ZOOM_OUT_MS],
-  ['phrasesWide', 2200],
+  ['phrasesWide', 700],
   ['answer', ANSWER_TEXT.length * ANSWER_MS_PER_CHAR + 500],
   ['answerHold', 700],
   ['morph', 900],
@@ -211,6 +222,10 @@ const LOADER_PAINT_PHASES = new Set<Phase>([
 /** Cursor hotspot offset within its SVG (the arrow tip), in px at the rendered size. */
 const TIP_X = 6
 const TIP_Y = 3
+/** How far below the input the cursor seeds on first paint before gliding up into it. */
+const CURSOR_ENTRY_DROP = 48
+/** Per-frame catch-up fraction for the cursor chasing the send button during the push-in. */
+const CURSOR_CHASE = 0.14
 
 /** How far the camera zooms into the send button before the morph + zoom-out. */
 const ZOOM_SCALE = 2.4
@@ -227,6 +242,20 @@ const LOADER_BASE = 28
 const SEND_BUTTON_INK = {
   '--tl-grad-inner': '#383838',
   '--tl-grad-outer': '#383838',
+  '--tl-glow': 'transparent',
+} as CSSProperties
+
+/**
+ * Landing loader ink — keeps the loader's default radial gloss (center darker,
+ * edge lifted ~24% toward white, the same relative step as the stock
+ * `#2c2c2c → #5f5f5f`) but recentres it on `var(--text-body)`, the navbar's text
+ * color, so each blob's center matches the nav links and wordmark while the edge
+ * stays that same relative step lighter. Glow off so nothing over-lightens the
+ * silhouette.
+ */
+const LANDING_LOADER_INK = {
+  '--tl-grad-inner': 'var(--text-body)',
+  '--tl-grad-outer': 'color-mix(in srgb, var(--text-body) 76%, #fff)',
   '--tl-glow': 'transparent',
 } as CSSProperties
 
@@ -365,34 +394,46 @@ export function HeroVisual() {
     rafRef.current = requestAnimationFrame(frame)
   }, [])
 
+  const cursorPointFor = useCallback((target: Phase): { x: number; y: number } | null => {
+    const container = containerRef.current
+    if (!container) return null
+    const cr = container.getBoundingClientRect()
+
+    if (target === 'home' || target === 'clickInput' || target === 'typing') {
+      const r = inputRef.current?.getBoundingClientRect()
+      if (!r) return null
+      // Click low-left: nudged ~20px left of the field's start, and vertically
+      // centred on the send button's row (measured live) — at the bottom-left
+      // of the card, not over the top line of text.
+      const s = sendRef.current?.getBoundingClientRect()
+      const y = (s ? s.top + s.height / 2 : r.top + r.height / 2) - cr.top
+      return { x: r.left - cr.left + 26, y }
+    }
+    if (target === 'toSend' || target === 'zoomSend' || target === 'clickSend') {
+      // Measured live, so once the camera has zoomed the send button the cursor
+      // lands on it at its enlarged on-screen position.
+      const r = sendRef.current?.getBoundingClientRect()
+      if (r) return { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 }
+      return null
+    }
+    if (
+      target === 'kbToCreate' ||
+      target === 'kbClickCreate' ||
+      target === 'kbEmbeddings' ||
+      target === 'kbHold'
+    ) {
+      const r = createRef.current?.getBoundingClientRect()
+      if (r) return { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 }
+    }
+    return null
+  }, [])
+
   const positionCursor = useCallback(
     (target: Phase, snap: boolean) => {
-      const container = containerRef.current
-      if (!container) return
-      const cr = container.getBoundingClientRect()
-
-      let point: { x: number; y: number } | null = null
-      if (target === 'home' || target === 'clickInput' || target === 'typing') {
-        const r = inputRef.current?.getBoundingClientRect()
-        if (r) point = { x: r.left - cr.left + 46, y: r.top - cr.top + r.height / 2 }
-      } else if (target === 'toSend' || target === 'zoomSend' || target === 'clickSend') {
-        // Measured live, so once the camera has zoomed the send button the cursor
-        // lands on it at its enlarged on-screen position.
-        const r = sendRef.current?.getBoundingClientRect()
-        if (r) point = { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 }
-      } else if (
-        target === 'kbToCreate' ||
-        target === 'kbClickCreate' ||
-        target === 'kbEmbeddings' ||
-        target === 'kbHold'
-      ) {
-        const r = createRef.current?.getBoundingClientRect()
-        if (r) point = { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 }
-      }
-
+      const point = cursorPointFor(target)
       if (point) animateCursorTo(point.x, point.y, snap)
     },
-    [animateCursorTo]
+    [cursorPointFor, animateCursorTo]
   )
 
   // One frame of the held/slide camera + loader. The loader is placed at an
@@ -569,50 +610,81 @@ export function HeroVisual() {
     }
   }, [])
 
+  // Reveal the cursor on mount (the opacity gate); the entrance below glides it in.
   useLayoutEffect(() => {
-    // Snap the cursor into place on the very first paint (so it doesn't swoop in
-    // from the corner); animate every beat after.
-    positionCursor(phase, !initedRef.current)
-    initedRef.current = true
-    if (!ready) setReady(true)
-  }, [phase, positionCursor, ready])
+    setReady(true)
+  }, [])
 
-  // During the push-in, glue the cursor to the send button's live on-screen
-  // center each frame so it rides the zoom (hovering the button as the camera
-  // closes in) instead of blinking out. `clickSend` then lands on the settled
-  // button via `positionCursor`, and `discMorph` hides it for the disc morph.
+  useLayoutEffect(() => {
+    const firstPaint = !initedRef.current
+    initedRef.current = true
+    if (firstPaint) {
+      // First paint: the cursor enters from just below the field and glides up
+      // into it on the same eased arc every later beat uses — a hand reaching in,
+      // not a snap from the corner. Seed below (snap), then animate to the target.
+      const home = cursorPointFor('home')
+      if (home) {
+        animateCursorTo(home.x, home.y + CURSOR_ENTRY_DROP, true)
+        animateCursorTo(home.x, home.y, false)
+        return
+      }
+      positionCursor(phase, true) // not measurable yet: snap into place
+      return
+    }
+    // `toSend`/`zoomSend` are driven by the push-in chase effect (the cursor
+    // rides the send button as the camera zooms it to centre), so don't also
+    // arc the cursor to a stale target here.
+    if (phase === 'toSend' || phase === 'zoomSend') return
+    positionCursor(phase, false)
+  }, [phase, positionCursor, cursorPointFor, animateCursorTo])
+
+  // Push-in (`toSend` + `zoomSend`): the cursor CHASES the send button's live
+  // on-screen center each frame — a smooth exponential approach — so it drags
+  // over to the button AS the camera zooms that same spot to centre, catching up
+  // to and riding the button instead of arriving first and waiting for the zoom.
+  // Because the target is measured live, the chase tracks the button through the
+  // zoom's motion without any per-target tuning. `clickSend` then lands on the
+  // settled button via `positionCursor`, and `discMorph` hides it for the morph.
   useEffect(() => {
-    if (phase !== 'zoomSend') return
+    if (phase !== 'toSend' && phase !== 'zoomSend') return
     const container = containerRef.current
     const el = cursorElRef.current
     if (!container || !el) return
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = undefined
+    }
     let raf = 0
-    const follow = () => {
+    const chase = () => {
       const cr = container.getBoundingClientRect()
       const sr = sendRef.current?.getBoundingClientRect()
       if (sr) {
-        const x = sr.left - cr.left + sr.width / 2
-        const y = sr.top - cr.top + sr.height / 2
+        const tx = sr.left - cr.left + sr.width / 2
+        const ty = sr.top - cr.top + sr.height / 2
+        const cur = cursorPosRef.current
+        const x = cur.x + (tx - cur.x) * CURSOR_CHASE
+        const y = cur.y + (ty - cur.y) * CURSOR_CHASE
         cursorPosRef.current = { x, y }
         el.style.transform = `translate(${x - TIP_X}px, ${y - TIP_Y}px)`
       }
-      raf = requestAnimationFrame(follow)
+      raf = requestAnimationFrame(chase)
     }
-    raf = requestAnimationFrame(follow)
+    raf = requestAnimationFrame(chase)
     return () => cancelAnimationFrame(raf)
   }, [phase])
 
   // The camera's two STATE-driven beats: a smooth CSS-transitioned push into the
-  // send button (`zoomSend`) and pull back out (`answer`). Everything in between
-  // (the hold + slide) is driven imperatively by `paintFrame`, so here we hand
-  // off by leaving the transform to the imperative writes (`undefined`).
+  // send button (triggered at `toSend`, so it zooms WHILE the cursor drags over)
+  // and the pull back out (`answer`). Everything in between (the hold + slide) is
+  // driven imperatively by `paintFrame`, so here we hand off by leaving the
+  // transform to the imperative writes (`undefined`).
   useLayoutEffect(() => {
     const container = containerRef.current
     if (!container) return
     const cr = container.getBoundingClientRect()
     if (cr.width < 120) return
 
-    if (phase === 'zoomSend') {
+    if (phase === 'toSend') {
       const sr = sendRef.current?.getBoundingClientRect()
       if (!sr) return
       const px = sr.left - cr.left + sr.width / 2
@@ -646,8 +718,8 @@ export function HeroVisual() {
       const card = cardRef.current
       if (phase === 'discMorph') {
         growRef.current.active = false
-        // The send button is zoom-centred (zoomSend maps it to the container centre);
-        // pin the loader there so the bubble growing in above it can't drag it down.
+        // The send button is zoom-centred (the push-in maps it to the container
+        // centre); pin the loader there so the bubble growing in above it can't drag it down.
         if (container) {
           const cr = container.getBoundingClientRect()
           sendAnchorRef.current = { x: cr.width / 2, y: cr.height / 2 }
@@ -773,7 +845,7 @@ export function HeroVisual() {
                 // Only the push-in and pull-out ride a CSS transition; the held +
                 // slide beats are written imperatively (a transition here would
                 // fight the per-frame writes).
-                (phase === 'zoomSend' || phase === 'answer') &&
+                (phase === 'toSend' || phase === 'zoomSend' || phase === 'answer') &&
                   'transition-transform duration-[850ms] ease-[cubic-bezier(0.65,0,0.35,1)]'
               )}
               style={zoomStyle}
@@ -790,6 +862,25 @@ export function HeroVisual() {
                 pressed={phase === 'clickSend'}
               />
             </div>
+          </div>
+        )}
+
+        {WORKFLOW_PHASES.has(phase) && (
+          // GitHub (block 1) is the morphed chat card — rendered content-only and
+          // clipped by the card's `overflow-hidden`, so it can't carry its own
+          // edge nub. Draw its outbound handle here in scene space, positioned and
+          // scaled exactly like a satellite block, so it matches the other blocks.
+          <div
+            className='absolute'
+            style={{
+              left: `calc(50% + ${SCENE_BLOCK1.left}px)`,
+              top: `calc(50% + ${SCENE_BLOCK1.top}px)`,
+              width: BLOCK_WIDTH,
+              transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
+              transformOrigin: 'top left',
+            }}
+          >
+            <BlockHandles block={SCENE_BLOCK1.block} />
           </div>
         )}
 
@@ -877,7 +968,8 @@ export function HeroVisual() {
               settle={loaderSettled}
               phase={loaderPhrases}
               labelRatio={0.5}
-              style={loaderSettled ? SEND_BUTTON_INK : undefined}
+              shimmer={false}
+              style={loaderSettled ? SEND_BUTTON_INK : LANDING_LOADER_INK}
             />
           </div>
         </div>
@@ -888,19 +980,23 @@ export function HeroVisual() {
         className='pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]'
         style={{ opacity: showCursor ? 1 : 0 }}
       >
-        {clicking && (
-          <span
-            key={phase}
-            className='-translate-x-1/2 -translate-y-1/2 absolute size-7 animate-hero-click-ring rounded-full border border-[var(--text-primary)] motion-reduce:animate-none'
-            style={{ left: TIP_X, top: TIP_Y }}
-          />
-        )}
-        <svg width='30' height='30' viewBox='0 0 24 24' fill='none'>
+        <svg
+          // The click beat presses the cursor itself (a quick scale-dip about its
+          // tip) — no ring. Keyed by the click phase so the dip replays on each
+          // click; transform-origin pinned to the arrow tip so the hotspot holds.
+          key={clicking ? phase : 'cursor'}
+          width='30'
+          height='30'
+          viewBox='0 0 24 24'
+          fill='none'
+          className={cn(clicking && 'animate-hero-cursor-press motion-reduce:animate-none')}
+          style={{ transformOrigin: `${TIP_X}px ${TIP_Y}px` }}
+        >
           <title>cursor</title>
           <path
             d='M4 2 L4 18 L8.2 13.8 L11 19.6 L13.4 18.5 L10.6 12.8 L16.4 12.8 Z'
             fill='var(--surface-2)'
-            stroke='var(--text-primary)'
+            stroke='var(--text-body)'
             strokeWidth='1.5'
             strokeLinejoin='round'
           />
