@@ -42,9 +42,15 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   },
 
   request: {
+    /**
+     * Uses the `/diffs` endpoint (the `/changes` endpoint was deprecated in
+     * GitLab 15.7 and removed in 18.0). `/diffs` returns the diff array directly
+     * and is paginated; we request the max page size (100) to return the changes
+     * in a single call, which covers the vast majority of merge requests.
+     */
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/changes`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/diffs?per_page=100`
     },
     method: 'GET',
     headers: (params) => ({
@@ -52,7 +58,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
       return {
@@ -63,14 +69,12 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
     }
 
     const data = await response.json()
-    const changes = data.changes ?? []
+    const changes = Array.isArray(data) ? data : []
 
     return {
       success: true,
       output: {
-        iid: data.iid ?? null,
-        title: data.title ?? null,
-        state: data.state ?? null,
+        mergeRequestIid: params?.mergeRequestIid ?? null,
         changes,
         changesCount: changes.length,
       },
@@ -78,17 +82,9 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   },
 
   outputs: {
-    iid: {
+    mergeRequestIid: {
       type: 'number',
-      description: 'The merge request internal ID',
-    },
-    title: {
-      type: 'string',
-      description: 'The merge request title',
-    },
-    state: {
-      type: 'string',
-      description: 'The merge request state',
+      description: 'The merge request internal ID (IID)',
     },
     changes: {
       type: 'array',
@@ -96,7 +92,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
     },
     changesCount: {
       type: 'number',
-      description: 'Number of changed files',
+      description: 'Number of changed files returned',
     },
   },
 }

@@ -75,6 +75,7 @@ export const gitlabUpdateFileTool: ToolConfig<GitLabUpdateFileParams, GitLabUpda
         branch: params.branch,
         content: params.content,
         commit_message: params.commitMessage,
+        encoding: 'text',
       }
 
       if (params.lastCommitId) body.last_commit_id = params.lastCommitId

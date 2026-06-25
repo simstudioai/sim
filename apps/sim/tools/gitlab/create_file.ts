@@ -68,6 +68,7 @@ export const gitlabCreateFileTool: ToolConfig<GitLabCreateFileParams, GitLabCrea
       branch: params.branch,
       content: params.content,
       commit_message: params.commitMessage,
+      encoding: 'text',
     }),
   },
 
