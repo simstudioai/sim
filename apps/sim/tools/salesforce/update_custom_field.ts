@@ -17,11 +17,16 @@ const logger = createLogger('SalesforceUpdateCustomField')
 /**
  * Update an existing custom field via the Tooling API.
  *
+ * Updates a field's attributes (label, length, help text, required, picklist
+ * values, etc.) while keeping its existing data type — changing a field's type
+ * is a separate, conversion-driven operation in Salesforce and is intentionally
+ * out of scope here.
+ *
  * The Tooling API PATCH replaces the field's entire `Metadata` compound, so a
  * naive partial PATCH would wipe any property the caller omits. To avoid that,
  * this tool performs a read-modify-write in `directExecution`: it GETs the
  * field's current metadata, overlays only the provided changes, then PATCHes the
- * merged result. Unspecified properties (label, length, etc.) are preserved.
+ * merged result. Unspecified properties (type, length, etc.) are preserved.
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
  */
 export const salesforceUpdateCustomFieldTool: ToolConfig<
@@ -48,13 +53,6 @@ export const salesforceUpdateCustomFieldTool: ToolConfig<
       visibility: 'user-or-llm',
       description:
         'Tooling API Id of the custom field to update (find it via the Tooling Query tool)',
-    },
-    fieldType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        "Only provide to change the field's data type (e.g., Text, Number, Picklist); omit to keep the existing type",
     },
     label: {
       type: 'string',

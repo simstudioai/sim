@@ -195,22 +195,6 @@ function applyProvidedFieldMetadata(
 }
 
 /**
- * Type-specific metadata keys that do not carry across a field type change and
- * must be dropped when the type changes, so stale dimensions (e.g. a Text
- * `length` on a Checkbox) are not sent back to Salesforce.
- */
-const TYPE_SPECIFIC_METADATA_KEYS = [
-  'length',
-  'precision',
-  'scale',
-  'visibleLines',
-  'valueSet',
-  'defaultValue',
-  'unique',
-  'externalId',
-] as const
-
-/**
  * Applies type-specific defaults required by Salesforce when the caller did not
  * supply them, so common field types work out of the box on create.
  * @param metadata - The metadata object to mutate in place (must have a `type`)
@@ -284,21 +268,10 @@ export function mergeCustomFieldMetadata(
   params: CustomFieldMetadataInput
 ): Record<string, any> {
   const metadata: Record<string, any> = { ...(existing ?? {}) }
-
-  const newType = params.fieldType?.trim()
-  const typeChanged = Boolean(newType && existing?.type && newType !== existing.type)
-  if (typeChanged) {
-    // Changing the type invalidates the previous type's dimensions; drop them so
-    // the PATCH does not carry stale metadata. Type-agnostic properties (label,
-    // description, help text, required) are preserved.
-    for (const key of TYPE_SPECIFIC_METADATA_KEYS) delete metadata[key]
-  }
-
-  applyProvidedFieldMetadata(metadata, params)
-
-  // Backfill any properties the new type requires that the caller didn't supply.
-  if (typeChanged) applyFieldTypeDefaults(metadata)
-
+  // An attribute update never changes the field's data type — Salesforce treats
+  // a type change as a separate, conversion-driven operation. Keep the field's
+  // existing type and overlay only the other provided properties.
+  applyProvidedFieldMetadata(metadata, { ...params, fieldType: undefined })
   return metadata
 }
 
