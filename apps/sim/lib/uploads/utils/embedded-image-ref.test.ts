@@ -45,11 +45,16 @@ describe('extractEmbeddedFileRefs', () => {
     expect(ids.sort()).toEqual(['4bdaf6c4-072e-464e-891d-b6af3b5fe2cc', 'wf_abc'].sort())
   })
 
-  it('caps keys and ids at 50 each', () => {
+  it('caps total references (keys + ids) at 50 combined', () => {
     const ids = Array.from(
-      { length: 60 },
+      { length: 40 },
       (_, i) => `/api/files/view/wf_${String(i).padStart(6, '0')}`
     )
-    expect(extractEmbeddedFileRefs(ids.join(' ')).ids).toHaveLength(50)
+    const keys = Array.from(
+      { length: 40 },
+      (_, i) => `/api/files/serve/${encodeURIComponent(`workspace/W1/k${i}.png`)}`
+    )
+    const { keys: k, ids: d } = extractEmbeddedFileRefs([...ids, ...keys].join(' '))
+    expect(k.length + d.length).toBe(50)
   })
 })

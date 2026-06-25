@@ -134,10 +134,11 @@ export const GET = withRouteHandler(
     for (const [imageId, asset] of assetMap) {
       const escapedId = imageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       const replacement = `./assets/${asset.filename}`
-      mdContent = mdContent.replace(
-        new RegExp(`/api/files/view/${escapedId}`, 'g'),
-        () => replacement
-      )
+      // Rewrite both embed spellings the extractor resolves to this id — the view URL and the in-app
+      // `/workspace/<ws>/files/<id>` path — so a bundled asset never leaves a broken link in the export.
+      mdContent = mdContent
+        .replace(new RegExp(`/api/files/view/${escapedId}`, 'g'), () => replacement)
+        .replace(new RegExp(`/workspace/[A-Za-z0-9-]+/files/${escapedId}`, 'g'), () => replacement)
     }
 
     const zip = new JSZip()

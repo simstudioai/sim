@@ -54,9 +54,10 @@ export function extractEmbeddedFileRef(src: string): EmbeddedFileRef {
 }
 
 /**
- * The de-duplicated keys and ids embedded in `content`, each capped at {@link MAX_EMBEDDED_IMAGES}.
- * Every candidate URL is interpreted by {@link extractEmbeddedFileRef}, so this is exactly the set the
- * frontend rewrites — the server's referenced-by-doc gate and the export bundler share one grammar.
+ * The de-duplicated keys and ids embedded in `content`, bounded to {@link MAX_EMBEDDED_IMAGES} unique
+ * references **combined** (keys + ids). Every candidate URL is interpreted by {@link extractEmbeddedFileRef},
+ * so this is exactly the set the frontend rewrites — the server's referenced-by-doc gate and the export
+ * bundler share one grammar.
  */
 export function extractEmbeddedFileRefs(content: string): { keys: string[]; ids: string[] } {
   const keys = new Set<string>()
@@ -66,9 +67,7 @@ export function extractEmbeddedFileRefs(content: string): { keys: string[]; ids:
     if (!ref) continue
     if ('key' in ref) keys.add(ref.key)
     else ids.add(ref.fileId)
+    if (keys.size + ids.size >= MAX_EMBEDDED_IMAGES) break
   }
-  return {
-    keys: [...keys].slice(0, MAX_EMBEDDED_IMAGES),
-    ids: [...ids].slice(0, MAX_EMBEDDED_IMAGES),
-  }
+  return { keys: [...keys], ids: [...ids] }
 }
