@@ -83,13 +83,13 @@ vi.mock('@/components/emcn', () => ({
 }))
 
 import {
-  tableKeys,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useDeleteColumn,
   useRestoreTable,
   useUpdateColumn,
 } from '@/hooks/queries/tables'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'

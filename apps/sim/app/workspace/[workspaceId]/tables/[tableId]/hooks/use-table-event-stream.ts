@@ -13,8 +13,8 @@ import {
   downloadExportResult,
   snapshotAndMutateRows,
   type TableRunState,
-  tableKeys,
 } from '@/hooks/queries/tables'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const logger = createLogger('useTableEventStream')
 

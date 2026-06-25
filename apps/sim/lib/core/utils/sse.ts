@@ -138,11 +138,10 @@ export async function readSSELines(source: SSESource, options: ReadSSELinesOptio
       if (signal?.aborted) break
 
       const { done, value } = await reader.read()
-      if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+      buffer = done ? '' : (lines.pop() ?? '')
 
       for (const rawLine of lines) {
         if (signal?.aborted) return
@@ -156,6 +155,8 @@ export async function readSSELines(source: SSESource, options: ReadSSELinesOptio
 
         if ((await onData(data)) === true) return
       }
+
+      if (done) break
     }
   } finally {
     if (ownsLock) reader.releaseLock()

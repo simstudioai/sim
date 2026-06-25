@@ -561,6 +561,7 @@ export function Chat() {
         }
       }
 
+      let finalError: string | null = null
       try {
         await readSSEEvents<{ event?: string; data?: ExecutionResult; chunk?: string }>(reader, {
           onParseError: (_data, e) => {
@@ -571,12 +572,7 @@ export function Chat() {
 
             if (event === 'final' && eventData) {
               if ('success' in eventData && !eventData.success) {
-                const errorMessage = eventData.error || 'Workflow execution failed'
-                flushChunks()
-                appendMessageContent(
-                  responseMessageId,
-                  `${accumulatedContent ? '\n\n' : ''}Error: ${errorMessage}`
-                )
+                finalError = eventData.error || 'Workflow execution failed'
               }
               return true
             }
@@ -589,6 +585,12 @@ export function Chat() {
           },
         })
         flushChunks()
+        if (finalError) {
+          appendMessageContent(
+            responseMessageId,
+            `${accumulatedContent ? '\n\n' : ''}Error: ${finalError}`
+          )
+        }
         finalizeMessageStream(responseMessageId)
       } catch (error) {
         if ((error as Error)?.name !== 'AbortError') {
