@@ -1065,7 +1065,8 @@ export function GroupDetail({
     })
   }, [])
 
-  const handleSaveConfig = useCallback(async () => {
+  /** Persists the editing buffer. Returns whether the save succeeded so callers can decide whether to navigate away. */
+  const handleSaveConfig = useCallback(async (): Promise<boolean> => {
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
@@ -1073,11 +1074,13 @@ export function GroupDetail({
         config: editingConfig,
       })
       setViewingGroup((prev) => ({ ...prev, config: editingConfig }))
+      return true
     } catch (error) {
       logger.error('Failed to update config', error)
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
+      return false
     }
   }, [viewingGroup.id, editingConfig, organizationId, updatePermissionGroup])
 
@@ -1725,9 +1728,13 @@ export function GroupDetail({
           primaryAction={{
             label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
             onClick: async () => {
-              await handleSaveConfig()
-              setShowUnsavedChanges(false)
-              onBack()
+              // Only leave once the save actually succeeds; a failed save keeps
+              // the dialog open with the edits intact (error surfaced via toast).
+              const saved = await handleSaveConfig()
+              if (saved) {
+                setShowUnsavedChanges(false)
+                onBack()
+              }
             },
             disabled: updatePermissionGroup.isPending,
           }}
