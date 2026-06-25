@@ -13,7 +13,13 @@ const NAV_TABS = [
   {
     label: 'Documentation',
     href: '/introduction',
-    match: (p: string) => !p.includes('/api-reference'),
+    match: (p: string) => !p.includes('/api-reference') && !p.includes('/academy'),
+    external: false,
+  },
+  {
+    label: 'Academy',
+    href: '/academy',
+    match: (p: string) => p.includes('/academy'),
     external: false,
   },
   {
