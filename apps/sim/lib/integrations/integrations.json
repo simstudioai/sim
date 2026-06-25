@@ -16839,6 +16839,213 @@
       "tags": ["automation"]
     },
     {
+      "type": "thrive",
+      "slug": "thrive",
+      "name": "Thrive",
+      "description": "Manage users, audiences, learning and CPD on Thrive",
+      "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ThriveIcon",
+      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "operations": [
+        {
+          "name": "Create User",
+          "description": "Create a new user in Thrive."
+        },
+        {
+          "name": "Update User",
+          "description": "Update an existing user in Thrive by ref. Only the fields provided are changed."
+        },
+        {
+          "name": "Delete User",
+          "description": "Permanently delete (obfuscate) a user in Thrive by ref while retaining training history."
+        },
+        {
+          "name": "Suspend User",
+          "description": "Suspend a user in Thrive by ref, marking the account inactive."
+        },
+        {
+          "name": "Search Users",
+          "description": "Search users in Thrive and return basic user information with pagination."
+        },
+        {
+          "name": "Get User by ID",
+          "description": "Get a single user in Thrive by their ID and return basic user information."
+        },
+        {
+          "name": "Get User by Ref",
+          "description": "Get a single user in Thrive by their ref and return basic user information."
+        },
+        {
+          "name": "List Audiences",
+          "description": "List audiences and structures in Thrive with pagination."
+        },
+        {
+          "name": "Create Audience",
+          "description": "Create a new audience or structure in Thrive."
+        },
+        {
+          "name": "Get Audience",
+          "description": "Get a single audience or structure in Thrive by id or reference."
+        },
+        {
+          "name": "Update Audience",
+          "description": "Update an audience in Thrive, optionally moving it to a new parent."
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience in Thrive (only if it has no child audiences)."
+        },
+        {
+          "name": "List Audience Members",
+          "description": "List the members of a Thrive audience with pagination."
+        },
+        {
+          "name": "Add Audience Members",
+          "description": "Add members to a Thrive audience by email, ref, or id."
+        },
+        {
+          "name": "Replace Audience Members",
+          "description": "Replace a Thrive audience's entire members list with the given users (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Member",
+          "description": "Remove a single member from a Thrive audience."
+        },
+        {
+          "name": "List Audience Managers",
+          "description": "List the managers of a Thrive audience."
+        },
+        {
+          "name": "Add Audience Managers",
+          "description": "Add managers to a Thrive audience with their permissions."
+        },
+        {
+          "name": "Replace Audience Managers",
+          "description": "Replace a Thrive audience's entire manager list with the given managers (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Manager",
+          "description": "Remove a single manager from a Thrive audience."
+        },
+        {
+          "name": "List Assignments",
+          "description": "List compliance assignments in Thrive, optionally filtered by audience."
+        },
+        {
+          "name": "Create Assignment",
+          "description": "Create a compliance assignment in Thrive for an audience and content item."
+        },
+        {
+          "name": "Get Assignment",
+          "description": "Get a single compliance assignment in Thrive by its ID."
+        },
+        {
+          "name": "Update Assignment",
+          "description": "Update a compliance assignment in Thrive."
+        },
+        {
+          "name": "Delete Assignment",
+          "description": "Delete a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Enrolments",
+          "description": "List enrolments for a compliance assignment in Thrive."
+        },
+        {
+          "name": "Get Enrolment",
+          "description": "Get a single enrolment for a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Completions",
+          "description": "List learning completion records in Thrive, optionally filtered by user or content."
+        },
+        {
+          "name": "Get Completion",
+          "description": "Get a single learning completion record in Thrive by its ID."
+        },
+        {
+          "name": "Create Completion",
+          "description": "Record a learning completion in Thrive for a user and content item."
+        },
+        {
+          "name": "Query Content",
+          "description": "Query content records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Content",
+          "description": "Get a single content record in Thrive by its ID."
+        },
+        {
+          "name": "Query Activities",
+          "description": "Query activity records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Activity",
+          "description": "Get a single activity record in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Categories",
+          "description": "Query CPD categories in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Category",
+          "description": "Get a single CPD category in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Entries",
+          "description": "Query CPD log entries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Entry",
+          "description": "Get a single CPD log entry in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Requirements",
+          "description": "Query CPD requirement summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Requirement",
+          "description": "Get a single CPD requirement summary in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD User Summaries",
+          "description": "Query CPD user log summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "List Tags",
+          "description": "List tags in Thrive and return tag information with pagination."
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag in Thrive by its ID."
+        },
+        {
+          "name": "Add User Tags",
+          "description": "Add one or more tags to a learner in Thrive."
+        },
+        {
+          "name": "Remove User Tags",
+          "description": "Remove one or more tags from a learner in Thrive."
+        },
+        {
+          "name": "Update User Skills",
+          "description": "Update skills and levels for a learner in Thrive."
+        },
+        {
+          "name": "Get Skill Levels",
+          "description": "Get the available skill levels configured in Thrive."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "tinybird",
       "slug": "tinybird",
       "name": "Tinybird",

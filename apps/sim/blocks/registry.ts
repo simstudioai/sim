@@ -291,6 +291,7 @@ import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
 import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import { TextractBlock, TextractBlockMeta, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
+import { ThriveBlock, ThriveBlockMeta } from '@/blocks/blocks/thrive'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
@@ -602,6 +603,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   textract: TextractBlock,
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
+  thrive: ThriveBlock,
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
@@ -859,6 +861,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   telegram: TelegramBlockMeta,
   temporal: TemporalBlockMeta,
   textract: TextractBlockMeta,
+  thrive: ThriveBlockMeta,
   tinybird: TinybirdBlockMeta,
   trello: TrelloBlockMeta,
   trigger_dev: TriggerDevBlockMeta,
