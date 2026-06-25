@@ -12,7 +12,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipTag,
   toast,
 } from '@/components/emcn'
 import type {
@@ -40,10 +39,17 @@ interface PromoteWorkspaceModalProps {
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
 
-const WORKFLOW_ACTION_LABEL: Record<ForkWorkflowChange['action'], string> = {
-  update: 'Update',
-  create: 'Create',
-  archive: 'Archive',
+/** Section label + display order per mapping kind (grouped, Secrets-page style). */
+const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
+  credential: { label: 'Credentials', order: 0 },
+  'env-var': { label: 'Environment variables', order: 1 },
+  table: { label: 'Tables', order: 2 },
+  'knowledge-base': { label: 'Knowledge bases', order: 3 },
+  'knowledge-document': { label: 'Knowledge documents', order: 4 },
+  file: { label: 'Files', order: 5 },
+  'mcp-server': { label: 'MCP servers', order: 6 },
+  'custom-tool': { label: 'Custom tools', order: 7 },
+  skill: { label: 'Skills', order: 8 },
 }
 
 interface EdgeOption {
@@ -53,6 +59,11 @@ interface EdgeOption {
   direction: ForkDirection
 }
 
+/**
+ * One mapping as a `display: contents` row so its cells snap into the parent grid
+ * (Secrets-page grammar): source name on the left, target selector inline on the
+ * right, columns aligned across every row. A required source is marked with `*`.
+ */
 function MappingRow({
   entry,
   value,
@@ -63,8 +74,18 @@ function MappingRow({
   onChange: (value: string) => void
 }) {
   return (
-    <ChipModalField type='custom' title={entry.sourceLabel}>
+    <div className='contents'>
+      <div className='flex min-w-0 items-center gap-1'>
+        <span className='truncate text-[var(--text-body)] text-sm'>{entry.sourceLabel}</span>
+        {entry.required ? (
+          <span className='text-[var(--text-error)]' title='Required to sync'>
+            *
+          </span>
+        ) : null}
+      </div>
+      <div />
       <ChipCombobox
+        className='w-full'
         options={entry.candidates.map((candidate) => ({
           label: candidate.label,
           value: candidate.id,
@@ -73,7 +94,7 @@ function MappingRow({
         onChange={onChange}
         placeholder='Select target'
       />
-    </ChipModalField>
+    </div>
   )
 }
 
@@ -154,9 +175,25 @@ export function PromoteWorkspaceModal({
     })
   }, [entries])
 
-  const requiredEntries = entries.filter((entry) => entry.required)
-  const optionalEntries = entries.filter((entry) => !entry.required)
-  const requiredComplete = requiredEntries.every((entry) => (targets[entryKey(entry)] ?? '') !== '')
+  const requiredComplete = entries.every(
+    (entry) => !entry.required || (targets[entryKey(entry)] ?? '') !== ''
+  )
+
+  // Group mappings by resource type into Secrets-page-style sections: the section
+  // header conveys the type (no per-row icons), required types sort to the top.
+  const groupedEntries = useMemo(() => {
+    const groups = new Map<ForkMappingEntry['kind'], ForkMappingEntry[]>()
+    for (const entry of entries) {
+      const list = groups.get(entry.kind)
+      if (list) list.push(entry)
+      else groups.set(entry.kind, [entry])
+    }
+    return Array.from(groups, ([kind, items]) => ({
+      kind,
+      label: MAPPING_SECTION[kind].label,
+      items: items.slice().sort((a, b) => a.sourceLabel.localeCompare(b.sourceLabel)),
+    })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
+  }, [entries])
 
   const runPromote = async (force: boolean) => {
     if (!otherWorkspaceId) return
@@ -261,11 +298,11 @@ export function PromoteWorkspaceModal({
             <>
               <ChipModalField
                 type='dropdown'
-                title='Direction'
+                title='Action'
                 value={selectedKey}
                 onChange={setSelectedKey}
                 options={edgeOptions}
-                placeholder='Select direction'
+                placeholder='Select action'
                 align='start'
               />
 
@@ -283,25 +320,18 @@ export function PromoteWorkspaceModal({
                       return (
                         <div
                           key={`${change.action}:${change.currentName}:${index}`}
-                          className='flex items-center justify-between gap-2'
+                          className='flex min-w-0 items-center gap-1.5'
                         >
-                          <div className='flex min-w-0 flex-1 items-center gap-1.5'>
-                            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                              {change.currentName}
-                            </span>
-                            {renamed ? (
-                              <>
-                                <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                                <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                                  {change.otherName}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                          {change.action !== 'update' ? (
-                            <ChipTag variant='gray' className='shrink-0'>
-                              {WORKFLOW_ACTION_LABEL[change.action]}
-                            </ChipTag>
+                          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+                            {change.currentName}
+                          </span>
+                          {renamed ? (
+                            <>
+                              <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
+                              <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                                {change.otherName}
+                              </span>
+                            </>
                           ) : null}
                         </div>
                       )
@@ -328,54 +358,50 @@ export function PromoteWorkspaceModal({
                 </ChipModalField>
               ) : null}
 
-              {requiredEntries.length > 0 ? (
-                <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
-                  Credentials & secrets
+              {groupedEntries.map((group) => (
+                <div key={group.kind} className='flex flex-col px-2'>
+                  <span className='text-[var(--text-muted)] text-xs'>{group.label}</span>
+                  <div className='mt-[7px] mb-2.5 h-px bg-[var(--border)]' />
+                  <div className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-center gap-y-2'>
+                    {group.items.map((entry) => (
+                      <MappingRow
+                        key={entryKey(entry)}
+                        entry={entry}
+                        value={targets[entryKey(entry)] ?? ''}
+                        onChange={(value) =>
+                          setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+                        }
+                      />
+                    ))}
+                  </div>
                 </div>
-              ) : null}
-              {requiredEntries.map((entry) => (
-                <MappingRow
-                  key={entryKey(entry)}
-                  entry={entry}
-                  value={targets[entryKey(entry)] ?? ''}
-                  onChange={(value) =>
-                    setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                  }
-                />
-              ))}
-
-              {optionalEntries.length > 0 ? (
-                <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
-                  Additional resources (optional)
-                </div>
-              ) : null}
-              {optionalEntries.map((entry) => (
-                <MappingRow
-                  key={entryKey(entry)}
-                  entry={entry}
-                  value={targets[entryKey(entry)] ?? ''}
-                  onChange={(value) =>
-                    setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                  }
-                />
               ))}
             </>
           )}
 
-          {undoableRun ? (
+          {undoableRun || isManage ? (
             <ChipModalField type='custom' title='Undo last sync'>
               <div className='flex items-center justify-between gap-3'>
                 <div className='text-[var(--text-secondary)] text-xs'>
-                  The last sync into this workspace (from {undoableRun.otherName}) can be undone —
-                  it restores each workflow's prior deployed version.
+                  {undoableRun ? (
+                    <>
+                      The last sync into this workspace (from {undoableRun.otherName}) can be undone
+                      — it restores each workflow's prior deployed version.
+                    </>
+                  ) : (
+                    'No sync to roll back yet.'
+                  )}
                 </div>
-                <Chip
-                  variant='destructive'
-                  onClick={() => setConfirmRollbackOpen(true)}
-                  disabled={submitting}
-                >
-                  Rollback
-                </Chip>
+                <span title={undoableRun ? undefined : 'Nothing to roll back yet'}>
+                  <Chip
+                    variant='destructive'
+                    onClick={() => setConfirmRollbackOpen(true)}
+                    disabled={submitting || !undoableRun}
+                    className='disabled:pointer-events-none disabled:opacity-50'
+                  >
+                    Rollback
+                  </Chip>
+                </span>
               </div>
             </ChipModalField>
           ) : null}
