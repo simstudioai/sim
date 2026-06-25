@@ -65,8 +65,8 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
-  // Bumped to remount the rich Content editor when content is set programmatically (a pasted
-  // SKILL.md is destructured into the fields) — the editor otherwise only seeds on mount.
+  // Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically —
+  // a reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds.
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
@@ -80,6 +80,9 @@ export function SkillModal({
     setContent(initialValues?.content ?? '')
     setErrors({})
     setActiveTab('create')
+    // Remount the seed-once Content editor so it re-seeds from the reset value (an `initialValues`
+    // change for the same skill keeps the React key otherwise stable).
+    setContentSeed((seed) => seed + 1)
   }
   if (open !== prevOpen) setPrevOpen(open)
   if (initialValues !== prevInitialValues) setPrevInitialValues(initialValues)
