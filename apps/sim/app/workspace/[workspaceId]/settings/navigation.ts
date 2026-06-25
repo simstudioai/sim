@@ -57,6 +57,8 @@ export type NavigationSection =
 export interface NavigationItem {
   id: SettingsSection
   label: string
+  /** One-line summary shown as the page subtitle under the title. */
+  description: string
   icon: React.ComponentType<{ className?: string }>
   section: NavigationSection
   hideWhenBillingDisabled?: boolean
@@ -96,10 +98,17 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
 ]
 
 export const allNavigationItems: NavigationItem[] = [
-  { id: 'general', label: 'General', icon: Settings, section: 'account' },
+  {
+    id: 'general',
+    label: 'General',
+    description: 'Manage your profile, appearance, and preferences.',
+    icon: Settings,
+    section: 'account',
+  },
   {
     id: 'access-control',
     label: 'Access control',
+    description: 'Manage permission groups across every workspace in your organization.',
     icon: ShieldCheck,
     section: 'enterprise',
     requiresHosted: true,
@@ -109,6 +118,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'audit-logs',
     label: 'Audit logs',
+    description: 'Review administrative and security activity across your organization.',
     icon: ClipboardList,
     section: 'enterprise',
     requiresHosted: true,
@@ -118,6 +128,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'billing',
     label: 'Billing',
+    description: 'Manage your plan, pricing, and invoices.',
     icon: ClipboardList,
     section: 'subscription',
     hideWhenBillingDisabled: true,
@@ -125,26 +136,59 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'teammates',
     label: 'Teammates',
+    description: 'Manage your teammates in this workspace.',
     icon: User,
     section: 'subscription',
   },
   {
     id: 'organization',
     label: 'Organization',
+    description: "Manage your organization's members and seats.",
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
-  { id: 'custom-tools', label: 'Custom tools', icon: Wrench, section: 'tools' },
-  { id: 'mcp', label: 'MCP tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'Sim API keys', icon: TerminalWindow, section: 'system' },
-  { id: 'workflow-mcp-servers', label: 'MCP servers', icon: Server, section: 'system' },
+  {
+    id: 'secrets',
+    label: 'Secrets',
+    description: 'Store environment variables for your workflows to use.',
+    icon: Key,
+    section: 'account',
+  },
+  {
+    id: 'custom-tools',
+    label: 'Custom tools',
+    description: 'Create and manage custom tools for your agents.',
+    icon: Wrench,
+    section: 'tools',
+  },
+  {
+    id: 'mcp',
+    label: 'MCP tools',
+    description: 'Connect MCP servers to use their tools in your workflows.',
+    icon: McpIcon,
+    section: 'tools',
+  },
+  {
+    id: 'apikeys',
+    label: 'Sim API keys',
+    description: 'Create and manage API keys for the Sim API.',
+    icon: TerminalWindow,
+    section: 'system',
+  },
+  {
+    id: 'workflow-mcp-servers',
+    label: 'MCP servers',
+    description: 'Expose your workflows as tools on an MCP server.',
+    icon: Server,
+    section: 'system',
+  },
   {
     id: 'byok',
     label: 'BYOK',
+    description: 'Bring your own model-provider API keys.',
     icon: KeySquare,
     section: 'system',
     requiresHosted: true,
@@ -152,6 +196,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'copilot',
     label: 'Chat keys',
+    description: 'Manage the model-provider keys that power Chat.',
     icon: HexSimple,
     section: 'system',
     requiresHosted: true,
@@ -159,6 +204,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'inbox',
     label: 'Sim mailer',
+    description: 'Trigger and process workflows from incoming email.',
     icon: Send,
     section: 'system',
     requiresMax: true,
@@ -171,15 +217,23 @@ export const allNavigationItems: NavigationItem[] = [
         {
           id: 'credential-sets' as const,
           label: 'Email polling',
+          description: 'Share email-polling credentials across your team.',
           icon: Mail,
           section: 'system' as const,
         },
       ]
     : []),
-  { id: 'recently-deleted', label: 'Recently deleted', icon: TrashOutline, section: 'system' },
+  {
+    id: 'recently-deleted',
+    label: 'Recently deleted',
+    description: 'Restore items deleted in the last 30 days.',
+    icon: TrashOutline,
+    section: 'system',
+  },
   {
     id: 'sso',
     label: 'Single sign-on',
+    description: 'Configure SAML or OIDC single sign-on for your organization.',
     icon: LogIn,
     section: 'enterprise',
     requiresHosted: true,
@@ -189,6 +243,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'data-retention',
     label: 'Data retention',
+    description: 'Control how long data is kept and configure PII redaction.',
     icon: Database,
     section: 'enterprise',
     requiresHosted: true,
@@ -198,6 +253,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'data-drains',
     label: 'Data drains',
+    description: 'Stream your logs and events to external destinations.',
     icon: Upload,
     section: 'enterprise',
     requiresHosted: true,
@@ -207,6 +263,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'whitelabeling',
     label: 'Whitelabeling',
+    description: 'Customize the branding and appearance of your workspace.',
     icon: Palette,
     section: 'enterprise',
     requiresHosted: true,
@@ -216,6 +273,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'admin',
     label: 'Admin',
+    description: 'Superuser administration and workspace tools.',
     icon: Lock,
     section: 'superuser',
     requiresAdminRole: true,
@@ -223,8 +281,21 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'mothership',
     label: 'Mothership',
+    description: 'Internal Sim operations and license management.',
     icon: Server,
     section: 'superuser',
     requiresAdminRole: true,
   },
 ]
+
+/**
+ * Title + description for a settings section, the single source of truth used by
+ * `SettingsPanel` to render the page header. Falls back to `null` for sections
+ * that are gated off (callers render no title in that case).
+ */
+export function getSettingsSectionMeta(
+  section: SettingsSection
+): { label: string; description: string } | null {
+  const item = allNavigationItems.find((navItem) => navItem.id === section)
+  return item ? { label: item.label, description: item.description } : null
+}

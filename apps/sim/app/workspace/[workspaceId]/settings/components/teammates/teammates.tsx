@@ -29,6 +29,7 @@ import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
@@ -174,10 +175,9 @@ export function Teammates() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
+    <>
+      <SettingsPanel
+        actions={
           <Chip
             leftIcon={Plus}
             variant='primary'
@@ -188,149 +188,139 @@ export function Teammates() {
           >
             Invite
           </Chip>
+        }
+      >
+        <div className='flex items-center gap-2'>
+          <ChipInput
+            icon={Search}
+            placeholder='Search teammates...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='flex-1'
+          />
         </div>
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
-          <div className='flex flex-col gap-1'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>Teammates</h1>
-            <p className='text-[var(--text-muted)] text-md'>
-              Manage your teammates in this workspace.
-            </p>
-          </div>
 
-          <div className='flex items-center gap-2'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search teammates...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='flex-1'
-            />
-          </div>
-
-          <MemberSection
-            label={`Teammates (${teammates.length})`}
-            isEmpty={showNoResults}
-            emptyText={
-              searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
-            }
-          >
-            {filteredTeammates.map((teammate) => (
-              <MemberRow
-                key={teammate.key}
-                name={teammate.name}
-                email={teammate.email}
-                image={teammate.image}
-                status={teammate.status}
-                roleControl={(() => {
-                  const lockReason = teammate.isPending
-                    ? null
-                    : workspaceRoleLockReason(teammate.roleSource)
-                  return (
-                    <RoleLockTooltip reason={lockReason}>
-                      <ChipDropdown
-                        value={teammate.role}
-                        onChange={(role) => handleRoleChange(teammate, role as WorkspacePermission)}
-                        options={ROLE_OPTIONS}
-                        matchTriggerWidth={false}
-                        disabled={
-                          teammate.isPending ||
-                          !canManage ||
-                          teammate.userId === viewer?.userId ||
-                          lockReason !== null
-                        }
-                      />
-                    </RoleLockTooltip>
-                  )
-                })()}
-                menu={
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type='button'
-                        aria-label='Teammate actions'
-                        className={chipVariants({ flush: true })}
-                      >
-                        <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end'>
-                      <DropdownMenuItem onSelect={() => copyToClipboard(teammate.email)}>
-                        Copy email
-                      </DropdownMenuItem>
-                      {canManage && teammate.isPending && (
-                        <>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              if (teammate.invitationId) {
-                                resendInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
-                            }}
-                          >
-                            Resend invite
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              if (teammate.invitationId && teammate.token) {
-                                copyToClipboard(
-                                  buildInviteLink(teammate.invitationId, teammate.token)
-                                )
-                              }
-                            }}
-                          >
-                            Copy invite link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className='text-[var(--text-error)]'
-                            onSelect={() => {
-                              if (teammate.invitationId) {
-                                cancelInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
-                            }}
-                          >
-                            Revoke invite
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      {canManage && !teammate.isPending && teammate.userId !== viewer?.userId && (
+        <MemberSection
+          label={`Teammates (${teammates.length})`}
+          isEmpty={showNoResults}
+          emptyText={
+            searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
+          }
+        >
+          {filteredTeammates.map((teammate) => (
+            <MemberRow
+              key={teammate.key}
+              name={teammate.name}
+              email={teammate.email}
+              image={teammate.image}
+              status={teammate.status}
+              roleControl={(() => {
+                const lockReason = teammate.isPending
+                  ? null
+                  : workspaceRoleLockReason(teammate.roleSource)
+                return (
+                  <RoleLockTooltip reason={lockReason}>
+                    <ChipDropdown
+                      value={teammate.role}
+                      onChange={(role) => handleRoleChange(teammate, role as WorkspacePermission)}
+                      options={ROLE_OPTIONS}
+                      matchTriggerWidth={false}
+                      disabled={
+                        teammate.isPending ||
+                        !canManage ||
+                        teammate.userId === viewer?.userId ||
+                        lockReason !== null
+                      }
+                    />
+                  </RoleLockTooltip>
+                )
+              })()}
+              menu={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type='button'
+                      aria-label='Teammate actions'
+                      className={chipVariants({ flush: true })}
+                    >
+                      <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem onSelect={() => copyToClipboard(teammate.email)}>
+                      Copy email
+                    </DropdownMenuItem>
+                    {canManage && teammate.isPending && (
+                      <>
                         <DropdownMenuItem
-                          className='text-[var(--text-error)]'
                           onSelect={() => {
-                            if (teammate.userId) {
-                              removeMember.mutate(
-                                { userId: teammate.userId, workspaceId },
-                                {
-                                  onError: (error) => {
-                                    toast.error("Couldn't remove teammate", {
-                                      description: getErrorMessage(
-                                        error,
-                                        'Please try again in a moment.'
-                                      ),
-                                    })
-                                  },
-                                }
+                            if (teammate.invitationId) {
+                              resendInvitation.mutate({
+                                invitationId: teammate.invitationId,
+                                workspaceId,
+                              })
+                            }
+                          }}
+                        >
+                          Resend invite
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            if (teammate.invitationId && teammate.token) {
+                              copyToClipboard(
+                                buildInviteLink(teammate.invitationId, teammate.token)
                               )
                             }
                           }}
                         >
-                          Remove
+                          Copy invite link
                         </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                }
-              />
-            ))}
-          </MemberSection>
-        </div>
-      </div>
+                        <DropdownMenuItem
+                          className='text-[var(--text-error)]'
+                          onSelect={() => {
+                            if (teammate.invitationId) {
+                              cancelInvitation.mutate({
+                                invitationId: teammate.invitationId,
+                                workspaceId,
+                              })
+                            }
+                          }}
+                        >
+                          Revoke invite
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {canManage && !teammate.isPending && teammate.userId !== viewer?.userId && (
+                      <DropdownMenuItem
+                        className='text-[var(--text-error)]'
+                        onSelect={() => {
+                          if (teammate.userId) {
+                            removeMember.mutate(
+                              { userId: teammate.userId, workspaceId },
+                              {
+                                onError: (error) => {
+                                  toast.error("Couldn't remove teammate", {
+                                    description: getErrorMessage(
+                                      error,
+                                      'Please try again in a moment.'
+                                    ),
+                                  })
+                                },
+                              }
+                            )
+                          }
+                        }}
+                      >
+                        Remove
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
+          ))}
+        </MemberSection>
+      </SettingsPanel>
 
       <InviteModal
         open={isInviteModalOpen}
@@ -339,6 +329,6 @@ export function Teammates() {
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspace?.organizationId ?? null}
       />
-    </div>
+    </>
   )
 }
