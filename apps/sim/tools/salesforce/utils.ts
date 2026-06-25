@@ -172,14 +172,43 @@ function applyProvidedFieldMetadata(
 
   const picklistValues = parseDelimitedList(params.picklistValues)
   if (picklistValues.length > 0) {
+    // Union with any existing values so an update adds new options without
+    // dropping the field's current values (or their default flags).
+    const existingValues: Array<Record<string, any>> = Array.isArray(
+      target.valueSet?.valueSetDefinition?.value
+    )
+      ? target.valueSet.valueSetDefinition.value
+      : []
+    const existingFullNames = new Set(existingValues.map((entry) => entry.fullName))
+    const additions = picklistValues
+      .filter((value) => !existingFullNames.has(value))
+      .map((value) => ({ fullName: value, default: false, label: value }))
     target.valueSet = {
+      ...(target.valueSet ?? {}),
       valueSetDefinition: {
-        sorted: false,
-        value: picklistValues.map((value) => ({ fullName: value, default: false, label: value })),
+        ...(target.valueSet?.valueSetDefinition ?? {}),
+        sorted: target.valueSet?.valueSetDefinition?.sorted ?? false,
+        value: [...existingValues, ...additions],
       },
     }
   }
 }
+
+/**
+ * Type-specific metadata keys that do not carry across a field type change and
+ * must be dropped when the type changes, so stale dimensions (e.g. a Text
+ * `length` on a Checkbox) are not sent back to Salesforce.
+ */
+const TYPE_SPECIFIC_METADATA_KEYS = [
+  'length',
+  'precision',
+  'scale',
+  'visibleLines',
+  'valueSet',
+  'defaultValue',
+  'unique',
+  'externalId',
+] as const
 
 /**
  * Applies type-specific defaults required by Salesforce when the caller did not
@@ -255,7 +284,21 @@ export function mergeCustomFieldMetadata(
   params: CustomFieldMetadataInput
 ): Record<string, any> {
   const metadata: Record<string, any> = { ...(existing ?? {}) }
+
+  const newType = params.fieldType?.trim()
+  const typeChanged = Boolean(newType && existing?.type && newType !== existing.type)
+  if (typeChanged) {
+    // Changing the type invalidates the previous type's dimensions; drop them so
+    // the PATCH does not carry stale metadata. Type-agnostic properties (label,
+    // description, help text, required) are preserved.
+    for (const key of TYPE_SPECIFIC_METADATA_KEYS) delete metadata[key]
+  }
+
   applyProvidedFieldMetadata(metadata, params)
+
+  // Backfill any properties the new type requires that the caller didn't supply.
+  if (typeChanged) applyFieldTypeDefaults(metadata)
+
   return metadata
 }
 

@@ -126,7 +126,8 @@ export const salesforceUpdateCustomFieldTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated values for Picklist or MultiselectPicklist fields',
+      description:
+        'Comma-separated values to add to a Picklist or MultiselectPicklist field (existing values are kept)',
     },
   },
 
