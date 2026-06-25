@@ -330,22 +330,31 @@ export const ThriveBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'status',
+      id: 'userStatus',
       title: 'Status',
       type: 'dropdown',
       options: [
-        { label: 'Active (user)', id: 'active' },
-        { label: 'Inactive (user)', id: 'inactive' },
-        { label: 'Expired (user)', id: 'expired' },
-        { label: 'New (user)', id: 'new' },
-        { label: 'Archived (enrolment)', id: 'archived' },
-        { label: 'Complete (enrolment)', id: 'complete' },
-        { label: 'Open (enrolment)', id: 'open' },
-        { label: 'Overdue (enrolment)', id: 'overdue' },
-        { label: 'Scheduled (enrolment)', id: 'scheduled' },
-        { label: 'Unassigned (enrolment)', id: 'unassigned' },
+        { label: 'Active', id: 'active' },
+        { label: 'Inactive', id: 'inactive' },
+        { label: 'Expired', id: 'expired' },
+        { label: 'New', id: 'new' },
       ],
-      condition: { field: 'operation', value: ['search_users', 'list_enrolments'] },
+      condition: { field: 'operation', value: 'search_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'enrolmentStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Archived', id: 'archived' },
+        { label: 'Complete', id: 'complete' },
+        { label: 'Open', id: 'open' },
+        { label: 'Overdue', id: 'overdue' },
+        { label: 'Scheduled', id: 'scheduled' },
+        { label: 'Unassigned', id: 'unassigned' },
+      ],
+      condition: { field: 'operation', value: 'list_enrolments' },
       mode: 'advanced',
     },
 
@@ -817,6 +826,8 @@ export const ThriveBlock: BlockConfig = {
             result[field] = value === true || value === 'true'
           }
         }
+        const status = params.userStatus || params.enrolmentStatus
+        if (status !== undefined && status !== '') result.status = status
         return result
       },
     },
@@ -848,7 +859,8 @@ export const ThriveBlock: BlockConfig = {
     },
     statuses: { type: 'string', description: 'Comma-separated user statuses to include' },
     omitStatuses: { type: 'string', description: 'Comma-separated user statuses to exclude' },
-    status: { type: 'string', description: 'Filter by a single status' },
+    userStatus: { type: 'string', description: 'Filter users by status' },
+    enrolmentStatus: { type: 'string', description: 'Filter enrolments by status' },
     audienceId: { type: 'string', description: 'The audience ID or reference' },
     name: { type: 'string', description: 'The name of the audience' },
     reference: { type: 'string', description: 'The external reference for the audience' },
