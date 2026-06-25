@@ -13602,7 +13602,7 @@
       "slug": "salesforce",
       "name": "Salesforce",
       "description": "Interact with Salesforce CRM",
-      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.",
+      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.",
       "bgColor": "#FFFFFF",
       "iconName": "SalesforceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/salesforce",
@@ -13705,7 +13705,7 @@
         },
         {
           "name": "List Reports",
-          "description": "Get a list of reports accessible by the current user"
+          "description": "Get a list of up to 200 recently viewed reports for the current user"
         },
         {
           "name": "Get Report",
@@ -13721,7 +13721,7 @@
         },
         {
           "name": "List Dashboards",
-          "description": "Get a list of dashboards accessible by the current user"
+          "description": "Get a list of recently used dashboards for the current user"
         },
         {
           "name": "Get Dashboard",
@@ -13746,9 +13746,29 @@
         {
           "name": "List Objects",
           "description": "Get a list of all available Salesforce objects"
+        },
+        {
+          "name": "Create Custom Field",
+          "description": "Create a custom field on a Salesforce object (e.g., Account) using the Tooling API"
+        },
+        {
+          "name": "Update Custom Field",
+          "description": "Update an existing custom field on a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Delete Custom Field",
+          "description": "Delete a custom field from a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Create Custom Object",
+          "description": "Create a custom object in Salesforce using the Tooling API"
+        },
+        {
+          "name": "Run Tooling Query",
+          "description": "Execute a SOQL query against the Tooling API to inspect metadata objects"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 40,
       "triggers": [
         {
           "id": "salesforce_record_created",
