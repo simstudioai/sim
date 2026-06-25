@@ -7,7 +7,7 @@ import { getForkLineageContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceReadAccess } from '@/lib/workspaces/fork/lineage/authz'
+import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
 import { getForkLineage } from '@/lib/workspaces/fork/lineage/lineage'
 import { getUndoableRunForTarget } from '@/lib/workspaces/fork/promote/promote-run-store'
 
@@ -22,7 +22,7 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id: workspaceId } = parsed.data.params
 
-    await assertWorkspaceReadAccess(workspaceId, session.user.id)
+    await assertWorkspaceAdminAccess(workspaceId, session.user.id)
 
     const [{ parent, children }, run] = await Promise.all([
       getForkLineage(workspaceId),

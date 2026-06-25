@@ -4,7 +4,7 @@ import { getForkResourcesContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceReadAccess } from '@/lib/workspaces/fork/lineage/authz'
+import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
 import { listForkCopyableResources } from '@/lib/workspaces/fork/mapping/resources'
 
 export const GET = withRouteHandler(
@@ -18,7 +18,7 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
 
-    await assertWorkspaceReadAccess(id, session.user.id)
+    await assertWorkspaceAdminAccess(id, session.user.id)
 
     const resources = await listForkCopyableResources(db, id)
     return NextResponse.json(resources)

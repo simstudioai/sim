@@ -19,6 +19,7 @@ import {
 } from '@/components/emcn'
 import { ManageWorkspace, PanelLeft, Rocket, Shuffle } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -128,8 +129,14 @@ function WorkspaceHeaderImpl({
   }, [])
 
   const { navigateToSettings } = useSettingsNavigation()
-  const forkingAvailable = useForkingAvailable()
-  const { data: forkLineage } = useForkLineage(workspaceId, forkingAvailable)
+  const forkingAvailable = useForkingAvailable(workspaceId)
+  const { canAdmin } = useUserPermissionsContext()
+  // Forking and sync rewrite workflow state and deployments en masse, so they are
+  // workspace-admin only (org owners/admins derive workspace admin server-side via
+  // the resolved viewer permission). Every fork route re-checks this; gating the
+  // entry points here just keeps the UI honest. The server remains the boundary.
+  const canUseForking = forkingAvailable && canAdmin
+  const { data: forkLineage } = useForkLineage(workspaceId, canUseForking)
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -573,7 +580,7 @@ function WorkspaceHeaderImpl({
                   >
                     New workspace
                   </Chip>
-                  {forkingAvailable ? (
+                  {canUseForking ? (
                     <>
                       <Chip
                         leftIcon={Shuffle}

@@ -95,15 +95,16 @@ export interface ForkAuthorization {
 }
 
 /**
- * Authorize forking `sourceWorkspaceId`: the caller needs read access to the
- * source and must pass the workspace-creation policy for the parent's org (the
- * child inherits the parent's org/mode; plan caps apply).
+ * Authorize forking `sourceWorkspaceId`: the caller needs admin access to the
+ * source (a fork copies its deployed workflows and resources en masse) and must
+ * pass the workspace-creation policy for the parent's org (the child inherits the
+ * parent's org/mode; plan caps apply). Org owners/admins derive workspace admin.
  */
 export async function assertCanFork(
   sourceWorkspaceId: string,
   userId: string
 ): Promise<ForkAuthorization> {
-  const source = await assertWorkspaceReadAccess(sourceWorkspaceId, userId)
+  const source = await assertWorkspaceAdminAccess(sourceWorkspaceId, userId)
   const policy = await getWorkspaceCreationPolicy({
     userId,
     activeOrganizationId: source.organizationId,
