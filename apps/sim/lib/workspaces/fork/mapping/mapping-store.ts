@@ -1,6 +1,6 @@
 import { workspaceForkResourceMap } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { forkResourceTypeSchema } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
@@ -50,7 +50,7 @@ export function resourceTypeToForkKind(resourceType: ForkResourceType): ForkRema
 
 const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE: Record<
   Exclude<ForkRemapKind, 'credential'>,
-  ForkResourceType
+  Exclude<ForkResourceType, 'workflow'>
 > = {
   'env-var': 'env_var',
   table: 'table',
@@ -69,7 +69,7 @@ const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE: Record<
  */
 export function nonCredentialForkKindToResourceType(
   kind: Exclude<ForkRemapKind, 'credential'>
-): ForkResourceType {
+): Exclude<ForkResourceType, 'workflow'> {
   return NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE[kind]
 }
 
@@ -161,8 +161,14 @@ export async function seedEdgeMappings(
 }
 
 /**
- * Insert or update mapping rows, setting `childResourceId` (the chosen target).
- * Used when a user saves a mapping.
+ * Insert or update mapping rows in batched, chunked multi-row upserts, setting
+ * `childResourceId` (the chosen target) from the incoming row. Used when a user
+ * saves a mapping and to persist promote identity rows - one query per chunk
+ * instead of one per row, so a large save stays a short transaction.
+ *
+ * Entries are deduped by the conflict key (resourceType, parentResourceId), keeping
+ * the last (matching the prior per-row last-write-wins) so a batch can never trip
+ * Postgres's "ON CONFLICT DO UPDATE cannot affect row a second time".
  */
 export async function upsertEdgeMappings(
   tx: DbOrTx,
@@ -172,46 +178,65 @@ export async function upsertEdgeMappings(
 ): Promise<void> {
   if (entries.length === 0) return
   const now = new Date()
+  const byConflictKey = new Map<string, ForkMappingUpsert>()
   for (const entry of entries) {
+    byConflictKey.set(`${entry.resourceType}:${entry.parentResourceId}`, entry)
+  }
+  const deduped = Array.from(byConflictKey.values())
+  for (let i = 0; i < deduped.length; i += MAPPING_INSERT_CHUNK) {
+    const batch = deduped.slice(i, i + MAPPING_INSERT_CHUNK)
     await tx
       .insert(workspaceForkResourceMap)
-      .values({
-        id: generateId(),
-        childWorkspaceId,
-        resourceType: entry.resourceType,
-        parentResourceId: entry.parentResourceId,
-        childResourceId: entry.childResourceId,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      })
+      .values(
+        batch.map((entry) => ({
+          id: generateId(),
+          childWorkspaceId,
+          resourceType: entry.resourceType,
+          parentResourceId: entry.parentResourceId,
+          childResourceId: entry.childResourceId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
       .onConflictDoUpdate({
         target: [
           workspaceForkResourceMap.childWorkspaceId,
           workspaceForkResourceMap.resourceType,
           workspaceForkResourceMap.parentResourceId,
         ],
-        set: { childResourceId: entry.childResourceId, updatedAt: now },
+        set: { childResourceId: sql`excluded.child_resource_id`, updatedAt: now },
       })
   }
 }
 
-/** Remove a mapping row matched by its child-side resource id (used to clear a push mapping). */
-export async function deleteEdgeMappingByChildResource(
+/**
+ * Remove mapping rows matched by their child-side (source) resource id, grouped by
+ * resource type into a single OR-of-INs - one query for the whole push save (the
+ * unique key is on the parent side, so a changed push target must drop the old
+ * (parent, source) row before the new one is inserted).
+ */
+export async function deleteEdgeMappingsByChildResources(
   tx: DbOrTx,
   childWorkspaceId: string,
-  resourceType: ForkResourceType,
-  childResourceId: string
+  pairs: Array<{ resourceType: ForkResourceType; childResourceId: string }>
 ): Promise<void> {
+  if (pairs.length === 0) return
+  const idsByType = new Map<ForkResourceType, string[]>()
+  for (const { resourceType, childResourceId } of pairs) {
+    const list = idsByType.get(resourceType)
+    if (list) list.push(childResourceId)
+    else idsByType.set(resourceType, [childResourceId])
+  }
+  const conditions = Array.from(idsByType, ([resourceType, ids]) =>
+    and(
+      eq(workspaceForkResourceMap.resourceType, resourceType),
+      inArray(workspaceForkResourceMap.childResourceId, ids)
+    )
+  )
   await tx
     .delete(workspaceForkResourceMap)
-    .where(
-      and(
-        eq(workspaceForkResourceMap.childWorkspaceId, childWorkspaceId),
-        eq(workspaceForkResourceMap.resourceType, resourceType),
-        eq(workspaceForkResourceMap.childResourceId, childResourceId)
-      )
-    )
+    .where(and(eq(workspaceForkResourceMap.childWorkspaceId, childWorkspaceId), or(...conditions)))
 }
 
 export interface BuildForkResolverOptions {

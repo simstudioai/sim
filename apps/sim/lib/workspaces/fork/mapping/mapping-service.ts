@@ -7,7 +7,7 @@ import type { ForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
 import { detectForkCascadeReferences } from '@/lib/workspaces/fork/mapping/cascade'
 import {
   buildForkResolver,
-  deleteEdgeMappingByChildResource,
+  deleteEdgeMappingsByChildResources,
   type ForkMappingRow,
   type ForkResourceType,
   getEdgeMappingRows,
@@ -71,8 +71,12 @@ export async function getForkMappingView(
 
   const resolver = buildForkResolver(mappingRows, { sourceIsParent, targetEnvKeys, sourceEnvKeys })
 
-  const resourceTypeBySourceId = new Map<string, ForkResourceType>()
+  const resourceTypeBySourceId = new Map<string, Exclude<ForkResourceType, 'workflow'>>()
   for (const row of mappingRows) {
+    // Workflow identity rows are system-managed, not user-mappable; skip them so a
+    // scanned reference can never be labeled `workflow` and the view stays within
+    // the mappable-type contract.
+    if (row.resourceType === 'workflow') continue
     const key = sourceIsParent ? row.parentResourceId : row.childResourceId
     if (key) resourceTypeBySourceId.set(key, row.resourceType)
   }
@@ -160,48 +164,52 @@ export async function applyForkMappingEntries(
   direction: 'push' | 'pull',
   entries: ApplyForkMappingEntry[]
 ): Promise<number> {
-  let updated = 0
-  for (const entry of entries) {
-    if (direction === 'pull') {
-      await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, [
-        {
-          resourceType: entry.resourceType,
-          parentResourceId: entry.sourceId,
-          childResourceId: entry.targetId,
-        },
-      ])
-      updated += 1
-      continue
-    }
-    // Push rows are keyed by the child (source) side, but the table's unique key is
-    // on the parent side - so always clear any existing row for this source first,
-    // otherwise changing a push target leaves the old (parent, source) row behind
-    // and resolution becomes ambiguous.
-    await deleteEdgeMappingByChildResource(
+  if (entries.length === 0) return 0
+  if (direction === 'pull') {
+    // Pull maps a parent source to a child target - one batched upsert.
+    await upsertEdgeMappings(
       tx,
       edge.childWorkspaceId,
-      entry.resourceType,
-      entry.sourceId
+      userId,
+      entries.map((entry) => ({
+        resourceType: entry.resourceType,
+        parentResourceId: entry.sourceId,
+        childResourceId: entry.targetId,
+      }))
     )
-    if (entry.targetId != null) {
-      await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, [
-        {
-          resourceType: entry.resourceType,
-          parentResourceId: entry.targetId,
-          childResourceId: entry.sourceId,
-        },
-      ])
-    }
-    updated += 1
+    return entries.length
   }
-  return updated
+  // Push rows are keyed by the child (source) side, but the table's unique key is on
+  // the parent side - so clear any existing row for each source first (one grouped
+  // delete), otherwise changing a push target leaves the old (parent, source) row
+  // behind and resolution becomes ambiguous. Then upsert the new (target, source)
+  // rows in one batch; a null target is a cleared mapping (delete only, no reinsert).
+  await deleteEdgeMappingsByChildResources(
+    tx,
+    edge.childWorkspaceId,
+    entries.map((entry) => ({ resourceType: entry.resourceType, childResourceId: entry.sourceId }))
+  )
+  await upsertEdgeMappings(
+    tx,
+    edge.childWorkspaceId,
+    userId,
+    entries
+      .filter((entry) => entry.targetId != null)
+      .map((entry) => ({
+        resourceType: entry.resourceType,
+        parentResourceId: entry.targetId as string,
+        childResourceId: entry.sourceId,
+      }))
+  )
+  return entries.length
 }
 
 /**
  * Reject mapping entries whose chosen target does not belong to the target
  * workspace, so a caller cannot point a remapped reference (or credential-access
- * propagation) at a resource in a workspace they do not administer. Kinds whose
- * candidates aren't enumerable (file, knowledge-document) are skipped.
+ * propagation) at a resource in a workspace they do not administer. Entries whose
+ * resource type is not user-mappable (only `workflow`, whose identity is
+ * system-managed) are rejected outright.
  */
 export async function validateForkMappingTargets(
   targetWorkspaceId: string,
@@ -213,7 +221,15 @@ export async function validateForkMappingTargets(
   for (const entry of entries) {
     if (entry.targetId == null) continue
     const kind = resourceTypeToForkKind(entry.resourceType)
-    if (!kind) continue
+    if (!kind) {
+      // `workflow` is the only null-kind type, and its identity is system-managed by
+      // fork/promote/rollback. A non-null target for it here is an invalid (or
+      // crafted) entry the editor must never persist - reject instead of skipping.
+      throw new ForkError(
+        `Resource type "${entry.resourceType}" cannot be mapped via the mapping editor`,
+        400
+      )
+    }
     const list = candidates[kind]
     // An empty candidate list means the target workspace has no admissible
     // resource of this kind, so ANY non-null target is invalid - reject rather

@@ -190,7 +190,7 @@ export async function classifyCredentialResourceType(
   executor: DbOrTx,
   credentialId: string,
   workspaceId: string
-): Promise<ForkResourceType> {
+): Promise<Extract<ForkResourceType, 'oauth_credential' | 'service_account_credential'>> {
   const [row] = await executor
     .select({ type: credential.type })
     .from(credential)

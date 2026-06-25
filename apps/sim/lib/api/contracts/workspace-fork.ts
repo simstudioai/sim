@@ -31,6 +31,15 @@ export const forkResourceTypeSchema = z.enum([
   'skill',
 ])
 
+/**
+ * Resource types a user may map via the mapping editor. Excludes `workflow`:
+ * workflow identity is system-managed (seeded at fork, maintained by promote,
+ * dissolved by rollback) and must never be written through the mapping editor, or
+ * a crafted entry could repoint a promote at the wrong target workflow.
+ */
+export const forkMappableResourceTypeSchema = forkResourceTypeSchema.exclude(['workflow'])
+export type ForkMappableResourceType = z.infer<typeof forkMappableResourceTypeSchema>
+
 export const forkDirectionSchema = z.enum(['push', 'pull'])
 
 export const forkLineageNodeSchema = z.object({
@@ -125,7 +134,7 @@ export const forkMappingCandidateSchema = z.object({
 
 export const forkMappingEntrySchema = z.object({
   kind: forkRemapKindSchema,
-  resourceType: forkResourceTypeSchema,
+  resourceType: forkMappableResourceTypeSchema,
   sourceId: z.string(),
   sourceLabel: z.string(),
   targetId: z.string().nullable(),
@@ -162,7 +171,7 @@ export const updateForkMappingBodySchema = z.object({
   entries: z
     .array(
       z.object({
-        resourceType: forkResourceTypeSchema,
+        resourceType: forkMappableResourceTypeSchema,
         sourceId: z.string().min(1),
         targetId: z.string().min(1).nullable(),
       })
