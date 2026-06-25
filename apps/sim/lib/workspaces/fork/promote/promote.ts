@@ -77,9 +77,10 @@ interface PromoteTxApplied {
   blocked: null
   promoteRunId: string
   deployTargetIds: string[]
-  willUpdate: number
-  willCreate: number
-  willArchive: number
+  /** Actual written/archived counts (post-skip), not the pre-copy plan totals. */
+  updated: number
+  created: number
+  archived: number
   drift: boolean
 }
 
@@ -275,13 +276,23 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       },
     })
 
+    // A source whose active deployment vanished between plan and copy is skipped
+    // above, so report what was actually written - the plan totals would overstate.
+    const skipped = plan.items.length - writtenItems.length
+    if (skipped > 0) {
+      logger.warn(
+        `[${requestId}] Promote skipped ${skipped} source workflow(s) whose deployment disappeared between plan and apply`,
+        { sourceWorkspaceId, targetWorkspaceId, skipped }
+      )
+    }
+
     return {
       blocked: null,
       promoteRunId,
       deployTargetIds: writtenItems.map((item) => item.targetWorkflowId),
-      willUpdate: plan.willUpdate,
-      willCreate: plan.willCreate,
-      willArchive: plan.willArchive,
+      updated: updatedSnapshots.length,
+      created: createdTargetIds.length,
+      archived: archivedSnapshots.length,
       drift: plan.drift,
     }
   })
@@ -322,17 +333,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   }
 
   logger.info(`[${requestId}] Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
-    updated: txResult.willUpdate,
-    created: txResult.willCreate,
-    archived: txResult.willArchive,
+    updated: txResult.updated,
+    created: txResult.created,
+    archived: txResult.archived,
     redeployed,
   })
 
   return {
     promoteRunId: txResult.promoteRunId,
-    updated: txResult.willUpdate,
-    created: txResult.willCreate,
-    archived: txResult.willArchive,
+    updated: txResult.updated,
+    created: txResult.created,
+    archived: txResult.archived,
     redeployed,
     unmappedRequired: [],
     drift: txResult.drift,
