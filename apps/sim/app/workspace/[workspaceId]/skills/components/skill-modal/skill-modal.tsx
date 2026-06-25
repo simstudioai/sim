@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import {
   ChipModal,
@@ -10,10 +11,24 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  chipFieldSurfaceClass,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
+import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
+
+const RichMarkdownField = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
+    ).then((m) => m.RichMarkdownField),
+  {
+    ssr: false,
+    loading: () => <div className={cn('min-h-[200px]', chipFieldSurfaceClass)} />,
+  }
+)
 
 interface SkillModalProps {
   open: boolean
@@ -50,6 +65,9 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
+  // Bumped to remount the rich Content editor when content is set programmatically (a pasted
+  // SKILL.md is destructured into the fields) — the editor otherwise only seeds on mount.
+  const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<TabValue>('create')
@@ -126,16 +144,27 @@ export function SkillModal({
     }
   }
 
-  const handleImport = useCallback(
-    (data: { name: string; description: string; content: string }) => {
-      setName(data.name)
-      setDescription(data.description)
-      setContent(data.content)
-      setErrors({})
-      setActiveTab('create')
-    },
-    []
-  )
+  const applyImportedSkill = (data: { name: string; description: string; content: string }) => {
+    setName(data.name)
+    setDescription(data.description)
+    setContent(data.content)
+    setErrors({})
+    setContentSeed((seed) => seed + 1)
+  }
+
+  const handleImport = (data: { name: string; description: string; content: string }) => {
+    applyImportedSkill(data)
+    setActiveTab('create')
+  }
+
+  /** Pasting a full SKILL.md (YAML frontmatter) into Content destructures it into the fields. */
+  const handleContentPaste = (text: string): boolean => {
+    if (!text.trimStart().startsWith('---')) return false
+    const parsed = parseSkillMarkdown(text)
+    if (!parsed.name) return false
+    applyImportedSkill(parsed)
+    return true
+  }
 
   const isEditing = !!initialValues
   const readOnly = !!initialValues?.readOnly
@@ -197,21 +226,23 @@ export function SkillModal({
               error={errors.description}
             />
 
-            <ChipModalField
-              type='textarea'
-              title='Content'
-              value={content}
-              onChange={(value) => {
-                setContent(value)
-                if (errors.content || errors.general)
-                  setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
-              }}
-              placeholder='Skill instructions in markdown...'
-              minHeight={200}
-              resizable
-              required
-              error={errors.content}
-            />
+            <ChipModalField type='custom' title='Content' required error={errors.content}>
+              <RichMarkdownField
+                key={`${initialValues?.id ?? 'new'}:${contentSeed}`}
+                value={content}
+                onChange={(value) => {
+                  setContent(value)
+                  if (errors.content || errors.general)
+                    setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
+                }}
+                placeholder='Skill instructions in markdown...'
+                minHeight={200}
+                disabled={readOnly || saving}
+                error={!!errors.content}
+                workspaceId={workspaceId}
+                onPasteText={handleContentPaste}
+              />
+            </ChipModalField>
 
             <ChipModalError>{errors.general}</ChipModalError>
           </>

@@ -21,8 +21,10 @@ import {
   splitFrontmatter,
 } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
+import { parseSimHref, simLinkPath, useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
+import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
@@ -86,6 +88,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    normalizeBaseline: normalizeMarkdownContent,
   })
 
   if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
@@ -258,6 +261,14 @@ export function LoadedRichMarkdownEditor({
           })
           return true
         }
+        // A `@`-mention link (`sim:<kind>/<id>`) navigates to the referenced resource in-app.
+        if (href.startsWith('sim:')) {
+          const parsed = parseSimHref(href)
+          const path = parsed && simLinkPath(workspaceId, parsed.kind, parsed.id)
+          if (!path) return false
+          routerRef.current.push(path)
+          return true
+        }
         const normalized = normalizeLinkHref(href)
         if (!normalized) return false
         // A same-origin in-app path navigates within the SPA (same tab); external URLs open a new tab.
@@ -310,6 +321,8 @@ export function LoadedRichMarkdownEditor({
       editor.storage.slashCommand.insertImage = null
     }
   }, [editor])
+
+  useEditorMentions(editor, workspaceId)
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 

@@ -162,6 +162,13 @@ describe('editor markdown round-trip', () => {
     })
   }
 
+  // The `@`-mention link scheme must survive the schema, or the mention is silently stripped to
+  // plain text (which idempotency above can't detect). See the `sim` protocol in extensions.ts.
+  it('preserves a @-mention sim: link', () => {
+    const input = 'see [my-skill](sim:skill/abc123) and [Spec](sim:file/xyz-789)'
+    expect(roundTrip(input)).toBe(input)
+  })
+
   it('preserves frontmatter through a full round-trip', () => {
     const input = '---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n\ntext'
     const out = roundTrip(input)

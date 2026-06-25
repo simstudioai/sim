@@ -17,7 +17,15 @@ import { MarkdownImage, ResizableImage } from './image'
 import { RichMarkdownKeymap } from './keymap'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownPaste } from './markdown-paste'
+import { Mention, SIM_LINK_SCHEME } from './mention'
 import { SlashCommand } from './slash-command/slash-command'
+
+/**
+ * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the
+ * `sim:<kind>/<id>` href on parse/round-trip, dropping the mention. `optionalSlashes` allows the
+ * slash-less `sim:kind/id` form.
+ */
+const SIM_LINK_PROTOCOL = { scheme: SIM_LINK_SCHEME, optionalSlashes: true } as const
 
 /**
  * Inline code that can combine with bold/italic/strike (GFM permits `**`x`**`, `~~`x`~~`).
@@ -78,7 +86,7 @@ export function createMarkdownContentExtensions({
   })
   return [
     StarterKit.configure({
-      link: { openOnClick: false },
+      link: { openOnClick: false, protocols: [SIM_LINK_PROTOCOL] },
       underline: false,
       codeBlock: false,
       code: false,
@@ -109,6 +117,7 @@ export function createMarkdownEditorExtensions({
     ...createMarkdownContentExtensions({ nodeViews: true }),
     CodeBlockHighlight,
     SlashCommand,
+    Mention,
     RichMarkdownKeymap,
     MarkdownPaste,
     Placeholder.configure({ placeholder }),

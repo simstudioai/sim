@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { useParams } from 'next/navigation'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -9,11 +11,26 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  chipFieldSurfaceClass,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
 } from '@/hooks/queries/deployments'
+
+const RichMarkdownField = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
+    ).then((m) => m.RichMarkdownField),
+  {
+    ssr: false,
+    loading: () => <div className={cn('min-h-[120px]', chipFieldSurfaceClass)} />,
+  }
+)
+
+const MAX_DESCRIPTION_LENGTH = 2000
 
 interface VersionDescriptionModalProps {
   open: boolean
@@ -32,6 +49,9 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const initialDescriptionRef = useRef(currentDescription || '')
   const [description, setDescription] = useState(initialDescriptionRef.current)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -41,6 +61,7 @@ export function VersionDescriptionModal({
 
   const hasChanges = description.trim() !== initialDescriptionRef.current.trim()
   const isGenerating = generateMutation.isPending
+  const isTooLong = description.length > MAX_DESCRIPTION_LENGTH
 
   const handleCloseAttempt = () => {
     if (updateMutation.isPending || isGenerating) {
@@ -70,7 +91,7 @@ export function VersionDescriptionModal({
   }
 
   const handleSave = () => {
-    if (!workflowId) return
+    if (!workflowId || isTooLong) return
 
     updateMutation.mutate(
       {
@@ -96,21 +117,26 @@ export function VersionDescriptionModal({
         <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
-            type='textarea'
+            type='custom'
             title={
               <span>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
-            value={description}
-            onChange={setDescription}
-            placeholder='Describe the changes in this deployment version...'
-            maxLength={2000}
-            minHeight={120}
-            disabled={isGenerating}
-            hint={`${description.length}/2000`}
-          />
+            hint={`${description.length}/${MAX_DESCRIPTION_LENGTH}`}
+          >
+            <RichMarkdownField
+              value={description}
+              onChange={setDescription}
+              placeholder='Describe the changes in this deployment version...'
+              minHeight={120}
+              disabled={isGenerating}
+              isStreaming={isGenerating}
+              error={description.length > MAX_DESCRIPTION_LENGTH}
+              workspaceId={workspaceId}
+            />
+          </ChipModalField>
           <ChipModalError>
             {updateMutation.error?.message || generateMutation.error?.message}
           </ChipModalError>
@@ -128,7 +154,7 @@ export function VersionDescriptionModal({
           primaryAction={{
             label: updateMutation.isPending ? 'Saving...' : 'Save',
             onClick: handleSave,
-            disabled: updateMutation.isPending || isGenerating || !hasChanges,
+            disabled: updateMutation.isPending || isGenerating || !hasChanges || isTooLong,
           }}
         />
       </ChipModal>

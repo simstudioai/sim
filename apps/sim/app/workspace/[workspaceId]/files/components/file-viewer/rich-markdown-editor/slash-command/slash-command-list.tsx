@@ -1,5 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  SUGGESTION_GROUP_LABEL_CLASS,
+  SUGGESTION_ITEM_CLASS,
+  SUGGESTION_SCROLL_CLASS,
+  SUGGESTION_SURFACE_CLASS,
+} from '../menus/suggestion-menu-chrome'
 import type { SlashCommandItem } from './commands'
 
 export interface SlashCommandListHandle {
@@ -10,12 +16,6 @@ interface SlashCommandListProps {
   items: SlashCommandItem[]
   command: (item: SlashCommandItem) => void
 }
-
-const SURFACE_CLASS =
-  'min-w-[220px] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
-
-const ITEM_CLASS =
-  'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]'
 
 /**
  * The `/` command popup. Mirrors the Chat composer's skills menu — same item chrome,
@@ -70,7 +70,7 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
 
     if (items.length === 0) {
       return (
-        <div className={SURFACE_CLASS}>
+        <div className={SUGGESTION_SURFACE_CLASS}>
           <p className='px-2 py-1.5 text-[var(--text-tertiary)] text-caption'>No results</p>
         </div>
       )
@@ -81,17 +81,11 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
         ref={containerRef}
         role='listbox'
         aria-label='Commands'
-        className={cn(
-          SURFACE_CLASS,
-          'max-h-[330px] scroll-py-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-        )}
+        className={cn(SUGGESTION_SURFACE_CLASS, SUGGESTION_SCROLL_CLASS)}
       >
         {groups.map((group) => (
           <div key={group.group} role='group' aria-label={group.group}>
-            <p
-              aria-hidden='true'
-              className='px-2 pt-1.5 pb-1 font-medium text-[var(--text-muted)] text-micro uppercase tracking-wide'
-            >
+            <p aria-hidden='true' className={SUGGESTION_GROUP_LABEL_CLASS}>
               {group.group}
             </p>
             {group.items.map(({ item, index }) => {
@@ -104,7 +98,10 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
                   id={`slash-command-${index}`}
                   aria-selected={index === activeIndex}
                   data-index={index}
-                  className={cn(ITEM_CLASS, index === activeIndex && 'bg-[var(--surface-active)]')}
+                  className={cn(
+                    SUGGESTION_ITEM_CLASS,
+                    index === activeIndex && 'bg-[var(--surface-active)]'
+                  )}
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => {
                     event.preventDefault()

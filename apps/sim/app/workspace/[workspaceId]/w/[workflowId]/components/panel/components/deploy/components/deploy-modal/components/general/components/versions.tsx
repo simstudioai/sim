@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
@@ -72,7 +73,7 @@ export function Versions({
   const handleStartRename = (version: number, currentName: string | null | undefined) => {
     setOpenDropdown(null)
     setEditingVersion(version)
-    setEditValue(currentName || `v${version}`)
+    setEditValue(currentName ?? '')
   }
 
   const handleSaveRename = (version: number) => {
@@ -83,7 +84,7 @@ export function Versions({
     }
 
     const currentVersion = versions.find((v) => v.version === version)
-    const currentName = currentVersion?.name || `v${version}`
+    const currentName = currentVersion?.name ?? ''
 
     if (editValue.trim() === currentName) {
       setEditingVersion(null)
@@ -250,6 +251,7 @@ export function Versions({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
+                      placeholder={`v${v.version}`}
                       className={cn(
                         'h-auto w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
                       )}
@@ -261,11 +263,16 @@ export function Versions({
                       spellCheck='false'
                     />
                   ) : (
-                    <span className={cn('block flex items-center gap-1 truncate', ROW_TEXT_CLASS)}>
-                      <span className='truncate'>{v.name || `v${v.version}`}</span>
-                      {v.isActive && <span className='text-[var(--text-tertiary)]'> (live)</span>}
+                    <span className={cn('flex min-w-0 items-center gap-1.5', ROW_TEXT_CLASS)}>
+                      <span className='shrink-0 text-[var(--text-tertiary)] tabular-nums'>
+                        v{v.version}
+                      </span>
+                      {v.name && <span className='truncate'>{v.name}</span>}
+                      {v.isActive && (
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
+                      )}
                       {isSelected && (
-                        <span className='text-[var(--text-tertiary)]'> (selected)</span>
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>
                       )}
                     </span>
                   )}
@@ -364,9 +371,10 @@ export function Versions({
           onOpenChange={(open) => !open && setDescriptionModalVersion(null)}
           workflowId={workflowId}
           version={descriptionModalVersionData.version}
-          versionName={
-            descriptionModalVersionData.name || `v${descriptionModalVersionData.version}`
-          }
+          versionName={formatVersionLabel(
+            descriptionModalVersionData.version,
+            descriptionModalVersionData.name
+          )}
           currentDescription={descriptionModalVersionData.description}
         />
       )}
