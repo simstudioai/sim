@@ -103,6 +103,7 @@ function WorkspaceHeaderImpl({
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isForkModalOpen, setIsForkModalOpen] = useState(false)
   const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false)
+  const [forkModalMode, setForkModalMode] = useState<'sync' | 'manage'>('sync')
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -592,18 +593,34 @@ function WorkspaceHeaderImpl({
                       >
                         Fork workspace
                       </Chip>
-                      {forkLineage && (forkLineage.parent || forkLineage.children.length > 0) ? (
+                      {forkLineage?.parent ? (
                         <Chip
                           leftIcon={Rocket}
                           onClick={() => {
                             setIsWorkspaceMenuOpen(false)
+                            setForkModalMode('sync')
                             setIsPromoteModalOpen(true)
                           }}
                           fullWidth
                           flush
                           className='w-full select-none'
                         >
-                          {forkLineage?.parent ? 'Sync workspace' : 'Manage forks'}
+                          Sync workspace
+                        </Chip>
+                      ) : null}
+                      {forkLineage && forkLineage.children.length > 0 ? (
+                        <Chip
+                          leftIcon={Shuffle}
+                          onClick={() => {
+                            setIsWorkspaceMenuOpen(false)
+                            setForkModalMode('manage')
+                            setIsPromoteModalOpen(true)
+                          }}
+                          fullWidth
+                          flush
+                          className='w-full select-none'
+                        >
+                          Manage forks
                         </Chip>
                       ) : null}
                     </>
@@ -742,6 +759,7 @@ function WorkspaceHeaderImpl({
         open={isPromoteModalOpen}
         onOpenChange={setIsPromoteModalOpen}
         workspaceId={workspaceId}
+        mode={forkModalMode}
         parent={forkLineage?.parent ?? null}
         childWorkspaces={forkLineage?.children ?? []}
         undoableRun={forkLineage?.undoableRun ?? null}

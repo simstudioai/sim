@@ -12,6 +12,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  Tooltip,
   toast,
 } from '@/components/emcn'
 import type {
@@ -32,6 +33,8 @@ interface PromoteWorkspaceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId: string
+  /** 'sync' pushes/pulls along the parent edge; 'manage' lists this workspace's forks. */
+  mode: 'sync' | 'manage'
   parent: ForkLineageNodeApi | null
   childWorkspaces: ForkLineageNodeApi[]
   undoableRun: { otherWorkspaceId: string; otherName: string; direction: ForkDirection } | null
@@ -109,6 +112,7 @@ export function PromoteWorkspaceModal({
   open,
   onOpenChange,
   workspaceId,
+  mode,
   parent,
   childWorkspaces,
   undoableRun,
@@ -151,8 +155,10 @@ export function PromoteWorkspaceModal({
   const selected = edgeOptions.find((option) => option.value === selectedKey)
   const otherWorkspaceId = selected?.otherWorkspaceId
   const direction = selected?.direction ?? 'push'
-  // No parent edge → this workspace is a fork root; the modal manages its forks.
-  const isManage = parent == null
+  // 'manage' lists this workspace's forks; 'sync' pushes/pulls along the parent edge.
+  // A mid-chain workspace (a fork that itself has forks) supports both, chosen by
+  // which menu entry opened the modal.
+  const isManage = mode === 'manage'
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled: open })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled: open })
@@ -269,6 +275,15 @@ export function PromoteWorkspaceModal({
     )
   }, [diff.data?.workflows])
 
+  // Rollback lives in the footer (left-docked, like a destructive "Delete"). It's
+  // a custom slot so the explanatory text shows as a tooltip in BOTH states - the
+  // footer's declarative `disabledTooltip` only covers the greyed state.
+  const rollbackDisabled = submitting || !undoableRun
+  const rollbackTooltip = undoableRun
+    ? `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`
+    : 'No sync to roll back yet.'
+  const showRollback = Boolean(undoableRun) || isManage
+
   return (
     <>
       <ChipModal
@@ -378,48 +393,54 @@ export function PromoteWorkspaceModal({
               ))}
             </>
           )}
-
-          {undoableRun || isManage ? (
-            <ChipModalField type='custom' title='Undo last sync'>
-              <div className='flex items-center justify-between gap-3'>
-                <div className='text-[var(--text-secondary)] text-xs'>
-                  {undoableRun ? (
-                    <>
-                      The last sync into this workspace (from {undoableRun.otherName}) can be undone
-                      — it restores each workflow's prior deployed version.
-                    </>
-                  ) : (
-                    'No sync to roll back yet.'
-                  )}
-                </div>
-                <span title={undoableRun ? undefined : 'Nothing to roll back yet'}>
-                  <Chip
-                    variant='destructive'
-                    onClick={() => setConfirmRollbackOpen(true)}
-                    disabled={submitting || !undoableRun}
-                    className='disabled:pointer-events-none disabled:opacity-50'
-                  >
-                    Rollback
-                  </Chip>
-                </span>
-              </div>
-            </ChipModalField>
-          ) : null}
         </ChipModalBody>
-        {isManage ? null : (
-          <ChipModalFooter
-            onCancel={() => onOpenChange(false)}
-            cancelDisabled={submitting}
-            primaryAction={{
-              label: submitting ? 'Working...' : 'Sync',
-              onClick: () => void runPromote(false),
-              disabled: submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading,
-              disabledTooltip: requiredComplete
-                ? undefined
-                : 'Map all required credentials and secrets first',
-            }}
-          />
-        )}
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={submitting}
+          secondaryActions={
+            showRollback
+              ? [
+                  {
+                    custom: (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span
+                            className={
+                              rollbackDisabled ? 'inline-flex cursor-not-allowed' : 'inline-flex'
+                            }
+                          >
+                            <Chip
+                              variant='destructive'
+                              flush
+                              onClick={() => setConfirmRollbackOpen(true)}
+                              disabled={rollbackDisabled}
+                              className={rollbackDisabled ? 'pointer-events-none' : undefined}
+                            >
+                              Rollback
+                            </Chip>
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>{rollbackTooltip}</Tooltip.Content>
+                      </Tooltip.Root>
+                    ),
+                  },
+                ]
+              : undefined
+          }
+          primaryAction={
+            isManage
+              ? { label: 'Done', onClick: () => onOpenChange(false) }
+              : {
+                  label: submitting ? 'Working...' : 'Sync',
+                  onClick: () => void runPromote(false),
+                  disabled:
+                    submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading,
+                  disabledTooltip: requiredComplete
+                    ? undefined
+                    : 'Map all required credentials and secrets first',
+                }
+          }
+        />
       </ChipModal>
 
       <ChipConfirmModal
