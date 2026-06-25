@@ -4,9 +4,21 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkspaceForkDeployBridge')
+
+/**
+ * Hard ceiling on how many deployed workflows one fork/promote loads into memory at
+ * once (each as a full `WorkflowState`). There is no per-workspace workflow cap in
+ * the product, so this is the safety valve: real workspaces hold tens to low
+ * hundreds, making this ~5-10x headroom that never blocks legitimate use, it sits
+ * below the fork feature's other item caps (resource selection 2000, mapping
+ * entries 5000 - both lighter-weight than full states), and it bounds a pathological
+ * workspace to a few hundred MB of transient state instead of an unbounded load.
+ */
+export const MAX_FORK_DEPLOYED_WORKFLOWS = 1000
 
 export interface DeployedWorkflowSummary {
   id: string
@@ -74,6 +86,13 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
   sourceStates: Map<string, WorkflowState>
 }> {
   const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
+  // Fail fast on the cheap count before loading any heavy state into memory.
+  if (deployedWorkflows.length > MAX_FORK_DEPLOYED_WORKFLOWS) {
+    throw new ForkError(
+      `This workspace has ${deployedWorkflows.length} deployed workflows, which exceeds the fork/sync limit of ${MAX_FORK_DEPLOYED_WORKFLOWS}.`,
+      400
+    )
+  }
   const sourceStates = new Map<string, WorkflowState>()
   for (const wf of deployedWorkflows) {
     const state = await readDeployedState(wf.id, sourceWorkspaceId)
