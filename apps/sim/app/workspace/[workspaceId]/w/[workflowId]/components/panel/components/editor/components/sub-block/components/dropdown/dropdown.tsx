@@ -233,8 +233,7 @@ export const Dropdown = memo(function Dropdown({
         const toolId = selectTool({ operation: optionId })
         if (toolId && !isToolAllowed(toolId)) denied.add(optionId)
       } catch {
-        // Selector couldn't resolve a tool from the operation alone — leave the
-        // option visible; runtime enforcement still applies.
+        // Unresolvable from the operation alone — leave it visible; the server still enforces.
       }
     }
     return denied
@@ -263,8 +262,7 @@ export const Dropdown = memo(function Dropdown({
 
     const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
     if (defaultValue !== undefined) {
-      // Never seed a permission-denied operation as the default; fall back to the
-      // first allowed option so a new block doesn't start on a disallowed value.
+      // Don't seed a denied operation as the default; use the first allowed option.
       if (deniedOperationIds.has(defaultValue)) {
         return firstSelectable?.value
       }

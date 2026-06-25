@@ -577,9 +577,11 @@ export function GroupDetail({
   const removeMember = useRemovePermissionGroupMember()
   const bulkAddMembers = useBulkAddPermissionGroupMembers()
 
-  // Local, authoritative copy of the group while the detail view is open. Seeded
-  // from the prop and re-seeded only when the selected group id changes, so
-  // optimistic scope/default/config writes are not clobbered by list refetches.
+  /**
+   * Local, authoritative copy of the group while the detail view is open. Seeded
+   * from the prop and re-seeded only when the selected group id changes, so
+   * optimistic scope/default/config writes are not clobbered by list refetches.
+   */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
   const prevGroupIdRef = useRef(group.id)
@@ -589,9 +591,11 @@ export function GroupDetail({
     setEditingConfig({ ...group.config })
   }
 
-  // Monotonic token for scope-affecting writes (workspace select + default
-  // toggle). Only the most recent write may reconcile or revert the local
-  // group, so rapid multi-select toggles can't settle on a stale response.
+  /**
+   * Monotonic token for scope-affecting writes (workspace select + default
+   * toggle). Only the most recent write may reconcile or revert the local
+   * group, so rapid multi-select toggles can't settle on a stale response.
+   */
   const scopeWriteSeqRef = useRef(0)
 
   const [configTab, setConfigTab] = useState<ConfigTab>('general')
@@ -888,8 +892,6 @@ export function GroupDetail({
       const allowed = new Set(allowedIntegrations)
       const pruned = deniedTools.filter((toolId) => {
         const blockTypes = toolBlockTypes[toolId]
-        // Keep the denial while ANY block exposing the tool is still allowed;
-        // preserve tools we can't attribute to a known block.
         return !blockTypes || blockTypes.some((bt) => allowed.has(bt))
       })
       return pruned.length === deniedTools.length ? deniedTools : pruned
@@ -1767,8 +1769,6 @@ export function GroupDetail({
           primaryAction={{
             label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
             onClick: async () => {
-              // Only leave once the save actually succeeds; a failed save keeps
-              // the dialog open with the edits intact (error surfaced via toast).
               const saved = await handleSaveConfig()
               if (saved) {
                 setShowUnsavedChanges(false)

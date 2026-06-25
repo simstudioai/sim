@@ -35,10 +35,12 @@ export function AccessControl() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  // Access control is governed by the workspace's OWNING organization, which may
-  // differ from the caller's active org (e.g. external members). Resolve the org
-  // id and the caller's admin status server-side from the workspace so gating is
-  // never keyed off the session's active org.
+  /**
+   * Access control is governed by the workspace's OWNING organization, which may
+   * differ from the caller's active org (e.g. external members). Resolve the org
+   * id and the caller's admin status server-side from the workspace so gating is
+   * never keyed off the session's active org.
+   */
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
   const organizationId = userPermissionConfig?.organizationId ?? undefined
