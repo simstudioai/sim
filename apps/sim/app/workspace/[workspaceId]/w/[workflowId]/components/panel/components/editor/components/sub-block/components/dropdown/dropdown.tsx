@@ -260,17 +260,19 @@ export const Dropdown = memo(function Dropdown({
 
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
+
+    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
     if (defaultValue !== undefined) {
+      // Never seed a permission-denied operation as the default; fall back to the
+      // first allowed option so a new block doesn't start on a disallowed value.
+      if (deniedOperationIds.has(defaultValue)) {
+        return firstSelectable?.value
+      }
       return defaultValue
     }
 
-    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
-    if (firstSelectable) {
-      return firstSelectable.value
-    }
-
-    return undefined
-  }, [defaultValue, comboboxOptions, multiSelect])
+    return firstSelectable?.value
+  }, [defaultValue, comboboxOptions, deniedOperationIds, multiSelect])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {
