@@ -27,7 +27,7 @@ The Salesforce tool is ideal for workflows where your agents need to streamline 
 
 ## Usage Instructions
 
-Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.
+Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
 
 
 
@@ -717,7 +717,7 @@ Delete a task
 
 ### `salesforce_list_reports`
 
-Get a list of reports accessible by the current user
+Get a list of up to 200 recently viewed reports for the current user
 
 #### Input
 
@@ -814,7 +814,7 @@ Get a list of available report types
 
 ### `salesforce_list_dashboards`
 
-Get a list of dashboards accessible by the current user
+Get a list of recently used dashboards for the current user
 
 #### Input
 
@@ -1027,6 +1027,150 @@ Get a list of all available Salesforce objects
 |   ↳ `encoding` | string | Character encoding for the organization \(e.g., UTF-8\) |
 |   ↳ `maxBatchSize` | number | Maximum number of records that can be returned in a single query batch \(typically 200\) |
 |   ↳ `totalReturned` | number | Number of objects returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_create_custom_field`
+
+Create a custom field on a Salesforce object (e.g., Account) using the Tooling API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | No description |
+| `instanceUrl` | string | No | No description |
+| `objectName` | string | Yes | API name of the object to add the field to \(e.g., Account, Contact, Lead, MyObject__c\) |
+| `fieldName` | string | Yes | API name of the new field; the __c suffix is added automatically \(e.g., Region\) |
+| `label` | string | No | Display label shown in the UI \(defaults to the field name when omitted\) |
+| `fieldType` | string | Yes | Field data type: Text, TextArea, LongTextArea, Html, Number, Currency, Percent, Checkbox, Date, DateTime, Time, Phone, Email, Url, Picklist, or MultiselectPicklist |
+| `length` | number | No | Maximum length for Text \(1-255\), LongTextArea, Html, or MultiselectPicklist fields |
+| `precision` | number | No | Total number of digits for Number, Currency, or Percent fields \(1-18\) |
+| `scale` | number | No | Number of digits to the right of the decimal for numeric fields |
+| `visibleLines` | number | No | Number of visible lines for LongTextArea, Html, or MultiselectPicklist fields |
+| `required` | boolean | No | Whether the field is required on record create/edit |
+| `unique` | boolean | No | Whether the field enforces unique values |
+| `externalId` | boolean | No | Whether the field is an external ID \(for Text, Number, or Email fields\) |
+| `defaultValue` | string | No | Default value; for Checkbox fields use true or false |
+| `description` | string | No | Internal description of the field |
+| `inlineHelpText` | string | No | Help text shown next to the field in the UI |
+| `picklistValues` | string | No | Comma-separated values for Picklist or MultiselectPicklist fields |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the newly created custom field |
+|   ↳ `fullName` | string | Full API name of the field, including object \(e.g., Account.Region__c\) |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the field was created \(always true on success\) |
+
+### `salesforce_update_custom_field`
+
+Update an existing custom field on a Salesforce object using the Tooling API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | No description |
+| `instanceUrl` | string | No | No description |
+| `fieldId` | string | Yes | Tooling API Id of the custom field to update \(find it via the Tooling Query tool\) |
+| `label` | string | No | Display label shown in the UI |
+| `length` | number | No | Maximum length for Text, LongTextArea, Html, or MultiselectPicklist fields |
+| `precision` | number | No | Total number of digits for Number, Currency, or Percent fields |
+| `scale` | number | No | Number of digits to the right of the decimal for numeric fields |
+| `visibleLines` | number | No | Number of visible lines for LongTextArea, Html, or MultiselectPicklist fields |
+| `required` | boolean | No | Whether the field is required on record create/edit |
+| `unique` | boolean | No | Whether the field enforces unique values |
+| `externalId` | boolean | No | Whether the field is an external ID |
+| `defaultValue` | string | No | Default value; for Checkbox fields use true or false |
+| `description` | string | No | Internal description of the field |
+| `inlineHelpText` | string | No | Help text shown next to the field in the UI |
+| `picklistValues` | string | No | Comma-separated values to add to a Picklist or MultiselectPicklist field \(existing values are kept\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the updated custom field |
+|   ↳ `updated` | boolean | Whether the field was updated \(always true on success\) |
+
+### `salesforce_delete_custom_field`
+
+Delete a custom field from a Salesforce object using the Tooling API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | No description |
+| `instanceUrl` | string | No | No description |
+| `fieldId` | string | Yes | Tooling API Id of the custom field to delete \(find it via the Tooling Query tool\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Deleted custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the deleted custom field |
+|   ↳ `deleted` | boolean | Whether the field was deleted \(always true on success\) |
+
+### `salesforce_create_custom_object`
+
+Create a custom object in Salesforce using the Tooling API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | No description |
+| `instanceUrl` | string | No | No description |
+| `objectName` | string | Yes | API name of the new object; the __c suffix is added automatically \(e.g., Project\) |
+| `label` | string | Yes | Singular display label for the object \(e.g., Project\) |
+| `pluralLabel` | string | Yes | Plural display label for the object \(e.g., Projects\) |
+| `nameFieldLabel` | string | No | Label for the standard Name field \(defaults to "&lt;label&gt; Name"\) |
+| `description` | string | No | Internal description of the object |
+| `sharingModel` | string | No | Org-wide sharing model: ReadWrite, Read, Private, or ControlledByParent \(default ReadWrite\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created custom object metadata |
+|   ↳ `id` | string | Tooling API Id of the newly created custom object |
+|   ↳ `fullName` | string | Full API name of the object \(e.g., Project__c\) |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the object was created \(always true on success\) |
+
+### `salesforce_tooling_query`
+
+Execute a SOQL query against the Tooling API to inspect metadata objects
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | No | No description |
+| `instanceUrl` | string | No | No description |
+| `query` | string | Yes | Tooling SOQL query \(e.g., SELECT Id, DeveloperName FROM CustomField WHERE TableEnumOrId = 'Account'\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Tooling query results |
+|   ↳ `records` | array | Array of Tooling API records matching the query |
+|   ↳ `query` | string | The executed Tooling SOQL query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
 

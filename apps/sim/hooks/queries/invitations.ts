@@ -11,8 +11,8 @@ import {
   resendInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
-import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export const invitationKeys = {

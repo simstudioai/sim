@@ -1,4 +1,5 @@
 import type { GitLabCreateIssueNoteParams, GitLabCreateNoteResponse } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateIssueNoteTool: ToolConfig<
@@ -16,6 +17,12 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'GitLab Personal Access Token',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
     projectId: {
       type: 'string',
@@ -39,8 +46,8 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
-      return `https://gitlab.com/api/v4/projects/${encodedId}/issues/${params.issueIid}/notes`
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues/${params.issueIid}/notes`
     },
     method: 'POST',
     headers: (params) => ({

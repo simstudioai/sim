@@ -17,11 +17,7 @@ import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { isValidEnvVarName } from '@/executor/constants'
-import {
-  useWorkspaceCredentials,
-  type WorkspaceCredential,
-  workspaceCredentialKeys,
-} from '@/hooks/queries/credentials'
+import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
   useRemoveWorkspaceEnvironment,
@@ -29,6 +25,7 @@ import {
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
 } from '@/hooks/queries/environment'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 

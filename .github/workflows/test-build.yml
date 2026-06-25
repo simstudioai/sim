@@ -122,6 +122,9 @@ jobs:
       - name: React Query pattern audit
         run: bun run check:react-query
 
+      - name: Client boundary import audit
+        run: bun run check:client-boundary
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 

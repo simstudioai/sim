@@ -3,6 +3,7 @@ import {
   batchPresignedUploadResponseSchema,
   presignedUploadResponseSchema,
 } from '@/lib/api/contracts/file-uploads'
+import { workspaceFileIdSchema } from '@/lib/api/contracts/primitives'
 import {
   type ContractBodyInput,
   type ContractJsonResponse,
@@ -465,11 +466,11 @@ export const fileServeQuerySchema = z.object({
 })
 
 export const fileViewParamsSchema = z.object({
-  id: z.string().uuid('File ID must be a valid UUID'),
+  id: workspaceFileIdSchema,
 })
 
 export const fileExportParamsSchema = z.object({
-  id: z.string().uuid('File ID must be a valid UUID'),
+  id: workspaceFileIdSchema,
 })
 
 export const boxUploadContract = defineRouteContract({

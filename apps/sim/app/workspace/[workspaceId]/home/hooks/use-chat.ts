@@ -63,6 +63,7 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { readSSELines } from '@/lib/core/utils/sse'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
@@ -1934,7 +1935,6 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
-      const decoder = new TextDecoder()
       const ctx = createStreamLoopContext({
         workspaceId,
         queryClient,
@@ -1987,71 +1987,47 @@ export function useChat(
         return { sawStreamError: false, sawComplete: false }
       }
       streamReaderRef.current = reader
-      let buffer = ''
 
       try {
-        const pendingLines: string[] = []
+        await readSSELines(reader, {
+          onData: (raw) => {
+            if (state.sawCompleteEvent) return true
+            if (ops.isStale()) return
 
-        while (true) {
-          if (pendingLines.length === 0) {
-            // Don't read another chunk after `complete` has drained.
-            if (state.sawCompleteEvent) break
-            const { done, value } = await reader.read()
-            if (done) break
-            if (ops.isStale()) continue
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-            pendingLines.push(...lines)
-            if (pendingLines.length === 0) {
-              continue
+            const parsedResult = parsePersistedStreamEventEnvelopeJson(raw)
+            if (!parsedResult.ok) {
+              const error = createStreamSchemaValidationError(parsedResult, 'Live SSE event.')
+              logger.error('Rejected chat SSE event due to client-side schema enforcement', {
+                reason: parsedResult.reason,
+                message: parsedResult.message,
+                errors: parsedResult.errors,
+                error: error.message,
+              })
+              throw error
             }
-          }
+            const parsed = parsedResult.event
 
-          const line = pendingLines.shift()
-          if (line === undefined) {
-            continue
-          }
-          if (ops.isStale()) {
-            pendingLines.length = 0
-            continue
-          }
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6)
+            if (parsed.trace?.requestId && parsed.trace.requestId !== state.streamRequestId) {
+              state.streamRequestId = parsed.trace.requestId
+              streamRequestIdRef.current = state.streamRequestId
+              ops.flush()
+            }
+            if (parsed.stream?.streamId) {
+              streamIdRef.current = parsed.stream.streamId
+            }
+            const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
+            if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
+              return
+            }
+            if (eventCursor) {
+              lastCursorRef.current = eventCursor
+            }
 
-          const parsedResult = parsePersistedStreamEventEnvelopeJson(raw)
-          if (!parsedResult.ok) {
-            const error = createStreamSchemaValidationError(parsedResult, 'Live SSE event.')
-            logger.error('Rejected chat SSE event due to client-side schema enforcement', {
-              reason: parsedResult.reason,
-              message: parsedResult.message,
-              errors: parsedResult.errors,
-              error: error.message,
-            })
-            throw error
-          }
-          const parsed = parsedResult.event
-
-          if (parsed.trace?.requestId && parsed.trace.requestId !== state.streamRequestId) {
-            state.streamRequestId = parsed.trace.requestId
-            streamRequestIdRef.current = state.streamRequestId
-            ops.flush()
-          }
-          if (parsed.stream?.streamId) {
-            streamIdRef.current = parsed.stream.streamId
-          }
-          const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
-          if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
-            continue
-          }
-          if (eventCursor) {
-            lastCursorRef.current = eventCursor
-          }
-
-          logger.debug('SSE event received', parsed)
-          dispatchStreamEvent(ctx, parsed)
-        }
+            logger.debug('SSE event received', parsed)
+            dispatchStreamEvent(ctx, parsed)
+            if (state.sawCompleteEvent) return true
+          },
+        })
       } finally {
         if (state.sawStreamError && !state.sawCompleteEvent) {
           applyTurnTerminal(state.model, 'error')

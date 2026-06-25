@@ -3,6 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { normalizeLinkHref } from './markdown-fidelity'
 
 const MIN_WIDTH = 64
@@ -24,24 +25,6 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-}
-
-/**
- * Rewrite an in-app workspace file path (`/workspace/{id}/files/{fileId}`) to its serving endpoint
- * (`/api/files/view/{fileId}`) for display only — the stored `src` attribute keeps the original path
- * so markdown round-trips unchanged. Absolute and non-workspace URLs pass through untouched.
- */
-export function resolveDisplaySrc(src: string | undefined): string | undefined {
-  if (!src) return src
-  try {
-    const parsed = new URL(src, 'http://placeholder')
-    if (parsed.origin !== 'http://placeholder') return src
-    const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
-    if (seg1 === 'workspace' && seg3 === 'files' && fileId) return `/api/files/view/${fileId}`
-  } catch {
-    // not a parseable URL — render as-is
-  }
-  return src
 }
 
 /**
@@ -174,6 +157,7 @@ export const MarkdownImage = Image.extend({
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
 function ResizableImageView({ node, updateAttributes, selected, editor }: ReactNodeViewProps) {
+  const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -232,7 +216,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   const image = (
     <img
       ref={imageRef}
-      src={resolveDisplaySrc(attrs.src)}
+      src={source.resolveImageSrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
       // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node

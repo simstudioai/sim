@@ -19,7 +19,6 @@ import {
   createCredentialSetContract,
   createCredentialSetInvitationContract,
   deleteCredentialSetContract,
-  getCredentialSetContract,
   leaveCredentialSetContract,
   listCredentialSetInvitationDetailsContract,
   listCredentialSetInvitationsContract,
@@ -29,6 +28,7 @@ import {
   removeCredentialSetMemberContract,
   resendCredentialSetInvitationContract,
 } from '@/lib/api/contracts'
+import { fetchCredentialSetById } from '@/hooks/queries/utils/fetch-credential-set'
 
 export type {
   CreateCredentialSetData,
@@ -74,18 +74,6 @@ export function useCredentialSets(organizationId?: string, enabled = true) {
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
-}
-
-export async function fetchCredentialSetById(
-  id: string,
-  signal?: AbortSignal
-): Promise<CredentialSet | null> {
-  if (!id) return null
-  const data = await requestJson(getCredentialSetContract, {
-    params: { id },
-    signal,
-  })
-  return data.credentialSet ?? null
 }
 
 export function useCredentialSetDetail(id?: string, enabled = true) {

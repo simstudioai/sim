@@ -46,6 +46,21 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         { label: 'Create Pipeline', id: 'gitlab_create_pipeline' },
         { label: 'Retry Pipeline', id: 'gitlab_retry_pipeline' },
         { label: 'Cancel Pipeline', id: 'gitlab_cancel_pipeline' },
+        // Repository Operations
+        { label: 'List Repository Tree', id: 'gitlab_list_repository_tree' },
+        { label: 'Get File', id: 'gitlab_get_file' },
+        { label: 'Create File', id: 'gitlab_create_file' },
+        { label: 'Update File', id: 'gitlab_update_file' },
+        { label: 'List Commits', id: 'gitlab_list_commits' },
+        { label: 'List Branches', id: 'gitlab_list_branches' },
+        { label: 'Create Branch', id: 'gitlab_create_branch' },
+        // Additional Merge Request Operations
+        { label: 'Get MR Changes', id: 'gitlab_get_merge_request_changes' },
+        { label: 'Approve Merge Request', id: 'gitlab_approve_merge_request' },
+        // Job Operations
+        { label: 'List Pipeline Jobs', id: 'gitlab_list_pipeline_jobs' },
+        { label: 'Get Job Log', id: 'gitlab_get_job_log' },
+        { label: 'Play Job', id: 'gitlab_play_job' },
       ],
       value: () => 'gitlab_list_projects',
     },
@@ -56,6 +71,15 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       placeholder: 'Enter your GitLab Personal Access Token',
       password: true,
       required: true,
+    },
+    // Self-managed GitLab host (defaults to gitlab.com)
+    {
+      id: 'host',
+      title: 'GitLab Host',
+      type: 'short-input',
+      placeholder: 'gitlab.com',
+      mode: 'advanced',
+      description: 'Self-managed GitLab host. Leave blank for gitlab.com.',
     },
     // Project ID (required for most operations)
     {
@@ -85,6 +109,18 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
           'gitlab_create_pipeline',
           'gitlab_retry_pipeline',
           'gitlab_cancel_pipeline',
+          'gitlab_list_repository_tree',
+          'gitlab_get_file',
+          'gitlab_create_file',
+          'gitlab_update_file',
+          'gitlab_list_commits',
+          'gitlab_list_branches',
+          'gitlab_create_branch',
+          'gitlab_get_merge_request_changes',
+          'gitlab_approve_merge_request',
+          'gitlab_list_pipeline_jobs',
+          'gitlab_get_job_log',
+          'gitlab_play_job',
         ],
       },
     },
@@ -119,6 +155,8 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
           'gitlab_update_merge_request',
           'gitlab_merge_merge_request',
           'gitlab_create_merge_request_note',
+          'gitlab_get_merge_request_changes',
+          'gitlab_approve_merge_request',
         ],
       },
     },
@@ -131,7 +169,12 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['gitlab_get_pipeline', 'gitlab_retry_pipeline', 'gitlab_cancel_pipeline'],
+        value: [
+          'gitlab_get_pipeline',
+          'gitlab_retry_pipeline',
+          'gitlab_cancel_pipeline',
+          'gitlab_list_pipeline_jobs',
+        ],
       },
     },
     // Title (for issue/MR creation)
@@ -238,7 +281,135 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['gitlab_create_pipeline'],
+        value: ['gitlab_create_pipeline', 'gitlab_get_file', 'gitlab_create_branch'],
+      },
+    },
+    // File Path
+    {
+      id: 'filePath',
+      title: 'File Path',
+      type: 'short-input',
+      placeholder: 'Path to file (e.g., src/index.ts)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_get_file', 'gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    // Branch
+    {
+      id: 'branch',
+      title: 'Branch',
+      type: 'short-input',
+      placeholder: 'Branch name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file', 'gitlab_create_branch'],
+      },
+    },
+    // File Content
+    {
+      id: 'content',
+      title: 'File Content',
+      type: 'long-input',
+      placeholder: 'File content',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    // Commit Message
+    {
+      id: 'commitMessage',
+      title: 'Commit Message',
+      type: 'short-input',
+      placeholder: 'Commit message',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    // Job ID
+    {
+      id: 'jobId',
+      title: 'Job ID',
+      type: 'short-input',
+      placeholder: 'Enter job ID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_get_job_log', 'gitlab_play_job'],
+      },
+    },
+    // Subdirectory path (for repository tree)
+    {
+      id: 'path',
+      title: 'Path',
+      type: 'short-input',
+      placeholder: 'Subdirectory path (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_repository_tree'],
+      },
+    },
+    // Recursive tree listing
+    {
+      id: 'recursive',
+      title: 'Recursive',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_repository_tree'],
+      },
+    },
+    // Ref name filter (for list commits)
+    {
+      id: 'refName',
+      title: 'Ref (branch/tag)',
+      type: 'short-input',
+      placeholder: 'Branch or tag (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_commits'],
+      },
+    },
+    // Job scope filter (for list pipeline jobs)
+    {
+      id: 'scope',
+      title: 'Job Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Failed', id: 'failed' },
+        { label: 'Success', id: 'success' },
+        { label: 'Running', id: 'running' },
+        { label: 'Pending', id: 'pending' },
+        { label: 'Canceled', id: 'canceled' },
+        { label: 'Manual', id: 'manual' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_pipeline_jobs'],
+      },
+    },
+    // Commit SHA (for approve merge request)
+    {
+      id: 'sha',
+      title: 'Commit SHA',
+      type: 'short-input',
+      placeholder: 'Optional HEAD SHA to approve',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_approve_merge_request'],
       },
     },
     // Labels
@@ -418,6 +589,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
           'gitlab_list_issues',
           'gitlab_list_merge_requests',
           'gitlab_list_pipelines',
+          'gitlab_list_repository_tree',
+          'gitlab_list_branches',
+          'gitlab_list_commits',
+          'gitlab_list_pipeline_jobs',
         ],
       },
     },
@@ -435,6 +610,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
           'gitlab_list_issues',
           'gitlab_list_merge_requests',
           'gitlab_list_pipelines',
+          'gitlab_list_repository_tree',
+          'gitlab_list_branches',
+          'gitlab_list_commits',
+          'gitlab_list_pipeline_jobs',
         ],
       },
     },
@@ -466,6 +645,18 @@ Return ONLY the commit message - no explanations, no extra text.`,
       'gitlab_create_pipeline',
       'gitlab_retry_pipeline',
       'gitlab_cancel_pipeline',
+      'gitlab_list_repository_tree',
+      'gitlab_get_file',
+      'gitlab_create_file',
+      'gitlab_update_file',
+      'gitlab_create_branch',
+      'gitlab_list_branches',
+      'gitlab_list_commits',
+      'gitlab_get_merge_request_changes',
+      'gitlab_approve_merge_request',
+      'gitlab_list_pipeline_jobs',
+      'gitlab_get_job_log',
+      'gitlab_play_job',
     ],
     config: {
       tool: (params) => {
@@ -474,6 +665,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
       params: (params) => {
         const baseParams: Record<string, any> = {
           accessToken: params.accessToken,
+          host: params.host?.trim() || undefined,
         }
 
         switch (params.operation) {
@@ -700,6 +892,140 @@ Return ONLY the commit message - no explanations, no extra text.`,
               pipelineId: Number(params.pipelineId),
             }
 
+          case 'gitlab_list_repository_tree':
+            if (!params.projectId?.trim()) {
+              throw new Error('Project ID is required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              path: params.path?.trim() || undefined,
+              recursive: params.recursive || undefined,
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+
+          case 'gitlab_get_file':
+            if (!params.projectId?.trim() || !params.filePath?.trim() || !params.ref?.trim()) {
+              throw new Error('Project ID, file path, and ref are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              filePath: params.filePath.trim(),
+              ref: params.ref.trim(),
+            }
+
+          case 'gitlab_create_file':
+          case 'gitlab_update_file':
+            if (
+              !params.projectId?.trim() ||
+              !params.filePath?.trim() ||
+              !params.branch?.trim() ||
+              !params.content ||
+              !params.commitMessage?.trim()
+            ) {
+              throw new Error(
+                'Project ID, file path, branch, content, and commit message are required.'
+              )
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              filePath: params.filePath.trim(),
+              branch: params.branch.trim(),
+              content: params.content,
+              commitMessage: params.commitMessage.trim(),
+            }
+
+          case 'gitlab_create_branch':
+            if (!params.projectId?.trim() || !params.branch?.trim() || !params.ref?.trim()) {
+              throw new Error('Project ID, branch name, and source ref are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              branch: params.branch.trim(),
+              ref: params.ref.trim(),
+            }
+
+          case 'gitlab_list_branches':
+            if (!params.projectId?.trim()) {
+              throw new Error('Project ID is required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+
+          case 'gitlab_list_commits':
+            if (!params.projectId?.trim()) {
+              throw new Error('Project ID is required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              refName: params.refName?.trim() || undefined,
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+
+          case 'gitlab_get_merge_request_changes':
+            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+              throw new Error('Project ID and Merge Request IID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              mergeRequestIid: Number(params.mergeRequestIid),
+            }
+
+          case 'gitlab_approve_merge_request':
+            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+              throw new Error('Project ID and Merge Request IID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              mergeRequestIid: Number(params.mergeRequestIid),
+              sha: params.sha?.trim() || undefined,
+            }
+
+          case 'gitlab_list_pipeline_jobs':
+            if (!params.projectId?.trim() || !params.pipelineId) {
+              throw new Error('Project ID and Pipeline ID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              pipelineId: Number(params.pipelineId),
+              scope: params.scope || undefined,
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+
+          case 'gitlab_get_job_log':
+            if (!params.projectId?.trim() || !params.jobId) {
+              throw new Error('Project ID and Job ID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              jobId: Number(params.jobId),
+            }
+
+          case 'gitlab_play_job':
+            if (!params.projectId?.trim() || !params.jobId) {
+              throw new Error('Project ID and Job ID are required.')
+            }
+            return {
+              ...baseParams,
+              projectId: params.projectId.trim(),
+              jobId: Number(params.jobId),
+            }
+
           default:
             return baseParams
         }
@@ -708,7 +1034,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    credential: { type: 'string', description: 'GitLab access token' },
+    accessToken: { type: 'string', description: 'GitLab Personal Access Token' },
+    host: { type: 'string', description: 'Self-managed GitLab host (defaults to gitlab.com)' },
     projectId: { type: 'string', description: 'Project ID or URL-encoded path' },
     issueIid: { type: 'number', description: 'Issue internal ID' },
     mergeRequestIid: { type: 'number', description: 'Merge request internal ID' },
@@ -734,6 +1061,16 @@ Return ONLY the commit message - no explanations, no extra text.`,
     mergeCommitMessage: { type: 'string', description: 'Custom merge commit message' },
     perPage: { type: 'number', description: 'Results per page' },
     page: { type: 'number', description: 'Page number' },
+    filePath: { type: 'string', description: 'Path to file in the repository' },
+    branch: { type: 'string', description: 'Branch name' },
+    content: { type: 'string', description: 'File content' },
+    commitMessage: { type: 'string', description: 'Commit message' },
+    jobId: { type: 'number', description: 'Job ID' },
+    path: { type: 'string', description: 'Subdirectory path for repository tree' },
+    recursive: { type: 'boolean', description: 'Recursively list repository tree' },
+    refName: { type: 'string', description: 'Branch or tag name filter' },
+    scope: { type: 'string', description: 'Job scope filter' },
+    sha: { type: 'string', description: 'Commit SHA' },
   },
   outputs: {
     // Project outputs
@@ -750,6 +1087,21 @@ Return ONLY the commit message - no explanations, no extra text.`,
     pipeline: { type: 'json', description: 'Pipeline details' },
     // Note outputs
     note: { type: 'json', description: 'Comment/note details' },
+    // Repository outputs
+    tree: { type: 'json', description: 'Repository tree entries' },
+    content: { type: 'string', description: 'File contents (decoded)' },
+    fileName: { type: 'string', description: 'File name' },
+    branches: { type: 'json', description: 'List of branches' },
+    commits: { type: 'json', description: 'List of commits' },
+    name: { type: 'string', description: 'Created branch name' },
+    webUrl: { type: 'string', description: 'Web URL' },
+    // Merge request change outputs
+    changes: { type: 'json', description: 'Merge request file changes/diffs' },
+    approvalsRequired: { type: 'number', description: 'Approvals required' },
+    approvalsLeft: { type: 'number', description: 'Approvals remaining' },
+    // Job outputs
+    jobs: { type: 'json', description: 'Pipeline jobs' },
+    log: { type: 'string', description: 'Job log output' },
     // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
   },
