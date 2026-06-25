@@ -1255,7 +1255,7 @@ export function GroupDetail({
 
   const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
   const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
-  const platformAllVisible = platformFeatures.every((f) => !editingConfig[f.configKey])
+  const platformAllVisible = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
 
   return (
     <>
@@ -1580,7 +1580,7 @@ export function GroupDetail({
                       setEditingConfig((prev) => ({
                         ...prev,
                         ...Object.fromEntries(
-                          platformFeatures.map((f) => [f.configKey, platformAllVisible])
+                          filteredPlatformFeatures.map((f) => [f.configKey, platformAllVisible])
                         ),
                       }))
                     }
