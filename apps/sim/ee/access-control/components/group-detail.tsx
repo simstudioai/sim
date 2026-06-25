@@ -875,29 +875,48 @@ export function GroupDetail({
     [editingConfig.allowedIntegrations]
   )
 
+  /**
+   * Drops denied tools whose integration is no longer allowed, keeping the
+   * invariant that `deniedTools` only holds tools of currently-allowed blocks.
+   * Without this, disabling then re-enabling an integration would silently
+   * re-apply stale per-tool denials. Tools we can't attribute to a known block
+   * are preserved.
+   */
+  const pruneDeniedTools = useCallback(
+    (allowedIntegrations: string[] | null, deniedTools: string[]) => {
+      if (allowedIntegrations === null) return deniedTools
+      const allowed = new Set(allowedIntegrations)
+      const pruned = deniedTools.filter((toolId) => {
+        const blockType = toolToBlockType[toolId]
+        return !blockType || allowed.has(blockType)
+      })
+      return pruned.length === deniedTools.length ? deniedTools : pruned
+    },
+    [toolToBlockType]
+  )
+
   const toggleIntegration = useCallback(
     (blockType: string) => {
       setEditingConfig((prev) => {
         const current = prev.allowedIntegrations
+        let nextAllowed: string[] | null
         if (current === null) {
-          const allExcept = allBlocks.map((b) => b.type).filter((t) => t !== blockType)
-          return { ...prev, allowedIntegrations: allExcept }
-        }
-        if (current.includes(blockType)) {
+          nextAllowed = allBlocks.map((b) => b.type).filter((t) => t !== blockType)
+        } else if (current.includes(blockType)) {
           const updated = current.filter((t) => t !== blockType)
-          return {
-            ...prev,
-            allowedIntegrations: updated.length === allBlocks.length ? null : updated,
-          }
+          nextAllowed = updated.length === allBlocks.length ? null : updated
+        } else {
+          const updated = [...current, blockType]
+          nextAllowed = updated.length === allBlocks.length ? null : updated
         }
-        const updated = [...current, blockType]
         return {
           ...prev,
-          allowedIntegrations: updated.length === allBlocks.length ? null : updated,
+          allowedIntegrations: nextAllowed,
+          deniedTools: pruneDeniedTools(nextAllowed, prev.deniedTools),
         }
       })
     },
-    [allBlocks]
+    [allBlocks, pruneDeniedTools]
   )
 
   /** Allow or deny a whole section's blocks at once, respecting the active filter. */
@@ -912,13 +931,15 @@ export function GroupDetail({
           else current.delete(block.type)
         }
         const nextArr = allTypes.filter((t) => current.has(t))
+        const nextAllowed = nextArr.length === allTypes.length ? null : nextArr
         return {
           ...prev,
-          allowedIntegrations: nextArr.length === allTypes.length ? null : nextArr,
+          allowedIntegrations: nextAllowed,
+          deniedTools: pruneDeniedTools(nextAllowed, prev.deniedTools),
         }
       })
     },
-    [allBlocks]
+    [allBlocks, pruneDeniedTools]
   )
 
   const isToolAllowed = useCallback(
