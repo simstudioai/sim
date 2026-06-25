@@ -2,16 +2,24 @@
  * @vitest-environment node
  */
 import { envFlagsMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
-const { mockValidateSelectorIds, mockGetModelOptions, mockGetCustomToolById, mockGetSkillById } =
-  vi.hoisted(() => ({
-    mockValidateSelectorIds: vi.fn(),
-    mockGetModelOptions: vi.fn(() => []),
-    mockGetCustomToolById: vi.fn(),
-    mockGetSkillById: vi.fn(),
-  }))
+const {
+  mockValidateSelectorIds,
+  mockGetModelOptions,
+  mockEnvFlags,
+  mockGetTool,
+  mockGetCustomToolById,
+  mockGetSkillById,
+} = vi.hoisted(() => ({
+  mockValidateSelectorIds: vi.fn(),
+  mockGetModelOptions: vi.fn(() => []),
+  mockEnvFlags: { isHosted: false },
+  mockGetTool: vi.fn(),
+  mockGetCustomToolById: vi.fn(),
+  mockGetSkillById: vi.fn(),
+}))
 
 const conditionBlockConfig = {
   type: 'condition',
@@ -73,6 +81,53 @@ const canonicalCredBlockConfig = {
   ],
 }
 
+// Mirrors video_generator_v3: routes provider -> tool; only video_falai has hosting.
+const videoBlockConfig = {
+  type: 'video_generator_v3',
+  name: 'Video Generator',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: {
+    access: ['video_runway', 'video_falai'],
+    config: {
+      tool: (params: Record<string, unknown>) =>
+        params.provider === 'falai' ? 'video_falai' : 'video_runway',
+    },
+  },
+}
+
+// A hosted block whose tool's managed key param is NOT named 'apiKey'.
+const customKeyBlockConfig = {
+  type: 'custom_key_block',
+  name: 'Custom Key Block',
+  outputs: {},
+  subBlocks: [{ id: 'serviceKey', type: 'short-input' }],
+  tools: { access: ['custom_key_tool'], config: { tool: () => 'custom_key_tool' } },
+}
+
+// Single tool with a per-provider `enabled` gate (mirrors image_generate, falai-only hosting).
+const imageBlockConfig = {
+  type: 'image_generator_v2',
+  name: 'Image Generator',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: { access: ['image_generate'], config: { tool: () => 'image_generate' } },
+}
+
+// Tool registry stand-in for the hosted-tool tests.
+const toolsByIdMock: Record<string, unknown> = {
+  video_falai: { id: 'video_falai', hosting: { apiKeyParam: 'apiKey' } },
+  video_runway: { id: 'video_runway' },
+  custom_key_tool: { id: 'custom_key_tool', hosting: { apiKeyParam: 'serviceKey' } },
+  image_generate: {
+    id: 'image_generate',
+    hosting: {
+      apiKeyParam: 'apiKey',
+      enabled: (p: Record<string, unknown>) => p.provider === 'falai',
+    },
+  },
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'condition'
@@ -89,11 +144,21 @@ vi.mock('@/blocks/registry', () => ({
                 ? knowledgeBlockConfig
                 : type === 'canonicalcred'
                   ? canonicalCredBlockConfig
-                  : undefined,
+                  : type === 'video_generator_v3'
+                    ? videoBlockConfig
+                    : type === 'custom_key_block'
+                      ? customKeyBlockConfig
+                      : type === 'image_generator_v2'
+                        ? imageBlockConfig
+                        : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
+}))
+
+vi.mock('@/tools/utils', () => ({
+  getTool: mockGetTool,
 }))
 
 vi.mock('@/lib/copilot/validation/selector-validator', () => ({
@@ -108,7 +173,12 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => ({
+  ...envFlagsMock,
+  get isHosted() {
+    return mockEnvFlags.isHosted
+  },
+}))
 
 vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],
@@ -317,6 +387,187 @@ describe('preValidateCredentialInputs', () => {
       workspaceId: 'workspace-1',
     })
     expect(result.filteredOperations[0]?.params?.inputs?.credential).toBe('shared-cred-1')
+    expect(result.errors).toHaveLength(0)
+  })
+})
+
+describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
+    mockEnvFlags.isHosted = true
+  })
+
+  afterEach(() => {
+    mockEnvFlags.isHosted = false
+  })
+
+  const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  it('strips apiKey when the block resolves to a hosted tool on hosted Sim', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+    expect(result.errors[0]?.error).toContain('managed by Sim')
+  })
+
+  it('preserves apiKey when the resolved tool has no hosting (non-falai provider)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'runway', apiKey: 'user-runway-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-runway-key')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('resolves provider from existing block state for edit ops that only set apiKey', async () => {
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': {
+          type: 'video_generator_v3',
+          subBlocks: { provider: { value: 'falai' } },
+        },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('strips apiKey on a hosted-tool block nested inside a loop', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'loop-1',
+        params: {
+          type: 'loop',
+          inputs: {},
+          nestedNodes: {
+            'video-child': {
+              type: 'video_generator_v3',
+              inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+            },
+          },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    const nested = result.filteredOperations[0]?.params?.nestedNodes as
+      | Record<string, { inputs?: Record<string, unknown> }>
+      | undefined
+    expect(nested?.['video-child']?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
+  })
+
+  it("strips a hosted tool's key field even when it is not named apiKey", async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'custom-1',
+        params: {
+          type: 'custom_key_block',
+          inputs: { serviceKey: '{{SOME_SERVICE_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.serviceKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
+  })
+
+  it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
+    mockEnvFlags.isHosted = false
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('{{FAL_API_KEY}}')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('strips apiKey when the tool hosting enabled gate passes (image, falai)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'image-1',
+        params: {
+          type: 'image_generator_v2',
+          inputs: { provider: 'falai', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('preserves apiKey when the tool hosting enabled gate fails (image, non-falai)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'image-1',
+        params: {
+          type: 'image_generator_v2',
+          inputs: { provider: 'openai', apiKey: 'user-openai-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-openai-key')
     expect(result.errors).toHaveLength(0)
   })
 })
