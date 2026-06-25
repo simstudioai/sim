@@ -219,6 +219,10 @@ export default {
           from: { opacity: '0', transform: 'translateY(10px) scale(0.97)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        'hero-kb-content-morph': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
         'hero-file-drop': {
           from: { opacity: '0', transform: 'translateY(-44px) scale(0.96)' },
           '60%': { opacity: '1' },
@@ -253,6 +257,8 @@ export default {
         'hero-stage-fade': 'hero-stage-fade 420ms cubic-bezier(0.23, 1, 0.32, 1) both',
         'hero-cursor-press': 'hero-cursor-press 340ms cubic-bezier(0.23, 1, 0.32, 1)',
         'hero-modal-in': 'hero-modal-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'hero-kb-content-morph':
+          'hero-kb-content-morph 420ms cubic-bezier(0.22, 1, 0.36, 1) 260ms forwards',
         'hero-file-drop': 'hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'hero-node-pop': 'hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'hero-edge-draw': 'hero-edge-draw 520ms ease-out forwards',

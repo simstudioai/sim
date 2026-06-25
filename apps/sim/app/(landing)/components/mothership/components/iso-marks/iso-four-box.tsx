@@ -17,8 +17,8 @@ import {
 /**
  * Sim iso goo-mark: FOUR-BOX TWIST.
  * Four wireframe boxes layered vertically, each rotated at a progressive angular
- * offset so the stack twists into a rounded cluster. Rest: tight, overlapping,
- * still. Hover (open + spin): gap spreads, twist increases, spins. An optional
+ * offset so the stack twists into a rounded cluster. Rest: open and twisted,
+ * still. Hover (close + spin): gap collapses, twist unwinds, spins. An optional
  * signal-blue accent box is off by default (the landing stays greyscale).
  */
 interface FourBoxState extends MarkState {
@@ -29,8 +29,8 @@ interface FourBoxState extends MarkState {
   tone: number
 }
 
-const REST: FourBoxState = { gap: 0, twist: 0, spin: -3.14, tilt: 0.4, tone: 0 }
-const HOVER: FourBoxState = { gap: 1, twist: 11, spin: -0.38, tilt: 0.4, tone: 1 }
+const REST: FourBoxState = { gap: 1, twist: 11, spin: -0.38, tilt: 0.4, tone: 1 }
+const HOVER: FourBoxState = { gap: 0, twist: 0, spin: -3.14, tilt: 0.4, tone: 1 }
 
 const BOXES = 2
 const STROKE = 2.4

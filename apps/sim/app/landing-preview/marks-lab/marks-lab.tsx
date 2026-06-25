@@ -49,7 +49,38 @@ interface LabMark {
   defaultGoo: number
   defaultSize: number
   params: ParamDef[]
-  build: (p: Record<string, number>) => string
+  build: (
+    p: Record<string, number>,
+    amt: number,
+    pairs: Record<string, { rest: number; hover: number }>
+  ) => string
+}
+
+type P3 = [number, number, number]
+
+/** Rotate a model-space point about the vertical Z axis (`az`), then about the
+ * in-plane X axis (`ax`) for an isometric tumble. */
+function rot3([x, y, z]: P3, az: number, ax: number): P3 {
+  const cz = Math.cos(az)
+  const sz = Math.sin(az)
+  const x1 = x * cz - y * sz
+  const y1 = x * sz + y * cz
+  const cx = Math.cos(ax)
+  const sx = Math.sin(ax)
+  return [x1, y1 * cx - z * sx, y1 * sx + z * cx]
+}
+
+/**
+ * Per-element transition progress. `wave` (0..1) staggers each element's hover
+ * across time: 0 = every element animates together, 1 = fully sequential (each
+ * element waits for the ones before it). This is what makes the pieces "spin
+ * individually at different times" as the hover scrubs 0 → 1.
+ */
+function elementProgress(amt: number, i: number, n: number, wave: number): number {
+  if (wave <= 0 || n <= 1) return amt
+  const span = Math.max(0.0001, 1 - wave)
+  const start = (i / (n - 1)) * wave
+  return Math.max(0, Math.min(1, (amt - start) / span))
 }
 
 function cubeEdges(s: number, ky: number, rot: number, zScale: number, zc: number): Edge[] {
@@ -233,6 +264,240 @@ const MARKS: LabMark[] = [
       return toPath(normalizeReach(sampleClosed(fn)))
     },
   },
+  {
+    id: 'gridfloors',
+    label: 'Grid floors',
+    defaultStroke: 1.5,
+    defaultGoo: 0.8,
+    defaultSize: 160,
+    params: [
+      { key: 'grid', label: 'Grid', min: 1, max: 5, step: 1, rest: 3, hover: 3, structural: true },
+      {
+        key: 'floors',
+        label: 'Floors',
+        min: 1,
+        max: 5,
+        step: 1,
+        rest: 3,
+        hover: 3,
+        structural: true,
+      },
+      { key: 'gap', label: 'Gap', min: 0, max: 40, step: 0.5, rest: 14, hover: 26 },
+      { key: 'tilt', label: 'Tilt', min: 0, max: 1, step: 0.01, rest: 0.5, hover: 0.42 },
+      { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 1.2 },
+      {
+        key: 'twist',
+        label: 'Twist / floor',
+        min: -1.2,
+        max: 1.2,
+        step: 0.01,
+        rest: 0,
+        hover: 0.5,
+      },
+      { key: 'tumble', label: 'Iso tumble', min: -1.57, max: 1.57, step: 0.01, rest: 0, hover: 0 },
+      {
+        key: 'wave',
+        label: 'Wave (stagger)',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        rest: 0,
+        hover: 0.6,
+        structural: true,
+      },
+    ],
+    build: (p, amt, pairs) => {
+      const half = 40
+      const div = Math.round(p.grid)
+      const floors = Math.round(p.floors)
+      const totalH = (floors - 1) * p.gap
+      const proj = (x: number, y: number, z: number): Pt => isoProject(x, y, z, p.tilt)
+      const E: Edge[] = []
+      const nodes: Pt[][] = []
+      for (let fl = 0; fl < floors; fl++) {
+        const ai = elementProgress(amt, fl, floors, p.wave)
+        const az = lerp(pairs.spin.rest, pairs.spin.hover, ai) + fl * p.twist
+        const ax = lerp(pairs.tumble.rest, pairs.tumble.hover, ai)
+        const zc = fl * p.gap - totalH / 2
+        const tp = (x: number, y: number): Pt => {
+          const r = rot3([x, y, 0], az, ax)
+          return proj(r[0], r[1], r[2] + zc)
+        }
+        for (let i = 0; i <= div; i++) {
+          const v = -1 + (2 * i) / div
+          E.push([tp(-half, v * half), tp(half, v * half)])
+        }
+        for (let i = 0; i <= div; i++) {
+          const u = -1 + (2 * i) / div
+          E.push([tp(u * half, -half), tp(u * half, half)])
+        }
+        const row: Pt[] = []
+        for (let i = 0; i <= div; i++) {
+          for (let j = 0; j <= div; j++) {
+            const u = -1 + (2 * i) / div
+            const v = -1 + (2 * j) / div
+            row.push(tp(u * half, v * half))
+          }
+        }
+        nodes.push(row)
+      }
+      for (let fl = 0; fl < floors - 1; fl++) {
+        for (let k = 0; k < nodes[fl].length; k++) {
+          E.push([nodes[fl][k], nodes[fl + 1][k]])
+        }
+      }
+      return edgesToPaths(E)
+    },
+  },
+  {
+    id: 'tunnel',
+    label: 'Square tunnel',
+    defaultStroke: 1.5,
+    defaultGoo: 0.8,
+    defaultSize: 160,
+    params: [
+      {
+        key: 'count',
+        label: 'Count',
+        min: 2,
+        max: 20,
+        step: 1,
+        rest: 12,
+        hover: 12,
+        structural: true,
+      },
+      {
+        key: 'sq',
+        label: 'Square',
+        min: 6,
+        max: 30,
+        step: 0.5,
+        rest: 18,
+        hover: 18,
+        structural: true,
+      },
+      { key: 'step', label: 'Step', min: 2, max: 16, step: 0.5, rest: 6, hover: 10 },
+      { key: 'tilt', label: 'Tilt', min: 0, max: 1, step: 0.01, rest: 0.5, hover: 0.42 },
+      { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 0.6 },
+      {
+        key: 'twist',
+        label: 'Twist / square',
+        min: -1.2,
+        max: 1.2,
+        step: 0.01,
+        rest: 0,
+        hover: 0.4,
+      },
+      { key: 'tumble', label: 'Iso tumble', min: -1.57, max: 1.57, step: 0.01, rest: 0, hover: 0 },
+      {
+        key: 'wave',
+        label: 'Wave (stagger)',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        rest: 0,
+        hover: 0.6,
+        structural: true,
+      },
+    ],
+    build: (p, amt, pairs) => {
+      const count = Math.round(p.count)
+      const s = p.sq
+      const totalU = (count - 1) * p.step
+      const proj = (x: number, y: number, z: number): Pt => isoProject(x, y, z, p.tilt)
+      const E: Edge[] = []
+      for (let k = 0; k < count; k++) {
+        const ai = elementProgress(amt, k, count, p.wave)
+        const az = lerp(pairs.spin.rest, pairs.spin.hover, ai) + k * p.twist
+        const ax = lerp(pairs.tumble.rest, pairs.tumble.hover, ai)
+        const u = k * p.step - totalU / 2
+        const tp = (y: number, z: number): Pt => {
+          const r = rot3([0, y, z], az, ax)
+          return proj(r[0] + u, r[1], r[2])
+        }
+        E.push(
+          [tp(-s, -s), tp(s, -s)],
+          [tp(s, -s), tp(s, s)],
+          [tp(s, s), tp(-s, s)],
+          [tp(-s, s), tp(-s, -s)]
+        )
+      }
+      return edgesToPaths(E)
+    },
+  },
+  {
+    id: 'tilegrid',
+    label: 'Tile grid',
+    defaultStroke: 1.5,
+    defaultGoo: 0.8,
+    defaultSize: 160,
+    params: [
+      { key: 'grid', label: 'Grid', min: 2, max: 6, step: 1, rest: 3, hover: 3, structural: true },
+      { key: 'inset', label: 'Tile gap', min: 0, max: 0.4, step: 0.01, rest: 0.12, hover: 0.22 },
+      {
+        key: 'tilt',
+        label: 'Tilt',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        rest: 0.5,
+        hover: 0.5,
+        structural: true,
+      },
+      { key: 'spin', label: 'Spin', min: -3.14, max: 3.14, step: 0.01, rest: 0, hover: 0 },
+      { key: 'twist', label: 'Twist / tile', min: -1.5, max: 1.5, step: 0.01, rest: 0, hover: 0.6 },
+      {
+        key: 'tumble',
+        label: 'Iso tumble',
+        min: -1.57,
+        max: 1.57,
+        step: 0.01,
+        rest: 0,
+        hover: 0.8,
+      },
+      {
+        key: 'wave',
+        label: 'Wave (stagger)',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        rest: 0,
+        hover: 0.7,
+        structural: true,
+      },
+    ],
+    build: (p, amt, pairs) => {
+      const half = 40
+      const div = Math.round(p.grid)
+      const m = p.inset
+      const proj = (x: number, y: number, z: number): Pt => isoProject(x, y, z, p.tilt)
+      const E: Edge[] = []
+      const n = div * div
+      const hs = (1 - 2 * m) * (half / div)
+      let idx = 0
+      for (let i = 0; i < div; i++) {
+        for (let j = 0; j < div; j++) {
+          const ai = elementProgress(amt, idx, n, p.wave)
+          idx++
+          const az = lerp(pairs.spin.rest, pairs.spin.hover, ai) + (i + j) * p.twist * 0.5
+          const ax = lerp(pairs.tumble.rest, pairs.tumble.hover, ai)
+          const cu = (-1 + (2 * i + 1) / div) * half
+          const cv = (-1 + (2 * j + 1) / div) * half
+          const tp = (lx: number, ly: number): Pt => {
+            const r = rot3([lx, ly, 0], az, ax)
+            return proj(r[0] + cu, r[1] + cv, r[2])
+          }
+          E.push(
+            [tp(-hs, -hs), tp(hs, -hs)],
+            [tp(hs, -hs), tp(hs, hs)],
+            [tp(hs, hs), tp(-hs, hs)],
+            [tp(-hs, hs), tp(-hs, -hs)]
+          )
+        }
+      }
+      return edgesToPaths(E)
+    },
+  },
 ]
 
 interface Pair {
@@ -256,25 +521,45 @@ interface MarkConfig {
   size: number
 }
 
-function initConfigs(): Record<string, MarkConfig> {
-  const out: Record<string, MarkConfig> = {}
-  for (const m of MARKS) {
-    const params: Record<string, Pair> = {}
-    for (const p of m.params) params[p.key] = { rest: p.rest, hover: p.hover }
-    out[m.id] = {
-      params,
-      stroke: { rest: m.defaultStroke, hover: m.defaultStroke },
-      goo: { rest: m.defaultGoo, hover: m.defaultGoo },
-      gradient: {
-        from: '#2C2C2C',
-        to: '#5F5F5F',
-        cx: { rest: 50, hover: 50 },
-        cy: { rest: 50, hover: 50 },
-        r: { rest: 44, hover: 44 },
-      },
-      size: m.defaultSize,
+function makeConfig(m: LabMark): MarkConfig {
+  const params: Record<string, Pair> = {}
+  for (const p of m.params) params[p.key] = { rest: p.rest, hover: p.hover }
+  return {
+    params,
+    stroke: { rest: m.defaultStroke, hover: m.defaultStroke },
+    goo: { rest: m.defaultGoo, hover: m.defaultGoo },
+    gradient: {
+      from: '#2C2C2C',
+      to: '#5F5F5F',
+      cx: { rest: 50, hover: 50 },
+      cy: { rest: 50, hover: 50 },
+      r: { rest: 44, hover: 44 },
+    },
+    size: m.defaultSize,
+  }
+}
+
+/** A config that always has an entry (and every param key) for `mark`. Guards
+ * against stale lab state after a mark or param is added during development. */
+function ensureConfig(base: MarkConfig | undefined, mark: LabMark): MarkConfig {
+  const safe = base ?? makeConfig(mark)
+  let params = safe.params
+  let cloned = false
+  for (const def of mark.params) {
+    if (!params[def.key]) {
+      if (!cloned) {
+        params = { ...params }
+        cloned = true
+      }
+      params[def.key] = { rest: def.rest, hover: def.hover }
     }
   }
+  return cloned ? { ...safe, params } : safe
+}
+
+function initConfigs(): Record<string, MarkConfig> {
+  const out: Record<string, MarkConfig> = {}
+  for (const m of MARKS) out[m.id] = makeConfig(m)
   return out
 }
 
@@ -379,7 +664,16 @@ export function MarksLab() {
   const rafRef = useRef<number | null>(null)
 
   const mark = MARKS.find((m) => m.id === markId) as LabMark
-  const cfg = configs[markId]
+  const cfg = ensureConfig(configs[markId], mark)
+
+  // Persist a complete config for the active mark so edits always have a target
+  // — covers marks/params added during development without a full reload.
+  useEffect(() => {
+    setConfigs((prev) => {
+      const ensured = ensureConfig(prev[markId], mark)
+      return prev[markId] === ensured ? prev : { ...prev, [markId]: ensured }
+    })
+  }, [markId, mark])
 
   useEffect(() => {
     if (!playing) return
@@ -409,7 +703,7 @@ export function MarksLab() {
   const gradCx = lerp(cfg.gradient.cx.rest, cfg.gradient.cx.hover, amt)
   const gradCy = lerp(cfg.gradient.cy.rest, cfg.gradient.cy.hover, amt)
   const gradR = lerp(cfg.gradient.r.rest, cfg.gradient.r.hover, amt)
-  const d = mark.build(resolved)
+  const d = mark.build(resolved, amt, cfg.params)
 
   const setPair = (
     group: 'params' | 'stroke' | 'goo',

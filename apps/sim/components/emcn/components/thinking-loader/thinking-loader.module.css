@@ -84,15 +84,21 @@
   /* gap + label size scale with the loader (vars set per-instance); defaults
      match the chat's size-20 loader (8px gap, 14px text). */
   gap: var(--tl-label-gap, 8px);
+  /* The status phrase must never break onto a second line — the glyph + phrase
+     stay on one row regardless of phrase length or how narrow the available
+     width is (e.g. the hero loader docked near the card's right edge).
+     white-space inherits, so this one declaration reaches both the shimmer
+     (.label) and static (.labelStatic) text spans. */
+  white-space: nowrap;
 }
 
 /* Claude-style shimmer: the text paints from a gradient with a light band
    that sweeps across the glyphs via background-clip. */
 .label {
   font-size: var(--tl-label-size, 14px);
-  /* season is a variable font (300–800): 450 is a true intermediate weight,
-     present without the heaviness 500 shows on light surfaces. */
-  font-weight: 450;
+  /* Canonical normal weight (per emcn rules: body text is 400, never medium).
+     Reads light and clean under the shimmer gradient on light surfaces. */
+  font-weight: 400;
   background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -108,7 +114,7 @@
 /* Static label (shimmer off): the phrase in solid body ink, no gradient sweep. */
 .labelStatic {
   font-size: var(--tl-label-size, 14px);
-  font-weight: 450;
+  font-weight: 400;
   color: var(--text-body);
 }
 

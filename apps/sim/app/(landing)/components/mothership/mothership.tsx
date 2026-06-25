@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react'
-import { LissajousMorph } from '@/app/(landing)/components/mothership/components/goo-marks'
 import {
-  IsoFourBox,
-  IsoNestedCube,
-  IsoStackedPlanes,
+  IsoBuildIllustration,
+  IsoIngestIllustration,
+  IsoIntegrateIllustration,
+  IsoMonitorIllustration,
 } from '@/app/(landing)/components/mothership/components/iso-marks'
 
 /**
@@ -41,26 +41,26 @@ interface Area {
 const AREAS: Area[] = [
   {
     word: 'Integrate',
-    Mark: IsoStackedPlanes,
-    size: 134,
+    Mark: IsoIntegrateIllustration,
+    size: 156,
     definition: 'One catalog of 1,000+ connectors your agents reach out and act through.',
   },
   {
     word: 'Ingest context',
-    Mark: LissajousMorph,
-    size: 142,
+    Mark: IsoIngestIllustration,
+    size: 156,
     definition: 'Your data, stored semantically — the memory agents reason over.',
   },
   {
     word: 'Build',
-    Mark: IsoFourBox,
-    size: 130,
+    Mark: IsoBuildIllustration,
+    size: 156,
     definition: 'Compose agent logic on a canvas, or just describe it to Sim.',
   },
   {
     word: 'Monitor',
-    Mark: IsoNestedCube,
-    size: 110,
+    Mark: IsoMonitorIllustration,
+    size: 166,
     definition: 'See inside every run — traces, logs, and real cost, live.',
   },
 ]

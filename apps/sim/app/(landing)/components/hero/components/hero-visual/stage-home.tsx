@@ -1,6 +1,13 @@
 'use client'
 
-import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type RefObject,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
@@ -10,6 +17,8 @@ import {
   HOME_GREETING,
   PROMPT_ATOMS,
   type PromptAtom,
+  SEND_BUBBLE_ENTER_MS,
+  SEND_BUBBLE_REVEAL_DELAY_MS,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
@@ -88,10 +97,10 @@ interface StageHomeProps {
   pressed?: boolean
 }
 
-/** Staggered enter for a chat bubble — translateY + opacity, interruptible. */
-const ENTER_BASE = 'transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.2,0,0,1)]'
+/** Staggered enter for a chat bubble — translateY + opacity + blur, interruptible. */
+const ENTER_BASE = 'transition-[opacity,transform,filter] ease-[cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
-  shown ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
+  shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
 
 const Caret = () => (
   <span
@@ -196,6 +205,10 @@ export function StageHome({
   const visible = PROMPT_ATOMS.slice(0, typedCount)
   const isEmpty = typedCount === 0
   const answer = ANSWER_TEXT.slice(0, answerTypedCount)
+  const bubbleTransitionStyle = {
+    transitionDelay: mode === 'sending' ? `${SEND_BUBBLE_REVEAL_DELAY_MS}ms` : '0ms',
+    transitionDuration: `${SEND_BUBBLE_ENTER_MS}ms`,
+  } satisfies CSSProperties
 
   return (
     <div className='flex h-full w-full flex-col items-center justify-center px-10'>
@@ -301,12 +314,10 @@ export function StageHome({
                 )}
               </div>
               <div
+                style={bubbleTransitionStyle}
                 className={cn(
                   'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-5)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
                   ENTER_BASE,
-                  // The bubble pops in immediately as send lands — it's in flow, so
-                  // the card grows upward to fit it while its reveal (opacity/
-                  // translate) plays in lockstep, reading as an instant "sent".
                   showBubble
                     ? enterState(true)
                     : cn('pointer-events-none absolute top-0 right-0', enterState(false))
@@ -381,6 +392,7 @@ export function StageHome({
             )}
           >
             <div
+              className='relative'
               style={{
                 width: BLOCK_WIDTH,
                 transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
@@ -388,6 +400,10 @@ export function StageHome({
               }}
             >
               <WorkflowBlockContent block={FIRST_BLOCK} />
+              <span
+                aria-hidden
+                className='-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)]'
+              />
             </div>
           </div>
         </div>

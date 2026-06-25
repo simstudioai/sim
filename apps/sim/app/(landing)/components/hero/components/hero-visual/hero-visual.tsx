@@ -16,7 +16,7 @@ import {
 } from '@/app/(landing)/components/hero/components/hero-visual/stage-home'
 import {
   type KbStage,
-  StageKb,
+  KnowledgeBasePanel,
 } from '@/app/(landing)/components/hero/components/hero-visual/stage-kb'
 import {
   BlockHandles,
@@ -27,11 +27,16 @@ import {
   ANSWER_TEXT,
   BLOCK_WIDTH,
   PROMPT_ATOMS,
+  SCENE_AGENT_FOCUS_TRANSLATE,
   SCENE_BLOCK1,
   SCENE_EDGES,
+  SCENE_FOLLOW_SCALE,
+  SCENE_JIRA_FOCUS_TRANSLATE,
   SCENE_OVERVIEW_SCALE,
   SCENE_OVERVIEW_TRANSLATE,
   SCENE_SATELLITES,
+  SEND_BUBBLE_GROW_MS,
+  SEND_BUBBLE_HOLD_MS,
   TYPE_MS_PER_ATOM,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
@@ -48,9 +53,10 @@ import {
  * panning to follow it (no zoom-out), docks, and calls out the world phrases;
  * only once the Mothership starts typing its reply does the camera zoom back out
  * to the full chat. The card then morphs into a GitHub → Agent → Jira workflow
- * (the cursor hides while the agent works); then a Knowledge Base create modal
- * opens, files drop in from "Finder", the cursor returns to click Create, and an
- * embedding map builds itself — before the whole thing loops.
+ * (the cursor hides while the agent works); Jira morphs into a Knowledge Base
+ * block, then a create modal opens, files drop in from "Finder", the cursor
+ * returns to click Create, and an embedding map builds itself — before the whole
+ * thing loops.
  *
  * Two elements are driven imperatively (writing transforms per `requestAnimation
  * Frame` to avoid per-frame React renders):
@@ -84,6 +90,12 @@ type Phase =
   | 'answerHold'
   | 'morph'
   | 'blockFocus'
+  | 'connectAgent'
+  | 'agentFocus'
+  | 'connectJira'
+  | 'jiraFocus'
+  | 'workflowFade'
+  | 'kbMorph'
   | 'cameraOut'
   | 'workflowHold'
   | 'kbOpen'
@@ -98,10 +110,12 @@ const LOADER_SLIDE_MS = 1200
 /** Duration of the camera pulling back out to the whole card while the loader +
  * phrases stay on screen (the `phrasesOut` beat). */
 const ZOOM_OUT_MS = 1300
-/** How long the card takes to grow to fit the user bubble once send is hit — eased
- * per frame in lockstep with the camera. Shorter than the `cycleHold` beat so it
- * settles before the slide. */
-const GROW_MS = 520
+/** Camera pan while a workflow connector draws to the next block. */
+const WORKFLOW_CONNECT_MS = 1600
+/** Final pull-out after the camera has visited GitHub, Agent, and Jira. */
+const WORKFLOW_ZOOM_OUT_MS = 2400
+/** Draw duration for each workflow connector, matched to the camera follow. */
+const WORKFLOW_EDGE_DRAW_MS = 1320
 
 const STEPS: Array<[Phase, number]> = [
   ['home', 900],
@@ -113,10 +127,11 @@ const STEPS: Array<[Phase, number]> = [
   ['toSend', 700],
   ['zoomSend', 350],
   // Beat 1: a quick press, then the disc morphs into the loader (compose height
-  // held). Beat 2: one cycle shape while the bubble pops in. Beat 3: slide left.
+  // held). Beat 2: the card grows, the bubble reveals after it settles, then the
+  // loader gets a short hold before the slide left.
   ['clickSend', 300],
   ['discMorph', 560],
-  ['cycleHold', 1000],
+  ['cycleHold', SEND_BUBBLE_HOLD_MS],
   ['loaderSlide', LOADER_SLIDE_MS],
   // The loader shows ~2 shapes total (the cycleHold shape + one during the
   // slide); the moment it docks left it goes straight to the zoom-out and reply
@@ -128,9 +143,13 @@ const STEPS: Array<[Phase, number]> = [
   ['answer', ANSWER_TEXT.length * ANSWER_MS_PER_CHAR + 500],
   ['answerHold', 700],
   ['morph', 900],
-  ['blockFocus', 1200],
-  ['cameraOut', 1900],
-  ['workflowHold', 1100],
+  ['blockFocus', 850],
+  ['connectAgent', WORKFLOW_CONNECT_MS],
+  ['agentFocus', 750],
+  ['connectJira', WORKFLOW_CONNECT_MS],
+  ['jiraFocus', 750],
+  ['workflowFade', 540],
+  ['kbMorph', 1150],
   ['kbOpen', 1000],
   ['kbDrop', 1500],
   ['kbToCreate', 850],
@@ -166,7 +185,23 @@ const GREETING_PHASES = new Set<Phase>([
   'zoomSend',
   'clickSend',
 ])
-const WORKFLOW_PHASES = new Set<Phase>(['blockFocus', 'cameraOut', 'workflowHold'])
+const WORKFLOW_PHASES = new Set<Phase>([
+  'blockFocus',
+  'connectAgent',
+  'agentFocus',
+  'connectJira',
+  'jiraFocus',
+  'workflowFade',
+  'kbMorph',
+  'cameraOut',
+  'workflowHold',
+  'kbOpen',
+  'kbDrop',
+  'kbToCreate',
+  'kbClickCreate',
+  'kbEmbeddings',
+  'kbHold',
+])
 const KB_PHASES = new Set<Phase>([
   'kbOpen',
   'kbDrop',
@@ -190,6 +225,12 @@ const HIDE_CURSOR_PHASES = new Set<Phase>([
   'answerHold',
   'morph',
   'blockFocus',
+  'connectAgent',
+  'agentFocus',
+  'connectJira',
+  'jiraFocus',
+  'workflowFade',
+  'kbMorph',
   'cameraOut',
   'workflowHold',
   'kbOpen',
@@ -232,6 +273,11 @@ const ZOOM_SCALE = 2.4
 
 /** Base render size of the root loader, in px; the tracker scales it to its target. */
 const LOADER_BASE = 28
+const JIRA_BLOCK_HEIGHT = 77
+const KB_PANEL_WIDTH = 420
+const KB_PANEL_HEIGHT = 410
+const KB_PANEL_MORPH_SCALE = 1 / SCENE_FOLLOW_SCALE
+const KB_PANEL_TARGET_OFFSET_Y = -3
 
 /**
  * Flat `#383838` ink with no glow — the chat send button's fill. Applied to the
@@ -260,7 +306,7 @@ const LANDING_LOADER_INK = {
 } as CSSProperties
 
 function kbStageFor(phase: Phase): KbStage {
-  if (phase === 'kbOpen') return 'empty'
+  if (phase === 'kbMorph' || phase === 'kbOpen') return 'empty'
   if (phase === 'kbEmbeddings' || phase === 'kbHold') return 'embeddings'
   return 'files'
 }
@@ -288,6 +334,12 @@ function homeModeFor(phase: Phase): HomeMode {
   if (
     phase === 'morph' ||
     phase === 'blockFocus' ||
+    phase === 'connectAgent' ||
+    phase === 'agentFocus' ||
+    phase === 'connectJira' ||
+    phase === 'jiraFocus' ||
+    phase === 'workflowFade' ||
+    phase === 'kbMorph' ||
     phase === 'cameraOut' ||
     phase === 'workflowHold'
   ) {
@@ -297,6 +349,85 @@ function homeModeFor(phase: Phase): HomeMode {
 }
 
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+
+function sceneTransformFor(phase: Phase): string {
+  if (phase === 'connectAgent' || phase === 'agentFocus') {
+    return `translate(${SCENE_AGENT_FOCUS_TRANSLATE.x}px, ${SCENE_AGENT_FOCUS_TRANSLATE.y}px) scale(${SCENE_FOLLOW_SCALE})`
+  }
+  if (
+    phase === 'connectJira' ||
+    phase === 'jiraFocus' ||
+    phase === 'workflowFade' ||
+    phase === 'kbMorph' ||
+    KB_PHASES.has(phase)
+  ) {
+    return `translate(${SCENE_JIRA_FOCUS_TRANSLATE.x}px, ${SCENE_JIRA_FOCUS_TRANSLATE.y}px) scale(${SCENE_FOLLOW_SCALE})`
+  }
+  if (phase === 'cameraOut' || phase === 'workflowHold') {
+    return `translate(${SCENE_OVERVIEW_TRANSLATE.x}px, ${SCENE_OVERVIEW_TRANSLATE.y}px) scale(${SCENE_OVERVIEW_SCALE})`
+  }
+  return 'translate(0px, 0px) scale(1)'
+}
+
+function sceneTransitionMsFor(phase: Phase): number {
+  if (phase === 'connectAgent' || phase === 'connectJira') return WORKFLOW_CONNECT_MS
+  if (phase === 'cameraOut') return WORKFLOW_ZOOM_OUT_MS
+  if (phase === 'kbMorph') return 900
+  return 700
+}
+
+function edgeDrawn(edgeIndex: number, phase: Phase): boolean {
+  if (edgeIndex === 0) {
+    return (
+      phase === 'connectAgent' ||
+      phase === 'agentFocus' ||
+      phase === 'connectJira' ||
+      phase === 'jiraFocus' ||
+      phase === 'workflowFade' ||
+      phase === 'kbMorph' ||
+      KB_PHASES.has(phase) ||
+      phase === 'cameraOut' ||
+      phase === 'workflowHold'
+    )
+  }
+  return (
+    phase === 'connectJira' ||
+    phase === 'jiraFocus' ||
+    phase === 'workflowFade' ||
+    phase === 'kbMorph' ||
+    KB_PHASES.has(phase) ||
+    phase === 'cameraOut' ||
+    phase === 'workflowHold'
+  )
+}
+
+function satelliteVisible(blockId: string, phase: Phase): boolean {
+  if (blockId === 'agent') {
+    return (
+      phase === 'connectAgent' ||
+      phase === 'agentFocus' ||
+      phase === 'connectJira' ||
+      phase === 'jiraFocus' ||
+      phase === 'workflowFade' ||
+      phase === 'kbMorph' ||
+      KB_PHASES.has(phase) ||
+      phase === 'cameraOut' ||
+      phase === 'workflowHold'
+    )
+  }
+  if (blockId === 'jira') {
+    return (
+      phase === 'connectJira' ||
+      phase === 'jiraFocus' ||
+      phase === 'workflowFade' ||
+      phase === 'kbMorph' ||
+      KB_PHASES.has(phase) ||
+      phase === 'cameraOut' ||
+      phase === 'workflowHold'
+    )
+  }
+  return phase === 'cameraOut' || phase === 'workflowHold'
+}
 
 export function HeroVisual() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -485,7 +616,9 @@ export function HeroVisual() {
       // pin happen in the same frame, so they stay locked together (no shake).
       const grow = growRef.current
       if (grow.active) {
-        const gt = easeInOutCubic(Math.min((performance.now() - grow.start) / GROW_MS, 1))
+        const gt = easeInOutCubic(
+          Math.min((performance.now() - grow.start) / SEND_BUBBLE_GROW_MS, 1)
+        )
         const h = grow.h0 + (grow.h1 - grow.h0) * gt
         container.style.setProperty('--hero-card-h', `${h}px`)
       }
@@ -796,10 +929,9 @@ export function HeroVisual() {
   // The card (block 1) is mounted through the chat AND the whole workflow — it
   // never unmounts, so it continuously becomes the GitHub block.
   const showCard = HOME_PHASES.has(phase) || WORKFLOW_PHASES.has(phase)
-  // Satellites only during the pull-out — at focus the first block stands alone
-  // (they'd otherwise peek in at this zoom), then the camera reveals them.
-  const showSatellites = phase === 'cameraOut' || phase === 'workflowHold'
-  const showKb = KB_PHASES.has(phase)
+  // Mount the workflow layer one beat before the first connection draws, so the
+  // hidden edge paths have a real dash-offset state to transition from.
+  const showWorkflowCanvas = WORKFLOW_PHASES.has(phase)
   const showCursor = ready && !HIDE_CURSOR_PHASES.has(phase)
   const clicking = CLICK_PHASES.has(phase)
 
@@ -812,13 +944,12 @@ export function HeroVisual() {
     phase === 'phrases' || phase === 'phrasesOut' || phase === 'phrasesWide' || phase === 'answer'
   const loaderFading = phase === 'answer'
 
-  // The scene "camera": identity while focused on the first block (chat/morph/
-  // focus), then a single scale+translate that pulls back to the whole workflow.
-  const sceneOverview = phase === 'cameraOut' || phase === 'workflowHold'
-  const sceneTransform = sceneOverview
-    ? `translate(${SCENE_OVERVIEW_TRANSLATE.x}px, ${SCENE_OVERVIEW_TRANSLATE.y}px) scale(${SCENE_OVERVIEW_SCALE})`
-    : undefined
-  const edgesDrawn = sceneOverview
+  // The scene "camera": GitHub focus after the chat morph, then a paced pan to
+  // Agent, a paced pan to Jira, and an in-place KB block morph.
+  const sceneTransform = sceneTransformFor(phase)
+  const sceneTransitionMs = sceneTransitionMsFor(phase)
+  const workflowContentFaded =
+    phase === 'workflowFade' || phase === 'kbMorph' || KB_PHASES.has(phase)
 
   return (
     <div ref={containerRef} aria-hidden='true' className='relative h-full w-full overflow-hidden'>
@@ -829,10 +960,17 @@ export function HeroVisual() {
           the pull-out animates. */}
       <div
         className='absolute inset-0 transform-gpu transition-transform duration-[1700ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform'
-        style={{ transform: sceneTransform, transformOrigin: 'center' }}
+        style={{
+          transform: sceneTransform,
+          transformOrigin: 'center',
+          transitionDuration: `${sceneTransitionMs}ms`,
+        }}
       >
         {showCard && (
-          <div className='absolute inset-0 translate-y-0 scale-100 opacity-100'>
+          <div
+            className='absolute inset-0 translate-y-0 scale-100 transition-opacity duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+            style={{ opacity: workflowContentFaded ? 0 : 1 }}
+          >
             <div
               ref={cameraElRef}
               className={cn(
@@ -884,62 +1022,108 @@ export function HeroVisual() {
           </div>
         )}
 
-        {showSatellites && (
+        {showWorkflowCanvas && (
           <>
             {/* Edges (scene space, origin = panel center). Drawn as the camera
-                pulls out, so the line appears to lead to each revealed block. */}
+                follows the connection to each revealed block. */}
             <svg
-              className='absolute top-1/2 left-1/2 overflow-visible'
+              className='absolute top-1/2 left-1/2 overflow-visible transition-opacity duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
               width='1'
               height='1'
               fill='none'
               aria-hidden='true'
+              style={{ opacity: workflowContentFaded ? 0 : 1 }}
             >
-              {SCENE_EDGES.map((edge, i) => (
-                <path
-                  key={edge.id}
-                  d={edge.d}
-                  pathLength={1}
-                  stroke='var(--workflow-edge)'
-                  strokeWidth={2 * WORKFLOW_FOCUS_SCALE}
-                  strokeLinecap='round'
-                  className='transition-[stroke-dashoffset] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
-                  style={
-                    {
-                      strokeDashoffset: edgesDrawn ? 0 : 1,
-                      transitionDelay: `${i * 700}ms`,
-                    } as CSSProperties
-                  }
-                />
-              ))}
+              {SCENE_EDGES.map((edge, i) => {
+                const drawn = edgeDrawn(i, phase)
+                return (
+                  <path
+                    key={edge.id}
+                    d={edge.d}
+                    pathLength={1}
+                    stroke='var(--workflow-edge)'
+                    strokeWidth={2 * WORKFLOW_FOCUS_SCALE}
+                    strokeLinecap='round'
+                    className='transition-[stroke-dashoffset] ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
+                    style={
+                      {
+                        strokeDashoffset: drawn ? 0 : 1,
+                        transitionDelay: drawn ? '120ms' : '0ms',
+                        transitionDuration: drawn ? `${WORKFLOW_EDGE_DRAW_MS}ms` : '0ms',
+                      } as CSSProperties
+                    }
+                  />
+                )
+              })}
             </svg>
 
             {/* Satellite blocks (2…N), placed relative to the centered block 1
-                at FOCUS scale; off-screen until the camera pulls back. */}
-            {SCENE_SATELLITES.map(({ block, left, top }) => (
-              <div
-                key={block.id}
-                className='absolute'
-                style={{
-                  left: `calc(50% + ${left}px)`,
-                  top: `calc(50% + ${top}px)`,
-                  width: BLOCK_WIDTH,
-                  transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
-                  transformOrigin: 'top left',
-                }}
-              >
-                <WorkflowBlock block={block} />
-              </div>
-            ))}
+                at FOCUS scale; each appears as its incoming edge reaches it. */}
+            {SCENE_SATELLITES.map(({ block, left, top }) => {
+              const showKbShell =
+                block.id === 'jira' && (phase === 'kbMorph' || KB_PHASES.has(phase))
+              const fadingJiraShell = block.id === 'jira' && phase === 'workflowFade'
+              const visible = satelliteVisible(block.id, phase)
+              const satelliteOpacity =
+                visible && (!workflowContentFaded || fadingJiraShell || showKbShell) ? 1 : 0
+              const delay =
+                (block.id === 'agent' && phase === 'connectAgent') ||
+                (block.id === 'jira' && phase === 'connectJira')
+                  ? 760
+                  : 0
+              return (
+                <div
+                  key={block.id}
+                  className={cn(
+                    'absolute transform-gpu transition-[opacity,transform,width,height,top,left] duration-[520ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform',
+                    showKbShell &&
+                      'overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]'
+                  )}
+                  style={{
+                    left: showKbShell
+                      ? `calc(50% + ${left + (BLOCK_WIDTH * WORKFLOW_FOCUS_SCALE) / 2}px)`
+                      : `calc(50% + ${left}px)`,
+                    top: showKbShell
+                      ? `calc(50% + ${
+                          top +
+                          (JIRA_BLOCK_HEIGHT * WORKFLOW_FOCUS_SCALE) / 2 +
+                          KB_PANEL_TARGET_OFFSET_Y
+                        }px)`
+                      : `calc(50% + ${top}px)`,
+                    width: showKbShell ? KB_PANEL_WIDTH : BLOCK_WIDTH,
+                    height:
+                      block.id === 'jira'
+                        ? showKbShell
+                          ? KB_PANEL_HEIGHT
+                          : JIRA_BLOCK_HEIGHT
+                        : undefined,
+                    opacity: satelliteOpacity,
+                    transform: showKbShell
+                      ? `translate(-50%, -50%) scale(${KB_PANEL_MORPH_SCALE})`
+                      : `translateY(${visible ? 0 : 10}px) scale(${WORKFLOW_FOCUS_SCALE})`,
+                    transformOrigin: showKbShell ? 'center' : 'top left',
+                    transitionDelay: `${delay}ms`,
+                  }}
+                >
+                  {showKbShell ? (
+                    <KnowledgeBasePanel
+                      stage={kbStageFor(phase)}
+                      createRef={createRef}
+                      motion='morph'
+                    />
+                  ) : (
+                    <WorkflowBlock
+                      block={block}
+                      contentVisible={!fadingJiraShell}
+                      handlesVisible={!fadingJiraShell}
+                    />
+                  )}
+                </div>
+              )
+            })}
           </>
         )}
       </div>
-
-      {showKb && (
-        <div className='absolute inset-0 animate-hero-stage-fade motion-reduce:animate-none'>
-          <StageKb stage={kbStageFor(phase)} createRef={createRef} />
-        </div>
-      )}
 
       {/* Root thinking loader — positioned imperatively (transform written each
           frame by `paintFrame`) so it stays glued to the send button, then the
