@@ -68,7 +68,8 @@ export interface CursorUpdateBroadcast {
   userId: string
   userName: string
   avatarUrl?: string | null
-  cursor: CursorPosition
+  /** `null` when the remote user's cursor leaves the canvas (the client emits `{ cursor: null }`). */
+  cursor: CursorPosition | null
 }
 
 /** `selection-update` presence broadcast for a single remote user. */
