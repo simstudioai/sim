@@ -18,6 +18,7 @@ import {
   ChipModalHeader,
   ChipSelect,
   ChipSwitch,
+  ChipTag,
   Search,
   toast,
 } from '@/components/emcn'
@@ -767,9 +768,9 @@ export function DataRetentionSettings() {
                       <span className='truncate text-[14px] text-[var(--text-body)]'>
                         Organization
                       </span>
-                      <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                      <ChipTag variant='gray' className='flex-shrink-0'>
                         Default
-                      </span>
+                      </ChipTag>
                     </div>
                     <span className='truncate text-[12px] text-[var(--text-muted)]'>
                       {orgRowSummary()}

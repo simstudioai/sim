@@ -5,7 +5,21 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, ChipInput, Search, Switch, Tooltip } from '@/components/emcn'
+import {
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MoreHorizontal,
+  Search,
+  Switch,
+  Tooltip,
+  toast,
+} from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -19,6 +33,51 @@ import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
+
+/** Copies an API key's name and confirms with a toast. */
+function copyKeyName(name: string) {
+  void navigator.clipboard.writeText(name)
+  toast.success('Copied name to clipboard')
+}
+
+interface ApiKeyRowMenuProps {
+  keyName: string
+  onDelete: () => void
+  /** When false, the Delete item is disabled (e.g. non-admins on workspace keys). */
+  canDelete?: boolean
+}
+
+/**
+ * Trailing `...` actions menu for an API key row. Mirrors the Secrets /
+ * Teammates row menu so the settings experience is consistent.
+ */
+function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
+  return (
+    <div className='flex-shrink-0'>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type='button'
+            aria-label='API key actions'
+            className={chipVariants({ flush: true })}
+          >
+            <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem onSelect={() => copyKeyName(keyName)}>Copy name</DropdownMenuItem>
+          <DropdownMenuItem
+            className='text-[var(--text-error)]'
+            onSelect={onDelete}
+            disabled={!canDelete}
+          >
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
 
 export function ApiKeys() {
   const { data: session } = useSession()
@@ -164,16 +223,14 @@ export function ApiKeys() {
                               {key.displayKey || key.key}
                             </p>
                           </div>
-                          <Chip
-                            className='flex-shrink-0'
-                            onClick={() => {
+                          <ApiKeyRowMenu
+                            keyName={key.name}
+                            onDelete={() => {
                               setDeleteKey(key)
                               setShowDeleteDialog(true)
                             }}
-                            disabled={!canManageWorkspaceKeys}
-                          >
-                            Delete
-                          </Chip>
+                            canDelete={canManageWorkspaceKeys}
+                          />
                         </div>
                       ))}
                     </div>
@@ -197,16 +254,14 @@ export function ApiKeys() {
                             {key.displayKey || key.key}
                           </p>
                         </div>
-                        <Chip
-                          className='flex-shrink-0'
-                          onClick={() => {
+                        <ApiKeyRowMenu
+                          keyName={key.name}
+                          onDelete={() => {
                             setDeleteKey(key)
                             setShowDeleteDialog(true)
                           }}
-                          disabled={!canManageWorkspaceKeys}
-                        >
-                          Delete
-                        </Chip>
+                          canDelete={canManageWorkspaceKeys}
+                        />
                       </div>
                     ))}
                   </div>
@@ -235,15 +290,13 @@ export function ApiKeys() {
                                 {key.displayKey || key.key}
                               </p>
                             </div>
-                            <Chip
-                              className='flex-shrink-0'
-                              onClick={() => {
+                            <ApiKeyRowMenu
+                              keyName={key.name}
+                              onDelete={() => {
                                 setDeleteKey(key)
                                 setShowDeleteDialog(true)
                               }}
-                            >
-                              Delete
-                            </Chip>
+                            />
                           </div>
                           {isConflict && (
                             <div className='text-[var(--text-error)] text-small leading-tight'>

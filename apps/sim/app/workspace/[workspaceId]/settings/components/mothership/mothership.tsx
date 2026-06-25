@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
+import { Badge, Button, ChipInput, ChipSelect, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -50,10 +50,10 @@ const TABS: { id: MothershipTab; label: string }[] = [
   { id: 'byok', label: 'BYOK' },
 ]
 
-const ENV_OPTIONS: { id: MothershipEnv; label: string }[] = [
-  { id: 'dev', label: 'Dev' },
-  { id: 'staging', label: 'Staging' },
-  { id: 'prod', label: 'Prod' },
+const ENV_OPTIONS: { value: MothershipEnv; label: string }[] = [
+  { value: 'dev', label: 'Dev' },
+  { value: 'staging', label: 'Staging' },
+  { value: 'prod', label: 'Prod' },
 ]
 
 function defaultTimeRange() {
@@ -81,11 +81,11 @@ function formatDate(d: string | null | undefined) {
 }
 
 function Divider() {
-  return <div className='h-px bg-[var(--border-secondary)]' />
+  return <div className='h-px bg-[var(--border)]' />
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className='font-medium text-[var(--text-primary)] text-sm'>{children}</p>
+  return <p className='font-medium text-[var(--text-muted)] text-small'>{children}</p>
 }
 
 export function Mothership() {
@@ -104,23 +104,14 @@ export function Mothership() {
           {/* Environment selector */}
           <div className='flex items-center gap-2'>
             <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-            <div className='flex gap-1'>
-              {ENV_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type='button'
-                  onClick={() => setMothershipParams({ env: opt.id })}
-                  className={cn(
-                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                    environment === opt.id
-                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <ChipSelect
+              align='start'
+              dropdownWidth={160}
+              value={environment}
+              onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
+              placeholder='Select environment'
+              options={ENV_OPTIONS}
+            />
           </div>
 
           {/* Tab bar */}
@@ -149,20 +140,18 @@ export function Mothership() {
           <div className='flex items-center gap-3'>
             <div className='flex items-center gap-2'>
               <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-              <EmcnInput
+              <ChipInput
                 type='datetime-local'
                 value={start}
                 onChange={(e) => setStart(e.target.value)}
-                className='h-[30px] text-caption'
               />
             </div>
             <div className='flex items-center gap-2'>
               <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-              <EmcnInput
+              <ChipInput
                 type='datetime-local'
                 value={end}
                 onChange={(e) => setEnd(e.target.value)}
-                className='h-[30px] text-caption'
               />
             </div>
           </div>
@@ -431,23 +420,23 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       <div className='flex items-end gap-2'>
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Enterprise Name</Label>
-          <EmcnInput
+          <ChipInput
             value={newName}
             onChange={(e) => {
               setNewName(e.target.value)
               setGeneratedKey(null)
             }}
             placeholder='e.g. Acme Corp'
-            className='h-[32px] w-[200px]'
+            className='w-[200px]'
           />
         </div>
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Expiration (optional)</Label>
-          <EmcnInput
+          <ChipInput
             type='date'
             value={newExpiry}
             onChange={(e) => setNewExpiry(e.target.value)}
-            className='h-[32px] w-[160px]'
+            className='w-[160px]'
           />
         </div>
         <Button

@@ -23,7 +23,13 @@ import {
   ChipSelect,
   Code,
   type ComboboxOption,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Label,
+  MoreHorizontal,
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft, Search } from '@/components/emcn/icons'
@@ -459,13 +465,29 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                               </p>
                             </div>
                             <div className='flex flex-shrink-0 items-center gap-1'>
-                              <Chip onClick={() => setToolToView(tool)}>Edit</Chip>
-                              <Chip
-                                onClick={() => setToolToDelete(tool)}
-                                disabled={deleteToolMutation.isPending}
-                              >
-                                Remove
-                              </Chip>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type='button'
+                                    aria-label='Tool actions'
+                                    className={chipVariants({ flush: true })}
+                                  >
+                                    <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align='end'>
+                                  <DropdownMenuItem onSelect={() => setToolToView(tool)}>
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className='text-[var(--text-error)]'
+                                    onSelect={() => setToolToDelete(tool)}
+                                    disabled={deleteToolMutation.isPending}
+                                  >
+                                    Remove
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         ))}
@@ -1021,10 +1043,29 @@ export function WorkflowMcpServers() {
                           </p>
                         </div>
                         <div className='flex flex-shrink-0 items-center gap-1'>
-                          <Chip onClick={() => setSelectedServerId(server.id)}>Details</Chip>
-                          <Chip onClick={() => setServerToDelete(server)} disabled={isDeleting}>
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                          </Chip>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type='button'
+                                aria-label='Server actions'
+                                className={chipVariants({ flush: true })}
+                              >
+                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem onSelect={() => setSelectedServerId(server.id)}>
+                                Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className='text-[var(--text-error)]'
+                                onSelect={() => setServerToDelete(server)}
+                                disabled={isDeleting}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     )
