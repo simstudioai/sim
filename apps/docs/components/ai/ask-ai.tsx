@@ -118,8 +118,10 @@ export function AskAI({ locale }: AskAIProps) {
               </p>
             )}
 
-            {messages.map((message) => {
+            {messages.map((message, index) => {
               const text = getText(message.parts)
+              // Only the in-progress (last) message should show the loading state.
+              const isStreaming = isBusy && index === messages.length - 1
               const sources = message.role === 'assistant' ? getSources(message.parts) : []
               return (
                 <div
@@ -139,7 +141,7 @@ export function AskAI({ locale }: AskAIProps) {
                         <Streamdown className='space-y-2 text-sm leading-relaxed [&_a]:text-[var(--text-link)] [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5'>
                           {text}
                         </Streamdown>
-                      ) : isBusy ? (
+                      ) : isStreaming ? (
                         '…'
                       ) : sources.length === 0 ? (
                         <span className='text-[var(--text-muted)]'>No answer returned.</span>

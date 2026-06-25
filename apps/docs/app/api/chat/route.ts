@@ -216,16 +216,23 @@ type SearchRow = {
 async function searchDocs(query: string, locale: string) {
   const tsConfig = TS_CONFIG[locale] ?? 'simple'
 
-  const keywordRows = await db
-    .select(SEARCH_COLUMNS)
-    .from(docsEmbeddings)
-    .where(
-      sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery(${tsConfig}, ${query}) and ${localeFilter(locale)}`
-    )
-    .orderBy(
-      sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query})) DESC`
-    )
-    .limit(SEARCH_CANDIDATES)
+  // Each retrieval path is best-effort and independent: a failure in one still
+  // lets the other ground the answer (both empty just yields no grounding).
+  let keywordRows: SearchRow[] = []
+  try {
+    keywordRows = await db
+      .select(SEARCH_COLUMNS)
+      .from(docsEmbeddings)
+      .where(
+        sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery(${tsConfig}, ${query}) and ${localeFilter(locale)}`
+      )
+      .orderBy(
+        sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query})) DESC`
+      )
+      .limit(SEARCH_CANDIDATES)
+  } catch (error) {
+    console.error('Ask AI keyword search failed:', error)
+  }
 
   let vectorRows: SearchRow[] = []
   if (locale === DEFAULT_LOCALE) {
