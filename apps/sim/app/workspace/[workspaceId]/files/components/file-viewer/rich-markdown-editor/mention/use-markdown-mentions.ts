@@ -20,7 +20,9 @@ export function useMarkdownMentions(
   options: { enabled: boolean }
 ): MentionItem[] {
   const active = options.enabled && Boolean(workspaceId)
-  // Pass through only when active; each hook self-gates on a falsy workspaceId.
+  // When inactive, `ws` is undefined and `wsStr` is '' so every query stays disabled until the first
+  // `@`: the hooks that expose an `enabled` option get it explicitly; the rest (which take no options)
+  // self-gate internally on the falsy workspaceId — both empty string and undefined read as disabled.
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 

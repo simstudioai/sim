@@ -73,18 +73,20 @@ export function Versions({
   const handleStartRename = (version: number, currentName: string | null | undefined) => {
     setOpenDropdown(null)
     setEditingVersion(version)
-    setEditValue(currentName ?? '')
+    setEditValue(currentName || `v${version}`)
   }
 
   const handleSaveRename = (version: number) => {
     if (renameMutation.isPending) return
+    // Clearing the name is a no-op — the version number is always the canonical reference.
     if (!workflowId || !editValue.trim()) {
       setEditingVersion(null)
       return
     }
 
     const currentVersion = versions.find((v) => v.version === version)
-    const currentName = currentVersion?.name ?? ''
+    // Compare against the `v{n}` fallback so re-submitting the displayed token saves no redundant name.
+    const currentName = currentVersion?.name || `v${version}`
 
     if (editValue.trim() === currentName) {
       setEditingVersion(null)
@@ -251,7 +253,6 @@ export function Versions({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
-                      placeholder={`v${v.version}`}
                       className={cn(
                         'h-auto w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
                       )}
