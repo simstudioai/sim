@@ -4,6 +4,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Image as ImageIcon,
   List,
   ListChecks,
   ListOrdered,
@@ -17,6 +18,15 @@ import {
 export interface SlashCommandContext {
   editor: Editor
   range: Range
+}
+
+/**
+ * Per-editor storage on the `slashCommand` extension. The host editor component sets `insertImage`
+ * after mount; it opens an image file picker and uploads + inserts the chosen image(s) at `at`. Null
+ * in headless/read-only contexts, where the Image command is a no-op.
+ */
+export interface SlashCommandStorage {
+  insertImage: ((at: number) => void) | null
 }
 
 export interface SlashCommandItem {
@@ -130,6 +140,18 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     icon: Minus,
     aliases: ['hr', 'horizontal rule', 'separator'],
     run: ({ editor, range }) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
+  },
+  {
+    title: 'Image',
+    group: 'Media',
+    icon: ImageIcon,
+    aliases: ['picture', 'photo', 'upload', 'img'],
+    run: ({ editor, range }) => {
+      // Replace the typed `/query`, then hand off to the host component's picker, which uploads and
+      // inserts the image at the caret (the same path as paste/drop). No-op when no handler is wired.
+      editor.chain().focus().deleteRange(range).run()
+      editor.storage.slashCommand.insertImage?.(editor.state.selection.from)
+    },
   },
 ]
 

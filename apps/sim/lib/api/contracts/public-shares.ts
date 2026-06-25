@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { inlineFileRefQuerySchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const shareResourceTypeSchema = z.enum(['file', 'folder'])
@@ -121,6 +121,22 @@ export const getPublicFileContentContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/public/[token]/content',
   params: publicFileTokenParamsSchema,
+  response: {
+    mode: 'binary',
+  },
+})
+
+/**
+ * Binary stream of an image embedded in a shared document. Authorized by the parent
+ * document's active share — the route serves the bytes only when the reference is
+ * actually embedded in the shared document AND the file lives in the same workspace,
+ * and only when the bytes are a renderable raster image.
+ */
+export const getPublicInlineFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/files/public/[token]/inline',
+  params: publicFileTokenParamsSchema,
+  query: inlineFileRefQuerySchema,
   response: {
     mode: 'binary',
   },
