@@ -4,13 +4,15 @@
  * class strings per consumer.
  */
 
-/** The floating panel: bordered card with the enter animation. */
+/** The floating panel: bordered card with the enter animation, width-capped like the chat mention menu. */
 export const SUGGESTION_SURFACE_CLASS =
-  'min-w-[220px] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
+  'min-w-[220px] max-w-[min(300px,calc(100vw-32px))] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
 
-/** A scrollable list body (hidden scrollbar), added alongside {@link SUGGESTION_SURFACE_CLASS}. */
-export const SUGGESTION_SCROLL_CLASS =
-  'max-h-[330px] scroll-py-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+/**
+ * A scrollable list body, added alongside {@link SUGGESTION_SURFACE_CLASS}. Caps the height and scrolls
+ * — matching the chat composer's `@` menu — so a long workspace list never overflows its container.
+ */
+export const SUGGESTION_SCROLL_CLASS = 'max-h-[240px] scroll-py-1.5 overflow-y-auto overscroll-none'
 
 /** A selectable row: icon + label, 14px icon in `--text-icon`, truncating label. */
 export const SUGGESTION_ITEM_CLASS =

@@ -4,7 +4,6 @@ import Suggestion from '@tiptap/suggestion'
 import { createSuggestionPopupRenderer } from '../menus/suggestion-popup'
 import { MentionList } from './mention-list'
 import { createMentionStore, type MentionStore } from './mention-store'
-import { toSimHref } from './sim-link'
 import type { MentionItem } from './types'
 
 /** Distinct from the `/` slash command's default `suggestion` key — two plugins can't share one key. */
@@ -63,13 +62,12 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
         // Items are sourced reactively from the store inside MentionList; this only gates the plugin.
         items: () => [],
         command: ({ editor, range, props }) => {
-          const href = toSimHref(props.kind, props.id)
           editor
             .chain()
             .focus()
             .deleteRange(range)
             .insertContent([
-              { type: 'text', text: props.label, marks: [{ type: 'link', attrs: { href } }] },
+              { type: 'mention', attrs: { kind: props.kind, id: props.id, label: props.label } },
               { type: 'text', text: ' ' },
             ])
             .run()

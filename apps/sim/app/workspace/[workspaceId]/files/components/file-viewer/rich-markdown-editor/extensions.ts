@@ -17,7 +17,7 @@ import { MarkdownImage, ResizableImage } from './image'
 import { RichMarkdownKeymap } from './keymap'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownPaste } from './markdown-paste'
-import { Mention, SIM_LINK_SCHEME } from './mention'
+import { MarkdownMention, Mention, MentionChip, SIM_LINK_SCHEME } from './mention'
 import { SlashCommand } from './slash-command/slash-command'
 
 /**
@@ -94,6 +94,7 @@ export function createMarkdownContentExtensions({
     InlineCode,
     codeBlock,
     (nodeViews ? ResizableImage : MarkdownImage).configure({ allowBase64: true }),
+    nodeViews ? MentionChip : MarkdownMention,
     TaskList,
     TaskItem.configure({ nested: true }),
     PipeSafeTable.configure({ resizable: true }),

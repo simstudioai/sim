@@ -30,7 +30,8 @@ const RichMarkdownField = dynamic(
   }
 )
 
-const MAX_DESCRIPTION_LENGTH = 2000
+/** A high cap that only guards against abuse — no visible counter; normal descriptions never reach it. */
+const MAX_DESCRIPTION_LENGTH = 50_000
 
 interface VersionDescriptionModalProps {
   open: boolean
@@ -124,13 +125,13 @@ export function VersionDescriptionModal({
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
-            hint={`${description.length}/${MAX_DESCRIPTION_LENGTH}`}
           >
             <RichMarkdownField
               value={description}
               onChange={setDescription}
               placeholder='Describe the changes in this deployment version...'
-              minHeight={120}
+              minHeight={240}
+              maxHeight={420}
               disabled={isGenerating}
               isStreaming={isGenerating}
               error={description.length > MAX_DESCRIPTION_LENGTH}

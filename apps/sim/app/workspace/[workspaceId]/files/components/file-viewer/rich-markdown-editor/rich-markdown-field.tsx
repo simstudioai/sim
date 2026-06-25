@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { useRouter } from 'next/navigation'
 import { chipFieldSurfaceClass } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { createMarkdownEditorExtensions } from './extensions'
@@ -13,7 +12,7 @@ import {
   splitFrontmatter,
 } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
-import { parseSimHref, simLinkPath, useEditorMentions } from './mention'
+import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
@@ -66,9 +65,6 @@ export function RichMarkdownField({
   onPasteText,
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-  const routerRef = useRef(router)
-  routerRef.current = router
 
   // Frontmatter is held out-of-band and re-attached on serialize, exactly like the file editor.
   // Split once at mount — the refs and the seed doc all derive from the initial value.
@@ -106,17 +102,6 @@ export function RichMarkdownField({
         const text = event.clipboardData?.getData('text/plain')
         if (!text) return false
         return handler(text)
-      },
-      handleClick: (view, _pos, event) => {
-        // Cmd/Ctrl-click an `@`-mention link to navigate to the resource (a plain click places the caret).
-        const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
-        if (!href?.startsWith('sim:') || !workspaceId) return false
-        if (view.editable && !(event.metaKey || event.ctrlKey)) return false
-        const parsed = parseSimHref(href)
-        const path = parsed && simLinkPath(workspaceId, parsed.kind, parsed.id)
-        if (!path) return false
-        routerRef.current.push(path)
-        return true
       },
     },
     onUpdate: ({ editor }) => {

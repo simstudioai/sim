@@ -21,7 +21,7 @@ import {
   splitFrontmatter,
 } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
-import { parseSimHref, simLinkPath, useEditorMentions } from './mention'
+import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
@@ -259,14 +259,6 @@ export function LoadedRichMarkdownEditor({
             behavior: 'smooth',
             block: 'start',
           })
-          return true
-        }
-        // A `@`-mention link (`sim:<kind>/<id>`) navigates to the referenced resource in-app.
-        if (href.startsWith('sim:')) {
-          const parsed = parseSimHref(href)
-          const path = parsed && simLinkPath(workspaceId, parsed.kind, parsed.id)
-          if (!path) return false
-          routerRef.current.push(path)
           return true
         }
         const normalized = normalizeLinkHref(href)

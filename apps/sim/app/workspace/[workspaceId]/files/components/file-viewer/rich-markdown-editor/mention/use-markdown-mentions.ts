@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Database, File, Folder, Sparkles, Table, Workflow } from 'lucide-react'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
@@ -7,6 +6,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
 
 /**
@@ -41,7 +41,7 @@ export function useMarkdownMentions(
       id: integration.blockType,
       label: integration.name,
       group: 'Integrations',
-      icon: integration.icon,
+      icon: mentionIcon('integration', integration.blockType),
     }))
   }, [active])
 
@@ -50,24 +50,36 @@ export function useMarkdownMentions(
     const items: MentionItem[] = []
 
     for (const file of files.data ?? [])
-      items.push({ kind: 'file', id: file.id, label: file.name, group: 'Files', icon: File })
+      items.push({
+        kind: 'file',
+        id: file.id,
+        label: file.name,
+        group: 'Files',
+        icon: mentionIcon('file', file.id),
+      })
     for (const folder of folders.data ?? [])
       items.push({
         kind: 'folder',
         id: folder.id,
         label: folder.name,
         group: 'Folders',
-        icon: Folder,
+        icon: mentionIcon('folder', folder.id),
       })
     for (const table of tables.data ?? [])
-      items.push({ kind: 'table', id: table.id, label: table.name, group: 'Tables', icon: Table })
+      items.push({
+        kind: 'table',
+        id: table.id,
+        label: table.name,
+        group: 'Tables',
+        icon: mentionIcon('table', table.id),
+      })
     for (const kb of knowledgeBases.data ?? [])
       items.push({
         kind: 'knowledge',
         id: kb.id,
         label: kb.name,
         group: 'Knowledge bases',
-        icon: Database,
+        icon: mentionIcon('knowledge', kb.id),
       })
     for (const workflow of workflows.data ?? [])
       items.push({
@@ -75,7 +87,7 @@ export function useMarkdownMentions(
         id: workflow.id,
         label: workflow.name,
         group: 'Workflows',
-        icon: Workflow,
+        icon: mentionIcon('workflow', workflow.id),
       })
     for (const skill of skills.data ?? [])
       items.push({
@@ -83,7 +95,7 @@ export function useMarkdownMentions(
         id: skill.id,
         label: skill.name,
         group: 'Skills',
-        icon: Sparkles,
+        icon: mentionIcon('skill', skill.id),
       })
     items.push(...integrationItems)
 
