@@ -2,7 +2,8 @@ import { CredentialIcon } from '@/components/icons'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig } from '@/blocks/types'
-import { fetchWorkspaceCredentialList, workspaceCredentialKeys } from '@/hooks/queries/credentials'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CredentialBlockOutput {
