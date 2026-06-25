@@ -45,7 +45,12 @@ const hasDirectMigrationUrl = Boolean(process.env.MIGRATION_DATABASE_URL)
  * default recycles the connection after 30–60 min, silently dropping the
  * session advisory lock and `SET`s.
  */
-const client = postgres(url, { max: 1, connect_timeout: 10, max_lifetime: null })
+const client = postgres(url, {
+  max: 1,
+  connect_timeout: 10,
+  max_lifetime: null,
+  connection: { application_name: 'sim-migrate' },
+})
 
 /**
  * Cross-process migration lock. drizzle's `migrate()` has no built-in lock, so
