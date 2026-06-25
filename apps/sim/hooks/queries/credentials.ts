@@ -20,6 +20,8 @@ import {
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 /**
  * Key prefix for OAuth credential queries.
@@ -32,38 +34,6 @@ export type {
   WorkspaceCredentialMember,
   WorkspaceCredentialRole,
   WorkspaceCredentialType,
-}
-
-export const workspaceCredentialKeys = {
-  all: ['workspaceCredentials'] as const,
-  lists: () => [...workspaceCredentialKeys.all, 'list'] as const,
-  list: (workspaceId?: string, type?: string, providerId?: string) =>
-    [
-      ...workspaceCredentialKeys.lists(),
-      workspaceId ?? 'none',
-      type ?? 'all',
-      providerId ?? 'all',
-    ] as const,
-  details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
-  detail: (credentialId?: string) =>
-    [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
-  members: (credentialId?: string) =>
-    [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
-}
-
-/**
- * Fetch workspace credential list from API.
- * Used by the prefetch function for hover-based cache warming.
- */
-export async function fetchWorkspaceCredentialList(
-  workspaceId: string,
-  signal?: AbortSignal
-): Promise<WorkspaceCredential[]> {
-  const data = await requestJson(listWorkspaceCredentialsContract, {
-    query: { workspaceId },
-    signal,
-  })
-  return data.credentials ?? []
 }
 
 /**

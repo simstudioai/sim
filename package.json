@@ -28,6 +28,7 @@
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
     "check:react-query": "bun run scripts/check-react-query-patterns.ts --check",
+    "check:client-boundary": "bun run scripts/check-client-boundary-imports.ts --check",
     "check:utils": "bun run scripts/check-utils-enforcement.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
