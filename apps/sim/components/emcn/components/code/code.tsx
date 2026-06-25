@@ -12,18 +12,104 @@ import {
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/components/prism-python'
-import 'prismjs/components/prism-json'
 import { cn } from '@/lib/core/utils/cn'
 import './code.css'
 
 /**
- * Re-export Prism.js highlighting utilities for use across the app.
- * Components can import these instead of importing from prismjs directly.
+ * Shape of the lazily-loaded Prism module (`./prism`), narrowed to the two
+ * members this component uses for highlighting.
  */
-export { highlight, languages }
+type PrismModule = typeof import('./prism')
+
+/**
+ * Module-level singleton promise for the lazily-loaded Prism module.
+ *
+ * Prism (core + the side-effectful JS/Python/JSON grammar registrations) is kept
+ * out of this module's static import graph so it never lands in bundles that only
+ * pull `Code` through the shared `@/components/emcn` barrel. It is loaded once per
+ * session on the first highlight and cached here for all subsequent viewers.
+ */
+let prismModulePromise: Promise<PrismModule> | null = null
+
+/**
+ * The resolved Prism module, cached synchronously once the first load settles so
+ * later viewers can initialize from it without a null→loaded render cycle.
+ */
+let resolvedPrism: PrismModule | null = null
+
+/**
+ * Loads the Prism module once and caches both the in-flight promise and the
+ * resolved module for reuse.
+ *
+ * @returns A promise resolving to the Prism highlighting utilities.
+ */
+function loadPrism(): Promise<PrismModule> {
+  if (!prismModulePromise) {
+    prismModulePromise = import('./prism').then((mod) => {
+      resolvedPrism = mod
+      return mod
+    })
+  }
+  return prismModulePromise
+}
+
+/**
+ * Subscribes a client component to the lazily-loaded Prism module.
+ *
+ * Seeds from {@link resolvedPrism} so viewers mounted after the first load
+ * highlight synchronously; otherwise returns `null` until Prism resolves (so
+ * callers render the plaintext fallback), then the loaded module.
+ *
+ * @returns The loaded Prism module, or `null` while loading.
+ */
+function usePrism(): PrismModule | null {
+  const [prism, setPrism] = useState<PrismModule | null>(resolvedPrism)
+
+  useEffect(() => {
+    if (prism) return
+    let active = true
+    loadPrism().then((mod) => {
+      if (active) setPrism(mod)
+    })
+    return () => {
+      active = false
+    }
+  }, [prism])
+
+  return prism
+}
+
+/**
+ * Escapes HTML special characters so raw code can be safely injected via
+ * `dangerouslySetInnerHTML` as the plaintext fallback before Prism loads (and
+ * for unknown languages). Matches Prism's own escaping for visual parity.
+ *
+ * @param text - The raw code text to escape
+ * @returns The HTML-escaped text
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Highlights a single line of code, falling back to escaped plaintext when Prism
+ * has not loaded yet or the language grammar is unavailable.
+ *
+ * @param prism - The loaded Prism module, or `null` while loading
+ * @param text - The line of code to highlight
+ * @param language - The language key (e.g. `json`, `javascript`, `python`)
+ * @returns Highlighted HTML, or escaped plaintext as a fallback
+ */
+function highlightOrEscape(prism: PrismModule | null, text: string, language: string): string {
+  if (!prism) return escapeHtml(text)
+  const grammar = prism.languages[language] || prism.languages.javascript
+  return prism.highlight(text, grammar, language)
+}
 
 /**
  * Code editor configuration and constants.
@@ -844,6 +930,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(400)
+  const prism = usePrism()
 
   const lines = useMemo(() => code.split('\n'), [code])
   const gutterWidth = useMemo(() => calculateGutterWidth(lines.length), [lines.length])
@@ -890,11 +977,10 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
 
   // Only process visible lines for efficiency (not all lines)
   const visibleLines = useMemo(() => {
-    const lang = languages[language] || languages.javascript
     const hasSearch = searchQuery?.trim()
 
     return visibleLineIndices.map((idx) => {
-      let html = highlight(displayLines[idx], lang, language)
+      let html = highlightOrEscape(prism, displayLines[idx], language)
 
       if (hasSearch && searchQuery) {
         const result = applySearchHighlightingToLine(
@@ -908,7 +994,15 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
 
       return { lineNumber: idx + 1, html }
     })
-  }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex, matchOffsets])
+  }, [
+    prism,
+    displayLines,
+    language,
+    visibleLineIndices,
+    searchQuery,
+    currentMatchIndex,
+    matchOffsets,
+  ])
 
   const hasCollapsibleContent = collapsibleLines.size > 0
   const effectiveShowCollapseColumn = showCollapseColumn && hasCollapsibleContent
@@ -1037,6 +1131,7 @@ const ViewerInner = memo(function ViewerInner({
   contentRef,
   showCollapseColumn,
 }: ViewerInnerProps) {
+  const prism = usePrism()
   const lines = useMemo(() => code.split('\n'), [code])
   const gutterWidth = useMemo(() => calculateGutterWidth(lines.length), [lines.length])
 
@@ -1083,22 +1178,21 @@ const ViewerInner = memo(function ViewerInner({
 
   // Pre-compute highlighted lines with search for visible indices (for gutter mode)
   const highlightedVisibleLines = useMemo(() => {
-    const lang = languages[language] || languages.javascript
-
     if (!searchQuery?.trim()) {
       return visibleLineIndices.map((idx) => ({
         lineNumber: idx + 1,
-        html: highlight(displayLines[idx], lang, language) || '&nbsp;',
+        html: highlightOrEscape(prism, displayLines[idx], language) || '&nbsp;',
       }))
     }
 
     return visibleLineIndices.map((idx) => {
-      let html = highlight(displayLines[idx], lang, language)
+      let html = highlightOrEscape(prism, displayLines[idx], language)
       const matchCounter = { count: cumulativeMatches[idx] }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
       return { lineNumber: idx + 1, html: html || '&nbsp;' }
     })
   }, [
+    prism,
     displayLines,
     language,
     visibleLineIndices,
@@ -1109,16 +1203,15 @@ const ViewerInner = memo(function ViewerInner({
 
   // Pre-compute simple highlighted code (for no-gutter mode)
   const highlightedCode = useMemo(() => {
-    const lang = languages[language] || languages.javascript
     const visibleCode = visibleLineIndices.map((idx) => displayLines[idx]).join('\n')
-    let html = highlight(visibleCode, lang, language)
+    let html = highlightOrEscape(prism, visibleCode, language)
 
     if (searchQuery?.trim()) {
       const matchCounter = { count: 0 }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
     }
     return html
-  }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
+  }, [prism, displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
 
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
 
