@@ -2,7 +2,11 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
-import { additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core'
+import {
+  additionalFiles,
+  additionalPackages,
+  syncEnvVars,
+} from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
 import { parseOtlpHeaders } from './lib/monitoring/otlp'
@@ -58,6 +62,7 @@ export default defineConfig({
   build: {
     external: ['isolated-vm', '@earendil-works/pi-coding-agent', 'cpu-features'],
     extensions: [
+      syncEnvVars(() => [{ name: 'DB_APP_NAME', value: 'sim-trigger' }]),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
