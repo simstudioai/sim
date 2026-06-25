@@ -1,7 +1,18 @@
 'use client'
 
 import { createElement, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent, SecretReveal } from '@sim/emcn'
+import {
+  ArrowRight,
+  Button,
+  ChevronDown,
+  cn,
+  Expandable,
+  ExpandableContent,
+  SecretInput,
+  SecretReveal,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -10,6 +21,13 @@ import type {
   ChatMessageContext,
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  usePersonalEnvironment,
+  useSavePersonalEnvironment,
+  useUpsertWorkspaceEnvironment,
+  useWorkspaceEnvironment,
+} from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -42,15 +60,27 @@ export const CREDENTIAL_TAG_TYPES = [
   'sim_key',
   'credential_id',
   'link',
+  'secret_input',
 ] as const
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
+
+export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
+
+export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
 export interface CredentialTagData {
   value?: string
   type: CredentialTagType
   provider?: string
   redacted?: boolean
+  /**
+   * Env-var key name to save the pasted secret under (secret_input only),
+   * e.g. "OPENAI_API_KEY".
+   */
+  name?: string
+  /** Where a secret_input value is persisted. Defaults to "workspace". */
+  scope?: SecretInputScope
 }
 
 export interface MothershipErrorTagData {
@@ -149,6 +179,17 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
     return false
   }
   if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  // secret_input is an empty input the user fills in — it carries a key name to
+  // save under, not a value.
+  if (value.type === 'secret_input') {
+    if (
+      value.scope !== undefined &&
+      !(SECRET_INPUT_SCOPES as readonly string[]).includes(value.scope as string)
+    ) {
+      return false
+    }
+    return typeof value.name === 'string' && value.name.trim().length > 0
+  }
   if (value.redacted === true) return value.value === undefined || typeof value.value === 'string'
   return typeof value.value === 'string'
 }
@@ -612,9 +653,112 @@ const LockIcon = (props: { className?: string }) => (
   </svg>
 )
 
+/**
+ * Inline "paste a secret" widget rendered for
+ * `<credential>{"type":"secret_input","name":"OPENAI_API_KEY"}</credential>`.
+ * Reuses the shared emcn SecretInput; the pasted value is saved straight to
+ * workspace (default) or personal environment variables under `name` and never
+ * flows back through the chat transcript.
+ */
+function SecretInputDisplay({ data }: { data: CredentialTagData }) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const secretName = (data.name ?? '').trim()
+  const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
+
+  const [value, setValue] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const upsertWorkspace = useUpsertWorkspaceEnvironment()
+  const savePersonal = useSavePersonalEnvironment()
+  const { data: personalEnv } = usePersonalEnvironment()
+  const { data: workspaceEnv } = useWorkspaceEnvironment(workspaceId)
+  const { canEdit } = useUserPermissionsContext()
+
+  // Setting a workspace var needs write/admin (same gate as the secrets manager);
+  // personal vars are the user's own, so any member may set them.
+  const canManage = scope === 'personal' || canEdit
+
+  // Reflect persisted state so the widget still shows "saved" after navigating
+  // away and back (local `saved` is lost on remount). Key presence is enough —
+  // workspace values come back masked for non-admins.
+  const alreadySaved =
+    scope === 'personal'
+      ? personalEnv !== undefined && secretName in personalEnv
+      : workspaceEnv !== undefined && secretName in workspaceEnv.workspace
+
+  const isSaving = upsertWorkspace.isPending || savePersonal.isPending
+  // Personal saves replace the whole map, so block until existing vars are loaded.
+  const personalReady = scope !== 'personal' || personalEnv !== undefined
+  const canSave =
+    canManage && secretName.length > 0 && value.trim().length > 0 && !isSaving && personalReady
+
+  const handleSave = async () => {
+    if (!canSave) return
+    try {
+      if (scope === 'personal') {
+        const merged: Record<string, string> = {}
+        for (const [key, entry] of Object.entries(personalEnv ?? {})) merged[key] = entry.value
+        merged[secretName] = value
+        await savePersonal.mutateAsync({ variables: merged })
+      } else {
+        await upsertWorkspace.mutateAsync({ workspaceId, variables: { [secretName]: value } })
+      }
+      setValue('')
+      setSaved(true)
+      toast.success(`Saved ${secretName}`)
+    } catch {
+      toast.error(`Couldn't save ${secretName}. Please try again.`)
+    }
+  }
+
+  if (!secretName) return null
+  // Already-set keys show a read-only "saved" indicator for everyone; the editable
+  // input only renders for users who can actually set the key.
+  if (saved || alreadySaved) return <SecretReveal redacted />
+  if (!canManage) return null
+
+  return (
+    <SecretInput
+      value={value}
+      onChange={setValue}
+      placeholder={`Paste ${secretName}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          void handleSave()
+        }
+      }}
+      endAdornment={
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              type='button'
+              variant='quiet'
+              className='size-[18px] rounded-sm p-0'
+              onClick={() => void handleSave()}
+              disabled={!canSave}
+              aria-label='Save'
+            >
+              <ArrowRight className='size-[13px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{isSaving ? 'Saving…' : 'Save'}</Tooltip.Content>
+        </Tooltip.Root>
+      }
+    />
+  )
+}
+
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
+  const { canEdit } = useUserPermissionsContext()
+
+  if (data.type === 'secret_input') {
+    return <SecretInputDisplay data={data} />
+  }
+
   if (data.type === 'link') {
-    if (!data.provider) return null
+    // Connecting a credential mutates the workspace — hide it from read-only members.
+    if (!data.provider || !canEdit) return null
     const Icon = getCredentialIcon(data.provider) ?? LockIcon
     return (
       <a
