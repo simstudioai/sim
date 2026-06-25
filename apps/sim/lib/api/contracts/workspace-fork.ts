@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { workspaceSchema } from '@/lib/api/contracts/workspaces'
 
 const workspaceIdParamsSchema = z.object({ id: nonEmptyIdSchema })
 
@@ -86,7 +87,9 @@ export const forkWorkspaceContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      workspace: forkLineageNodeSchema,
+      // Full workspace row so the client can merge it into the workspace-list cache
+      // (parity with create), not just the lineage node.
+      workspace: workspaceSchema,
       workflowsCopied: z.number().int(),
     }),
   },
@@ -265,6 +268,8 @@ export const rollbackForkContract = defineRouteContract({
       restored: z.number().int(),
       archived: z.number().int(),
       unarchived: z.number().int(),
+      /** Snapshot workflows that no longer exist and couldn't be reactivated. */
+      skipped: z.number().int(),
     }),
   },
 })

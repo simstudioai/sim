@@ -29,6 +29,8 @@ export interface RollbackForkResult {
   restored: number
   archived: number
   unarchived: number
+  /** Snapshot workflows that no longer exist and so couldn't be reactivated. */
+  skipped: number
 }
 
 // A type alias (not interface) so it satisfies the `Record<string, unknown>`
@@ -106,9 +108,17 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
   // Reactivate prior versions + restore drafts. Any failure aborts with the undo
   // point intact so the operation can be retried.
+  const skipped: string[] = []
   for (const { workflowId, version } of reactivate) {
     const record = records.get(workflowId)
-    if (!record) continue
+    if (!record) {
+      // The target was hard-deleted since the promote, so it can't be reactivated.
+      // Skipping (vs throwing) is deliberate: a throw here would wedge the undo
+      // point forever since the workflow never reappears. We record it so the
+      // partial restore is surfaced instead of silently over-reported.
+      skipped.push(workflowId)
+      continue
+    }
     const activated = await performActivateVersion({
       workflowId,
       version,
@@ -129,6 +139,13 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
         500
       )
     }
+  }
+
+  if (skipped.length > 0) {
+    logger.warn(
+      `[${requestId}] Rollback skipped ${skipped.length} workflow(s) no longer in the database`,
+      { targetWorkspaceId, skipped }
+    )
   }
 
   // Reactivation fully succeeded: remove the workflows the promote created,
@@ -171,15 +188,20 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
   for (const workflowId of undeployIds) void notifyForkWorkflowChanged(workflowId)
 
-  logger.info(`[${requestId}] Rolled back promote into ${targetWorkspaceId}`, {
-    restored: updated.length,
+  // Attribute skips to their bucket so the counts reflect what was actually
+  // restored, not the snapshot size (a workflow is in exactly one of the two).
+  const skippedSet = new Set(skipped)
+  const skippedUpdated = updated.filter(
+    (item) => item.priorVersion != null && skippedSet.has(item.workflowId)
+  ).length
+  const result: RollbackForkResult = {
+    restored: updated.length - skippedUpdated,
     archived: created.length,
-    unarchived: archived.length,
-  })
-
-  return {
-    restored: updated.length,
-    archived: created.length,
-    unarchived: archived.length,
+    unarchived: archived.length - (skipped.length - skippedUpdated),
+    skipped: skipped.length,
   }
+
+  logger.info(`[${requestId}] Rolled back promote into ${targetWorkspaceId}`, result)
+
+  return result
 }

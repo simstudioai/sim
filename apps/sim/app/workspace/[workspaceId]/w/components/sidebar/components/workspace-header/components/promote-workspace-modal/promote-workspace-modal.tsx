@@ -42,6 +42,14 @@ interface PromoteWorkspaceModalProps {
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
 
+/** Join "N label" segments with " · ", dropping any zero counts so toasts never read "0 foo". */
+function summarizeCounts(parts: Array<[number, string]>): string {
+  return parts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count} ${label}`)
+    .join(' · ')
+}
+
 /** Section label + display order per mapping kind (grouped, Secrets-page style). */
 const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
   credential: { label: 'Credentials', order: 0 },
@@ -237,8 +245,12 @@ export function PromoteWorkspaceModal({
       }
 
       toast.success(
-        `${result.updated} updated · ${result.created} created · ${result.archived} archived` +
-          (result.redeployed > 0 ? ` · ${result.redeployed} redeployed` : '')
+        summarizeCounts([
+          [result.updated, 'updated'],
+          [result.created, 'created'],
+          [result.archived, 'archived'],
+          [result.redeployed, 'redeployed'],
+        ]) || 'Sync complete'
       )
       onOpenChange(false)
     } catch (error) {
@@ -256,9 +268,13 @@ export function PromoteWorkspaceModal({
         workspaceId,
         body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
       })
-      toast.success(
-        `Undone · ${result.restored} restored · ${result.archived} removed · ${result.unarchived} unarchived`
-      )
+      const summary = summarizeCounts([
+        [result.restored, 'restored'],
+        [result.archived, 'removed'],
+        [result.unarchived, 'unarchived'],
+        [result.skipped, 'skipped'],
+      ])
+      toast.success(summary ? `Undone · ${summary}` : 'Undone')
       setConfirmRollbackOpen(false)
       onOpenChange(false)
     } catch (error) {

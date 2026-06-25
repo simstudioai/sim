@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
+import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import {
@@ -60,7 +61,8 @@ export interface CreateForkParams {
 }
 
 export interface CreateForkResult {
-  workspace: { id: string; name: string; organizationId: string | null }
+  /** Full child workspace row so callers can merge it into the workspace-list cache. */
+  workspace: Workspace
   workflowsCopied: number
 }
 
@@ -235,7 +237,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         workspace: {
           id: childWorkspaceId,
           name: childName,
+          ownerId: userId,
           organizationId: policy.organizationId,
+          workspaceMode: policy.workspaceMode,
+          billedAccountUserId: policy.billedAccountUserId,
+          allowPersonalApiKeys: true,
+          forkedFromWorkspaceId: source.id,
         },
         workflowsCopied,
       },

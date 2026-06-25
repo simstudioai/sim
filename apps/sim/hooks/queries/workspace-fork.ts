@@ -14,6 +14,8 @@ import {
   type UpdateForkMappingBody,
   updateForkMappingContract,
 } from '@/lib/api/contracts/workspace-fork'
+import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type ForkDirection = 'push' | 'pull'
 
@@ -57,6 +59,23 @@ export function useForkWorkspace() {
   return useMutation({
     mutationFn: (vars: { workspaceId: string; body: ForkWorkspaceBody }) =>
       requestJson(forkWorkspaceContract, { params: { id: vars.workspaceId }, body: vars.body }),
+    onSuccess: (data) => {
+      // Merge the new fork into the active list cache before invalidation so the
+      // immediate navigation into it can't race a stale list and trip the
+      // not-in-workspaces redirect (mirrors useCreateWorkspace).
+      const newWorkspace = data.workspace
+      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
+        if (!previous) {
+          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
+        }
+        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
+          return previous
+        }
+        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
+      })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
     },
