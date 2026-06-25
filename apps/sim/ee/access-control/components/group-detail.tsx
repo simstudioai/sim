@@ -630,12 +630,12 @@ export function GroupDetail({
     return allIds.filter((id) => !blacklist.includes(id.toLowerCase()))
   }, [blacklistedProvidersData])
 
-  /** Maps every tool id to the block type that exposes it (for denied-count grouping). */
-  const toolToBlockType = useMemo(() => {
-    const map: Record<string, string> = {}
+  /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
+  const toolBlockTypes = useMemo(() => {
+    const map: Record<string, string[]> = {}
     for (const block of allBlocks) {
       for (const toolId of block.tools?.access ?? []) {
-        map[toolId] = block.type
+        ;(map[toolId] ??= []).push(block.type)
       }
     }
     return map
@@ -887,12 +887,14 @@ export function GroupDetail({
       if (allowedIntegrations === null) return deniedTools
       const allowed = new Set(allowedIntegrations)
       const pruned = deniedTools.filter((toolId) => {
-        const blockType = toolToBlockType[toolId]
-        return !blockType || allowed.has(blockType)
+        const blockTypes = toolBlockTypes[toolId]
+        // Keep the denial while ANY block exposing the tool is still allowed;
+        // preserve tools we can't attribute to a known block.
+        return !blockTypes || blockTypes.some((bt) => allowed.has(bt))
       })
       return pruned.length === deniedTools.length ? deniedTools : pruned
     },
-    [toolToBlockType]
+    [toolBlockTypes]
   )
 
   const toggleIntegration = useCallback(
@@ -973,13 +975,17 @@ export function GroupDetail({
   }, [])
 
   const deniedCountByBlock = useMemo(() => {
+    const denied = new Set(editingConfig.deniedTools)
     const counts: Record<string, number> = {}
-    for (const toolId of editingConfig.deniedTools) {
-      const blockType = toolToBlockType[toolId]
-      if (blockType) counts[blockType] = (counts[blockType] ?? 0) + 1
+    for (const block of allBlocks) {
+      let count = 0
+      for (const toolId of block.tools?.access ?? []) {
+        if (denied.has(toolId)) count++
+      }
+      if (count > 0) counts[block.type] = count
     }
     return counts
-  }, [editingConfig.deniedTools, toolToBlockType])
+  }, [editingConfig.deniedTools, allBlocks])
 
   const isProviderAllowed = useCallback(
     (providerId: string) =>
