@@ -22,6 +22,7 @@ import type {
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
+import { type WorkflowExecutionStatus, workflowMetrics } from '@/lib/monitoring/metrics'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 type TriggerData = Record<string, unknown> & {
@@ -138,6 +139,10 @@ export class LoggingSession {
   private completionAttemptFailed = false
   private pendingProgressWrites = new Set<Promise<void>>()
   private postExecutionPromise: Promise<void> | null = null
+  /** Guards against double-counting ExecutionStarted across start/fallback paths */
+  private startMetricEmitted = false
+  /** Guards against double-counting ExecutionCompleted across completion paths */
+  private completionMetricEmitted = false
 
   constructor(
     workflowId: string,
@@ -217,6 +222,18 @@ export class LoggingSession {
     while (this.pendingProgressWrites.size > 0) {
       await Promise.allSettled(Array.from(this.pendingProgressWrites))
     }
+  }
+
+  private emitExecutionStartedMetric(): void {
+    if (this.startMetricEmitted) return
+    this.startMetricEmitted = true
+    workflowMetrics.recordExecutionStarted({ trigger: this.triggerType })
+  }
+
+  private emitExecutionCompletedMetric(status: WorkflowExecutionStatus, durationMs?: number): void {
+    if (this.completionMetricEmitted) return
+    this.completionMetricEmitted = true
+    workflowMetrics.recordExecutionCompleted({ trigger: this.triggerType, status, durationMs })
   }
 
   private async completeExecutionWithFinalization(params: {
@@ -338,6 +355,7 @@ export class LoggingSession {
           workflowState: this.workflowState,
           deploymentVersionId,
         })
+        this.emitExecutionStartedMetric()
       } else {
         // Resume: no cost reload needed. Billing reconciles from the usage_log
         // ledger (pre-pause rows already exist) plus the live cost summary.
@@ -377,6 +395,7 @@ export class LoggingSession {
       })
 
       this.completed = true
+      this.emitExecutionCompletedMetric('success', duration)
 
       if (traceSpans && traceSpans.length > 0) {
         try {
@@ -513,6 +532,10 @@ export class LoggingSession {
       })
 
       this.completed = true
+      this.emitExecutionCompletedMetric(
+        'failed',
+        typeof totalDurationMs === 'number' ? Math.max(1, totalDurationMs) : undefined
+      )
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -606,6 +629,10 @@ export class LoggingSession {
       })
 
       this.completed = true
+      this.emitExecutionCompletedMetric(
+        'cancelled',
+        typeof totalDurationMs === 'number' ? Math.max(1, totalDurationMs) : undefined
+      )
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -701,6 +728,7 @@ export class LoggingSession {
       })
 
       this.completed = true
+      workflowMetrics.recordExecutionPaused({ trigger: this.triggerType })
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -792,6 +820,7 @@ export class LoggingSession {
           workflowState: this.workflowState,
           deploymentVersionId,
         })
+        this.emitExecutionStartedMetric()
 
         if (this.requestId) {
           logger.debug(
@@ -982,6 +1011,10 @@ export class LoggingSession {
       this.requestId,
       this.workflowId
     )
+    // The static helper emits the failure metric when the row transitions from
+    // a non-terminal status; mark this session as emitted either way so a later
+    // in-process completion attempt can't add a second point.
+    this.completionMetricEmitted = true
   }
 
   static async markExecutionAsFailed(
@@ -992,6 +1025,21 @@ export class LoggingSession {
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
+      const current = await db
+        .select({
+          status: workflowExecutionLogs.status,
+          trigger: workflowExecutionLogs.trigger,
+        })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0])
+
       await db
         .update(workflowExecutionLogs)
         .set({
@@ -1017,6 +1065,12 @@ export class LoggingSession {
             eq(workflowExecutionLogs.workflowId, workflowId)
           )
         )
+
+      // Only a transition from a non-terminal status is a new terminal outcome;
+      // rows already completed/failed/cancelled emitted their point elsewhere.
+      if (current && (current.status === 'running' || current.status === 'pending')) {
+        workflowMetrics.recordExecutionCompleted({ trigger: current.trigger, status: 'failed' })
+      }
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {
@@ -1068,6 +1122,15 @@ export class LoggingSession {
       })
 
       this.completed = true
+
+      if (params.status === 'pending') {
+        workflowMetrics.recordExecutionPaused({ trigger: this.triggerType })
+      } else {
+        this.emitExecutionCompletedMetric(
+          params.status === 'failed' || params.status === 'cancelled' ? params.status : 'success',
+          params.totalDurationMs
+        )
+      }
 
       logger.info(
         `[${this.requestId || 'unknown'}] Cost-only fallback succeeded for execution ${this.executionId}`

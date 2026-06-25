@@ -39,10 +39,24 @@ const {
   completeWorkflowExecutionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
+  recordExecutionStartedMock,
+  recordExecutionCompletedMock,
+  recordExecutionPausedMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
+  recordExecutionStartedMock: vi.fn(),
+  recordExecutionCompletedMock: vi.fn(),
+  recordExecutionPausedMock: vi.fn(),
+}))
+
+vi.mock('@/lib/monitoring/metrics', () => ({
+  workflowMetrics: {
+    recordExecutionStarted: recordExecutionStartedMock,
+    recordExecutionCompleted: recordExecutionCompletedMock,
+    recordExecutionPaused: recordExecutionPausedMock,
+  },
 }))
 
 vi.mock('@sim/db', () => ({
@@ -613,6 +627,7 @@ describe('completeWithError cancelled-status guard', () => {
 describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'api' }])
     dbMocks.updateWhere.mockResolvedValue(undefined)
   })
 
@@ -646,5 +661,138 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     const [strings, ...values] = lastCall
     const combined = String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
     expect(combined).toContain('force_failed')
+  })
+})
+
+describe('LoggingSession workflow metrics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    startWorkflowExecutionMock.mockResolvedValue({})
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    loadWorkflowStateForExecutionMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'api' }])
+    dbMocks.execute.mockResolvedValue(undefined)
+  })
+
+  it('emits ExecutionStarted on start and not on resume', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    await session.start({ workspaceId: 'ws-1' })
+    expect(recordExecutionStartedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionStartedMock).toHaveBeenCalledWith({ trigger: 'api' })
+
+    recordExecutionStartedMock.mockClear()
+    const resumeSession = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    await resumeSession.start({ workspaceId: 'ws-1', skipLogCreation: true })
+    expect(recordExecutionStartedMock).not.toHaveBeenCalled()
+  })
+
+  it('emits a success completion with trigger and duration', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'webhook', 'req-1')
+    await session.complete({ totalDurationMs: 500 })
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'webhook',
+      status: 'success',
+      durationMs: 500,
+    })
+  })
+
+  it('emits a failed completion via completeWithError', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'schedule', 'req-1')
+    await session.completeWithError({ totalDurationMs: 250, error: { message: 'boom' } })
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'schedule',
+      status: 'failed',
+      durationMs: 250,
+    })
+  })
+
+  it('emits a cancelled completion via completeWithCancellation', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'manual', 'req-1')
+    await session.completeWithCancellation({ totalDurationMs: 100 })
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'manual',
+      status: 'cancelled',
+      durationMs: 100,
+    })
+  })
+
+  it('emits ExecutionPaused (not a completion) on pause, then failed if markAsFailed follows', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    await session.completeWithPause({ totalDurationMs: 100 })
+
+    expect(recordExecutionPausedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionPausedMock).toHaveBeenCalledWith({ trigger: 'api' })
+    expect(recordExecutionCompletedMock).not.toHaveBeenCalled()
+
+    await session.markAsFailed('pause persistence failed')
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'api',
+      status: 'failed',
+      durationMs: undefined,
+    })
+  })
+
+  it('does not double-emit when markAsFailed runs after a completed session', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    await session.complete({ totalDurationMs: 500 })
+
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'completed', trigger: 'api' }])
+    await session.markAsFailed('timeout')
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'api',
+      status: 'success',
+      durationMs: 500,
+    })
+  })
+
+  it('emits exactly one completion when the primary write fails and the fallback succeeds', async () => {
+    const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('finalize failed'))
+      .mockResolvedValueOnce({})
+
+    await session.safeCompleteWithError({ error: { message: 'boom' } })
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith(
+      expect.objectContaining({ trigger: 'api', status: 'failed' })
+    )
+  })
+
+  it('static markExecutionAsFailed emits failed only for non-terminal rows', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'webhook' }])
+    await LoggingSession.markExecutionAsFailed('exec-1', 'crash', undefined, 'wf-1')
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'webhook',
+      status: 'failed',
+    })
+
+    recordExecutionCompletedMock.mockClear()
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'failed', trigger: 'webhook' }])
+    await LoggingSession.markExecutionAsFailed('exec-1', 'crash again', undefined, 'wf-1')
+    expect(recordExecutionCompletedMock).not.toHaveBeenCalled()
+  })
+
+  it('skips the completion metric when the run was already cancelled elsewhere', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'cancelled' }])
+    const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
+    await session.completeWithError({ error: { message: 'boom' } })
+
+    expect(recordExecutionCompletedMock).not.toHaveBeenCalled()
   })
 })

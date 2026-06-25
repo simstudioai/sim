@@ -8,6 +8,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { workflowMetrics } from '@/lib/monitoring/metrics'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CleanupStaleExecutions')
@@ -35,6 +36,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         executionId: workflowExecutionLogs.executionId,
         workflowId: workflowExecutionLogs.workflowId,
         startedAt: workflowExecutionLogs.startedAt,
+        trigger: workflowExecutionLogs.trigger,
       })
       .from(workflowExecutionLogs)
       .where(
@@ -56,7 +58,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         const staleDurationMinutes = Math.round(staleDurationMs / 60000)
         const totalDurationMs = Math.min(staleDurationMs, MAX_INT32)
 
-        await db
+        // Conditional on status='running' so a worker that completes between the
+        // select and this update keeps its own terminal status (and its own
+        // ExecutionCompleted point) — no force-fail overwrite, no double count.
+        const transitioned = await db
           .update(workflowExecutionLogs)
           .set({
             status: 'failed',
@@ -68,11 +73,31 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               to_jsonb(${`Execution terminated: worker timeout or crash after ${staleDurationMinutes} minutes`}::text)
             )`,
           })
-          .where(eq(workflowExecutionLogs.id, execution.id))
+          .where(
+            and(
+              eq(workflowExecutionLogs.id, execution.id),
+              eq(workflowExecutionLogs.status, 'running')
+            )
+          )
+          .returning({ id: workflowExecutionLogs.id })
+
+        if (transitioned.length === 0) {
+          logger.info(`Skipped stale execution ${execution.executionId}: no longer running`, {
+            workflowId: execution.workflowId,
+          })
+          continue
+        }
 
         logger.info(`Cleaned up stale execution ${execution.executionId}`, {
           workflowId: execution.workflowId,
           staleDurationMinutes,
+        })
+
+        // Crashed workers never reach a LoggingSession completion path, so this
+        // is the only place these failures can be counted toward the error rate.
+        workflowMetrics.recordExecutionCompleted({
+          trigger: execution.trigger,
+          status: 'failed',
         })
 
         cleaned++
