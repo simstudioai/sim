@@ -361,6 +361,32 @@ describe('readSSEEvents', () => {
     expect(events).toEqual([{ msg: 'hello' }])
   })
 
+  it('emits a final data: line that has no trailing newline (stream tail)', async () => {
+    const stream = streamFromStringChunks(['data: {"n":1}\n', 'data: {"n":2}'])
+    const events: number[] = []
+    await readSSEEvents<{ n: number }>(stream, {
+      onEvent: (e) => {
+        events.push(e.n)
+      },
+    })
+    expect(events).toEqual([1, 2])
+  })
+
+  it('flushes a multi-byte character in the final unterminated line', async () => {
+    const encoder = new TextEncoder()
+    const euro = encoder.encode('€')
+    const chunk1 = new Uint8Array([...encoder.encode('data: {"s":"'), euro[0], euro[1]])
+    const chunk2 = new Uint8Array([euro[2], ...encoder.encode('"}')])
+    const stream = createStreamFromChunks([chunk1, chunk2])
+    const events: Array<{ s: string }> = []
+    await readSSEEvents<{ s: string }>(stream, {
+      onEvent: (e) => {
+        events.push(e)
+      },
+    })
+    expect(events).toEqual([{ s: '€' }])
+  })
+
   it('skips the [DONE] sentinel', async () => {
     const stream = streamFromStringChunks(['data: {"n":1}\n\n', 'data: [DONE]\n\n'])
     const events: number[] = []
