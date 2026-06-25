@@ -63,10 +63,7 @@ function MappingRow({
   onChange: (value: string) => void
 }) {
   return (
-    <ChipModalField
-      type='custom'
-      title={`${entry.sourceLabel}${entry.required ? '' : ' (optional)'}`}
-    >
+    <ChipModalField type='custom' title={entry.sourceLabel}>
       <ChipCombobox
         options={entry.candidates.map((candidate) => ({
           label: candidate.label,
@@ -228,10 +225,6 @@ export function PromoteWorkspaceModal({
     }
   }
 
-  const previewLabel = diff.data
-    ? `${diff.data.willUpdate} updated · ${diff.data.willCreate} created · ${diff.data.willArchive} archived`
-    : 'Calculating...'
-
   const workflowChanges = useMemo<ForkWorkflowChange[]>(() => {
     const order: Record<ForkWorkflowChange['action'], number> = { update: 0, create: 1, archive: 2 }
     return [...(diff.data?.workflows ?? [])].sort(
@@ -276,17 +269,14 @@ export function PromoteWorkspaceModal({
                 align='start'
               />
 
-              <ChipModalField type='custom' title='Preview'>
-                <div className='text-[var(--text-secondary)] text-sm'>{previewLabel}</div>
-                {diff.data?.drift ? (
-                  <div className='mt-1 text-[var(--text-secondary)] text-xs'>
-                    Target changed since the last sync — syncing will overwrite those changes.
-                  </div>
-                ) : null}
-              </ChipModalField>
+              {diff.data?.drift ? (
+                <div className='px-2 text-[var(--text-secondary)] text-xs'>
+                  Target changed since the last sync — syncing will overwrite those changes.
+                </div>
+              ) : null}
 
               {workflowChanges.length > 0 ? (
-                <ChipModalField type='custom' title='Workflows'>
+                <ChipModalField type='custom' title='Deployed Workflows'>
                   <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
                     {workflowChanges.map((change, index) => {
                       const renamed = change.currentName !== change.otherName
@@ -356,7 +346,7 @@ export function PromoteWorkspaceModal({
 
               {optionalEntries.length > 0 ? (
                 <div className='px-2 font-medium text-[var(--text-secondary)] text-xs'>
-                  Additional resources
+                  Additional resources (optional)
                 </div>
               ) : null}
               {optionalEntries.map((entry) => (
