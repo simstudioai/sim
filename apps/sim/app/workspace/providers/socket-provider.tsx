@@ -43,6 +43,8 @@ import type {
   VariableUpdateEmit,
   WorkflowOperationEmit,
 } from '@/stores/operation-queue/types'
+import { usePresenceStore } from '@/stores/presence/store'
+import type { PresenceUser } from '@/stores/presence/types'
 import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('SocketContext')
@@ -71,15 +73,6 @@ interface User {
   email?: string
 }
 
-interface PresenceUser {
-  socketId: string
-  userId: string
-  userName: string
-  avatarUrl?: string | null
-  cursor?: { x: number; y: number } | null
-  selection?: { type: 'block' | 'edge' | 'none'; id?: string }
-}
-
 interface SocketContextType {
   socket: Socket | null
   isConnected: boolean
@@ -95,7 +88,6 @@ interface SocketContextType {
   blockedJoinWorkflowId: string | null
   currentWorkflowId: string | null
   currentSocketId: string | null
-  presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
   retryConnection: () => void
@@ -129,7 +121,6 @@ const SocketContext = createContext<SocketContextType>({
   blockedJoinWorkflowId: null,
   currentWorkflowId: null,
   currentSocketId: null,
-  presenceUsers: [],
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
   retryConnection: () => {},
@@ -166,7 +157,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [isRetryingWorkflowJoin, setIsRetryingWorkflowJoin] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
-  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
   const [authFailed, setAuthFailed] = useState(false)
   const [blockedJoinWorkflowId, setBlockedJoinWorkflowId] = useState<string | null>(null)
   const [explicitWorkflowId, setExplicitWorkflowId] = useState<string | null>(null)
@@ -201,6 +191,21 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+
+  /**
+   * Presence is high-frequency (cursor frames many times per second) so it lives
+   * in {@link usePresenceStore}, not the broad socket context — writing it here no
+   * longer mints a new context value, so emitter-only `useSocket()` consumers stop
+   * re-rendering on every cursor frame. These thin wrappers delegate to the store's
+   * stable actions read via `getState()`.
+   */
+  const setPresenceUsers = useCallback((users: PresenceUser[]) => {
+    usePresenceStore.getState().setPresenceUsers(users)
+  }, [])
+
+  const updatePresenceUsers = useCallback((updater: (prev: PresenceUser[]) => PresenceUser[]) => {
+    usePresenceStore.getState().updatePresenceUsers(updater)
+  }, [])
 
   const setVisibleWorkflowId = useCallback((workflowId: string | null) => {
     currentWorkflowIdRef.current = workflowId
@@ -255,7 +260,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       setPresenceUsers([])
       setVisibleWorkflowId(null)
     },
-    [resetVisibleWorkflowState, setVisibleWorkflowId]
+    [resetVisibleWorkflowState, setPresenceUsers, setVisibleWorkflowId]
   )
 
   const executeJoinCommands = useCallback(
@@ -501,7 +506,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             return
           }
 
-          setPresenceUsers((prev) => {
+          updatePresenceUsers((prev) => {
             const prevMap = new Map(prev.map((u) => [u.socketId, u]))
 
             return users.map((user) => {
@@ -675,7 +680,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             return
           }
 
-          setPresenceUsers((prev) => {
+          updatePresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
               logger.debug('Received cursor-update for unknown user', { socketId: data.socketId })
@@ -693,7 +698,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             return
           }
 
-          setPresenceUsers((prev) => {
+          updatePresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
               logger.debug('Received selection-update for unknown user', {
@@ -779,6 +784,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketRef.current.close()
         socketRef.current = null
       }
+
+      // Clear the module-global presence store on unmount to match the prior per-provider lifetime.
+      usePresenceStore.getState().clearPresenceUsers()
     }
   }, [user?.id])
 
@@ -1116,7 +1124,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       blockedJoinWorkflowId,
       currentWorkflowId,
       currentSocketId,
-      presenceUsers,
       joinWorkflow,
       leaveWorkflow,
       retryConnection,
@@ -1147,7 +1154,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       blockedJoinWorkflowId,
       currentWorkflowId,
       currentSocketId,
-      presenceUsers,
       joinWorkflow,
       leaveWorkflow,
       retryConnection,
