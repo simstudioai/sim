@@ -1019,6 +1019,28 @@ export function GroupDetail({
     [allProviderIds]
   )
 
+  /** Allow or deny a set of providers at once, respecting the active search filter. */
+  const setProvidersAllowed = useCallback(
+    (providerIds: string[], allowed: boolean) => {
+      setEditingConfig((prev) => {
+        const current =
+          prev.allowedModelProviders === null
+            ? new Set(allProviderIds)
+            : new Set(prev.allowedModelProviders)
+        for (const id of providerIds) {
+          if (allowed) current.add(id)
+          else current.delete(id)
+        }
+        const nextArr = allProviderIds.filter((id) => current.has(id))
+        return {
+          ...prev,
+          allowedModelProviders: nextArr.length === allProviderIds.length ? null : nextArr,
+        }
+      })
+    },
+    [allProviderIds]
+  )
+
   const isModelAllowed = useCallback(
     (model: string) => {
       const normalized = model.toLowerCase()
@@ -1253,6 +1275,7 @@ export function GroupDetail({
     []
   )
 
+  const filteredProvidersAllAllowed = filteredProviders.every((id) => isProviderAllowed(id))
   const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
   const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
   const platformAllVisible = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
@@ -1431,22 +1454,11 @@ export function GroupDetail({
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    onClick={() => {
-                      const allAllowed =
-                        editingConfig.allowedModelProviders === null ||
-                        allProviderIds.every((id) =>
-                          editingConfig.allowedModelProviders?.includes(id)
-                        )
-                      setEditingConfig((prev) => ({
-                        ...prev,
-                        allowedModelProviders: allAllowed ? [] : null,
-                      }))
-                    }}
+                    onClick={() =>
+                      setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)
+                    }
                   >
-                    {editingConfig.allowedModelProviders === null ||
-                    allProviderIds.every((id) => editingConfig.allowedModelProviders?.includes(id))
-                      ? 'Deselect All'
-                      : 'Select All'}
+                    {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 </div>
                 <div className='flex flex-col gap-0.5'>
