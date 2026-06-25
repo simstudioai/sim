@@ -1,0 +1,272 @@
+import { z } from 'zod'
+import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+
+const workspaceIdParamsSchema = z.object({ id: nonEmptyIdSchema })
+
+export const forkRemapKindSchema = z.enum([
+  'credential',
+  'env-var',
+  'knowledge-base',
+  'knowledge-document',
+  'table',
+  'file',
+  'mcp-server',
+  'custom-tool',
+  'skill',
+])
+
+export const forkResourceTypeSchema = z.enum([
+  'workflow',
+  'oauth_credential',
+  'service_account_credential',
+  'env_var',
+  'table',
+  'knowledge_base',
+  'knowledge_document',
+  'file',
+  'mcp_server',
+  'custom_tool',
+  'skill',
+])
+
+export const forkDirectionSchema = z.enum(['push', 'pull'])
+
+export const forkLineageNodeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  organizationId: z.string().nullable(),
+})
+
+export const getForkLineageContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/lineage',
+  params: workspaceIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      workspaceId: z.string(),
+      parent: forkLineageNodeSchema.nullable(),
+      children: z.array(forkLineageNodeSchema),
+      hasUndoableRun: z.boolean(),
+      /** The most recent undoable promote into this workspace, for the rollback UI. */
+      undoableRun: z
+        .object({
+          otherWorkspaceId: z.string(),
+          otherName: z.string(),
+          direction: forkDirectionSchema,
+        })
+        .nullable(),
+    }),
+  },
+})
+export type ForkLineageNodeApi = z.output<typeof forkLineageNodeSchema>
+export type GetForkLineageResponse = z.output<typeof getForkLineageContract.response.schema>
+
+const forkResourceIdList = z.array(nonEmptyIdSchema).max(2000).optional()
+
+export const forkResourceSelectionSchema = z.object({
+  files: forkResourceIdList,
+  tables: forkResourceIdList,
+  knowledgeBases: forkResourceIdList,
+  customTools: forkResourceIdList,
+  skills: forkResourceIdList,
+  mcpServers: forkResourceIdList,
+})
+
+export const forkWorkspaceBodySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name is too long').optional(),
+  copy: forkResourceSelectionSchema.optional(),
+})
+export const forkWorkspaceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/fork',
+  params: workspaceIdParamsSchema,
+  body: forkWorkspaceBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      workspace: forkLineageNodeSchema,
+      workflowsCopied: z.number().int(),
+    }),
+  },
+})
+export type ForkWorkspaceBody = z.input<typeof forkWorkspaceBodySchema>
+export type ForkWorkspaceResponse = z.output<typeof forkWorkspaceContract.response.schema>
+
+export const forkCopyableResourceSchema = z.object({ id: z.string(), label: z.string() })
+export type ForkCopyableResource = z.output<typeof forkCopyableResourceSchema>
+export const getForkResourcesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/resources',
+  params: workspaceIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      files: z.array(forkCopyableResourceSchema),
+      tables: z.array(forkCopyableResourceSchema),
+      knowledgeBases: z.array(forkCopyableResourceSchema),
+      customTools: z.array(forkCopyableResourceSchema),
+      skills: z.array(forkCopyableResourceSchema),
+      mcpServers: z.array(forkCopyableResourceSchema),
+    }),
+  },
+})
+export type GetForkResourcesResponse = z.output<typeof getForkResourcesContract.response.schema>
+
+export const forkMappingCandidateSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  providerId: z.string().optional(),
+})
+
+export const forkMappingEntrySchema = z.object({
+  kind: forkRemapKindSchema,
+  resourceType: forkResourceTypeSchema,
+  sourceId: z.string(),
+  sourceLabel: z.string(),
+  targetId: z.string().nullable(),
+  required: z.boolean(),
+  candidates: z.array(forkMappingCandidateSchema),
+})
+export type ForkMappingEntry = z.output<typeof forkMappingEntrySchema>
+
+export const getForkMappingQuerySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+  direction: forkDirectionSchema.default('push'),
+})
+export const getForkMappingContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/mapping',
+  params: workspaceIdParamsSchema,
+  query: getForkMappingQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      childWorkspaceId: z.string(),
+      parentWorkspaceId: z.string(),
+      sourceWorkspaceId: z.string(),
+      targetWorkspaceId: z.string(),
+      entries: z.array(forkMappingEntrySchema),
+    }),
+  },
+})
+export type GetForkMappingResponse = z.output<typeof getForkMappingContract.response.schema>
+
+export const updateForkMappingBodySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+  direction: forkDirectionSchema,
+  entries: z
+    .array(
+      z.object({
+        resourceType: forkResourceTypeSchema,
+        sourceId: z.string().min(1),
+        targetId: z.string().min(1).nullable(),
+      })
+    )
+    .max(5000),
+})
+export const updateForkMappingContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/fork/mapping',
+  params: workspaceIdParamsSchema,
+  body: updateForkMappingBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true), updated: z.number().int() }),
+  },
+})
+export type UpdateForkMappingBody = z.input<typeof updateForkMappingBodySchema>
+
+export const forkUnmappedReferenceSchema = z.object({
+  kind: forkRemapKindSchema,
+  sourceId: z.string(),
+  required: z.boolean(),
+  blockName: z.string().optional(),
+})
+
+export const forkWorkflowChangeSchema = z.object({
+  action: z.enum(['update', 'create', 'archive']),
+  /** Workflow name in the workspace the modal is open in. */
+  currentName: z.string(),
+  /** Workflow name in the sync-partner workspace (differs from `currentName` after a rename). */
+  otherName: z.string(),
+})
+
+export const getForkDiffQuerySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+  direction: forkDirectionSchema,
+})
+export const getForkDiffContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/diff',
+  params: workspaceIdParamsSchema,
+  query: getForkDiffQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      sourceWorkspaceId: z.string(),
+      targetWorkspaceId: z.string(),
+      willUpdate: z.number().int(),
+      willCreate: z.number().int(),
+      willArchive: z.number().int(),
+      /** Per-workflow change list for the sync preview. */
+      workflows: z.array(forkWorkflowChangeSchema),
+      unmappedRequired: z.array(forkUnmappedReferenceSchema),
+      unmappedOptional: z.array(forkUnmappedReferenceSchema),
+      /** Source MCP server ids that use OAuth and need re-authorization in the target. */
+      mcpReauthServerIds: z.array(z.string()),
+      /** Review-only descriptions of inline secrets that cannot be id-mapped. */
+      inlineSecretSources: z.array(z.string()),
+      drift: z.boolean(),
+    }),
+  },
+})
+export type GetForkDiffResponse = z.output<typeof getForkDiffContract.response.schema>
+export type ForkWorkflowChange = z.output<typeof forkWorkflowChangeSchema>
+
+export const promoteForkBodySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+  direction: forkDirectionSchema,
+  force: z.boolean().optional().default(false),
+})
+export const promoteForkContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/fork/promote',
+  params: workspaceIdParamsSchema,
+  body: promoteForkBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      promoteRunId: z.string(),
+      updated: z.number().int(),
+      created: z.number().int(),
+      archived: z.number().int(),
+      redeployed: z.number().int(),
+      unmappedRequired: z.array(forkUnmappedReferenceSchema),
+      drift: z.boolean(),
+    }),
+  },
+})
+export type PromoteForkBody = z.input<typeof promoteForkBodySchema>
+export type PromoteForkResponse = z.output<typeof promoteForkContract.response.schema>
+
+export const rollbackForkBodySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+})
+export const rollbackForkContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/fork/rollback',
+  params: workspaceIdParamsSchema,
+  body: rollbackForkBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      restored: z.number().int(),
+      archived: z.number().int(),
+      unarchived: z.number().int(),
+    }),
+  },
+})
+export type RollbackForkBody = z.input<typeof rollbackForkBodySchema>
+export type RollbackForkResponse = z.output<typeof rollbackForkContract.response.schema>

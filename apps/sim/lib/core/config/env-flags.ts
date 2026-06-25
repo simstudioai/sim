@@ -161,6 +161,12 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
 
 /**
+ * Is workspace forking enabled via env var override
+ * This bypasses hosted (Enterprise) requirements for self-hosted deployments
+ */
+export const isForkingEnabled = isTruthy(env.FORKING_ENABLED)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  ChipTag,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
@@ -16,14 +17,18 @@ import {
   Send,
   Skeleton,
 } from '@/components/emcn'
-import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft, Rocket, Shuffle } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import { ForkWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-workspace-modal/fork-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { PromoteWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/promote-workspace-modal'
+import { useForkingAvailable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/use-forking-available'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { useForkLineage } from '@/hooks/queries/workspace-fork'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -96,6 +101,8 @@ function WorkspaceHeaderImpl({
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false)
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -120,6 +127,8 @@ function WorkspaceHeaderImpl({
   }, [])
 
   const { navigateToSettings } = useSettingsNavigation()
+  const forkingAvailable = useForkingAvailable()
+  const { data: forkLineage } = useForkLineage(workspaceId, forkingAvailable)
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -586,6 +595,49 @@ function WorkspaceHeaderImpl({
                 >
                   Manage workspace
                 </Chip>
+
+                {forkingAvailable ? (
+                  <>
+                    <DropdownMenuSeparator className='mx-0' />
+                    {forkLineage?.parent ? (
+                      <div className='px-2 pb-1'>
+                        <ChipTag variant='gray'>Fork of {forkLineage.parent.name}</ChipTag>
+                      </div>
+                    ) : null}
+                    <Chip
+                      leftIcon={Shuffle}
+                      onClick={() => {
+                        setIsWorkspaceMenuOpen(false)
+                        if (!canCreateWorkspace) {
+                          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                          return
+                        }
+                        setIsForkModalOpen(true)
+                      }}
+                      disabled={isCreatingWorkspace}
+                      title={createWorkspaceDisabledReason ?? undefined}
+                      fullWidth
+                      flush
+                      className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
+                    >
+                      Fork workspace
+                    </Chip>
+                    {forkLineage && (forkLineage.parent || forkLineage.children.length > 0) ? (
+                      <Chip
+                        leftIcon={Rocket}
+                        onClick={() => {
+                          setIsWorkspaceMenuOpen(false)
+                          setIsPromoteModalOpen(true)
+                        }}
+                        fullWidth
+                        flush
+                        className='w-full select-none'
+                      >
+                        Sync…
+                      </Chip>
+                    ) : null}
+                  </>
+                ) : null}
               </>
             )}
           </DropdownMenuContent>
@@ -672,6 +724,20 @@ function WorkspaceHeaderImpl({
         workspaceName={activeWorkspace?.name || 'Workspace'}
         inviteDisabledReason={inviteDisabledReason}
         organizationId={activeWorkspaceFull?.organizationId ?? null}
+      />
+      <ForkWorkspaceModal
+        open={isForkModalOpen}
+        onOpenChange={setIsForkModalOpen}
+        sourceWorkspaceId={workspaceId}
+        sourceWorkspaceName={activeWorkspace?.name || 'Workspace'}
+      />
+      <PromoteWorkspaceModal
+        open={isPromoteModalOpen}
+        onOpenChange={setIsPromoteModalOpen}
+        workspaceId={workspaceId}
+        parent={forkLineage?.parent ?? null}
+        childWorkspaces={forkLineage?.children ?? []}
+        undoableRun={forkLineage?.undoableRun ?? null}
       />
       <DeleteModal
         isOpen={isDeleteModalOpen}

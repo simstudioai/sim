@@ -1325,6 +1325,10 @@ export const workspace = pgTable(
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
     archivedAt: timestamp('archived_at'),
+    forkedFromWorkspaceId: text('forked_from_workspace_id').references(
+      (): AnyPgColumn => workspace.id,
+      { onDelete: 'set null' }
+    ),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1332,6 +1336,87 @@ export const workspace = pgTable(
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
     workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
+    forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
+      table.forkedFromWorkspaceId
+    ),
+  })
+)
+
+export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_type', [
+  'workflow',
+  'oauth_credential',
+  'service_account_credential',
+  'env_var',
+  'table',
+  'knowledge_base',
+  'knowledge_document',
+  'file',
+  'mcp_server',
+  'custom_tool',
+  'skill',
+])
+
+export const workspaceForkResourceMap = pgTable(
+  'workspace_fork_resource_map',
+  {
+    id: text('id').primaryKey(),
+    childWorkspaceId: text('child_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    resourceType: workspaceForkResourceTypeEnum('resource_type').notNull(),
+    parentResourceId: text('parent_resource_id').notNull(),
+    childResourceId: text('child_resource_id'),
+    // SET NULL (not CASCADE): deleting the creating user must not delete the fork's
+    // identity mappings, which the edge depends on for every future promote.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    childWorkspaceIdx: index('workspace_fork_resource_map_child_ws_idx').on(table.childWorkspaceId),
+    childWorkspaceTypeIdx: index('workspace_fork_resource_map_child_ws_type_idx').on(
+      table.childWorkspaceId,
+      table.resourceType
+    ),
+    childTypeParentUnique: uniqueIndex('workspace_fork_resource_map_child_type_parent_unique').on(
+      table.childWorkspaceId,
+      table.resourceType,
+      table.parentResourceId
+    ),
+  })
+)
+
+export const workspaceForkPromoteDirectionEnum = pgEnum('workspace_fork_promote_direction', [
+  'push',
+  'pull',
+])
+
+export const workspaceForkPromoteRun = pgTable(
+  'workspace_fork_promote_run',
+  {
+    id: text('id').primaryKey(),
+    childWorkspaceId: text('child_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id').notNull(),
+    targetWorkspaceId: text('target_workspace_id').notNull(),
+    direction: workspaceForkPromoteDirectionEnum('direction').notNull(),
+    snapshot: jsonb('snapshot').notNull(),
+    // SET NULL (not CASCADE): deleting the creating user must not delete a pending
+    // undo point for a target workspace.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // One undo point per (edge, target) so a push (target=parent) and a pull
+    // (target=child) on the same edge keep independent undo points.
+    childWorkspaceTargetUnique: uniqueIndex('workspace_fork_promote_run_child_ws_target_unique').on(
+      table.childWorkspaceId,
+      table.targetWorkspaceId
+    ),
+    targetWorkspaceIdx: index('workspace_fork_promote_run_target_ws_idx').on(
+      table.targetWorkspaceId
+    ),
   })
 )
 
