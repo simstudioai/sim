@@ -41,6 +41,7 @@ List GitLab projects accessible to the authenticated user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `owned` | boolean | No | Limit to projects owned by the current user |
 | `membership` | boolean | No | Limit to projects the current user is a member of |
 | `search` | string | No | Search projects by name |
@@ -65,6 +66,7 @@ Get details of a specific GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path \(e.g., "namespace/project"\) |
 
 #### Output
@@ -81,6 +83,7 @@ List issues in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `state` | string | No | Filter by state \(opened, closed, all\) |
 | `labels` | string | No | Comma-separated list of label names |
@@ -107,6 +110,7 @@ Get details of a specific GitLab issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `issueIid` | number | Yes | Issue number within the project \(the # shown in GitLab UI\) |
 
@@ -124,6 +128,7 @@ Create a new issue in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description \(Markdown supported\) |
@@ -147,6 +152,7 @@ Update an existing issue in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `title` | string | No | New issue title |
@@ -172,6 +178,7 @@ Delete an issue from a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 
@@ -189,6 +196,7 @@ Add a comment to a GitLab issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
@@ -207,6 +215,7 @@ List merge requests in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `state` | string | No | Filter by state \(opened, closed, merged, all\) |
 | `labels` | string | No | Comma-separated list of label names |
@@ -232,6 +241,7 @@ Get details of a specific GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 
@@ -249,6 +259,7 @@ Create a new merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `sourceBranch` | string | Yes | Source branch name |
 | `targetBranch` | string | Yes | Target branch name |
@@ -275,6 +286,7 @@ Update an existing merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `title` | string | No | New merge request title |
@@ -302,6 +314,7 @@ Merge a merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `mergeCommitMessage` | string | No | Custom merge commit message |
@@ -324,6 +337,7 @@ Add a comment to a GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
@@ -342,6 +356,7 @@ List pipelines in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `ref` | string | No | Filter by ref \(branch or tag\) |
 | `status` | string | No | Filter by status \(created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled\) |
@@ -365,6 +380,7 @@ Get details of a specific GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -382,6 +398,7 @@ Trigger a new pipeline in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `ref` | string | Yes | Branch or tag to run the pipeline on |
 | `variables` | array | No | Array of variables for the pipeline \(each with key, value, and optional variable_type\) |
@@ -400,6 +417,7 @@ Retry a failed GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -417,6 +435,7 @@ Cancel a running GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -426,4 +445,449 @@ Cancel a running GitLab pipeline
 | --------- | ---- | ----------- |
 | `pipeline` | object | The cancelled GitLab pipeline |
 
+### `gitlab_list_repository_tree`
+
+List files and directories in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `path` | string | No | Path inside the repository to list |
+| `ref` | string | No | Branch, tag, or commit SHA to list from |
+| `recursive` | boolean | No | Whether to list files recursively |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tree` | array | List of repository tree entries |
+| `total` | number | Total number of tree entries |
+
+### `gitlab_get_file`
+
+Get the contents of a file from a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `filePath` | string | Yes | Path to the file in the repository |
+| `ref` | string | Yes | Branch, tag, or commit SHA |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filePath` | string | The file path |
+| `fileName` | string | The file name |
+| `size` | number | The file size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `content` | string | The decoded file content |
+
+### `gitlab_create_file`
+
+Create a new file in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `filePath` | string | Yes | Path to the file in the repository |
+| `branch` | string | Yes | Branch to commit the new file to |
+| `content` | string | Yes | File content |
+| `commitMessage` | string | Yes | Commit message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filePath` | string | The created file path |
+| `branch` | string | The branch the file was committed to |
+
+### `gitlab_update_file`
+
+Update an existing file in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `filePath` | string | Yes | Path to the file in the repository |
+| `branch` | string | Yes | Branch to commit the update to |
+| `content` | string | Yes | New file content |
+| `commitMessage` | string | Yes | Commit message |
+| `lastCommitId` | string | No | Last known commit ID for the file \(optimistic locking\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filePath` | string | The updated file path |
+| `branch` | string | The branch the update was committed to |
+
+### `gitlab_create_branch`
+
+Create a new branch in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `branch` | string | Yes | Name of the new branch |
+| `ref` | string | Yes | Source branch/tag/SHA |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | The created branch name |
+| `webUrl` | string | The web URL of the branch |
+| `protected` | boolean | Whether the branch is protected |
+| `commit` | object | The commit the branch points to |
+
+### `gitlab_list_branches`
+
+List branches in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `search` | string | No | Filter branches by name |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `branches` | array | List of branches |
+| `total` | number | Total number of branches |
+
+### `gitlab_list_commits`
+
+List commits in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `refName` | string | No | Branch, tag, or revision range to list commits from |
+| `since` | string | No | Only commits after this ISO 8601 date |
+| `until` | string | No | Only commits before this ISO 8601 date |
+| `path` | string | No | Only commits affecting this file path |
+| `author` | string | No | Filter commits by author |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commits` | array | List of commits |
+| `total` | number | Total number of commits |
+
+### `gitlab_get_merge_request_changes`
+
+Get the file changes (diffs) of a GitLab merge request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mergeRequestIid` | number | The merge request internal ID \(IID\) |
+| `changes` | array | List of file changes \(diffs\) |
+| `changesCount` | number | Number of changed files returned |
+
+### `gitlab_approve_merge_request`
+
+Approve a GitLab merge request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
+| `sha` | string | No | HEAD SHA of the merge request to approve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `approvalsRequired` | number | Number of approvals required |
+| `approvalsLeft` | number | Number of approvals still needed |
+| `approvedBy` | array | List of approvers |
+
+### `gitlab_list_pipeline_jobs`
+
+List jobs for a GitLab pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `pipelineId` | number | Yes | Pipeline ID |
+| `scope` | string | No | Filter jobs by scope \(e.g. created, running, success, failed\) |
+| `includeRetried` | boolean | No | Whether to include retried jobs |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | array | List of pipeline jobs |
+| `total` | number | Total number of jobs |
+
+### `gitlab_get_job_log`
+
+Get the log (trace) of a GitLab job
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `jobId` | number | Yes | Job ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `log` | string | The job log \(trace\) output |
+
+### `gitlab_play_job`
+
+Trigger (play) a manual GitLab job
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `jobId` | number | Yes | Job ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The job ID |
+| `name` | string | The job name |
+| `status` | string | The job status |
+| `webUrl` | string | The web URL of the job |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### GitLab Comment
+
+Trigger workflow when a comment is added on a commit, merge request, or issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(note\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `note` | string | Comment body |
+|   ↳ `noteable_type` | string | What the comment is on \(Commit, MergeRequest, Issue, Snippet\) |
+|   ↳ `action` | string | Action \(create, update\) |
+|   ↳ `url` | string | Comment URL |
+
+
+---
+
+### GitLab Event
+
+Trigger workflow from any GitLab webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(push, merge_request, issue, etc.\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | json | Actor that triggered the event \(when present\) |
+| `object_attributes` | json | Event-specific attributes \(varies by object_kind\) |
+
+
+---
+
+### GitLab Issue
+
+Trigger workflow when an issue is opened, updated, or closed in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(issue\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Global issue ID |
+|   ↳ `iid` | number | Project-scoped issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `state` | string | State \(opened, closed\) |
+|   ↳ `action` | string | Action \(open, close, reopen, update\) |
+|   ↳ `description` | string | Issue description |
+|   ↳ `confidential` | boolean | Whether the issue is confidential |
+|   ↳ `url` | string | Issue URL |
+
+
+---
+
+### GitLab Merge Request
+
+Trigger workflow when a merge request is opened, updated, or merged in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(merge_request\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Global merge request ID |
+|   ↳ `iid` | number | Project-scoped merge request number |
+|   ↳ `title` | string | Merge request title |
+|   ↳ `state` | string | State \(opened, closed, merged, locked\) |
+|   ↳ `action` | string | Action \(open, close, reopen, update, merge, etc.\) |
+|   ↳ `source_branch` | string | Source branch |
+|   ↳ `target_branch` | string | Target branch |
+|   ↳ `merge_status` | string | Merge status |
+|   ↳ `draft` | boolean | Whether the merge request is a draft |
+|   ↳ `url` | string | Merge request URL |
+
+
+---
+
+### GitLab Pipeline
+
+Trigger workflow when a pipeline status changes in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(pipeline\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Pipeline ID |
+|   ↳ `status` | string | Pipeline status \(success, failed, running, etc.\) |
+|   ↳ `detailed_status` | string | Detailed pipeline status |
+|   ↳ `ref` | string | Ref the pipeline ran on |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `source` | string | Pipeline source \(push, web, schedule, etc.\) |
+|   ↳ `duration` | number | Pipeline duration in seconds |
+|   ↳ `url` | string | Pipeline URL |
+
+
+---
+
+### GitLab Push
+
+Trigger workflow when commits are pushed to a GitLab project
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(push\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `ref` | string | Git ref that was pushed \(e.g. refs/heads/main\) |
+| `branch` | string | Branch name derived from ref |
+| `before` | string | SHA before the push |
+| `after` | string | SHA after the push |
+| `checkout_sha` | string | SHA of the most recent commit |
+| `user_username` | string | Username of the pusher |
+| `user_name` | string | Display name of the pusher |
+| `user_email` | string | Email of the pusher |
+| `total_commits_count` | number | Number of commits in the push |
+| `commits` | json | Array of commit objects included in this push |
 

@@ -99,6 +99,7 @@
     "@sim/logger": "workspace:*",
     "@sim/platform-authz": "workspace:*",
     "@sim/realtime-protocol": "workspace:*",
+    "@sim/runtime-secrets": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",

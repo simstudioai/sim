@@ -25,7 +25,15 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 
 const logger = createLogger('FolderQueries')
 
-function mapFolder(folder: FolderApi): WorkflowFolder {
+export const FOLDER_LIST_STALE_TIME = 60 * 1000
+
+/**
+ * Maps a wire folder row to the client `WorkflowFolder` shape (string dates →
+ * `Date`, color default). Exported so the server-side home prefetch produces
+ * the exact cached value `useFolders` stores, keeping the hydrated entry in
+ * sync with a client fetch.
+ */
+export function mapFolder(folder: FolderApi): WorkflowFolder {
   return {
     id: folder.id,
     name: folder.name,

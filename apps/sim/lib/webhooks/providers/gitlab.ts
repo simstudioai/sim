@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -13,17 +14,16 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { getGitLabApiBase, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('WebhookProvider:GitLab')
-
-const GITLAB_API_BASE = 'https://gitlab.com/api/v4'
 
 function asRecord(value: unknown): Record<string, unknown> {
   return (value as Record<string, unknown>) || {}
 }
 
-function gitlabProjectHooksUrl(projectId: string): string {
-  return `${GITLAB_API_BASE}/projects/${encodeURIComponent(projectId)}/hooks`
+function gitlabProjectHooksUrl(projectId: string, host: unknown): string {
+  return `${getGitLabApiBase(host)}/projects/${encodeURIComponent(projectId)}/hooks`
 }
 
 /**
@@ -33,9 +33,10 @@ function gitlabProjectHooksUrl(projectId: string): string {
 async function cleanupGitLabHookByUrl(
   projectId: string,
   accessToken: string,
-  url: string
+  url: string,
+  host: unknown
 ): Promise<void> {
-  const res = await fetch(gitlabProjectHooksUrl(projectId), {
+  const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
     headers: { 'PRIVATE-TOKEN': accessToken },
   }).catch(() => null)
   if (!res || !res.ok) return
@@ -47,7 +48,7 @@ async function cleanupGitLabHookByUrl(
     hooks
       .filter((hook) => hook.url === url && hook.id != null)
       .map((hook) =>
-        fetch(`${gitlabProjectHooksUrl(projectId)}/${hook.id}`, {
+        secureFetchWithValidation(`${gitlabProjectHooksUrl(projectId, host)}/${hook.id}`, {
           method: 'DELETE',
           headers: { 'PRIVATE-TOKEN': accessToken },
         }).catch(() => null)
@@ -113,14 +114,28 @@ export const gitlabHandler: WebhookProviderHandler = {
     const accessToken = config.accessToken as string | undefined
     const projectId = config.projectId as string | undefined
     const triggerId = config.triggerId as string | undefined
+    const host = config.host as string | undefined
 
     if (!accessToken)
       throw new Error('GitLab Personal Access Token is required to create the webhook.')
     if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
 
+    // Validate the optional self-managed host up front so a structurally unsafe
+    // value surfaces as a clear error instead of an unhandled UnsafeGitLabHostError.
+    try {
+      getGitLabApiBase(host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        throw new Error(
+          'GitLab host is invalid. Provide a domain like gitlab.example.com (no protocol, path, or credentials).'
+        )
+      }
+      throw error
+    }
+
     const { getGitLabEventFlags } = await import('@/triggers/gitlab/utils')
     const secretToken = generateId()
-    const res = await fetch(gitlabProjectHooksUrl(projectId), {
+    const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
       method: 'POST',
       headers: { 'PRIVATE-TOKEN': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -150,7 +165,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     if (created.id === undefined || created.id === null) {
       // The hook was created but we can't read its id — delete it by URL so it
       // is not orphaned in GitLab.
-      await cleanupGitLabHookByUrl(projectId, accessToken, getNotificationUrl(ctx.webhook))
+      await cleanupGitLabHookByUrl(projectId, accessToken, getNotificationUrl(ctx.webhook), host)
       throw new Error('GitLab webhook created but no hook ID was returned.')
     }
 
@@ -163,6 +178,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     const accessToken = config.accessToken as string | undefined
     const projectId = config.projectId as string | undefined
     const externalId = config.externalId as string | undefined
+    const host = config.host as string | undefined
 
     if (!accessToken || !projectId || !externalId) {
       if (ctx.strict) throw new Error('Missing GitLab credentials or hook ID for webhook deletion.')
@@ -172,10 +188,30 @@ export const gitlabHandler: WebhookProviderHandler = {
       return
     }
 
-    const res = await fetch(`${gitlabProjectHooksUrl(projectId)}/${externalId}`, {
-      method: 'DELETE',
-      headers: { 'PRIVATE-TOKEN': accessToken },
-    })
+    // A structurally unsafe host must not abort cleanup in non-strict mode — mirror
+    // the graceful skip used for missing credentials above.
+    try {
+      getGitLabApiBase(host)
+    } catch (error) {
+      if (error instanceof UnsafeGitLabHostError) {
+        if (ctx.strict) {
+          throw new Error('Cannot delete GitLab webhook: the configured host is invalid.')
+        }
+        logger.warn(
+          `[${ctx.requestId}] Skipping GitLab webhook cleanup — configured host is invalid`
+        )
+        return
+      }
+      throw error
+    }
+
+    const res = await secureFetchWithValidation(
+      `${gitlabProjectHooksUrl(projectId, host)}/${externalId}`,
+      {
+        method: 'DELETE',
+        headers: { 'PRIVATE-TOKEN': accessToken },
+      }
+    )
 
     if (!res.ok && res.status !== 404) {
       if (ctx.strict) throw new Error(`Failed to delete GitLab webhook: ${res.status}`)

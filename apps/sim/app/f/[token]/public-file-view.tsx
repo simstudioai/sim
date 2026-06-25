@@ -9,7 +9,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useBrandConfig } from '@/ee/whitelabeling'
-import { type FileContentSource, FileContentSourceProvider } from '@/hooks/use-file-content-source'
+import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
 
 interface PublicFileViewProps {
   token: string
@@ -41,7 +41,12 @@ export function PublicFileView({
   // `updatedAt` fold in the content version so the React Query caches (keyed on the
   // storage key + `updatedAt`) refetch when the shared file changes — even when its
   // size is unchanged.
-  const source = useMemo<FileContentSource>(() => ({ buildUrl: () => contentUrl }), [contentUrl])
+  // Embedded images route through the token-scoped cascade endpoint, which serves them only when the
+  // shared document actually references them and they live in its workspace.
+  const source = useMemo(
+    () => createPublicFileContentSource(token, contentUrl),
+    [token, contentUrl]
+  )
   const file = useMemo<WorkspaceFileRecord>(
     () => ({
       id: token,
@@ -116,9 +121,13 @@ export function PublicFileView({
       </header>
 
       <main className='flex min-h-0 flex-1 flex-col'>
-        <FileContentSourceProvider value={source}>
-          <FileViewer file={file} workspaceId={token} canEdit={false} readOnly />
-        </FileContentSourceProvider>
+        <FileViewer
+          file={file}
+          workspaceId={token}
+          contentSource={source}
+          canEdit={false}
+          readOnly
+        />
       </main>
     </div>
   )

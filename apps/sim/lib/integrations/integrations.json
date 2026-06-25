@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-18",
+  "updatedAt": "2026-06-25",
   "integrations": [
     {
       "type": "onepassword",
@@ -5628,11 +5628,90 @@
         {
           "name": "Cancel Pipeline",
           "description": "Cancel a running GitLab pipeline"
+        },
+        {
+          "name": "List Repository Tree",
+          "description": "List files and directories in a GitLab project repository"
+        },
+        {
+          "name": "Get File",
+          "description": "Get the contents of a file from a GitLab project repository"
+        },
+        {
+          "name": "Create File",
+          "description": "Create a new file in a GitLab project repository"
+        },
+        {
+          "name": "Update File",
+          "description": "Update an existing file in a GitLab project repository"
+        },
+        {
+          "name": "List Commits",
+          "description": "List commits in a GitLab project repository"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches in a GitLab project repository"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a new branch in a GitLab project repository"
+        },
+        {
+          "name": "Get MR Changes",
+          "description": "Get the file changes (diffs) of a GitLab merge request"
+        },
+        {
+          "name": "Approve Merge Request",
+          "description": "Approve a GitLab merge request"
+        },
+        {
+          "name": "List Pipeline Jobs",
+          "description": "List jobs for a GitLab pipeline"
+        },
+        {
+          "name": "Get Job Log",
+          "description": "Get the log (trace) of a GitLab job"
+        },
+        {
+          "name": "Play Job",
+          "description": "Trigger (play) a manual GitLab job"
         }
       ],
-      "operationCount": 19,
-      "triggers": [],
-      "triggerCount": 0,
+      "operationCount": 31,
+      "triggers": [
+        {
+          "id": "gitlab_push",
+          "name": "GitLab Push",
+          "description": "Trigger workflow when commits are pushed to a GitLab project"
+        },
+        {
+          "id": "gitlab_merge_request",
+          "name": "GitLab Merge Request",
+          "description": "Trigger workflow when a merge request is opened, updated, or merged in GitLab"
+        },
+        {
+          "id": "gitlab_issue",
+          "name": "GitLab Issue",
+          "description": "Trigger workflow when an issue is opened, updated, or closed in GitLab"
+        },
+        {
+          "id": "gitlab_pipeline",
+          "name": "GitLab Pipeline",
+          "description": "Trigger workflow when a pipeline status changes in GitLab"
+        },
+        {
+          "id": "gitlab_comment",
+          "name": "GitLab Comment",
+          "description": "Trigger workflow when a comment is added on a commit, merge request, or issue"
+        },
+        {
+          "id": "gitlab_webhook",
+          "name": "GitLab Event",
+          "description": "Trigger workflow from any GitLab webhook event"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
@@ -11233,8 +11312,39 @@
         }
       ],
       "operationCount": 6,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "pagerduty_incident_triggered",
+          "name": "PagerDuty Incident Triggered",
+          "description": "Trigger workflow when a new incident is triggered in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_acknowledged",
+          "name": "PagerDuty Incident Acknowledged",
+          "description": "Trigger workflow when an incident is acknowledged in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_resolved",
+          "name": "PagerDuty Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_escalated",
+          "name": "PagerDuty Incident Escalated",
+          "description": "Trigger workflow when an incident is escalated in PagerDuty"
+        },
+        {
+          "id": "pagerduty_incident_reassigned",
+          "name": "PagerDuty Incident Reassigned",
+          "description": "Trigger workflow when an incident is reassigned in PagerDuty"
+        },
+        {
+          "id": "pagerduty_webhook",
+          "name": "PagerDuty Incident Event",
+          "description": "Trigger workflow from any PagerDuty incident event"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -13492,7 +13602,7 @@
       "slug": "salesforce",
       "name": "Salesforce",
       "description": "Interact with Salesforce CRM",
-      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.",
+      "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.",
       "bgColor": "#FFFFFF",
       "iconName": "SalesforceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/salesforce",
@@ -13595,7 +13705,7 @@
         },
         {
           "name": "List Reports",
-          "description": "Get a list of reports accessible by the current user"
+          "description": "Get a list of up to 200 recently viewed reports for the current user"
         },
         {
           "name": "Get Report",
@@ -13611,7 +13721,7 @@
         },
         {
           "name": "List Dashboards",
-          "description": "Get a list of dashboards accessible by the current user"
+          "description": "Get a list of recently used dashboards for the current user"
         },
         {
           "name": "Get Dashboard",
@@ -13636,9 +13746,29 @@
         {
           "name": "List Objects",
           "description": "Get a list of all available Salesforce objects"
+        },
+        {
+          "name": "Create Custom Field",
+          "description": "Create a custom field on a Salesforce object (e.g., Account) using the Tooling API"
+        },
+        {
+          "name": "Update Custom Field",
+          "description": "Update an existing custom field on a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Delete Custom Field",
+          "description": "Delete a custom field from a Salesforce object using the Tooling API"
+        },
+        {
+          "name": "Create Custom Object",
+          "description": "Create a custom object in Salesforce using the Tooling API"
+        },
+        {
+          "name": "Run Tooling Query",
+          "description": "Execute a SOQL query against the Tooling API to inspect metadata objects"
         }
       ],
-      "operationCount": 35,
+      "operationCount": 40,
       "triggers": [
         {
           "id": "salesforce_record_created",
@@ -18289,8 +18419,34 @@
         }
       ],
       "operationCount": 26,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "zendesk_ticket_created",
+          "name": "Zendesk Ticket Created",
+          "description": "Trigger workflow when a new ticket is created in Zendesk"
+        },
+        {
+          "id": "zendesk_ticket_status_changed",
+          "name": "Zendesk Ticket Status Changed",
+          "description": "Trigger workflow when a ticket status changes in Zendesk"
+        },
+        {
+          "id": "zendesk_ticket_comment_added",
+          "name": "Zendesk Ticket Comment Added",
+          "description": "Trigger workflow when a comment is added to a Zendesk ticket"
+        },
+        {
+          "id": "zendesk_ticket_priority_changed",
+          "name": "Zendesk Ticket Priority Changed",
+          "description": "Trigger workflow when a ticket priority changes in Zendesk"
+        },
+        {
+          "id": "zendesk_webhook",
+          "name": "Zendesk Ticket Event",
+          "description": "Trigger workflow from any Zendesk ticket event"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "support",

@@ -84,4 +84,46 @@ describe('processSSEStream', () => {
 
     expect(onEventId).not.toHaveBeenCalled()
   })
+
+  it('releases the reader lock after the stream completes', async () => {
+    const stream = streamEvents([])
+    const reader = stream.getReader()
+    expect(stream.locked).toBe(true)
+
+    await processSSEStream(reader, {}, 'test')
+
+    expect(stream.locked).toBe(false)
+  })
+
+  it('releases the reader lock even when a handler throws', async () => {
+    const event: ExecutionEvent = {
+      type: 'block:started',
+      eventId: 7,
+      timestamp: new Date().toISOString(),
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      data: {
+        blockId: 'block-1',
+        blockName: 'Block 1',
+        blockType: 'function',
+        executionOrder: 1,
+      },
+    }
+    const stream = streamEvents([event])
+    const reader = stream.getReader()
+
+    await expect(
+      processSSEStream(
+        reader,
+        {
+          onBlockStarted: () => {
+            throw new Error('boom')
+          },
+        },
+        'test'
+      )
+    ).rejects.toThrow('boom')
+
+    expect(stream.locked).toBe(false)
+  })
 })

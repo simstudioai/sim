@@ -10,7 +10,9 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('SalesforceReports')
 
 /**
- * List all reports accessible by the current user
+ * List up to 200 of the current user's most recently viewed reports.
+ * The Report List resource returns recently viewed reports, not the org's full
+ * report catalog — use a SOQL query against the Report object for that.
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_get_reportlist.htm
  */
 export const salesforceListReportsTool: ToolConfig<
@@ -19,7 +21,7 @@ export const salesforceListReportsTool: ToolConfig<
 > = {
   id: 'salesforce_list_reports',
   name: 'List Reports from Salesforce',
-  description: 'Get a list of reports accessible by the current user',
+  description: 'Get a list of up to 200 recently viewed reports for the current user',
   version: '1.0.0',
 
   oauth: {

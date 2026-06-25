@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
   BlockChildWorkflowStartedData,
   BlockCompletedData,
@@ -82,36 +83,12 @@ export async function processSSEStream(
   callbacks: ExecutionStreamCallbacks,
   logPrefix: string
 ): Promise<void> {
-  const decoder = new TextDecoder()
-  let buffer = ''
-
   try {
-    while (true) {
-      const { done, value } = await reader.read()
-
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (!line.trim() || !line.startsWith('data: ')) continue
-
-        const data = line.substring(6).trim()
-        if (data === '[DONE]') {
-          logger.info(`${logPrefix} stream completed`)
-          continue
-        }
-
-        let event: ExecutionEvent
-        try {
-          event = JSON.parse(data) as ExecutionEvent
-        } catch (error) {
-          logger.error('Failed to parse SSE event:', error, { data })
-          continue
-        }
-
+    await readSSEEvents<ExecutionEvent>(reader, {
+      onParseError: (data, error) => {
+        logger.error('Failed to parse SSE event:', error, { data })
+      },
+      onEvent: async (event) => {
         try {
           switch (event.type) {
             case 'execution:started':
@@ -168,8 +145,9 @@ export async function processSSEStream(
             error
           )
         }
-      }
-    }
+      },
+    })
+    logger.debug(`${logPrefix} stream completed`)
   } finally {
     reader.releaseLock()
   }

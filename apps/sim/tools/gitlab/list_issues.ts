@@ -1,4 +1,5 @@
 import type { GitLabListIssuesParams, GitLabListIssuesResponse } from '@/tools/gitlab/types'
+import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabListIssuesResponse> = {
@@ -13,6 +14,12 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       required: true,
       visibility: 'user-only',
       description: 'GitLab Personal Access Token',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
     projectId: {
       type: 'string',
@@ -78,7 +85,7 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId))
+      const encodedId = encodeURIComponent(String(params.projectId).trim())
       const queryParams = new URLSearchParams()
 
       if (params.state) queryParams.append('state', params.state)
@@ -92,7 +99,7 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `https://gitlab.com/api/v4/projects/${encodedId}/issues${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

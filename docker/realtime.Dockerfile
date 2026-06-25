@@ -49,4 +49,4 @@ USER nextjs
 
 EXPOSE 3002
 
-CMD ["bun", "apps/realtime/src/index.ts"]
+CMD ["bun", "apps/realtime/src/bootstrap.ts"]
