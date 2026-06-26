@@ -112,6 +112,7 @@ export function SettingsPanel({
               value={search.value}
               onChange={(event) => search.onChange(event.target.value)}
               disabled={search.disabled}
+              autoComplete='off'
               className='w-full'
             />
           )}
