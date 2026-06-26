@@ -1385,83 +1385,45 @@ export async function preValidateCredentialInputs(
     }
   }
 
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+
   operations.forEach((op, opIndex) => {
-    // Resolve the block type. Edit ops often omit `type` (they only carry the changed inputs),
-    // so fall back to the existing block's type from workflowState — otherwise an apiKey-only
-    // edit would skip credential/apiKey stripping entirely.
+    // Edit ops carry only the changed inputs, so reconstruct the block from workflowState: its
+    // type when not restated, and its existing subblock values so the tool selector and
+    // hosted-model checks see provider/model even when the edit omits them.
+    const existingBlock =
+      op.operation_type === 'edit'
+        ? asRecord(asRecord(workflowState?.blocks)?.[op.block_id])
+        : undefined
     const opBlockType =
-      (op.params?.type as string | undefined) ??
-      ((
-        (workflowState?.blocks as Record<string, unknown>)?.[op.block_id] as
-          | Record<string, unknown>
-          | undefined
-      )?.type as string | undefined)
+      (op.params?.type as string | undefined) ?? (existingBlock?.type as string | undefined)
+    const inputs = asRecord(op.params?.inputs)
 
     // Process main block inputs
-    if (op.params?.inputs && opBlockType) {
+    if (inputs && opBlockType) {
       const blockConfig = getBlock(opBlockType)
       if (blockConfig) {
-        // Collect credentials from main block
-        collectCredentialInputs(
-          blockConfig,
-          op.params.inputs as Record<string, unknown>,
-          opIndex,
-          op.block_id,
-          opBlockType
-        )
+        collectCredentialInputs(blockConfig, inputs, opIndex, op.block_id, opBlockType)
 
-        // Check for apiKey inputs on hosted models
-        let modelValue = (op.params.inputs as Record<string, unknown>).model as string | undefined
-
-        // For edit operations, if model is not being changed, check existing block's model
-        if (
-          !modelValue &&
-          op.operation_type === 'edit' &&
-          (op.params.inputs as Record<string, unknown>).apiKey &&
-          workflowState
-        ) {
-          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
-            | Record<string, unknown>
-            | undefined
-          const existingSubBlocks = existingBlock?.subBlocks as Record<string, unknown> | undefined
-          const existingModelSubBlock = existingSubBlocks?.model as
-            | Record<string, unknown>
-            | undefined
-          modelValue = existingModelSubBlock?.value as string | undefined
+        // Both hosted collectors no-op off hosted Sim, so only reconstruct the effective inputs
+        // (existing subblock values overlaid with this op's delta) when it can matter.
+        if (isHosted) {
+          const existingValues = buildSubBlockValues(
+            (existingBlock?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+          )
+          const toolParams = { ...existingValues, ...inputs }
+          const modelValue = toolParams.model as string | undefined
+          collectHostedApiKeyInput(inputs, modelValue, opIndex, op.block_id, opBlockType)
+          collectHostedToolApiKeyInput(
+            blockConfig,
+            inputs,
+            toolParams,
+            opIndex,
+            op.block_id,
+            opBlockType
+          )
         }
-
-        collectHostedApiKeyInput(
-          op.params.inputs as Record<string, unknown>,
-          modelValue,
-          opIndex,
-          op.block_id,
-          opBlockType
-        )
-
-        // The active tool depends on inputs (e.g. provider). On edit ops that don't restate
-        // provider, merge the existing block's subblock values so the tool selector and its
-        // `enabled` gate resolve correctly.
-        let toolParams = op.params.inputs as Record<string, unknown>
-        if (op.operation_type === 'edit' && workflowState) {
-          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
-            | Record<string, unknown>
-            | undefined
-          const existingSubBlocks = existingBlock?.subBlocks as
-            | Record<string, { value?: unknown } | null | undefined>
-            | undefined
-          if (existingSubBlocks) {
-            toolParams = { ...buildSubBlockValues(existingSubBlocks), ...toolParams }
-          }
-        }
-
-        collectHostedToolApiKeyInput(
-          blockConfig,
-          op.params.inputs as Record<string, unknown>,
-          toolParams,
-          opIndex,
-          op.block_id,
-          opBlockType
-        )
       }
     }
 
