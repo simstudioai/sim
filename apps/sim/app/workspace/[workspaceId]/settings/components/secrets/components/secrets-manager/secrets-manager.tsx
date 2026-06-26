@@ -975,7 +975,6 @@ export function SecretsManager() {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: 'Search secrets...',
-          preventAutofill: true,
         }}
         actions={
           <>

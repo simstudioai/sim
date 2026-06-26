@@ -36,21 +36,7 @@ interface SettingsPanelSearch {
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
-  /**
-   * Hardens the field against browser/password-manager autofill (for pages that
-   * list sensitive data, e.g. secrets). The field stays read-only until focused.
-   */
-  preventAutofill?: boolean
 }
-
-/** Attributes that discourage browsers and password managers from autofilling. */
-const ANTI_AUTOFILL_PROPS = {
-  name: 'settings-search-field',
-  autoComplete: 'off',
-  autoCapitalize: 'off',
-  spellCheck: 'false',
-  readOnly: true,
-} as const
 
 interface SettingsPanelProps {
   /** Body content rendered below the header in the centered content column. */
@@ -127,12 +113,6 @@ export function SettingsPanel({
               onChange={(event) => search.onChange(event.target.value)}
               disabled={search.disabled}
               className='w-full'
-              {...(search.preventAutofill ? ANTI_AUTOFILL_PROPS : {})}
-              onFocus={
-                search.preventAutofill
-                  ? (event) => event.currentTarget.removeAttribute('readOnly')
-                  : undefined
-              }
             />
           )}
           {children}
