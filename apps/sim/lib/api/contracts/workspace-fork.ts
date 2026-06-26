@@ -121,6 +121,7 @@ export const getForkResourcesContract = defineRouteContract({
       customTools: z.array(forkCopyableResourceSchema),
       skills: z.array(forkCopyableResourceSchema),
       mcpServers: z.array(forkCopyableResourceSchema),
+      deployedWorkflowCount: z.number().int(),
     }),
   },
 })

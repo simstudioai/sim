@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
+import { permissions, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -7,6 +7,8 @@ import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   type ForkContentCopyPayload,
   runForkContentCopy,
@@ -207,6 +209,30 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         requestId,
       })
       workflowsCopied += 1
+    }
+
+    // A fork carries only DEPLOYED workflows. When the source has none (e.g. it was
+    // itself just forked and never redeployed), seed a default workflow so the child
+    // is a usable workspace rather than a blank one with no workflow at all - the same
+    // starter "New workspace" creates. Any copied resources still land alongside it.
+    if (workflowsCopied === 0) {
+      const defaultWorkflowId = generateId()
+      await tx.insert(workflow).values({
+        id: defaultWorkflowId,
+        userId,
+        workspaceId: childWorkspaceId,
+        folderId: null,
+        name: 'default-agent',
+        description: 'Your first workflow - start building here!',
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
+      const { workflowState } = buildDefaultWorkflowArtifacts()
+      await saveWorkflowToNormalizedTables(defaultWorkflowId, workflowState, tx)
     }
 
     const seedEntries: ForkMappingUpsert[] = []

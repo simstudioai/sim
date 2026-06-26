@@ -28,7 +28,7 @@ interface ForkWorkspaceModalProps {
   sourceWorkspaceName: string
 }
 
-type ResourceKey = keyof GetForkResourcesResponse
+type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
 type ResourceSelection = Record<ResourceKey, Set<string>>
 
 const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
@@ -188,6 +188,13 @@ export function ForkWorkspaceModal({
     [resources.data]
   )
 
+  // A fork always produces a usable workspace: deployed workflows are copied, and
+  // when the source has none, create-fork seeds a blank starter workflow (plus any
+  // selected resources). So forking is never blocked - we just set expectations when
+  // there are no deployed workflows to carry over.
+  const noDeployedWorkflows =
+    Boolean(resources.data) && (resources.data?.deployedWorkflowCount ?? 0) === 0
+
   const handleSubmit = () => {
     const trimmed = name.trim()
     if (!trimmed || isForking) return
@@ -258,11 +265,16 @@ export function ForkWorkspaceModal({
                   disabled={isForking}
                 />
               ))}
-              <p className='text-[var(--text-secondary)] text-xs'>
+              <p className='text-[var(--text-muted)] text-caption'>
                 Unselected resources leave their workflow fields empty in the fork.
               </p>
             </div>
           </ChipModalField>
+        ) : null}
+        {noDeployedWorkflows ? (
+          <p className='px-2 text-[var(--text-muted)] text-caption'>
+            No deployed workflows to copy — your fork will start with a blank workflow.
+          </p>
         ) : null}
         <ChipModalError>{error ?? undefined}</ChipModalError>
       </ChipModalBody>

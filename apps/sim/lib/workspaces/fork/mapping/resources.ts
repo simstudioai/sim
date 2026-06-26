@@ -5,10 +5,11 @@ import {
   mcpServers,
   skill,
   userTableDefinitions,
+  workflow,
   workspaceEnvironment,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkResourceType } from '@/lib/workspaces/fork/mapping/mapping-store'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
@@ -123,6 +124,12 @@ export interface ForkCopyableResources {
   customTools: ForkResourceCandidate[]
   skills: ForkResourceCandidate[]
   mcpServers: ForkResourceCandidate[]
+  /**
+   * Count of deployed workflows that the fork would copy. The fork modal disables
+   * the action (with a reason) when this is 0 and there are no copyable resources,
+   * since the fork would otherwise produce an empty workspace.
+   */
+  deployedWorkflowCount: number
 }
 
 /**
@@ -134,7 +141,7 @@ export async function listForkCopyableResources(
   executor: DbOrTx,
   workspaceId: string
 ): Promise<ForkCopyableResources> {
-  const [files, tables, kbs, tools, skills, servers] = await Promise.all([
+  const [files, tables, kbs, tools, skills, servers, deployed] = await Promise.all([
     executor
       .select({
         id: workspaceFiles.id,
@@ -174,6 +181,16 @@ export async function listForkCopyableResources(
       .from(mcpServers)
       .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
       .limit(CANDIDATE_LIMIT),
+    executor
+      .select({ value: count() })
+      .from(workflow)
+      .where(
+        and(
+          eq(workflow.workspaceId, workspaceId),
+          eq(workflow.isDeployed, true),
+          isNull(workflow.archivedAt)
+        )
+      ),
   ])
   return {
     files,
@@ -182,6 +199,7 @@ export async function listForkCopyableResources(
     customTools: tools,
     skills,
     mcpServers: servers,
+    deployedWorkflowCount: deployed[0]?.value ?? 0,
   }
 }
 
