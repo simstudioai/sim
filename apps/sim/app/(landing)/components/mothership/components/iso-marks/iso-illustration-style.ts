@@ -2,21 +2,13 @@ import type { SVGProps } from 'react'
 
 export const ISO_LINE_STROKE_WIDTH = 3.2
 export const ISO_ENDPOINT_STROKE_WIDTH = 3.3
-export const ISO_STROKE_FROM = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted))'
-export const ISO_STROKE_TO = 'var(--surface-7)'
+export const ISO_STROKE = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted))'
 export const ISO_FILL_LOW = 'var(--surface-6)'
 export const ISO_FILL_MID = 'color-mix(in srgb, var(--surface-3) 58%, var(--surface-6))'
 export const ISO_FILL_HIGH = 'var(--surface-3)'
 export const ISO_FILL_PULSE_LOW = 'color-mix(in srgb, var(--surface-6) 72%, var(--surface-7))'
 export const ISO_FILL_PULSE_MID = 'color-mix(in srgb, var(--surface-3) 34%, var(--surface-6))'
 export const ISO_FILL_PULSE_HIGH = 'color-mix(in srgb, var(--surface-3) 82%, var(--surface-6))'
-
-export const ISO_STROKE_GRADIENT_PROPS = {
-  x1: '0',
-  y1: '0',
-  x2: '1',
-  y2: '1',
-} satisfies SVGProps<SVGLinearGradientElement>
 
 export const ISO_FILL_PROPS = {
   stroke: 'none',

@@ -44,16 +44,16 @@ export function FeatureStage({
   return (
     <div>
       <div className='max-w-[560px]'>
-        <span className='text-[13px] text-[var(--text-muted)]'>{eyebrow}</span>
+        <span className='text-[var(--text-muted)] text-sm'>{eyebrow}</span>
         <h3 className='mt-2 text-balance text-[28px] text-[var(--text-primary)] leading-[1.2] max-sm:text-[22px]'>
           {title}
         </h3>
-        <p className='mt-3 text-pretty text-[18px] text-[var(--text-body)] leading-[1.5] max-sm:text-[16px]'>
+        <p className='mt-2 text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-md'>
           {description}
         </p>
       </div>
 
-      <div className='relative mt-20 max-sm:mt-8 max-lg:mt-14'>
+      <div className='relative mt-16 max-sm:mt-8 max-lg:mt-12'>
         <div
           className={cn(
             'relative overflow-hidden rounded-xl border border-[var(--border-1)]',

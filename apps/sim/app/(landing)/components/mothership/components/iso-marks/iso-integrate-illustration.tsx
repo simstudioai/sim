@@ -4,9 +4,7 @@ import {
   ISO_FILL_HIGH,
   ISO_FILL_LOW,
   ISO_FILL_MID,
-  ISO_STROKE_FROM,
-  ISO_STROKE_GRADIENT_PROPS,
-  ISO_STROKE_TO,
+  ISO_STROKE,
 } from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
 
 export interface IsoIntegrateIllustrationProps {
@@ -14,7 +12,7 @@ export interface IsoIntegrateIllustrationProps {
   className?: string
 }
 
-const STROKE_PAINT = 'url(#iso-integrate-stroke-gradient)'
+const STROKE_PAINT = ISO_STROKE
 
 const LINE_PROPS = createIsoLineProps('iso-integrate-line', STROKE_PAINT)
 
@@ -43,15 +41,10 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
           [data-integrate-layer='top-plane'],
           [data-integrate-layer='top-socket'],
           [data-integrate-layer='bottom-plane'],
-          [data-integrate-layer='bottom-port'],
-          [data-integrate-layer='stack-rails'] {
+          [data-integrate-layer='bottom-port'] {
             transform-box: fill-box;
             transform-origin: center;
             will-change: transform;
-          }
-
-          [data-integrate-layer='stack-rails'] {
-            will-change: opacity, transform;
           }
 
           @media (prefers-reduced-motion: no-preference) {
@@ -63,10 +56,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
             [data-integrate-layer='bottom-plane'],
             [data-integrate-layer='bottom-port'] {
               animation: iso-integrate-bottom-float 5200ms cubic-bezier(0.37, 0, 0.22, 1) infinite;
-            }
-
-            [data-integrate-layer='stack-rails'] {
-              animation: iso-integrate-rails-float 5200ms cubic-bezier(0.37, 0, 0.22, 1) infinite;
             }
           }
 
@@ -87,10 +76,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
           .iso-integrate-illustration:hover [data-integrate-layer='top-plane'] .iso-integrate-line,
           .iso-integrate-illustration:hover [data-integrate-layer='top-socket'] .iso-integrate-line {
             animation-delay: 150ms;
-          }
-
-          .iso-integrate-illustration:hover [data-integrate-layer='stack-rails'] .iso-integrate-line {
-            animation-delay: 225ms;
           }
 
           @keyframes iso-integrate-top-float {
@@ -119,21 +104,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
             }
           }
 
-          @keyframes iso-integrate-rails-float {
-            0%,
-            16%,
-            100% {
-              opacity: 1;
-              transform: scaleY(1);
-            }
-
-            44%,
-            64% {
-              opacity: 0.7;
-              transform: scaleY(0.58);
-            }
-          }
-
           @keyframes iso-integrate-line-draw {
             from {
               stroke-dashoffset: 1;
@@ -149,7 +119,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
             [data-integrate-layer='top-socket'],
             [data-integrate-layer='bottom-plane'],
             [data-integrate-layer='bottom-port'],
-            [data-integrate-layer='stack-rails'],
             .iso-integrate-illustration:hover .iso-integrate-line {
               animation: none;
             }
@@ -157,10 +126,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
         `}
       </style>
       <defs>
-        <linearGradient id='iso-integrate-stroke-gradient' {...ISO_STROKE_GRADIENT_PROPS}>
-          <stop stopColor={ISO_STROKE_FROM} />
-          <stop offset='1' stopColor={ISO_STROKE_TO} />
-        </linearGradient>
         <filter id='iso-integrate-line-connection' x='-100%' y='-100%' width='300%' height='300%'>
           <feGaussianBlur in='SourceGraphic' stdDeviation='1' result='b' />
           <feColorMatrix
@@ -213,12 +178,6 @@ export function IsoIntegrateIllustration({ size = 156, className }: IsoIntegrate
             {...LINE_PROPS}
             fill={ISO_FILL_HIGH}
           />
-        </g>
-        <g data-integrate-layer='stack-rails' pointerEvents='none'>
-          <path d='M-132.56 -25.50 L-132.56 19.02' {...LINE_PROPS} />
-          <path d='M132.56 -25.50 L132.56 19.02' {...LINE_PROPS} />
-          <path d='M-132.56 53.02 L-132.56 97.54' {...LINE_PROPS} />
-          <path d='M132.56 53.02 L132.56 97.54' {...LINE_PROPS} />
         </g>
       </g>
     </svg>

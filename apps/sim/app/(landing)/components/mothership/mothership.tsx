@@ -74,23 +74,23 @@ export function Mothership() {
     >
       <h2
         id='mothership-heading'
-        className='max-w-[1200px] text-balance text-[28px] leading-[1.3] max-sm:text-[22px]'
+        className='max-w-[1200px] text-balance text-[28px] leading-[1.2] max-sm:text-[22px]'
       >
-        <span className='block text-[var(--text-body)]'>
+        <span className='block text-[var(--text-primary)]'>
           Everything your agents need, in one workspace.
         </span>
-        <span className='block text-[var(--text-subtle)]'>Build, run, and watch every agent.</span>
+        <span className='block text-[var(--text-body)]'>Build, run, and watch every agent.</span>
       </h2>
 
-      <ul className='mt-16 grid grid-cols-4 gap-8 max-sm:grid-cols-1 max-sm:gap-10 max-lg:mt-12 max-lg:grid-cols-2 max-lg:gap-x-8 max-lg:gap-y-12'>
+      <ul className='mt-16 grid grid-cols-4 gap-8 max-sm:mt-8 max-sm:grid-cols-1 max-sm:gap-10 max-lg:mt-12 max-lg:grid-cols-2 max-lg:gap-x-8 max-lg:gap-y-12'>
         {AREAS.map(({ word, Mark, size, definition }) => (
-          <li key={word} className='flex flex-col gap-7 max-sm:gap-5'>
+          <li key={word} className='flex flex-col gap-[22px]'>
             <div className='flex size-[148px] items-center justify-center'>
               <Mark size={size} />
             </div>
             <div className='flex flex-col gap-2'>
-              <h3 className='text-[17px] text-[var(--text-primary)]'>{word}</h3>
-              <p className='text-pretty text-[14px] text-[var(--text-body)] leading-[1.5]'>
+              <h3 className='text-[var(--text-primary)] text-lg'>{word}</h3>
+              <p className='text-pretty text-[var(--text-body)] text-sm leading-[1.5]'>
                 {definition}
               </p>
             </div>

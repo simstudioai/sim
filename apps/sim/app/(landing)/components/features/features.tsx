@@ -22,8 +22,8 @@ import { LogsTablePreview } from '@/app/(landing)/components/features/components
  * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
  * this section carries no vertical padding. Horizontal padding (`px-12`) matches
  * the navbar and hero; the section is capped and centered at the shared
- * `max-w-[1446px]`. A negative bottom margin pulls the following section up into
- * the last stage's faded bottom edge so the platform dissolves into it.
+ * `max-w-[1446px]`. The four beats run on the same 120px rhythm as the
+ * inter-section `gap`, so a beat break reads identically to a section break.
  *
  * Per-beat icons are still abstract placeholders (text eyebrows) — distinct
  * abstract glyphs land in a later pass.
@@ -33,13 +33,13 @@ export function Features() {
     <section
       id='features'
       aria-labelledby='features-heading'
-      className='-mb-[90px] max-sm:-mb-12 relative mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
+      className='relative mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
     >
       <h2 id='features-heading' className='sr-only'>
         Integrate your tools, give Sim context, build agents, and monitor every run.
       </h2>
 
-      <div className='flex flex-col gap-32 max-sm:gap-20 max-lg:gap-24'>
+      <div className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
         {/* Integrate — bring your stack in. */}
         <FeatureStage
           eyebrow='Integrate'

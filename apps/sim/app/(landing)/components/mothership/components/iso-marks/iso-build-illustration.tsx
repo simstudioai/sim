@@ -7,9 +7,7 @@ import {
   ISO_FILL_HIGH,
   ISO_FILL_LOW,
   ISO_FILL_MID,
-  ISO_STROKE_FROM,
-  ISO_STROKE_GRADIENT_PROPS,
-  ISO_STROKE_TO,
+  ISO_STROKE,
 } from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
 
 export interface IsoBuildIllustrationProps {
@@ -17,7 +15,7 @@ export interface IsoBuildIllustrationProps {
   className?: string
 }
 
-const STROKE_PAINT = 'url(#iso-build-stroke-gradient)'
+const STROKE_PAINT = ISO_STROKE
 
 const LINE_PROPS = createIsoLineProps('iso-build-line', STROKE_PAINT)
 
@@ -198,10 +196,6 @@ export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustra
         `}
       </style>
       <defs>
-        <linearGradient id='iso-build-stroke-gradient' {...ISO_STROKE_GRADIENT_PROPS}>
-          <stop stopColor={ISO_STROKE_FROM} />
-          <stop offset='1' stopColor={ISO_STROKE_TO} />
-        </linearGradient>
         <clipPath id='iso-build-floor-clip'>
           <path d={FLOOR_PANEL_PATH} />
         </clipPath>

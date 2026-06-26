@@ -8,9 +8,7 @@ import {
   ISO_FILL_PULSE_HIGH,
   ISO_FILL_PULSE_LOW,
   ISO_FILL_PULSE_MID,
-  ISO_STROKE_FROM,
-  ISO_STROKE_GRADIENT_PROPS,
-  ISO_STROKE_TO,
+  ISO_STROKE,
 } from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
 
 export interface IsoIngestIllustrationProps {
@@ -18,7 +16,7 @@ export interface IsoIngestIllustrationProps {
   className?: string
 }
 
-const STROKE_PAINT = 'url(#iso-ingest-stroke-gradient)'
+const STROKE_PAINT = ISO_STROKE
 
 const LINE_PROPS = createIsoLineProps('iso-ingest-line', STROKE_PAINT)
 
@@ -194,10 +192,6 @@ export function IsoIngestIllustration({ size = 156, className }: IsoIngestIllust
         `}
       </style>
       <defs>
-        <linearGradient id='iso-ingest-stroke-gradient' {...ISO_STROKE_GRADIENT_PROPS}>
-          <stop stopColor={ISO_STROKE_FROM} />
-          <stop offset='1' stopColor={ISO_STROKE_TO} />
-        </linearGradient>
         <filter id='iso-ingest-line-connection' x='-100%' y='-100%' width='300%' height='300%'>
           <feGaussianBlur in='SourceGraphic' stdDeviation='1' result='b' />
           <feColorMatrix
