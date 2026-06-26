@@ -1,6 +1,3 @@
-'use client'
-
-import { useCallback, useEffect, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import {
   createIsoLineProps,
@@ -19,132 +16,81 @@ const STROKE_PAINT = ISO_STROKE
 
 const LINE_PROPS = createIsoLineProps('iso-build-line', STROKE_PAINT)
 
-const FLOOR_PANEL_PATH = 'M0.00 -146.87 L175.00 -45.83 L0.00 55.21 L-175.00 -45.83 Z'
+/** Isometric tile module the floor grid and the columns are built on. */
+const TILE_WIDTH = 38
+const TILE_HEIGHT = 21.94
 
-const TILE_WIDTH = 43.75
-const TILE_HEIGHT = 25.26
-const GRID_SLOPE = TILE_HEIGHT / TILE_WIDTH
-const GRID_LINE_X = 260
-const GRID_LINE_SPACING = TILE_HEIGHT * 2
-const GRID_ORIGIN_INTERCEPT = -45.83
-const GRID_LINE_OFFSETS = [-1, 0, 1] as const
-const MAX_WAVE_HEIGHT = 54
-const WAVE_CELL_OFFSETS = [-1.5, -0.5, 0.5, 1.5] as const
+const FLOOR_PANEL_PATH = 'M0.00 -131.64 L228.00 0.00 L0.00 131.64 L-228.00 0.00 Z'
+
+/** Floor grid lines, split by the axis they animate along. */
+const GRID_LINES_Y = [
+  'M38.00 -109.70 L-190.00 21.94',
+  'M76.00 -87.76 L-152.00 43.88',
+  'M114.00 -65.82 L-114.00 65.82',
+  'M152.00 -43.88 L-76.00 87.76',
+  'M190.00 -21.94 L-38.00 109.70',
+] as const
+
+const GRID_LINES_X = [
+  'M-38.00 -109.70 L190.00 21.94',
+  'M-76.00 -87.76 L152.00 43.88',
+  'M-114.00 -65.82 L114.00 65.82',
+  'M-152.00 -43.88 L76.00 87.76',
+  'M-190.00 -21.94 L38.00 109.70',
+] as const
+
+/**
+ * The 16 columns, in painter's order (back to front), as `{ cx, topY, height }`
+ * where `topY` is the centre of the column's top rhombus and `height` is its
+ * downward extrusion. Tuned to the supplied "skyline" arrangement.
+ */
+const COLUMNS = [
+  { cx: 152, topY: 0, height: 21.94 },
+  { cx: 0, topY: -153.57, height: 43.88 },
+  { cx: 76, topY: -153.57, height: 87.76 },
+  { cx: 114, topY: -87.76, height: 43.88 },
+  { cx: -38, topY: -109.7, height: 21.94 },
+  { cx: 0, topY: -76.79, height: 10.97 },
+  { cx: -190, topY: -10.97, height: 10.97 },
+  { cx: -152, topY: 10.97, height: 10.97 },
+  { cx: -38, topY: -10.97, height: 10.97 },
+  { cx: 38, topY: -10.97, height: 10.97 },
+  { cx: 0, topY: 10.97, height: 10.97 },
+  { cx: 76, topY: -21.94, height: 43.88 },
+  { cx: 38, topY: 10.97, height: 32.91 },
+  { cx: 0, topY: 43.88, height: 21.94 },
+  { cx: 76, topY: 43.88, height: 21.94 },
+  { cx: 0, topY: 98.73, height: 10.97 },
+] as const
 
 const svgNumber = (value: number) => value.toFixed(2)
 
-const GRID_LINE_PATHS = GRID_LINE_OFFSETS.flatMap((offset) => {
-  const intercept = GRID_ORIGIN_INTERCEPT + GRID_LINE_SPACING * offset
-  const leftX = -GRID_LINE_X
-  const rightX = GRID_LINE_X
-
-  return [
-    `M${svgNumber(leftX)} ${svgNumber(GRID_SLOPE * leftX + intercept)} L${svgNumber(rightX)} ${svgNumber(GRID_SLOPE * rightX + intercept)}`,
-    `M${svgNumber(leftX)} ${svgNumber(-GRID_SLOPE * leftX + intercept)} L${svgNumber(rightX)} ${svgNumber(-GRID_SLOPE * rightX + intercept)}`,
-  ]
-})
-
-const WAVE_BLOCKS = WAVE_CELL_OFFSETS.flatMap((p) =>
-  WAVE_CELL_OFFSETS.map((q, qIndex) => ({
-    amplitude: 0.72 + ((qIndex + WAVE_CELL_OFFSETS.indexOf(p) * 3) % 5) / 12,
-    phase: ((qIndex * 5 + WAVE_CELL_OFFSETS.indexOf(p) * 3) % 16) * 0.73,
-    id: `${p}:${q}`,
-    cx: (q - p) * TILE_WIDTH,
-    cy: (p + q) * TILE_HEIGHT + GRID_ORIGIN_INTERCEPT,
-  }))
-).sort((a, b) => a.cy - b.cy)
-
-const getWaveBlockPaths = (cx: number, cy: number, height: number) => {
-  const topY = cy - height
-  const top = `M${svgNumber(cx)} ${svgNumber(topY - TILE_HEIGHT)} L${svgNumber(cx + TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx - TILE_WIDTH)} ${svgNumber(topY)} Z`
-  const left = `M${svgNumber(cx - TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx)} ${svgNumber(cy + TILE_HEIGHT)} L${svgNumber(cx - TILE_WIDTH)} ${svgNumber(cy)} Z`
-  const right = `M${svgNumber(cx + TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx)} ${svgNumber(cy + TILE_HEIGHT)} L${svgNumber(cx + TILE_WIDTH)} ${svgNumber(cy)} Z`
-
-  return { top, left, right }
+interface ColumnFaces {
+  top: string
+  left: string
+  right: string
 }
 
-const getWaveBlockFrontPath = (cx: number, cy: number) =>
-  `M${svgNumber(cx - TILE_WIDTH)} ${svgNumber(cy)} L${svgNumber(cx)} ${svgNumber(cy + TILE_HEIGHT)} L${svgNumber(cx + TILE_WIDTH)} ${svgNumber(cy)}`
+const getColumnFaces = (cx: number, topY: number, height: number): ColumnFaces => {
+  const baseY = topY + height
 
-const WAVE_BLOCK_BY_ID = new Map(WAVE_BLOCKS.map((block) => [block.id, block]))
-
-const getAutoWaveHeight = (block: (typeof WAVE_BLOCKS)[number], time: number) => {
-  const primaryPulse = Math.max(0, Math.sin(time * 1.18 + block.phase))
-  const secondaryPulse = Math.max(0, Math.sin(time * 0.74 + block.phase * 1.7 + 1.2))
-  const pulse = primaryPulse * 0.76 + secondaryPulse * 0.24
-
-  return MAX_WAVE_HEIGHT * block.amplitude * pulse * pulse
+  return {
+    top: `M${svgNumber(cx)} ${svgNumber(topY - TILE_HEIGHT)} L${svgNumber(cx + TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx - TILE_WIDTH)} ${svgNumber(topY)} Z`,
+    left: `M${svgNumber(cx - TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx)} ${svgNumber(baseY + TILE_HEIGHT)} L${svgNumber(cx - TILE_WIDTH)} ${svgNumber(baseY)} Z`,
+    right: `M${svgNumber(cx + TILE_WIDTH)} ${svgNumber(topY)} L${svgNumber(cx)} ${svgNumber(topY + TILE_HEIGHT)} L${svgNumber(cx)} ${svgNumber(baseY + TILE_HEIGHT)} L${svgNumber(cx + TILE_WIDTH)} ${svgNumber(baseY)} Z`,
+  }
 }
 
 /**
- * Inline supplied illustration for the Build area.
+ * Inline supplied illustration for the Build area — a column "skyline" rising
+ * off an isometric floor grid. The two grid axes drift along their own diagonal
+ * on a slow loop (the live-construction read); hovering redraws every contour
+ * from zero. Pure CSS, so this stays a server component.
  */
-export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustrationProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const animationFrameRef = useRef<number | null>(null)
-  const currentHeightsRef = useRef<Record<string, number>>({})
-
-  const updateWaveBlock = useCallback((group: SVGGElement, height: number) => {
-    const cx = Number(group.dataset.cx ?? 0)
-    const cy = Number(group.dataset.cy ?? 0)
-    const paths = getWaveBlockPaths(cx, cy, height)
-    const top = group.querySelector<SVGPathElement>('[data-wave-face="top"]')
-    const left = group.querySelector<SVGPathElement>('[data-wave-face="left"]')
-    const right = group.querySelector<SVGPathElement>('[data-wave-face="right"]')
-
-    top?.setAttribute('d', paths.top)
-    left?.setAttribute('d', paths.left)
-    right?.setAttribute('d', paths.right)
-    group.style.visibility = height > 1 ? 'visible' : 'hidden'
-  }, [])
-
-  const runWaveAnimation = useCallback(
-    (timestamp: number) => {
-      const svg = svgRef.current
-      if (!svg) {
-        animationFrameRef.current = null
-        return
-      }
-
-      const time = timestamp / 1000
-      const blocks = svg.querySelectorAll<SVGGElement>('[data-wave-block]')
-
-      blocks.forEach((blockElement) => {
-        const id = blockElement.dataset.blockId
-        const block = id ? WAVE_BLOCK_BY_ID.get(id) : undefined
-        if (!id || !block) return
-
-        const target = getAutoWaveHeight(block, time)
-        const current = currentHeightsRef.current[id] ?? 0
-        const next = current + (target - current) * 0.09
-        currentHeightsRef.current[id] = Math.abs(next) < 0.15 ? 0 : next
-        updateWaveBlock(blockElement, currentHeightsRef.current[id])
-      })
-
-      animationFrameRef.current = requestAnimationFrame(runWaveAnimation)
-    },
-    [updateWaveBlock]
-  )
-
-  useEffect(() => {
-    const prefersReducedMotion =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    if (prefersReducedMotion) return undefined
-
-    animationFrameRef.current = requestAnimationFrame(runWaveAnimation)
-
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
-    }
-  }, [runWaveAnimation])
-
+export function IsoBuildIllustration({ size = 176, className }: IsoBuildIllustrationProps) {
   return (
     <svg
-      ref={svgRef}
-      viewBox='-180 -155 360 390'
+      viewBox='-263.2717227504693 -263.2717227504693 526.5434455009386 526.5434455009386'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       width={size}
@@ -160,8 +106,14 @@ export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustra
             stroke-dashoffset: 0;
           }
 
-          .iso-build-wave-block {
-            visibility: hidden;
+          @media (prefers-reduced-motion: no-preference) {
+            [data-build-axis='y'] {
+              animation: iso-build-grid-flow-y 6200ms cubic-bezier(0.37, 0, 0.22, 1) infinite;
+            }
+
+            [data-build-axis='x'] {
+              animation: iso-build-grid-flow-x 6200ms cubic-bezier(0.37, 0, 0.22, 1) infinite;
+            }
           }
 
           .iso-build-illustration:hover .iso-build-line {
@@ -172,7 +124,7 @@ export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustra
             animation-delay: 0ms;
           }
 
-          .iso-build-illustration:hover [data-build-layer='wave'] .iso-build-line {
+          .iso-build-illustration:hover [data-build-layer='columns'] .iso-build-line {
             animation-delay: 105ms;
           }
 
@@ -186,11 +138,33 @@ export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustra
             }
           }
 
+          @keyframes iso-build-grid-flow-y {
+            0%,
+            100% {
+              transform: translate(0, 0);
+            }
+
+            50% {
+              transform: translate(-6px, 3.5px);
+            }
+          }
+
+          @keyframes iso-build-grid-flow-x {
+            0%,
+            100% {
+              transform: translate(0, 0);
+            }
+
+            50% {
+              transform: translate(6px, 3.5px);
+            }
+          }
+
           @media (prefers-reduced-motion: reduce) {
-            .iso-build-wave-block,
+            [data-build-axis='y'],
+            [data-build-axis='x'],
             .iso-build-illustration:hover .iso-build-line {
               animation: none;
-              transition: none;
             }
           }
         `}
@@ -199,35 +173,44 @@ export function IsoBuildIllustration({ size = 156, className }: IsoBuildIllustra
         <clipPath id='iso-build-floor-clip'>
           <path d={FLOOR_PANEL_PATH} />
         </clipPath>
+        <filter id='iso-build-line-connection' x='-100%' y='-100%' width='300%' height='300%'>
+          <feGaussianBlur in='SourceGraphic' stdDeviation='1' result='b' />
+          <feColorMatrix
+            in='b'
+            type='matrix'
+            values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -7.2'
+            result='goo'
+          />
+          <feComposite in='SourceGraphic' in2='goo' operator='over' />
+        </filter>
       </defs>
-      <g transform='translate(0 78)'>
+      <g filter='url(#iso-build-line-connection)'>
         <g data-build-layer='grid' pointerEvents='none'>
           <path d={FLOOR_PANEL_PATH} fill={ISO_FILL_HIGH} stroke='none' pointerEvents='none' />
           <g clipPath='url(#iso-build-floor-clip)'>
-            {GRID_LINE_PATHS.map((path) => (
-              <path key={path} d={path} {...LINE_PROPS} strokeLinecap='butt' />
-            ))}
+            <g data-build-axis='y'>
+              {GRID_LINES_Y.map((path) => (
+                <path key={path} d={path} {...LINE_PROPS} strokeLinecap='butt' />
+              ))}
+            </g>
+            <g data-build-axis='x'>
+              {GRID_LINES_X.map((path) => (
+                <path key={path} d={path} {...LINE_PROPS} strokeLinecap='butt' />
+              ))}
+            </g>
           </g>
           <path d={FLOOR_PANEL_PATH} {...LINE_PROPS} strokeLinejoin='miter' />
         </g>
-        <g data-build-layer='wave' pointerEvents='none'>
-          {WAVE_BLOCKS.map((block) => {
-            const paths = getWaveBlockPaths(block.cx, block.cy, 0)
+        <g data-build-layer='columns' pointerEvents='none'>
+          {COLUMNS.map((column) => {
+            const faces = getColumnFaces(column.cx, column.topY, column.height)
+            const key = `${column.cx}:${column.topY}:${column.height}`
 
             return (
-              <g
-                key={block.id}
-                className='iso-build-wave-block'
-                data-wave-block={true}
-                data-block-id={block.id}
-                data-cx={block.cx}
-                data-cy={block.cy}
-                pointerEvents='none'
-              >
-                <path data-wave-face='left' d={paths.left} {...LINE_PROPS} fill={ISO_FILL_MID} />
-                <path data-wave-face='right' d={paths.right} {...LINE_PROPS} fill={ISO_FILL_LOW} />
-                <path data-wave-face='top' d={paths.top} {...LINE_PROPS} fill={ISO_FILL_HIGH} />
-                <path d={getWaveBlockFrontPath(block.cx, block.cy)} {...LINE_PROPS} />
+              <g key={key} pointerEvents='none'>
+                <path d={faces.left} {...LINE_PROPS} fill={ISO_FILL_LOW} />
+                <path d={faces.right} {...LINE_PROPS} fill={ISO_FILL_MID} />
+                <path d={faces.top} {...LINE_PROPS} fill={ISO_FILL_HIGH} />
               </g>
             )
           })}
