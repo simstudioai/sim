@@ -561,6 +561,40 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
   })
 
+  it('uses same-batch state for nested children (provider set earlier, apiKey set later)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'loop-1',
+        params: {
+          type: 'loop',
+          inputs: {},
+          nestedNodes: {
+            'video-child': { type: 'video_generator_v3', inputs: { provider: 'falai' } },
+          },
+        },
+      },
+      {
+        operation_type: 'edit' as const,
+        block_id: 'loop-1',
+        params: {
+          nestedNodes: {
+            'video-child': { type: 'video_generator_v3', inputs: { apiKey: 'test-key' } },
+          },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    const nested = result.filteredOperations[1]?.params?.nestedNodes as
+      | Record<string, { inputs?: Record<string, unknown> }>
+      | undefined
+    expect(nested?.['video-child']?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
+  })
+
   it('uses same-batch state: a type-less apiKey edit after an earlier op makes the block hosted', async () => {
     // op1 switches provider to falai (hosted); op2 (type-less) sets apiKey. op2 must see op1's
     // provider, not the stale snapshot (runway), and strip the key.

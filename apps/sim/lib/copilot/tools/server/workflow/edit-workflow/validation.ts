@@ -1399,80 +1399,78 @@ export async function preValidateCredentialInputs(
   const batchBlockType = new Map<string, string | undefined>()
   const batchBlockValues = new Map<string, Record<string, unknown>>()
 
-  operations.forEach((op, opIndex) => {
-    const inputs = asRecord(op.params?.inputs)
-
-    // Effective block type: this op's type, else the type left by an earlier batch op, else the
+  // Resolve a single block (top-level or nested) against batch + snapshot state and run the
+  // collectors. `stateKey` keys the batch/snapshot lookup (the block's own id, including nested
+  // children); `reportBlockId`/`nestedBlockId` are how the strip surfaces it to the agent. Both
+  // paths route through here so they can't drift (the source of the earlier nested-vs-main gap).
+  const collectForBlock = (
+    opIndex: number,
+    stateKey: string,
+    reportBlockId: string,
+    rawType: string | undefined,
+    inputs: Record<string, unknown> | undefined,
+    nestedBlockId?: string
+  ) => {
+    // Effective type: this op's type, else the type left by an earlier batch op, else the
     // snapshot. Edit ops omit `type`, so without this an apiKey-only edit would skip stripping.
-    const priorType = batchBlockType.has(op.block_id)
-      ? batchBlockType.get(op.block_id)
-      : (snapshotBlock(op.block_id)?.type as string | undefined)
-    const opBlockType = (op.params?.type as string | undefined) ?? priorType
-    batchBlockType.set(op.block_id, opBlockType)
+    const priorType = batchBlockType.has(stateKey)
+      ? batchBlockType.get(stateKey)
+      : (snapshotBlock(stateKey)?.type as string | undefined)
+    const blockType = rawType ?? priorType
+    batchBlockType.set(stateKey, blockType)
 
-    // Process main block inputs
-    if (inputs && opBlockType) {
-      const blockConfig = getBlock(opBlockType)
-      if (blockConfig) {
-        collectCredentialInputs(blockConfig, inputs, opIndex, op.block_id, opBlockType)
+    if (!inputs || !blockType) return
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig) return
 
-        // Both hosted collectors no-op off hosted Sim, so only reconstruct the effective inputs
-        // (prior batch/snapshot values overlaid with this op's delta) when it can matter.
-        if (isHosted) {
-          const priorValues =
-            batchBlockValues.get(op.block_id) ??
-            buildSubBlockValues(
-              (snapshotBlock(op.block_id)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
-            )
-          const toolParams = { ...priorValues, ...inputs }
-          batchBlockValues.set(op.block_id, toolParams)
-          const modelValue = toolParams.model as string | undefined
-          collectHostedApiKeyInput(inputs, modelValue, opIndex, op.block_id, opBlockType)
-          collectHostedToolApiKeyInput(
-            blockConfig,
-            inputs,
-            toolParams,
-            opIndex,
-            op.block_id,
-            opBlockType
-          )
-        }
-      }
+    collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
+
+    // Both hosted collectors no-op off hosted Sim, so only reconstruct the effective inputs
+    // (prior batch/snapshot values overlaid with this op's delta) when it can matter.
+    if (isHosted) {
+      const priorValues =
+        batchBlockValues.get(stateKey) ??
+        buildSubBlockValues(
+          (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+        )
+      const toolParams = { ...priorValues, ...inputs }
+      batchBlockValues.set(stateKey, toolParams)
+      const modelValue = toolParams.model as string | undefined
+      collectHostedApiKeyInput(inputs, modelValue, opIndex, reportBlockId, blockType, nestedBlockId)
+      collectHostedToolApiKeyInput(
+        blockConfig,
+        inputs,
+        toolParams,
+        opIndex,
+        reportBlockId,
+        blockType,
+        nestedBlockId
+      )
     }
+  }
 
-    // Process nested nodes (blocks inside loop/parallel containers)
+  operations.forEach((op, opIndex) => {
+    collectForBlock(
+      opIndex,
+      op.block_id,
+      op.block_id,
+      op.params?.type as string | undefined,
+      asRecord(op.params?.inputs)
+    )
+
+    // Nested nodes (blocks inside loop/parallel containers) — keyed by their own child id so they
+    // get the same batch/snapshot resolution as top-level blocks.
     const nestedNodes = op.params?.nestedNodes as
       | Record<string, Record<string, unknown>>
       | undefined
     if (nestedNodes) {
       Object.entries(nestedNodes).forEach(([childId, childBlock]) => {
-        const childType = childBlock.type as string | undefined
-        const childInputs = childBlock.inputs as Record<string, unknown> | undefined
-        if (!childType || !childInputs) return
-
-        const childBlockConfig = getBlock(childType)
-        if (!childBlockConfig) return
-
-        // Collect credentials from nested block
-        collectCredentialInputs(
-          childBlockConfig,
-          childInputs,
+        collectForBlock(
           opIndex,
+          childId,
           op.block_id,
-          childType,
-          childId
-        )
-
-        // Check for apiKey inputs on hosted models in nested block
-        const modelValue = childInputs.model as string | undefined
-        collectHostedApiKeyInput(childInputs, modelValue, opIndex, op.block_id, childType, childId)
-        collectHostedToolApiKeyInput(
-          childBlockConfig,
-          childInputs,
-          childInputs,
-          opIndex,
-          op.block_id,
-          childType,
+          childBlock.type as string | undefined,
+          asRecord(childBlock.inputs),
           childId
         )
       })
