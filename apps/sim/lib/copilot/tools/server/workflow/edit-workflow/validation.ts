@@ -1332,24 +1332,37 @@ export async function preValidateCredentialInputs(
     if (!isHosted || !blockConfig?.tools) return
 
     // Resolve which tool(s) the current inputs select. With a selector there is exactly one active
-    // tool; without one, every accessible tool is a candidate.
+    // tool; without one (or if the selector throws on partial params), every accessible tool is a
+    // candidate — failing toward considering all hosted params so a key can't slip through.
+    const accessToolIds = blockConfig.tools.access ?? []
     let candidateToolIds: string[]
     const toolSelector = blockConfig.tools.config?.tool
     if (toolSelector) {
       try {
         candidateToolIds = [toolSelector(toolParams)]
       } catch {
-        return
+        candidateToolIds = accessToolIds
       }
     } else {
-      candidateToolIds = blockConfig.tools.access ?? []
+      candidateToolIds = accessToolIds
     }
 
     const managedFieldIds = new Set<string>()
     for (const toolId of candidateToolIds) {
       const tool = getTool(toolId)
       if (!tool?.hosting) continue
-      if (tool.hosting.enabled && !tool.hosting.enabled(toolParams)) continue
+      // The enabled predicate is tool-defined; guard it so a throw can't break edit_workflow. On
+      // a throw the hosting state is unknown, so fail toward treating the key as managed (strip)
+      // rather than preserving a key that may actually be platform-managed.
+      if (tool.hosting.enabled) {
+        let isManaged: boolean
+        try {
+          isManaged = tool.hosting.enabled(toolParams)
+        } catch {
+          isManaged = true
+        }
+        if (!isManaged) continue
+      }
       managedFieldIds.add(tool.hosting.apiKeyParam)
     }
 
@@ -1377,113 +1390,131 @@ export async function preValidateCredentialInputs(
     }
   }
 
-  operations.forEach((op, opIndex) => {
-    // Process main block inputs
-    if (op.params?.inputs && op.params?.type) {
-      const blockConfig = getBlock(op.params.type)
-      if (blockConfig) {
-        // Collect credentials from main block
-        collectCredentialInputs(
-          blockConfig,
-          op.params.inputs as Record<string, unknown>,
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+  const snapshotBlock = (blockId: string) => asRecord(asRecord(workflowState?.blocks)?.[blockId])
+
+  // nestedNodes can nest recursively (a loop/parallel child can itself contain nestedNodes), and
+  // the apply path processes them recursively — so find a descendant's inputs at any depth.
+  const findNestedInputs = (
+    nodes: unknown,
+    targetId: string
+  ): Record<string, unknown> | undefined => {
+    const map = asRecord(nodes)
+    if (!map) return undefined
+    for (const [id, node] of Object.entries(map)) {
+      if (id === targetId) return asRecord(asRecord(node)?.inputs)
+      const found = findNestedInputs(asRecord(node)?.nestedNodes, targetId)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const validType = (type: unknown): string | undefined =>
+    typeof type === 'string' && type.trim() ? type : undefined
+
+  // Visit every block an op touches — its main block and each nestedNodes descendant (recursively,
+  // since loop/parallel children can themselves contain nestedNodes) — keyed by the block's own id.
+  const visitOpBlocks = (
+    op: EditWorkflowOperation,
+    opIndex: number,
+    visit: (b: {
+      opIndex: number
+      stateKey: string
+      reportBlockId: string
+      rawType: string | undefined
+      inputs: Record<string, unknown> | undefined
+      nestedBlockId?: string
+    }) => void
+  ) => {
+    visit({
+      opIndex,
+      stateKey: op.block_id,
+      reportBlockId: op.block_id,
+      rawType: op.params?.type as string | undefined,
+      inputs: asRecord(op.params?.inputs),
+    })
+    const walk = (nodes: unknown, parentBlockId: string) => {
+      const map = asRecord(nodes)
+      if (!map) return
+      for (const [childId, childBlock] of Object.entries(map)) {
+        const child = asRecord(childBlock)
+        visit({
           opIndex,
-          op.block_id,
-          op.params.type
-        )
-
-        // Check for apiKey inputs on hosted models
-        let modelValue = (op.params.inputs as Record<string, unknown>).model as string | undefined
-
-        // For edit operations, if model is not being changed, check existing block's model
-        if (
-          !modelValue &&
-          op.operation_type === 'edit' &&
-          (op.params.inputs as Record<string, unknown>).apiKey &&
-          workflowState
-        ) {
-          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
-            | Record<string, unknown>
-            | undefined
-          const existingSubBlocks = existingBlock?.subBlocks as Record<string, unknown> | undefined
-          const existingModelSubBlock = existingSubBlocks?.model as
-            | Record<string, unknown>
-            | undefined
-          modelValue = existingModelSubBlock?.value as string | undefined
-        }
-
-        collectHostedApiKeyInput(
-          op.params.inputs as Record<string, unknown>,
-          modelValue,
-          opIndex,
-          op.block_id,
-          op.params.type
-        )
-
-        // The active tool depends on inputs (e.g. provider). On edit ops that don't restate
-        // provider, merge the existing block's subblock values so the tool selector and its
-        // `enabled` gate resolve correctly.
-        let toolParams = op.params.inputs as Record<string, unknown>
-        if (op.operation_type === 'edit' && workflowState) {
-          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
-            | Record<string, unknown>
-            | undefined
-          const existingSubBlocks = existingBlock?.subBlocks as
-            | Record<string, { value?: unknown } | null | undefined>
-            | undefined
-          if (existingSubBlocks) {
-            toolParams = { ...buildSubBlockValues(existingSubBlocks), ...toolParams }
-          }
-        }
-
-        collectHostedToolApiKeyInput(
-          blockConfig,
-          op.params.inputs as Record<string, unknown>,
-          toolParams,
-          opIndex,
-          op.block_id,
-          op.params.type
-        )
+          stateKey: childId,
+          reportBlockId: parentBlockId,
+          rawType: child?.type as string | undefined,
+          inputs: asRecord(child?.inputs),
+          nestedBlockId: childId,
+        })
+        walk(child?.nestedNodes, parentBlockId)
       }
     }
+    walk(op.params?.nestedNodes, op.block_id)
+  }
 
-    // Process nested nodes (blocks inside loop/parallel containers)
-    const nestedNodes = op.params?.nestedNodes as
-      | Record<string, Record<string, unknown>>
-      | undefined
-    if (nestedNodes) {
-      Object.entries(nestedNodes).forEach(([childId, childBlock]) => {
-        const childType = childBlock.type as string | undefined
-        const childInputs = childBlock.inputs as Record<string, unknown> | undefined
-        if (!childType || !childInputs) return
+  // Pass 1: fold every op into each block's FINAL effective state (type + values) for the batch,
+  // seeded from the snapshot. Deciding strips against the final state (not a forward prefix) makes
+  // order irrelevant — a key set before a later op makes the block hosted is still caught.
+  const finalType = new Map<string, string | undefined>()
+  const finalValues = new Map<string, Record<string, unknown>>()
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, rawType, inputs }) => {
+      const priorType = finalType.has(stateKey)
+        ? finalType.get(stateKey)
+        : (snapshotBlock(stateKey)?.type as string | undefined)
+      // Only advance the type to one apply will honor: a registry-known type. An unknown type
+      // (apply skips the change and keeps the existing block) must not poison the fallback, or a
+      // later type-less apiKey edit would be judged against a block config that never applies.
+      const candidate = validType(rawType)
+      const resolved = (candidate && getBlock(candidate) ? candidate : undefined) ?? priorType
+      if (resolved) finalType.set(stateKey, resolved)
+      if (isHosted) {
+        const priorValues =
+          finalValues.get(stateKey) ??
+          buildSubBlockValues(
+            (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+          )
+        finalValues.set(stateKey, { ...priorValues, ...(inputs ?? {}) })
+      }
+    })
+  }
 
-        const childBlockConfig = getBlock(childType)
-        if (!childBlockConfig) return
+  // Pass 2: for each op, strip the managed fields it actually sets, judged against the block's
+  // final state. Both top-level and nested blocks route through the same visit so they can't drift.
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, reportBlockId, inputs, nestedBlockId }) => {
+      const blockType = finalType.get(stateKey)
+      if (!inputs || !blockType) return
+      const blockConfig = getBlock(blockType)
+      if (!blockConfig) return
 
-        // Collect credentials from nested block
-        collectCredentialInputs(
-          childBlockConfig,
-          childInputs,
+      collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
+
+      // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
+      if (isHosted) {
+        const toolParams = finalValues.get(stateKey) ?? inputs
+        const modelValue = toolParams.model as string | undefined
+        collectHostedApiKeyInput(
+          inputs,
+          modelValue,
           opIndex,
-          op.block_id,
-          childType,
-          childId
+          reportBlockId,
+          blockType,
+          nestedBlockId
         )
-
-        // Check for apiKey inputs on hosted models in nested block
-        const modelValue = childInputs.model as string | undefined
-        collectHostedApiKeyInput(childInputs, modelValue, opIndex, op.block_id, childType, childId)
         collectHostedToolApiKeyInput(
-          childBlockConfig,
-          childInputs,
-          childInputs,
+          blockConfig,
+          inputs,
+          toolParams,
           opIndex,
-          op.block_id,
-          childType,
-          childId
+          reportBlockId,
+          blockType,
+          nestedBlockId
         )
-      })
-    }
-  })
+      }
+    })
+  }
 
   const hasCredentialsToValidate = credentialInputs.length > 0
   const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0
@@ -1510,11 +1541,7 @@ export async function preValidateCredentialInputs(
 
       // Handle nested block apiKey filtering
       if (apiKeyInput.nestedBlockId) {
-        const nestedNodes = op.params?.nestedNodes as
-          | Record<string, Record<string, unknown>>
-          | undefined
-        const nestedBlock = nestedNodes?.[apiKeyInput.nestedBlockId]
-        const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+        const nestedInputs = findNestedInputs(op.params?.nestedNodes, apiKeyInput.nestedBlockId)
         if (nestedInputs?.[field]) {
           nestedInputs[field] = undefined
           logger.debug('Filtered platform-managed apiKey in nested block', {
@@ -1573,11 +1600,7 @@ export async function preValidateCredentialInputs(
 
         // Handle nested block credential removal
         if (credInput.nestedBlockId) {
-          const nestedNodes = op.params?.nestedNodes as
-            | Record<string, Record<string, unknown>>
-            | undefined
-          const nestedBlock = nestedNodes?.[credInput.nestedBlockId]
-          const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+          const nestedInputs = findNestedInputs(op.params?.nestedNodes, credInput.nestedBlockId)
           if (nestedInputs?.[credInput.fieldName]) {
             delete nestedInputs[credInput.fieldName]
             logger.info('Removed invalid credential from nested block', {
