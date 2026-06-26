@@ -123,6 +123,22 @@ const throwGateBlockConfig = {
   tools: { access: ['throw_gate_tool'], config: { tool: () => 'throw_gate_tool' } },
 }
 
+// Block whose tool selector throws — should fall back to scanning access tools (video_falai).
+const throwSelectorBlockConfig = {
+  type: 'throw_selector_block',
+  name: 'Throw Selector Block',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: {
+    access: ['video_falai'],
+    config: {
+      tool: () => {
+        throw new Error('selector boom')
+      },
+    },
+  },
+}
+
 // Tool registry stand-in for the hosted-tool tests.
 const toolsByIdMock: Record<string, unknown> = {
   video_falai: { id: 'video_falai', hosting: { apiKeyParam: 'apiKey' } },
@@ -170,7 +186,9 @@ vi.mock('@/blocks/registry', () => ({
                         ? imageBlockConfig
                         : type === 'throw_gate_block'
                           ? throwGateBlockConfig
-                          : undefined,
+                          : type === 'throw_selector_block'
+                            ? throwSelectorBlockConfig
+                            : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -712,6 +730,24 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.filteredOperations[1]?.params?.inputs?.apiKey).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+  })
+
+  it('strips apiKey when the tool selector throws (falls back to access tools)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'sel-1',
+        params: {
+          type: 'throw_selector_block',
+          inputs: { provider: 'falai', apiKey: 'user-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
   })
 
   it('strips apiKey when a tool hosting enabled predicate throws (fail toward stripping)', async () => {

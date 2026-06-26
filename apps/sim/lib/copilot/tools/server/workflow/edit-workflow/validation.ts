@@ -1332,17 +1332,19 @@ export async function preValidateCredentialInputs(
     if (!isHosted || !blockConfig?.tools) return
 
     // Resolve which tool(s) the current inputs select. With a selector there is exactly one active
-    // tool; without one, every accessible tool is a candidate.
+    // tool; without one (or if the selector throws on partial params), every accessible tool is a
+    // candidate — failing toward considering all hosted params so a key can't slip through.
+    const accessToolIds = blockConfig.tools.access ?? []
     let candidateToolIds: string[]
     const toolSelector = blockConfig.tools.config?.tool
     if (toolSelector) {
       try {
         candidateToolIds = [toolSelector(toolParams)]
       } catch {
-        return
+        candidateToolIds = accessToolIds
       }
     } else {
-      candidateToolIds = blockConfig.tools.access ?? []
+      candidateToolIds = accessToolIds
     }
 
     const managedFieldIds = new Set<string>()
