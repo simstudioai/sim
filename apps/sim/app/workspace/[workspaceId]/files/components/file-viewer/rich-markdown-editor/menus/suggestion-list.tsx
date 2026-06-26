@@ -1,4 +1,5 @@
-import type { ReactNode, RefObject } from 'react'
+import { type ReactNode, type RefObject, useEffect } from 'react'
+import type { Editor } from '@tiptap/core'
 import { cn } from '@/lib/core/utils/cn'
 import {
   SUGGESTION_GROUP_LABEL_CLASS,
@@ -14,6 +15,8 @@ export interface SuggestionGroup<T> {
 }
 
 interface SuggestionListProps<T> {
+  /** The editor whose contenteditable keeps focus while the menu is open — wired as the ARIA combobox. */
+  editor: Editor
   /** Scroll container ref, shared with the list's `useSuggestionKeyboard` for scroll-into-view. */
   containerRef: RefObject<HTMLDivElement | null>
   groups: SuggestionGroup<T>[]
@@ -22,7 +25,7 @@ interface SuggestionListProps<T> {
   /** Inserts the chosen item (the suggestion plugin's `command`). */
   command: (item: T) => void
   ariaLabel: string
-  /** Prefix for each row's element id (`${idPrefix}-${index}`). */
+  /** Prefix for each row's element id (`${idPrefix}-${index}`) and the listbox id. */
   idPrefix: string
   /** Shown in place of the list when there are no groups (e.g. "No results" / "Loading…"). */
   emptyLabel: string
@@ -35,8 +38,14 @@ interface SuggestionListProps<T> {
  * state, the `role="listbox"` → `role="group"` → option-button structure, and the active-row / hover /
  * mousedown-select wiring. Each menu computes its own `groups` and supplies `itemKey`/`renderItem`;
  * everything else (chrome, a11y, navigation hooks) lives here so the two menus stay identical.
+ *
+ * Accessibility: focus stays in the editor's contenteditable while the user arrows the menu, so the
+ * editor is wired as the combobox — it gets `aria-haspopup`/`aria-expanded`/`aria-controls` and an
+ * `aria-activedescendant` pointing at the active option's id, the standard pattern for announcing the
+ * active row without moving focus. The attributes are removed when the menu closes (unmount).
  */
 export function SuggestionList<T>({
+  editor,
   containerRef,
   groups,
   activeIndex,
@@ -48,10 +57,39 @@ export function SuggestionList<T>({
   itemKey,
   renderItem,
 }: SuggestionListProps<T>) {
-  if (groups.length === 0) {
+  const listboxId = `${idPrefix}-listbox`
+  const hasOptions = groups.length > 0
+  const activeOptionId = hasOptions ? `${idPrefix}-${activeIndex}` : null
+
+  useEffect(() => {
+    const dom = editor.view.dom
+    dom.setAttribute('aria-haspopup', 'listbox')
+    dom.setAttribute('aria-expanded', 'true')
+    return () => {
+      dom.removeAttribute('aria-haspopup')
+      dom.removeAttribute('aria-expanded')
+      dom.removeAttribute('aria-controls')
+      dom.removeAttribute('aria-activedescendant')
+    }
+  }, [editor])
+
+  useEffect(() => {
+    const dom = editor.view.dom
+    if (activeOptionId) {
+      dom.setAttribute('aria-controls', listboxId)
+      dom.setAttribute('aria-activedescendant', activeOptionId)
+    } else {
+      dom.removeAttribute('aria-controls')
+      dom.removeAttribute('aria-activedescendant')
+    }
+  }, [editor, listboxId, activeOptionId])
+
+  if (!hasOptions) {
     return (
       <div className={SUGGESTION_SURFACE_CLASS}>
-        <p className='px-2 py-1.5 text-[var(--text-tertiary)] text-caption'>{emptyLabel}</p>
+        <p role='status' className='px-2 py-1.5 text-[var(--text-tertiary)] text-caption'>
+          {emptyLabel}
+        </p>
       </div>
     )
   }
@@ -59,6 +97,7 @@ export function SuggestionList<T>({
   return (
     <div
       ref={containerRef}
+      id={listboxId}
       role='listbox'
       aria-label={ariaLabel}
       className={cn(SUGGESTION_SURFACE_CLASS, SUGGESTION_SCROLL_CLASS)}

@@ -1,16 +1,9 @@
-import type { MouseEvent } from 'react'
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
 import { Node } from '@tiptap/core'
-import type { ReactNodeViewProps } from '@tiptap/react'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { useParams, useRouter } from 'next/navigation'
-import { cn } from '@/lib/core/utils/cn'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
-import { mentionIcon } from './mention-icon'
-import { simLinkPath, toSimHref } from './sim-link'
+import { toSimHref } from './sim-link'
 import type { MentionKind } from './types'
 
-interface MentionAttrs {
+export interface MentionAttrs {
   kind: MentionKind
   id: string
   label: string
@@ -44,10 +37,11 @@ interface MentionTokenFields {
  * Inline atom node for an `@`-mention. Renders (live) as a chip with the entity's icon, but serializes
  * to the portable `[label](sim:<kind>/<id>)` markdown link — so the saved content is identical to a
  * plain link (agent-readable, round-trips through the chat's `chip-clipboard-codec`) while the editor
- * shows it as a chip rather than a blue link. Shared by the headless round-trip path (no node view)
- * and the live {@link MentionChip}, mirroring the image node's split. `renderText` emits the same
- * portable link (an atom otherwise contributes no text), so copying a chip into a plain-text target —
- * e.g. the chat composer — pastes back as a mention.
+ * shows it as a chip rather than a blue link. This module is schema + markdown only (no React, no icon
+ * registry) so the headless round-trip path stays light; the live {@link MentionChip} node view lives in
+ * `mention-chip.tsx`, mirroring the image node's split. `renderText` emits the same portable link (an
+ * atom otherwise contributes no text), so copying a chip into a plain-text target — e.g. the chat
+ * composer — pastes back as a mention.
  */
 export const MarkdownMention = Node.create({
   name: 'mention',
@@ -108,57 +102,5 @@ export const MarkdownMention = Node.create({
   renderText: ({ node }) => {
     const { kind, id, label } = node.attrs as MentionAttrs
     return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
-  },
-})
-
-/**
- * Mirrors the home chat input's mention rendering (the textarea mirror overlay
- * in `prompt-editor.tsx`): a borderless inline icon + label that flows with the
- * surrounding prose — no pill background, no padding, normal weight, body text
- * color, and a 12px icon. Integration icons keep their brand color via
- * {@link getBareIconStyle} (see {@link MentionChipView}); other kinds stay
- * monochrome through the `--text-icon` fallback below.
- */
-const CHIP_CLASS =
-  'mention-chip mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
-
-/**
- * Live chip: an entity icon + label matching the chat input's mention rendering. Where the host opted
- * into navigation (the file viewer), Cmd/Ctrl-click routes to the resource; in a modal field it stays
- * inert so a click can't navigate away from an unsaved edit.
- */
-function MentionChipView({ node, editor }: ReactNodeViewProps) {
-  const router = useRouter()
-  const params = useParams()
-  const { kind, id, label } = node.attrs as MentionAttrs
-  const Icon = mentionIcon(kind, id) as StyleableIcon
-  const iconStyle = getBareIconStyle(Icon)
-  const navigable = editor.storage.mention?.navigable === true
-  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
-  const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
-
-  const handleClick = (event: MouseEvent) => {
-    if (!path || !(event.metaKey || event.ctrlKey)) return
-    event.preventDefault()
-    router.push(path)
-  }
-
-  return (
-    <NodeViewWrapper
-      as='span'
-      className={cn(CHIP_CLASS, path && 'cursor-pointer')}
-      onClick={path ? handleClick : undefined}
-      title={label}
-    >
-      <Icon style={iconStyle} />
-      <span>{label}</span>
-    </NodeViewWrapper>
-  )
-}
-
-/** Live mention node with the chip view; same schema + markdown output as the headless one. */
-export const MentionChip = MarkdownMention.extend({
-  addNodeView() {
-    return ReactNodeViewRenderer(MentionChipView)
   },
 })

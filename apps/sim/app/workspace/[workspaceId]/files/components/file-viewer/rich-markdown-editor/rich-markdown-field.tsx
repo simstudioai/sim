@@ -5,7 +5,7 @@ import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { ChipTextarea, chipFieldSurfaceClass } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { createMarkdownEditorExtensions } from './extensions'
+import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,

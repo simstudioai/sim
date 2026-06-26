@@ -66,6 +66,7 @@ export const SlashCommand = Extension.create<Record<string, never>, SlashCommand
           mapProps: (props) => ({
             items: props.items as SlashCommandItem[],
             command: props.command,
+            editor: props.editor,
           }),
         }),
       }),

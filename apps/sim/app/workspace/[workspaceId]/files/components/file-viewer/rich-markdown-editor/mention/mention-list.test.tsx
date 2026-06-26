@@ -11,7 +11,7 @@ import { Editor } from '@tiptap/core'
 import { EditorContent, ReactRenderer } from '@tiptap/react'
 import { File } from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMarkdownEditorExtensions } from '../extensions'
+import { createMarkdownEditorExtensions } from '../editor-extensions'
 import { MentionList, type MentionListHandle } from './mention-list'
 import { createMentionStore } from './mention-store'
 import type { MentionItem } from './types'
@@ -28,11 +28,13 @@ const tab = { event: new KeyboardEvent('keydown', { key: 'Tab' }) }
 describe('MentionList keyboard nav', () => {
   let container: HTMLElement
   let root: ReturnType<typeof import('react-dom/client').createRoot>
+  let editor: Editor
 
   beforeEach(async () => {
     // jsdom implements neither — both are exercised by scroll-into-view and ProseMirror.
     Element.prototype.scrollIntoView = vi.fn()
     document.elementFromPoint = vi.fn(() => null)
+    editor = new Editor({ extensions: createMarkdownEditorExtensions({ placeholder: '' }) })
     const { createRoot } = await import('react-dom/client')
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -42,6 +44,7 @@ describe('MentionList keyboard nav', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    editor.destroy()
   })
 
   it('navigates with arrows + inserts on enter once async items have loaded', () => {
@@ -51,7 +54,9 @@ describe('MentionList keyboard nav', () => {
 
     // Menu opens before the workspace data resolves — the store is still empty.
     act(() => {
-      root.render(<MentionList ref={ref} query='' command={command} store={store} />)
+      root.render(
+        <MentionList ref={ref} query='' command={command} store={store} editor={editor} />
+      )
     })
     expect(ref.current?.onKeyDown(arrowDown)).toBe(false)
 
@@ -76,7 +81,9 @@ describe('MentionList keyboard nav', () => {
     const store = createMentionStore()
 
     act(() => {
-      root.render(<MentionList ref={ref} query='' command={command} store={store} />)
+      root.render(
+        <MentionList ref={ref} query='' command={command} store={store} editor={editor} />
+      )
     })
     act(() => store.set(items))
 
@@ -89,7 +96,6 @@ describe('MentionList keyboard nav', () => {
   })
 
   it('exposes a working onKeyDown through ReactRenderer (the suggestion plugin path)', async () => {
-    const editor = new Editor({ extensions: createMarkdownEditorExtensions({ placeholder: '' }) })
     act(() => {
       root.render(<EditorContent editor={editor} />)
     })
@@ -98,7 +104,7 @@ describe('MentionList keyboard nav', () => {
     const store = createMentionStore()
     const renderer = new ReactRenderer<MentionListHandle>(MentionList, {
       editor,
-      props: { query: '', command, store },
+      props: { query: '', command, store, editor },
     })
     // Let the portal mount so ReactRenderer captures the imperative handle.
     await act(async () => {})
@@ -110,6 +116,5 @@ describe('MentionList keyboard nav', () => {
     expect(renderer.ref?.onKeyDown(arrowDown)).toBe(true)
 
     renderer.destroy()
-    editor.destroy()
   })
 })

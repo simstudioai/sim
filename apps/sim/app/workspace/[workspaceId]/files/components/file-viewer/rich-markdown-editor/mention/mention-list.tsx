@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { Editor } from '@tiptap/core'
 import { SuggestionList } from '../menus/suggestion-list'
 import {
   type SuggestionKeyDownHandler,
@@ -16,6 +17,8 @@ interface MentionListProps {
   command: (item: MentionItem) => void
   /** Live data source the host keeps populated. */
   store: MentionStore
+  /** The editor, wired as the ARIA combobox while the menu is open. */
+  editor: Editor
 }
 
 /** Per-group cap so a large workspace can't flood the menu; filtering still searches the full set. */
@@ -38,7 +41,7 @@ const GROUP_ORDER = [
  * `useSyncExternalStore`) rather than props — so the list fills in as async workspace data lands.
  */
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(function MentionList(
-  { query, command, store },
+  { query, command, store, editor },
   ref
 ) {
   const rawItems = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
@@ -78,6 +81,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
 
   return (
     <SuggestionList
+      editor={editor}
       containerRef={containerRef}
       groups={groups}
       activeIndex={activeIndex}

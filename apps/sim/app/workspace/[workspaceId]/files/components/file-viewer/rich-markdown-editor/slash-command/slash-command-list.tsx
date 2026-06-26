@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
+import type { Editor } from '@tiptap/core'
 import { SuggestionList } from '../menus/suggestion-list'
 import {
   type SuggestionKeyDownHandler,
@@ -11,6 +12,8 @@ export type SlashCommandListHandle = SuggestionKeyDownHandler
 interface SlashCommandListProps {
   items: SlashCommandItem[]
   command: (item: SlashCommandItem) => void
+  /** The editor, wired as the ARIA combobox while the menu is open. */
+  editor: Editor
 }
 
 /**
@@ -19,7 +22,7 @@ interface SlashCommandListProps {
  * Exposes an imperative `onKeyDown` driven by the TipTap suggestion plugin.
  */
 export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandListProps>(
-  function SlashCommandList({ items, command }, ref) {
+  function SlashCommandList({ items, command, editor }, ref) {
     const containerRef = useRef<HTMLDivElement>(null)
     const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(
       items,
@@ -40,6 +43,7 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
 
     return (
       <SuggestionList
+        editor={editor}
         containerRef={containerRef}
         groups={groups}
         activeIndex={activeIndex}

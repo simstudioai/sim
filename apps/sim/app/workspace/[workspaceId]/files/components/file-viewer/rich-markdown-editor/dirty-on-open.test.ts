@@ -15,7 +15,7 @@
  */
 import { Editor } from '@tiptap/core'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { createMarkdownEditorExtensions } from './extensions'
+import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,

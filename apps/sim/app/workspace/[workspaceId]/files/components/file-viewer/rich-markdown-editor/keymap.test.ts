@@ -9,7 +9,7 @@
 import { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMarkdownEditorExtensions } from './extensions'
+import { createMarkdownEditorExtensions } from './editor-extensions'
 import { MENTION_PLUGIN_KEY } from './mention'
 import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
 
