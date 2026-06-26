@@ -196,7 +196,10 @@ export type CalendarProps = CalendarSingleProps | CalendarRangeProps
  *
  * `mode='single'` (default) commits on day click via `onChange`. `mode='range'`
  * stages a start/end selection behind Clear/Cancel/Apply actions (with optional
- * time-of-day inputs) and commits via `onRangeChange`.
+ * time-of-day inputs) and commits via `onRangeChange`. The range view is keyed
+ * on its committed bounds so a newly applied range remounts it with fresh draft
+ * state (React's "reset all state with a key") — the staged start/end never
+ * lingers when the source range changes.
  *
  * @example
  * <Calendar value={value} onChange={setValue} />
@@ -205,7 +208,14 @@ export type CalendarProps = CalendarSingleProps | CalendarRangeProps
  * <Calendar mode='range' startDate={from} endDate={to} showTime onRangeChange={apply} />
  */
 export function Calendar(props: CalendarProps) {
-  if (props.mode === 'range') return <RangeCalendarView {...props} />
+  if (props.mode === 'range') {
+    return (
+      <RangeCalendarView
+        key={`${String(props.startDate ?? '')}|${String(props.endDate ?? '')}`}
+        {...props}
+      />
+    )
+  }
   return <SingleCalendarView {...props} />
 }
 
@@ -346,31 +356,13 @@ function RangeCalendarView({
   className,
 }: CalendarRangeProps) {
   const seededStart = useMemo(() => parseDateValue(startDate), [startDate])
-  const { today, view, setView, goToPrevMonth, goToNextMonth, cells } = useCalendarView(seededStart)
+  const { today, view, goToPrevMonth, goToNextMonth, cells } = useCalendarView(seededStart)
 
   const [rangeStart, setRangeStart] = useState<Date | null>(seededStart)
   const [rangeEnd, setRangeEnd] = useState<Date | null>(() => parseDateValue(endDate))
   const [selectingEnd, setSelectingEnd] = useState(false)
   const [startTime, setStartTime] = useState(() => extractTime(startDate, DEFAULT_RANGE_START_TIME))
   const [endTime, setEndTime] = useState(() => extractTime(endDate, DEFAULT_RANGE_END_TIME))
-
-  /**
-   * Resync the staged selection when the bound props change (e.g. a new range
-   * applied elsewhere) so the grid never lingers on a stale draft. Closing the
-   * popover unmounts this view, so a fresh open already re-seeds from props;
-   * this render-phase reset covers prop changes while it stays mounted.
-   */
-  const seedKey = `${seededStart?.getTime() ?? ''}|${parseDateValue(endDate)?.getTime() ?? ''}|${extractTime(startDate, DEFAULT_RANGE_START_TIME)}|${extractTime(endDate, DEFAULT_RANGE_END_TIME)}`
-  const [prevSeedKey, setPrevSeedKey] = useState(seedKey)
-  if (seedKey !== prevSeedKey) {
-    setPrevSeedKey(seedKey)
-    setRangeStart(seededStart)
-    setRangeEnd(parseDateValue(endDate))
-    setSelectingEnd(false)
-    setStartTime(extractTime(startDate, DEFAULT_RANGE_START_TIME))
-    setEndTime(extractTime(endDate, DEFAULT_RANGE_END_TIME))
-    if (seededStart) setView({ month: seededStart.getMonth(), year: seededStart.getFullYear() })
-  }
 
   const pickDay = (day: number) => {
     const date = new Date(view.year, view.month, day)
