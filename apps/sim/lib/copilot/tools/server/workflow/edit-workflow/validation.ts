@@ -1463,7 +1463,11 @@ export async function preValidateCredentialInputs(
       const priorType = finalType.has(stateKey)
         ? finalType.get(stateKey)
         : (snapshotBlock(stateKey)?.type as string | undefined)
-      const resolved = validType(rawType) ?? priorType
+      // Only advance the type to one apply will honor: a registry-known type. An unknown type
+      // (apply skips the change and keeps the existing block) must not poison the fallback, or a
+      // later type-less apiKey edit would be judged against a block config that never applies.
+      const candidate = validType(rawType)
+      const resolved = (candidate && getBlock(candidate) ? candidate : undefined) ?? priorType
       if (resolved) finalType.set(stateKey, resolved)
       if (isHosted) {
         const priorValues =
