@@ -36,14 +36,12 @@
   outline-offset: 2px;
 }
 
-/* The inline mention chip is too small for the block-leaf ring above; a direct click selects it with a
-   subtle fill instead, so it never wears the heavy divider/image outline. `:has` covers the case where
-   ProseMirror puts `selectednode` on a wrapper around the chip span rather than the span itself. */
+/* The inline mention chip isn't a block leaf, so it skips the heavy outline ring above and just uses
+   the same native text-selection highlight as the surrounding prose. ProseMirror puts `selectednode`
+   on the node-view wrapper, so match it via `:has` (the chip span itself when it's the selected node). */
 .rich-markdown-prose .mention-chip.ProseMirror-selectednode,
 .rich-markdown-prose .ProseMirror-selectednode:has(.mention-chip) {
   outline: none;
-  border-radius: 3px;
-  background: var(--surface-active);
 }
 
 .rich-markdown-prose > * + * {
