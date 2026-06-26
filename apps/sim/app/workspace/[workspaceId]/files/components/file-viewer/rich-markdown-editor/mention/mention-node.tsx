@@ -1,10 +1,13 @@
+import type { MouseEvent } from 'react'
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
 import { Node } from '@tiptap/core'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { useParams, useRouter } from 'next/navigation'
+import { cn } from '@/lib/core/utils/cn'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { mentionIcon } from './mention-icon'
-import { toSimHref } from './sim-link'
+import { simLinkPath, toSimHref } from './sim-link'
 import type { MentionKind } from './types'
 
 interface MentionAttrs {
@@ -119,14 +122,35 @@ export const MarkdownMention = Node.create({
 const CHIP_CLASS =
   'mention-chip mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
 
-/** Live chip: a display-only entity icon + label, matching the chat input's mention rendering. */
-function MentionChipView({ node }: ReactNodeViewProps) {
+/**
+ * Live chip: an entity icon + label matching the chat input's mention rendering. Where the host opted
+ * into navigation (the file viewer), Cmd/Ctrl-click routes to the resource; in a modal field it stays
+ * inert so a click can't navigate away from an unsaved edit.
+ */
+function MentionChipView({ node, editor }: ReactNodeViewProps) {
+  const router = useRouter()
+  const params = useParams()
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id) as StyleableIcon | undefined
   const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
+  const navigable = editor.storage.mention?.navigable === true
+
+  const handleClick = (event: MouseEvent) => {
+    if (!(event.metaKey || event.ctrlKey)) return
+    const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
+    const path = workspaceId && simLinkPath(workspaceId, kind, id)
+    if (!path) return
+    event.preventDefault()
+    router.push(path)
+  }
 
   return (
-    <NodeViewWrapper as='span' className={CHIP_CLASS} title={label}>
+    <NodeViewWrapper
+      as='span'
+      className={cn(CHIP_CLASS, navigable && 'cursor-pointer')}
+      onClick={navigable ? handleClick : undefined}
+      title={label}
+    >
       {Icon && <Icon style={iconStyle} />}
       <span>{label}</span>
     </NodeViewWrapper>

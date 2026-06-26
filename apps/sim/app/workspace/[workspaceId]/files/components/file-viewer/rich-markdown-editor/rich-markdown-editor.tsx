@@ -333,7 +333,7 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor])
 
-  useEditorMentions(editor, workspaceId)
+  useEditorMentions(editor, workspaceId, { navigable: true })
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 

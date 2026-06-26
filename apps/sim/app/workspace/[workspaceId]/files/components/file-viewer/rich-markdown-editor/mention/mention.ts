@@ -13,12 +13,14 @@ export const MENTION_PLUGIN_KEY = new PluginKey('mention')
  * Per-editor storage for the `@` mention extension. The host component populates {@link store} with
  * the current workspace mention data and may set {@link onOpen} to lazily start fetching that data the
  * first time the menu is triggered. {@link enabled} gates the menu off entirely (e.g. a field with no
- * workspace scope) so `@` stays literal text.
+ * workspace scope) so `@` stays literal text. {@link navigable} lets a chip Cmd/Ctrl-click to its
+ * resource — on for the file viewer, off inside a modal field so it can't route away from an edit.
  */
 export interface MentionStorage {
   store: MentionStore
   onOpen: (() => void) | null
   enabled: boolean
+  navigable: boolean
 }
 
 declare module '@tiptap/core' {
@@ -39,7 +41,7 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
   name: 'mention',
 
   addStorage() {
-    return { store: createMentionStore(), onOpen: null, enabled: true }
+    return { store: createMentionStore(), onOpen: null, enabled: true, navigable: false }
   },
 
   addProseMirrorPlugins() {
