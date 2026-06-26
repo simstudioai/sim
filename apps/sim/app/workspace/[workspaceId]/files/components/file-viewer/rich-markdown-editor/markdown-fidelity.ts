@@ -24,8 +24,25 @@ export function splitFrontmatter(markdown: string): SplitMarkdown {
   const bom = markdown.startsWith(BOM) ? BOM : ''
   const rest = bom ? markdown.slice(1) : markdown
   const match = rest.match(FRONTMATTER_REGEX)
-  if (!match) return { frontmatter: bom, body: rest }
+  if (!match || !isYamlFrontmatterBlock(match[0])) return { frontmatter: bom, body: rest }
   return { frontmatter: bom + match[0], body: rest.slice(match[0].length) }
+}
+
+/**
+ * A leading `---…---` block is YAML frontmatter unless its first content line is markdown rather than
+ * a `key:` — so a doc that opens with a `---` thematic break (e.g. a changelog whose next `---` closes
+ * the regex) stays in the editor body instead of being held out-of-band and hidden. An empty block
+ * (`---\n---`) is still treated as (empty) frontmatter.
+ */
+function isYamlFrontmatterBlock(block: string): boolean {
+  const interior = block.replace(/^---[ \t]*\r?\n/, '')
+  for (const rawLine of interior.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '') continue
+    if (line.startsWith('---')) return true // reached the closing fence — empty frontmatter
+    return /^[A-Za-z0-9_-]+[ \t]*:/.test(line) // first content line must be a YAML key
+  }
+  return true
 }
 
 export function applyFrontmatter(frontmatter: string, body: string): string {

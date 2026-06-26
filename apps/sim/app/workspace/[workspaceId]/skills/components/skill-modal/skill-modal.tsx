@@ -74,7 +74,9 @@ export function SkillModal({
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
 
-  if ((open && !prevOpen) || (open && initialValues !== prevInitialValues)) {
+  // Reset only when the *skill* changes (by id), not on a background refetch that returns a new
+  // object for the same open skill — otherwise an in-progress edit would be silently clobbered.
+  if ((open && !prevOpen) || (open && initialValues?.id !== prevInitialValues?.id)) {
     setName(initialValues?.name ?? '')
     setDescription(initialValues?.description ?? '')
     setContent(initialValues?.content ?? '')
@@ -160,11 +162,14 @@ export function SkillModal({
     setActiveTab('create')
   }
 
-  /** Pasting a full SKILL.md (YAML frontmatter) into Content destructures it into the fields. */
+  /**
+   * Pasting a full SKILL.md destructures it into the fields. Gated on a real YAML `name:` key — a
+   * stray `---` thematic break or a heading-only snippet pastes as ordinary content instead of
+   * silently overwriting all three fields.
+   */
   const handleContentPaste = (text: string): boolean => {
-    if (!text.trimStart().startsWith('---')) return false
     const parsed = parseSkillMarkdown(text)
-    if (!parsed.name) return false
+    if (!parsed.nameFromFrontmatter) return false
     applyImportedSkill(parsed)
     return true
   }

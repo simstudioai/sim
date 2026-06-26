@@ -140,7 +140,7 @@ interface SettledContent {
   verdict: boolean
 }
 
-/** Locks the round-trip verdict + frontmatter once; a round-trip-unsafe doc (raw HTML, footnotes, >128KB) opens read-only. */
+/** Locks the round-trip verdict + frontmatter once; a round-trip-unsafe doc (raw HTML, footnotes, >256KB) opens read-only. */
 function lockSettled(content: string): SettledContent {
   return { frontmatter: splitFrontmatter(content).frontmatter, verdict: isRoundTripSafe(content) }
 }
@@ -286,11 +286,19 @@ export function LoadedRichMarkdownEditor({
       handleDrop: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
-        if (images.length === 0) return false
-        event.preventDefault()
-        const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
-        void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
-        return true
+        if (images.length > 0) {
+          event.preventDefault()
+          const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+          void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
+          return true
+        }
+        // Swallow any other file drop (e.g. a PDF) so the browser doesn't navigate away from the
+        // editor. Internal text drags carry no files and fall through to the default behavior.
+        if (event.dataTransfer?.files.length) {
+          event.preventDefault()
+          return true
+        }
+        return false
       },
     },
     onUpdate: ({ editor }) => {

@@ -95,13 +95,26 @@ export function RichMarkdownField({
     shouldRerenderOnTransaction: false,
     content: initialContent,
     editorProps: {
-      attributes: { class: 'rich-markdown-prose rich-markdown-field-prose' },
+      attributes: {
+        class: 'rich-markdown-prose rich-markdown-field-prose',
+        // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
+        'data-owned-shortcuts': 'Mod+K',
+      },
       handlePaste: (_view, event) => {
         const handler = onPasteTextRef.current
         if (!handler) return false
         const text = event.clipboardData?.getData('text/plain')
         if (!text) return false
         return handler(text)
+      },
+      handleDrop: (_view, event) => {
+        // The field has no image upload; swallow any file drop so the browser doesn't navigate to
+        // the dropped file and tear down the modal. Internal text drags fall through to the default.
+        if (event.dataTransfer?.files.length) {
+          event.preventDefault()
+          return true
+        }
+        return false
       },
     },
     onUpdate: ({ editor }) => {

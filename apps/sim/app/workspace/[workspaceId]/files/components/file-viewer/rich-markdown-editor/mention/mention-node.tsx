@@ -101,6 +101,13 @@ export const MarkdownMention = Node.create({
     const { kind, id, label } = (node.attrs ?? {}) as MentionAttrs
     return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
   },
+
+  // Copy/`getText` emit the portable link (an atom otherwise contributes no text), so copying a chip
+  // into a plain-text target — e.g. the chat composer — pastes back as a mention.
+  renderText: ({ node }) => {
+    const { kind, id, label } = node.attrs as MentionAttrs
+    return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
+  },
 })
 
 /**

@@ -13,7 +13,7 @@ import { isRoundTripSafe } from './round-trip-safety'
  * and falsely mark the file dirty. Normalizing the dirty-check baseline to this exact form on open
  * neutralizes that — verified to match the live editor's own serialization byte-for-byte.
  *
- * Round-trip-UNSAFE content (raw HTML, footnotes, >128KB) is returned untouched: those files open
+ * Round-trip-UNSAFE content (raw HTML, footnotes, >256KB) is returned untouched: those files open
  * read-only and must display their original bytes, never a lossy re-serialization.
  */
 export function normalizeMarkdownContent(raw: string): string {

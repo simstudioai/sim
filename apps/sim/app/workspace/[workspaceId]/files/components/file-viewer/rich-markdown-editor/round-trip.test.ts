@@ -80,6 +80,12 @@ describe('markdown-fidelity utils', () => {
     expect(splitFrontmatter(md)).toEqual({ frontmatter: '', body: md })
   })
 
+  it('does not treat a leading `---` thematic break as frontmatter (keeps the top section visible)', () => {
+    // A changelog whose second `---` would close the regex: the `## v2.0` section must stay in body.
+    const md = '---\n\n## v2.0\n\nnotes\n\n---\n\n## v1.0'
+    expect(splitFrontmatter(md)).toEqual({ frontmatter: '', body: md })
+  })
+
   it('holds a UTF-8 BOM out of band so frontmatter survives', () => {
     const input = '\uFEFF---\ntitle: x\n---\n\nbody'
     const { frontmatter, body } = splitFrontmatter(input)

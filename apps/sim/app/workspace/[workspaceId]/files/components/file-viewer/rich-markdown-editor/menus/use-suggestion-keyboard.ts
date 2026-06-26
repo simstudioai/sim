@@ -57,7 +57,8 @@ export function useSuggestionKeyboard<T>(
       return true
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
-      const item = items[activeIndex]
+      // Clamp in case a filter shrank the list this frame before the active-index reset committed.
+      const item = items[Math.min(activeIndex, items.length - 1)]
       if (!item) return false
       onSelect(item)
       return true
