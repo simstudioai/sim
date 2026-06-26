@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-25",
+  "updatedAt": "2026-06-26",
   "integrations": [
     {
       "type": "onepassword",
@@ -7727,7 +7727,7 @@
       "name": "Icypeas",
       "description": "Find and verify professional email addresses",
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
-      "bgColor": "#0EA5E9",
+      "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
       "docsUrl": "https://docs.sim.ai/tools/icypeas",
       "operations": [
