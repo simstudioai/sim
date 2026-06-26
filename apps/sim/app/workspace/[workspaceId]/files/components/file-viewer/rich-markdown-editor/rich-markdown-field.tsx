@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { chipFieldSurfaceClass } from '@/components/emcn'
+import { ChipTextarea, chipFieldSurfaceClass } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { createMarkdownEditorExtensions } from './extensions'
 import {
@@ -16,6 +16,7 @@ import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
+import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -47,11 +48,11 @@ interface RichMarkdownFieldProps {
 }
 
 /**
- * A controlled, string-valued WYSIWYG markdown editor for modal fields — the file-less sibling of
- * {@link RichMarkdownEditor}. It reuses the same TipTap extensions, parser, and menus but owns no file
- * loading, autosave, or image upload. Drop it inside a `ChipModalField type='custom'`.
+ * The WYSIWYG editor for round-trip-safe content (chosen by {@link RichMarkdownField}). The file-less
+ * sibling of {@link RichMarkdownEditor}'s loaded editor: same TipTap extensions, parser, and menus but
+ * no file loading, autosave, or image upload.
  */
-export function RichMarkdownField({
+function LoadedRichMarkdownField({
   value,
   onChange,
   placeholder = "Write something, or press '/' for commands…",
@@ -187,4 +188,41 @@ export function RichMarkdownField({
       />
     </div>
   )
+}
+
+/**
+ * Raw-text fallback for content the rich editor can't round-trip losslessly — editing the markdown
+ * source directly so an edit can't silently drop footnotes, raw HTML, or comments.
+ */
+function RawMarkdownField({
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  isStreaming = false,
+  minHeight = 140,
+  maxHeight = 360,
+  error = false,
+}: RichMarkdownFieldProps) {
+  return (
+    <ChipTextarea
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      error={error}
+      readOnly={disabled || isStreaming}
+      style={{ minHeight, maxHeight }}
+    />
+  )
+}
+
+/**
+ * A controlled, string-valued markdown editor for modal fields. Drop it inside a `ChipModalField
+ * type='custom'`. Mirrors the file editor's safety gate (decided once from the initial value):
+ * round-trip-safe content opens in the WYSIWYG editor, while lossy markdown (raw HTML, footnotes,
+ * comments) falls back to raw-text editing so an edit can't silently drop those constructs.
+ */
+export function RichMarkdownField(props: RichMarkdownFieldProps) {
+  const [isSafe] = useState(() => isRoundTripSafe(props.value))
+  return isSafe ? <LoadedRichMarkdownField {...props} /> : <RawMarkdownField {...props} />
 }
