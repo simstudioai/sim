@@ -49,15 +49,42 @@ jobs:
   # Run database migrations before images are pushed: the ECR push triggers
   # CodePipeline, so migrating first guarantees the schema is in place before
   # the new app version deploys (replaces the removed ECS migration sidecar)
+  # Detect whether this push actually changed any migration files, so the
+  # migrate job below can skip connecting to the production/staging database on
+  # merges that touch no schema (a no-op db:migrate otherwise dials the DB and
+  # fails any time it is at its connection limit).
+  detect-migrations:
+    name: Detect Migration Changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    outputs:
+      migrations_changed: ${{ steps.filter.outputs.migrations }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 2 # Need the previous commit to diff migration paths
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        id: filter
+        with:
+          filters: |
+            migrations:
+              - 'packages/db/migrations/**'
+
+  # The job always runs on push to main/staging so downstream build/deploy jobs
+  # that `need` it are never skipped; the actual db:migrate step is gated on
+  # detect-migrations inside the reusable workflow.
   migrate:
     name: Migrate DB
-    needs: [test-build]
+    needs: [test-build, detect-migrations]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
     with:
       environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      migrations_changed: ${{ needs.detect-migrations.outputs.migrations_changed }}
     secrets: inherit
 
   # Same ordering for dev (schema push before the dev image lands in ECR)

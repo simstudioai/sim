@@ -7,6 +7,14 @@ on:
         description: Target environment (production, staging, or dev)
         required: true
         type: string
+      migrations_changed:
+        description: >-
+          Whether this push changed migration files. When 'false' the versioned
+          apply step is skipped. Defaults to 'true' so manual dispatch and any
+          omitted/unknown value always applies migrations (never silently skip).
+        required: false
+        type: string
+        default: 'true'
   workflow_dispatch:
     inputs:
       environment:
@@ -61,6 +69,7 @@ jobs:
           DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || inputs.environment == 'dev' && secrets.DEV_DATABASE_URL || '' }}
           MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
           ENVIRONMENT: ${{ inputs.environment }}
+          MIGRATIONS_CHANGED: ${{ inputs.migrations_changed }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "ERROR: no database URL secret resolved for environment '${ENVIRONMENT}'" >&2
@@ -70,6 +79,8 @@ jobs:
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
             bun run db:push --force
+          elif [ "${MIGRATIONS_CHANGED}" = "false" ]; then
+            echo "No migration files changed in this push — skipping db:migrate (nothing to apply)."
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts
