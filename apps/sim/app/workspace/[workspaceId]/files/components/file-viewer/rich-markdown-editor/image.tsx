@@ -3,6 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { cn } from '@/lib/core/utils/cn'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { normalizeLinkHref } from './markdown-fidelity'
 
@@ -225,7 +226,10 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
       style={widthStyle}
-      className={`block max-w-full rounded-lg border border-[var(--border)]${editable ? ' cursor-grab' : ''}`}
+      className={cn(
+        'block max-w-full rounded-lg border border-[var(--border)]',
+        editable && 'cursor-grab'
+      )}
     />
   )
 

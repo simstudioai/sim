@@ -20,6 +20,19 @@ function isSuggestionMenuOpen(editor: Editor): boolean {
 }
 
 /**
+ * Selects the leaf (divider/image) immediately across `boundary` in `direction`, or returns false if
+ * the neighbour isn't a selectable leaf — the shared tail of both arrow handlers below.
+ */
+function selectLeafAcross(editor: Editor, boundary: number, direction: 'up' | 'down'): boolean {
+  const resolved = editor.state.doc.resolve(boundary)
+  const adjacent = direction === 'up' ? resolved.nodeBefore : resolved.nodeAfter
+  if (!adjacent || !SELECTABLE_LEAVES.has(adjacent.type.name)) return false
+  return editor.commands.setNodeSelection(
+    direction === 'up' ? boundary - adjacent.nodeSize : boundary
+  )
+}
+
+/**
  * Arrowing off the edge of a textblock toward an adjacent divider or image selects that node
  * (a NodeSelection), giving keyboard parity with clicking it. Without this the gap cursor swallows
  * the arrow and the node can never be selected — or deleted — from the keyboard.
@@ -29,12 +42,7 @@ function selectAdjacentLeaf(editor: Editor, direction: 'up' | 'down'): boolean {
   if (!selection.empty || !editor.view.endOfTextblock(direction)) return false
   const { $from } = selection
   const boundary = direction === 'up' ? $from.before($from.depth) : $from.after($from.depth)
-  const resolved = editor.state.doc.resolve(boundary)
-  const adjacent = direction === 'up' ? resolved.nodeBefore : resolved.nodeAfter
-  if (!adjacent || !SELECTABLE_LEAVES.has(adjacent.type.name)) return false
-  return editor.commands.setNodeSelection(
-    direction === 'up' ? boundary - adjacent.nodeSize : boundary
-  )
+  return selectLeafAcross(editor, boundary, direction)
 }
 
 /**
@@ -49,12 +57,7 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
     return false
   }
   const boundary = direction === 'up' ? selection.from : selection.to
-  const resolved = editor.state.doc.resolve(boundary)
-  const adjacent = direction === 'up' ? resolved.nodeBefore : resolved.nodeAfter
-  if (!adjacent || !SELECTABLE_LEAVES.has(adjacent.type.name)) return false
-  return editor.commands.setNodeSelection(
-    direction === 'up' ? boundary - adjacent.nodeSize : boundary
-  )
+  return selectLeafAcross(editor, boundary, direction)
 }
 
 /**

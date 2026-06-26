@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import {
@@ -89,14 +89,11 @@ export function SkillModal({
   if (open !== prevOpen) setPrevOpen(open)
   if (initialValues !== prevInitialValues) setPrevInitialValues(initialValues)
 
-  const hasChanges = useMemo(() => {
-    if (!initialValues) return true
-    return (
-      name !== initialValues.name ||
-      description !== initialValues.description ||
-      content !== initialValues.content
-    )
-  }, [name, description, content, initialValues])
+  const hasChanges =
+    !initialValues ||
+    name !== initialValues.name ||
+    description !== initialValues.description ||
+    content !== initialValues.content
 
   const handleSave = async () => {
     const newErrors: FieldErrors = {}

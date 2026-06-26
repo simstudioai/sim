@@ -1,18 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSimHref, simLinkPath } from './sim-link'
-
-describe('parseSimHref', () => {
-  it('parses a sim mention href', () => {
-    expect(parseSimHref('sim:file/abc-123')).toEqual({ kind: 'file', id: 'abc-123' })
-    expect(parseSimHref('sim:knowledge/kb_1')).toEqual({ kind: 'knowledge', id: 'kb_1' })
-  })
-
-  it('returns null for non-sim hrefs', () => {
-    expect(parseSimHref('https://sim.ai')).toBeNull()
-    expect(parseSimHref('sim:file')).toBeNull()
-    expect(parseSimHref('mailto:x@y.com')).toBeNull()
-  })
-})
+import { simLinkPath } from './sim-link'
 
 describe('simLinkPath', () => {
   const ws = 'ws1'

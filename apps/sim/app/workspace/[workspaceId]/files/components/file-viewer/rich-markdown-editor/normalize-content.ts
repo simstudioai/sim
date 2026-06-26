@@ -1,9 +1,4 @@
-import {
-  applyFrontmatter,
-  postProcessSerializedMarkdown,
-  splitFrontmatter,
-} from './markdown-fidelity'
-import { serializeMarkdownBody } from './markdown-parse'
+import { serializeMarkdownDocument } from './markdown-parse'
 import { isRoundTripSafe } from './round-trip-safety'
 
 /**
@@ -18,6 +13,5 @@ import { isRoundTripSafe } from './round-trip-safety'
  */
 export function normalizeMarkdownContent(raw: string): string {
   if (!isRoundTripSafe(raw)) return raw
-  const { frontmatter, body } = splitFrontmatter(raw)
-  return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(serializeMarkdownBody(body)))
+  return serializeMarkdownDocument(raw)
 }

@@ -20,11 +20,12 @@ interface SuggestionKeyboard extends SuggestionKeyDownHandler {
 
 /**
  * Shared arrow/enter/tab navigation for the `/` and `@` suggestion lists. Owns the active-row state,
- * resets it when the items change, scrolls the active row into view, and exposes an `onKeyDown` handle
- * for the suggestion plugin. Up/Down wrap; Enter and Tab both accept the active item (Tab matches the
- * chat composer). The handle is stable and reads live values through a ref, because the suggestion
- * plugin captures it once via `ReactRenderer.ref` while the items may still be loading. Enter/Tab clamp
- * the active index in case a filter shrank the list this frame before the active-index reset committed.
+ * resets it to the top during render when the item set changes (so the highlight is never briefly
+ * stale), scrolls the active row into view, and exposes an `onKeyDown` handle for the suggestion
+ * plugin. Up/Down wrap; Enter and Tab both accept the active item (Tab matches the chat composer). The
+ * handle is stable and reads live values through a ref, because the suggestion plugin captures it once
+ * via `ReactRenderer.ref` while the items may still be loading; Enter/Tab clamp the active index as a
+ * safety net.
  */
 export function useSuggestionKeyboard<T>(
   items: T[],
@@ -33,9 +34,11 @@ export function useSuggestionKeyboard<T>(
 ): SuggestionKeyboard {
   const [activeIndex, setActiveIndex] = useState(0)
 
-  useEffect(() => {
+  const [prevItems, setPrevItems] = useState(items)
+  if (items !== prevItems) {
+    setPrevItems(items)
     setActiveIndex(0)
-  }, [items])
+  }
 
   useEffect(() => {
     containerRef.current
