@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Database, File, Folder, Sparkles, Table, Workflow } from 'lucide-react'
+import { Box, Database, File, Folder, Sparkles, Table, Workflow } from 'lucide-react'
 import { getBlock } from '@/blocks/registry'
 import type { MentionKind } from './types'
 
@@ -17,10 +17,11 @@ const KIND_ICONS: Record<Exclude<MentionKind, 'integration'>, MentionIcon> = {
 
 /**
  * Resolves the icon for a mention. Integrations use their brand icon from the block registry (keyed by
- * blockType, which is the mention `id`); every other kind uses a lucide category icon. Shared by the
- * menu rows and the inserted chip so both render the same icon.
+ * blockType, which is the mention `id`), falling back to a generic icon if the block was since removed
+ * so the chip is never icon-less; every other kind uses a lucide category icon. Shared by the menu
+ * rows and the inserted chip so both render the same icon.
  */
-export function mentionIcon(kind: MentionKind, id: string): MentionIcon | undefined {
-  if (kind === 'integration') return getBlock(id)?.icon as MentionIcon | undefined
+export function mentionIcon(kind: MentionKind, id: string): MentionIcon {
+  if (kind === 'integration') return (getBlock(id)?.icon as MentionIcon | undefined) ?? Box
   return KIND_ICONS[kind]
 }
