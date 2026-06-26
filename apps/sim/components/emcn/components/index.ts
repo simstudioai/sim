@@ -85,7 +85,6 @@ export {
   type ComboboxOption,
   type ComboboxOptionGroup,
 } from './combobox/combobox'
-export { DatePicker, datePickerVariants } from './date-picker/date-picker'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
