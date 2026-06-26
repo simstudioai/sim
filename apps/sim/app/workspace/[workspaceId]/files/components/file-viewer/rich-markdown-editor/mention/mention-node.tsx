@@ -131,15 +131,15 @@ function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const router = useRouter()
   const params = useParams()
   const { kind, id, label } = node.attrs as MentionAttrs
-  const Icon = mentionIcon(kind, id) as StyleableIcon | undefined
-  const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
+  const Icon = mentionIcon(kind, id) as StyleableIcon
+  const iconStyle = getBareIconStyle(Icon)
   const navigable = editor.storage.mention?.navigable === true
+  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
+  // Only show the pointer / route on a kind that actually resolves to a page (e.g. not an integration).
+  const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 
   const handleClick = (event: MouseEvent) => {
-    if (!(event.metaKey || event.ctrlKey)) return
-    const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
-    const path = workspaceId && simLinkPath(workspaceId, kind, id)
-    if (!path) return
+    if (!path || !(event.metaKey || event.ctrlKey)) return
     event.preventDefault()
     router.push(path)
   }
@@ -147,11 +147,11 @@ function MentionChipView({ node, editor }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper
       as='span'
-      className={cn(CHIP_CLASS, navigable && 'cursor-pointer')}
-      onClick={navigable ? handleClick : undefined}
+      className={cn(CHIP_CLASS, path && 'cursor-pointer')}
+      onClick={path ? handleClick : undefined}
       title={label}
     >
-      {Icon && <Icon style={iconStyle} />}
+      <Icon style={iconStyle} />
       <span>{label}</span>
     </NodeViewWrapper>
   )

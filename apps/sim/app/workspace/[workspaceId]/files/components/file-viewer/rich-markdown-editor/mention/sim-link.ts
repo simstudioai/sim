@@ -19,9 +19,12 @@ export function parseSimHref(href: string): { kind: string; id: string } | null 
 }
 
 /**
- * Resolves the in-app route for a clicked `sim:` mention link, or `null` for an unknown kind. Each
- * destination matches the entity's real route: files open the file detail view, folders/skills deep-link
- * the file browser / skills modal via their query params, the rest hit their `[id]` route.
+ * Resolves the in-app route for a clicked `sim:` mention, or `null` when the kind has no navigable
+ * destination. Each path matches the entity's real route: files open the file detail view,
+ * folders/skills deep-link the file browser / skills modal via their query params, the rest hit their
+ * `[id]` route. Integrations are intentionally non-navigable — a mention's id is a block *type*
+ * (`gmail_v2`), which isn't a routable resource (no per-type page; it maps to zero-or-many
+ * credentials), so the chip stays display-only.
  */
 export function simLinkPath(workspaceId: string, kind: string, id: string): string | null {
   const base = `/workspace/${workspaceId}`
@@ -38,8 +41,6 @@ export function simLinkPath(workspaceId: string, kind: string, id: string): stri
       return `${base}/w/${id}`
     case 'skill':
       return `${base}/skills?skillId=${id}`
-    case 'integration':
-      return `${base}/integrations/${id}`
     default:
       return null
   }

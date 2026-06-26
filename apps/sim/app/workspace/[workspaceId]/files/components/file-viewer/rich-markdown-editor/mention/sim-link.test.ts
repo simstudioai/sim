@@ -25,10 +25,11 @@ describe('simLinkPath', () => {
     expect(simLinkPath(ws, 'knowledge', 'k1')).toBe('/workspace/ws1/knowledge/k1')
     expect(simLinkPath(ws, 'workflow', 'w1')).toBe('/workspace/ws1/w/w1')
     expect(simLinkPath(ws, 'skill', 's1')).toBe('/workspace/ws1/skills?skillId=s1')
-    expect(simLinkPath(ws, 'integration', 'slack')).toBe('/workspace/ws1/integrations/slack')
   })
 
-  it('returns null for an unknown kind', () => {
+  it('returns null for kinds with no navigable resource (integration) and unknown kinds', () => {
+    // An integration mention's id is a block type, not a routable resource.
+    expect(simLinkPath(ws, 'integration', 'slack')).toBeNull()
     expect(simLinkPath(ws, 'mystery', 'x')).toBeNull()
   })
 })
