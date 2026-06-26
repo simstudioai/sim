@@ -51,7 +51,7 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId]/components'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -262,6 +262,7 @@ export default function Logs() {
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
   const shouldScrollIntoViewRef = useRef(false)
+  const resourceTableRef = useRef<ResourceTableHandle>(null)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
@@ -565,10 +566,8 @@ export default function Logs() {
   useEffect(() => {
     if (!selectedLogId || !shouldScrollIntoViewRef.current) return
     shouldScrollIntoViewRef.current = false
-    const row = document.querySelector(`[data-row-id="${selectedLogId}"]`) as HTMLElement | null
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
+    // Route through the virtualizer; a querySelector would miss windowed-out rows.
+    resourceTableRef.current?.scrollToRow(selectedLogId)
   }, [selectedLogId, selectedLogIndex])
 
   const effectiveSidebarOpen =
@@ -1122,6 +1121,8 @@ export default function Logs() {
           </div>
         ) : (
           <Resource.Table
+            apiRef={resourceTableRef}
+            virtualized
             columns={LOG_COLUMNS}
             rows={rows}
             selectedRowId={selectedLogId}

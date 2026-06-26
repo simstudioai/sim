@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
+import { Badge, Button, ChipInput, ChipSelect, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -15,6 +15,8 @@ import {
   mothershipParsers,
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type MothershipByokKey,
   type MothershipEnv,
@@ -50,10 +52,10 @@ const TABS: { id: MothershipTab; label: string }[] = [
   { id: 'byok', label: 'BYOK' },
 ]
 
-const ENV_OPTIONS: { id: MothershipEnv; label: string }[] = [
-  { id: 'dev', label: 'Dev' },
-  { id: 'staging', label: 'Staging' },
-  { id: 'prod', label: 'Prod' },
+const ENV_OPTIONS: { value: MothershipEnv; label: string }[] = [
+  { value: 'dev', label: 'Dev' },
+  { value: 'staging', label: 'Staging' },
+  { value: 'prod', label: 'Prod' },
 ]
 
 function defaultTimeRange() {
@@ -81,11 +83,11 @@ function formatDate(d: string | null | undefined) {
 }
 
 function Divider() {
-  return <div className='h-px bg-[var(--border-secondary)]' />
+  return <div className='h-px bg-[var(--border)]' />
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className='font-medium text-[var(--text-primary)] text-sm'>{children}</p>
+  return <p className='font-medium text-[var(--text-muted)] text-small'>{children}</p>
 }
 
 export function Mothership() {
@@ -98,89 +100,67 @@ export function Mothership() {
   const [end, setEnd] = useState(defaults.end)
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
-          {/* Environment selector */}
-          <div className='flex items-center gap-2'>
-            <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-            <div className='flex gap-1'>
-              {ENV_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type='button'
-                  onClick={() => setMothershipParams({ env: opt.id })}
-                  className={cn(
-                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                    environment === opt.id
-                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tab bar */}
-          <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type='button'
-                onClick={() => setMothershipParams({ tab: tab.id })}
-                className={cn(
-                  'relative px-3 py-2 font-medium text-sm transition-colors',
-                  activeTab === tab.id
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-                )}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Time range (shared across tabs) */}
-          <div className='flex items-center gap-3'>
-            <div className='flex items-center gap-2'>
-              <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-              <EmcnInput
-                type='datetime-local'
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className='h-[30px] text-caption'
-              />
-            </div>
-            <div className='flex items-center gap-2'>
-              <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-              <EmcnInput
-                type='datetime-local'
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className='h-[30px] text-caption'
-              />
-            </div>
-          </div>
-
-          <Divider />
-
-          {activeTab === 'overview' && (
-            <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-          )}
-          {activeTab === 'licenses' && <LicensesTab environment={environment} />}
-          {activeTab === 'byok' && <ByokTab />}
+    <SettingsPanel>
+      <div className='flex flex-col gap-6'>
+        <div className='flex items-center gap-2'>
+          <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+          <ChipSelect
+            align='start'
+            dropdownWidth={160}
+            value={environment}
+            onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
+            placeholder='Select environment'
+            options={ENV_OPTIONS}
+          />
         </div>
+
+        <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type='button'
+              onClick={() => setMothershipParams({ tab: tab.id })}
+              className={cn(
+                'relative px-3 py-2 font-medium text-sm transition-colors',
+                activeTab === tab.id
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+              )}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
+            <ChipInput
+              type='datetime-local'
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+            />
+          </div>
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
+            <ChipInput type='datetime-local' value={end} onChange={(e) => setEnd(e.target.value)} />
+          </div>
+        </div>
+
+        <Divider />
+
+        {activeTab === 'overview' && (
+          <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
+        )}
+        {activeTab === 'licenses' && <LicensesTab environment={environment} />}
+        {activeTab === 'byok' && <ByokTab />}
       </div>
-    </div>
+    </SettingsPanel>
   )
 }
-
-/* ─── BYOK Tab ─── */
 
 function ByokTab() {
   const params = useParams()
@@ -214,8 +194,6 @@ function ByokTab() {
   )
 }
 
-/* ─── Overview Tab ─── */
-
 function OverviewTab({
   environment,
   start,
@@ -238,7 +216,6 @@ function OverviewTab({
 
   return (
     <div className='flex flex-col gap-5'>
-      {/* Summary cards */}
       <div className='grid grid-cols-4 gap-3'>
         <StatCard
           label='Total Requests'
@@ -276,7 +253,6 @@ function OverviewTab({
         />
       </div>
 
-      {/* User breakdown */}
       <SectionLabel>User Breakdown</SectionLabel>
       {breakdownLoading && (
         <div className='flex flex-col gap-2'>
@@ -322,7 +298,6 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Recent requests */}
       <Divider />
       <SectionLabel>Recent Requests ({requests?.count ?? '…'})</SectionLabel>
       {requestsLoading && (
@@ -398,8 +373,6 @@ function OverviewTab({
   )
 }
 
-/* ─── Licenses Tab ─── */
-
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
   const { data, isLoading, refetch } = useMothershipLicenses(environment)
   const generateLicense = useGenerateLicense(environment)
@@ -431,23 +404,23 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       <div className='flex items-end gap-2'>
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Enterprise Name</Label>
-          <EmcnInput
+          <ChipInput
             value={newName}
             onChange={(e) => {
               setNewName(e.target.value)
               setGeneratedKey(null)
             }}
             placeholder='e.g. Acme Corp'
-            className='h-[32px] w-[200px]'
+            className='w-[200px]'
           />
         </div>
         <div className='flex flex-col gap-1'>
           <Label className='text-[var(--text-secondary)] text-caption'>Expiration (optional)</Label>
-          <EmcnInput
+          <ChipInput
             type='date'
             value={newExpiry}
             onChange={(e) => setNewExpiry(e.target.value)}
-            className='h-[32px] w-[160px]'
+            className='w-[160px]'
           />
         </div>
         <Button
@@ -495,9 +468,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
             <span className='w-[140px] text-right'>Created</span>
           </div>
           {data.licenses.length === 0 && (
-            <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
-              No licenses found.
-            </div>
+            <SettingsEmptyState variant='inline'>No licenses found.</SettingsEmptyState>
           )}
           {data.licenses.map(
             (lic: {
@@ -529,8 +500,6 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
     </div>
   )
 }
-
-/* ─── Shared components ─── */
 
 function StatCard({
   label,

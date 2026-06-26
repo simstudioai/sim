@@ -926,7 +926,7 @@ export function KnowledgeBase({
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
               >
                 Clear
               </Button>
@@ -1499,7 +1499,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
             fullWidth
             flush
           />
-          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
+          <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
           <ChipDatePicker
             value={entry.valueTo || undefined}
             onChange={(value) => onChange({ valueTo: value })}
@@ -1530,7 +1530,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
           onChange={(event) => onChange({ value: event.target.value })}
           placeholder='From'
         />
-        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
+        <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
         <ChipInput
           value={entry.valueTo}
           onChange={(event) => onChange({ valueTo: event.target.value })}
@@ -1625,7 +1625,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         {activeCount > 0 && (
           <Button
             variant='ghost'
-            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
             onClick={() => onChange([])}
           >
             Clear all
@@ -1648,7 +1648,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
             <div key={entry.id} className='flex flex-col gap-2'>
               {index > 0 && (
                 <div className='flex items-center gap-2'>
-                  <span className='shrink-0 text-[var(--text-muted)] text-xs leading-none'>
+                  <span className='shrink-0 text-[var(--text-muted)] text-caption leading-none'>
                     and
                   </span>
                   <div className='h-px flex-1 bg-[var(--border-1)]' />

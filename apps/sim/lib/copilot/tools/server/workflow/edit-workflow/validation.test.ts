@@ -2,12 +2,23 @@
  * @vitest-environment node
  */
 import { envFlagsMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
-const { mockValidateSelectorIds, mockGetModelOptions } = vi.hoisted(() => ({
+const {
+  mockValidateSelectorIds,
+  mockGetModelOptions,
+  mockEnvFlags,
+  mockGetTool,
+  mockGetCustomToolById,
+  mockGetSkillById,
+} = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
+  mockEnvFlags: { isHosted: false },
+  mockGetTool: vi.fn(),
+  mockGetCustomToolById: vi.fn(),
+  mockGetSkillById: vi.fn(),
 }))
 
 const conditionBlockConfig = {
@@ -22,6 +33,7 @@ const oauthBlockConfig = {
   name: 'Slack',
   outputs: {},
   subBlocks: [{ id: 'credential', type: 'oauth-input' }],
+  tools: { access: ['slack_message'] },
 }
 
 const routerBlockConfig = {
@@ -38,7 +50,11 @@ const agentBlockConfig = {
   type: 'agent',
   name: 'Agent',
   outputs: {},
-  subBlocks: [{ id: 'model', type: 'combobox', options: mockGetModelOptions }],
+  subBlocks: [
+    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'tools', type: 'tool-input' },
+    { id: 'skills', type: 'skill-input' },
+  ],
 }
 
 const huggingfaceBlockConfig = {
@@ -65,6 +81,53 @@ const canonicalCredBlockConfig = {
   ],
 }
 
+// Mirrors video_generator_v3: routes provider -> tool; only video_falai has hosting.
+const videoBlockConfig = {
+  type: 'video_generator_v3',
+  name: 'Video Generator',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: {
+    access: ['video_runway', 'video_falai'],
+    config: {
+      tool: (params: Record<string, unknown>) =>
+        params.provider === 'falai' ? 'video_falai' : 'video_runway',
+    },
+  },
+}
+
+// A hosted block whose tool's managed key param is NOT named 'apiKey'.
+const customKeyBlockConfig = {
+  type: 'custom_key_block',
+  name: 'Custom Key Block',
+  outputs: {},
+  subBlocks: [{ id: 'serviceKey', type: 'short-input' }],
+  tools: { access: ['custom_key_tool'], config: { tool: () => 'custom_key_tool' } },
+}
+
+// Single tool with a per-provider `enabled` gate (mirrors image_generate, falai-only hosting).
+const imageBlockConfig = {
+  type: 'image_generator_v2',
+  name: 'Image Generator',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: { access: ['image_generate'], config: { tool: () => 'image_generate' } },
+}
+
+// Tool registry stand-in for the hosted-tool tests.
+const toolsByIdMock: Record<string, unknown> = {
+  video_falai: { id: 'video_falai', hosting: { apiKeyParam: 'apiKey' } },
+  video_runway: { id: 'video_runway' },
+  custom_key_tool: { id: 'custom_key_tool', hosting: { apiKeyParam: 'serviceKey' } },
+  image_generate: {
+    id: 'image_generate',
+    hosting: {
+      apiKeyParam: 'apiKey',
+      enabled: (p: Record<string, unknown>) => p.provider === 'falai',
+    },
+  },
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'condition'
@@ -81,24 +144,48 @@ vi.mock('@/blocks/registry', () => ({
                 ? knowledgeBlockConfig
                 : type === 'canonicalcred'
                   ? canonicalCredBlockConfig
-                  : undefined,
+                  : type === 'video_generator_v3'
+                    ? videoBlockConfig
+                    : type === 'custom_key_block'
+                      ? customKeyBlockConfig
+                      : type === 'image_generator_v2'
+                        ? imageBlockConfig
+                        : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
 }))
 
+vi.mock('@/tools/utils', () => ({
+  getTool: mockGetTool,
+}))
+
 vi.mock('@/lib/copilot/validation/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/workflows/custom-tools/operations', () => ({
+  getCustomToolById: mockGetCustomToolById,
+}))
+
+vi.mock('@/lib/workflows/skills/operations', () => ({
+  getSkillById: mockGetSkillById,
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  ...envFlagsMock,
+  get isHosted() {
+    return mockEnvFlags.isHosted
+  },
+}))
 
 vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],
 }))
 
 import {
+  collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
   preValidateCredentialInputs,
   validateInputsForBlock,
@@ -304,6 +391,187 @@ describe('preValidateCredentialInputs', () => {
   })
 })
 
+describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
+    mockEnvFlags.isHosted = true
+  })
+
+  afterEach(() => {
+    mockEnvFlags.isHosted = false
+  })
+
+  const ctx = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  it('strips apiKey when the block resolves to a hosted tool on hosted Sim', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+    expect(result.errors[0]?.error).toContain('managed by Sim')
+  })
+
+  it('preserves apiKey when the resolved tool has no hosting (non-falai provider)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'runway', apiKey: 'user-runway-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-runway-key')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('resolves provider from existing block state for edit ops that only set apiKey', async () => {
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': {
+          type: 'video_generator_v3',
+          subBlocks: { provider: { value: 'falai' } },
+        },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('strips apiKey on a hosted-tool block nested inside a loop', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'loop-1',
+        params: {
+          type: 'loop',
+          inputs: {},
+          nestedNodes: {
+            'video-child': {
+              type: 'video_generator_v3',
+              inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+            },
+          },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    const nested = result.filteredOperations[0]?.params?.nestedNodes as
+      | Record<string, { inputs?: Record<string, unknown> }>
+      | undefined
+    expect(nested?.['video-child']?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
+  })
+
+  it("strips a hosted tool's key field even when it is not named apiKey", async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'custom-1',
+        params: {
+          type: 'custom_key_block',
+          inputs: { serviceKey: '{{SOME_SERVICE_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.serviceKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
+  })
+
+  it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
+    mockEnvFlags.isHosted = false
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'video-1',
+        params: {
+          type: 'video_generator_v3',
+          inputs: { provider: 'falai', model: 'veo-3.1', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('{{FAL_API_KEY}}')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('strips apiKey when the tool hosting enabled gate passes (image, falai)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'image-1',
+        params: {
+          type: 'image_generator_v2',
+          inputs: { provider: 'falai', apiKey: '{{FAL_API_KEY}}' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('preserves apiKey when the tool hosting enabled gate fails (image, non-falai)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'image-1',
+        params: {
+          type: 'image_generator_v2',
+          inputs: { provider: 'openai', apiKey: 'user-openai-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-openai-key')
+    expect(result.errors).toHaveLength(0)
+  })
+})
+
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 describe('validateWorkflowSelectorIds (credential inclusion)', () => {
@@ -413,5 +681,322 @@ describe('collectUnresolvedReferences', () => {
     expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
+  })
+})
+
+describe('validateInputsForBlock - agent tools (tool-input)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('accepts a reference-format custom tool', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'custom-tool', customToolId: 'ct_123', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts an inline custom tool with schema.function', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        tools: [
+          {
+            type: 'custom-tool',
+            schema: { type: 'function', function: { name: 'foo', parameters: { type: 'object' } } },
+            code: 'return 1',
+          },
+        ],
+      },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects a custom tool missing "type": "custom-tool" (the no-icon case)', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ customToolId: 'ct_123', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('custom-tool')
+  })
+
+  it('rejects a raw OpenAI function schema pasted into the array', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'function', function: { name: 'foo', parameters: {} } }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('raw function schema')
+  })
+
+  it('rejects a custom tool with neither customToolId nor inline schema', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'custom-tool', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('customToolId')
+  })
+
+  it('rejects an MCP tool missing params.serverId/toolName', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'mcp', title: 'x', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('params.serverId')
+  })
+
+  it('accepts an MCP tool with params.serverId and params.toolName', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        tools: [
+          {
+            type: 'mcp',
+            params: { serverId: 'srv_1', toolName: 'web_search' },
+            usageControl: 'auto',
+          },
+        ],
+      },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts an integration tool whose type is a known block', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'slack', operation: 'send', usageControl: 'auto' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects an unrecognized tool type', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'nonexistent-block', operation: 'x' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('unrecognized tool type')
+  })
+
+  it('rejects a known block that exposes no callable tools (not tool-capable)', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'condition', operation: 'x' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('cannot be attached as an agent tool')
+  })
+
+  it('reports every bad entry in a single error', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ customToolId: 'x' }, { type: 'mcp' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('tools[0]')
+    expect(result.errors[0]?.error).toContain('tools[1]')
+  })
+
+  it('rejects a non-array tools value', () => {
+    const result = validateInputsForBlock('agent', { tools: 'not-an-array' }, 'agent-1')
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('expected an array')
+  })
+})
+
+describe('validateInputsForBlock - agent skills (skill-input)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('accepts a well-formed skill entry', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { skills: [{ skillId: 'builtin-deploy-workflow', name: 'deploy-workflow' }] },
+      'agent-1'
+    )
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.skills).toBeDefined()
+  })
+
+  it('rejects a skill entry that uses "id" instead of "skillId"', () => {
+    const result = validateInputsForBlock('agent', { skills: [{ id: 'x', name: 'y' }] }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skillId')
+  })
+
+  it('rejects a skill entry missing skillId', () => {
+    const result = validateInputsForBlock('agent', { skills: [{ name: 'y' }] }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skillId')
+  })
+
+  it('rejects a tool-shaped entry placed in the skills array', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { skills: [{ type: 'custom-tool', customToolId: 'ct_1' }] },
+      'agent-1'
+    )
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('skills')
+  })
+
+  it('rejects a non-array skills value', () => {
+    const result = validateInputsForBlock('agent', { skills: {} }, 'agent-1')
+    expect(result.validInputs.skills).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('expected an array')
+  })
+})
+
+describe('collectUnresolvedAgentToolReferences', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetCustomToolById.mockResolvedValue(null)
+    mockGetSkillById.mockResolvedValue(null)
+  })
+
+  it('flags a custom tool whose customToolId does not resolve', async () => {
+    mockGetCustomToolById.mockResolvedValue(null)
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          name: 'Agent 1',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'missing_ct' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ blockId: 'a1', field: 'tools', kind: 'custom-tool' })
+    expect(refs[0]?.reason).toContain('missing_ct')
+  })
+
+  it('does not DB-check an inline custom tool (it carries its own schema)', async () => {
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: {
+            tools: {
+              value: [
+                {
+                  type: 'custom-tool',
+                  customToolId: 'x',
+                  schema: { type: 'function', function: { name: 'f', parameters: {} } },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+
+  it('does not flag a custom tool that resolves', async () => {
+    mockGetCustomToolById.mockResolvedValue({ id: 'ct_ok' })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'ct_ok' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+  })
+
+  it('does not DB-check a custom tool when workspaceId is absent (avoids false positives)', async () => {
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'ct_x' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, { userId: 'user-1' })
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+
+  it('flags an MCP tool whose server does not resolve', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['srv_missing'] })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: {
+            tools: { value: [{ type: 'mcp', params: { serverId: 'srv_missing', toolName: 'x' } }] },
+          },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'tools', kind: 'mcp-tool' })
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('mcp-server-selector', 'srv_missing', CTX)
+  })
+
+  it('flags a skill whose skillId does not resolve', async () => {
+    mockGetSkillById.mockResolvedValue(null)
+    const state = {
+      blocks: {
+        a1: { type: 'agent', subBlocks: { skills: { value: [{ skillId: 'bogus-skill' }] } } },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'skills', kind: 'skill' })
+    expect(refs[0]?.reason).toContain('bogus-skill')
+  })
+
+  it('does not flag a skill that resolves (builtin or workspace)', async () => {
+    mockGetSkillById.mockResolvedValue({ id: 'builtin-deploy-workflow', name: 'deploy-workflow' })
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: { skills: { value: [{ skillId: 'builtin-deploy-workflow' }] } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+  })
+
+  it('ignores non-agent blocks', async () => {
+    const state = {
+      blocks: { s1: { type: 'slack', subBlocks: { tools: { value: [{ type: 'custom-tool' }] } } } },
+    }
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+    expect(mockGetCustomToolById).not.toHaveBeenCalled()
   })
 })

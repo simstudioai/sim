@@ -6,6 +6,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   isBillingEnabled,
@@ -105,7 +106,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
-  // The Subscription tab was replaced by Billing; redirect legacy links there.
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
@@ -125,29 +125,31 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div className='flex h-full flex-col'>
-      {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'secrets' && <Secrets />}
-      {effectiveSection === 'credential-sets' && <CredentialSets />}
-      {effectiveSection === 'access-control' && <AccessControl />}
-      {effectiveSection === 'audit-logs' && <AuditLogs />}
-      {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
-      {effectiveSection === 'teammates' && <Teammates />}
-      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
-      {effectiveSection === 'sso' && <SSO />}
-      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
-      {effectiveSection === 'data-drains' && <DataDrainsSettings />}
-      {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
-      {effectiveSection === 'byok' && <BYOK />}
-      {effectiveSection === 'copilot' && <Copilot />}
-      {effectiveSection === 'mcp' && <MCP />}
-      {effectiveSection === 'custom-tools' && <CustomTools />}
-      {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
-      {effectiveSection === 'inbox' && <Inbox />}
-      {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
-      {effectiveSection === 'admin' && <Admin />}
-      {effectiveSection === 'mothership' && <Mothership />}
-    </div>
+    <SettingsSectionProvider section={effectiveSection}>
+      <div className='flex h-full flex-col'>
+        {effectiveSection === 'general' && <General />}
+        {effectiveSection === 'secrets' && <Secrets />}
+        {effectiveSection === 'credential-sets' && <CredentialSets />}
+        {effectiveSection === 'access-control' && <AccessControl />}
+        {effectiveSection === 'audit-logs' && <AuditLogs />}
+        {effectiveSection === 'apikeys' && <ApiKeys />}
+        {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
+        {effectiveSection === 'teammates' && <Teammates />}
+        {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
+        {effectiveSection === 'sso' && <SSO />}
+        {effectiveSection === 'data-retention' && <DataRetentionSettings />}
+        {effectiveSection === 'data-drains' && <DataDrainsSettings />}
+        {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
+        {effectiveSection === 'byok' && <BYOK />}
+        {effectiveSection === 'copilot' && <Copilot />}
+        {effectiveSection === 'mcp' && <MCP />}
+        {effectiveSection === 'custom-tools' && <CustomTools />}
+        {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+        {effectiveSection === 'inbox' && <Inbox />}
+        {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+        {effectiveSection === 'admin' && <Admin />}
+        {effectiveSection === 'mothership' && <Mothership />}
+      </div>
+    </SettingsSectionProvider>
   )
 }

@@ -50,6 +50,13 @@ export class IntegrationNotAllowedError extends Error {
   }
 }
 
+export class ToolNotAllowedError extends Error {
+  constructor(toolId: string) {
+    super(`Tool "${toolId}" is not allowed based on your permission group settings`)
+    this.name = 'ToolNotAllowedError'
+  }
+}
+
 export class McpToolsNotAllowedError extends Error {
   constructor() {
     super('MCP tools are not allowed based on your permission group settings')
@@ -566,6 +573,12 @@ interface PermissionAssertion {
   workspaceId: string | undefined
   model?: string
   blockType?: string
+  /**
+   * Concrete tool ID being executed (e.g. `slack_canvas`). Checked against the
+   * group's `deniedTools` denylist so an admin can allow an integration but deny
+   * specific operations within it. Pass the normalized tool id.
+   */
+  toolId?: string
   toolKind?: ToolKind
   ctx?: ExecutionContext
 }
@@ -581,11 +594,11 @@ interface PermissionAssertion {
  * callsite covers every future config field.
  */
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
-  const { userId, workspaceId, model, blockType, toolKind, ctx } = req
+  const { userId, workspaceId, model, blockType, toolId, toolKind, ctx } = req
 
   const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
 
-  if (blockTypeExempt && !model && !toolKind) {
+  if (blockTypeExempt && !model && !toolKind && !toolId) {
     return
   }
 
@@ -632,6 +645,11 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
         )
       }
     }
+  }
+
+  if (toolId && config?.deniedTools?.includes(toolId)) {
+    logger.warn('Tool blocked by permission group', { userId, workspaceId, toolId })
+    throw new ToolNotAllowedError(toolId)
   }
 
   if (toolKind && config) {

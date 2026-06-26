@@ -29,6 +29,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useBrandConfig } from '@/ee/whitelabeling'
@@ -269,289 +270,282 @@ export function General() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      {/* Fixed header bar */}
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div className='flex items-center'>
-          {isHosted && (
-            <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-              Home Page
-            </Chip>
-          )}
-        </div>
-        {!isAuthDisabled && (
-          <div className='flex items-center gap-1'>
-            <Chip onClick={handleSignOut}>Sign out</Chip>
-            <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-          </div>
-        )}
-      </div>
-
-      {/* Scrollable content */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
-          <SettingsSection label='Profile'>
-            <div className='flex flex-col gap-3'>
-              <div className='flex items-center gap-3'>
-                <div className='relative'>
-                  <div
-                    role='button'
-                    tabIndex={0}
-                    className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
-                    onClick={handleProfilePictureClick}
-                    onKeyDown={(event) =>
-                      handleKeyboardActivation(event, handleProfilePictureClick)
-                    }
-                  >
-                    {(() => {
-                      if (imageUrl) {
-                        return (
-                          <Image
-                            src={imageUrl}
-                            alt={profile?.name || 'User'}
-                            width={36}
-                            height={36}
-                            unoptimized
-                            className={`h-full w-full object-cover transition-opacity duration-300 ${
-                              isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
-                            }`}
-                          />
-                        )
-                      }
+    <>
+      <SettingsPanel
+        actions={
+          <>
+            {isHosted && (
+              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
+                Home Page
+              </Chip>
+            )}
+            {!isAuthDisabled && (
+              <>
+                <Chip onClick={handleSignOut}>Sign out</Chip>
+                <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
+              </>
+            )}
+          </>
+        }
+      >
+        <SettingsSection label='Profile'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex items-center gap-3'>
+              <div className='relative'>
+                <div
+                  role='button'
+                  tabIndex={0}
+                  className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+                  onClick={handleProfilePictureClick}
+                  onKeyDown={(event) => handleKeyboardActivation(event, handleProfilePictureClick)}
+                >
+                  {(() => {
+                    if (imageUrl) {
                       return (
-                        <span className='font-medium text-[var(--text-primary)] text-base'>
-                          {getInitials(profile?.name) || ''}
-                        </span>
+                        <Image
+                          src={imageUrl}
+                          alt={profile?.name || 'User'}
+                          width={36}
+                          height={36}
+                          unoptimized
+                          className={`h-full w-full object-cover transition-opacity duration-300 ${
+                            isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
+                          }`}
+                        />
                       )
-                    })()}
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity ${
-                        isUploadingProfilePicture
-                          ? 'opacity-100'
-                          : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                    >
-                      {isUploadingProfilePicture ? (
-                        <div className='size-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
-                      ) : (
-                        <Camera className='size-4 text-white' />
-                      )}
-                    </div>
-                  </div>
-                  <Input
-                    type='file'
-                    accept='image/png,image/jpeg,image/jpg'
-                    className='hidden'
-                    ref={profilePictureInputRef}
-                    onChange={handleProfilePictureChange}
-                    disabled={isUploadingProfilePicture}
-                  />
-                </div>
-                <div className='flex flex-1 flex-col justify-center gap-[1px]'>
-                  <div className='flex items-center gap-2'>
-                    {isEditingName ? (
-                      <>
-                        <div className='relative inline-flex'>
-                          <span
-                            className='invisible whitespace-pre font-medium text-base'
-                            aria-hidden='true'
-                          >
-                            {name || ' '}
-                          </span>
-                          <input
-                            ref={inputRef}
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            onBlur={handleInputBlur}
-                            className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                            maxLength={100}
-                            disabled={updateProfile.isPending}
-                            autoComplete='off'
-                            autoCorrect='off'
-                            autoCapitalize='off'
-                            spellCheck='false'
-                          />
-                        </div>
-                        <Button
-                          variant='ghost'
-                          className='size-[12px] flex-shrink-0 p-0'
-                          onClick={handleUpdateName}
-                          disabled={updateProfile.isPending}
-                          aria-label='Save name'
-                        >
-                          <Check className='size-[12px]' />
-                        </Button>
-                      </>
+                    }
+                    return (
+                      <span className='font-medium text-[var(--text-primary)] text-base'>
+                        {getInitials(profile?.name) || ''}
+                      </span>
+                    )
+                  })()}
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity ${
+                      isUploadingProfilePicture
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {isUploadingProfilePicture ? (
+                      <div className='size-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
                     ) : (
-                      <>
-                        <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
-                        <Button
-                          variant='ghost'
-                          className='size-[10.5px] flex-shrink-0 p-0'
-                          onClick={() => setIsEditingName(true)}
-                          aria-label='Edit name'
-                        >
-                          <Pencil className='size-[10.5px]' />
-                        </Button>
-                      </>
+                      <Camera className='size-4 text-white' />
                     )}
                   </div>
-                  <p className='text-[var(--text-tertiary)] text-sm'>{profile?.email || ''}</p>
                 </div>
+                <Input
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg'
+                  className='hidden'
+                  ref={profilePictureInputRef}
+                  onChange={handleProfilePictureChange}
+                  disabled={isUploadingProfilePicture}
+                />
               </div>
-              {uploadError && <p className='text-[var(--text-error)] text-sm'>{uploadError}</p>}
+              <div className='flex flex-1 flex-col justify-center gap-[1px]'>
+                <div className='flex items-center gap-2'>
+                  {isEditingName ? (
+                    <>
+                      <div className='relative inline-flex'>
+                        <span
+                          className='invisible whitespace-pre font-medium text-base'
+                          aria-hidden='true'
+                        >
+                          {name || ' '}
+                        </span>
+                        <input
+                          ref={inputRef}
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          onBlur={handleInputBlur}
+                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                          maxLength={100}
+                          disabled={updateProfile.isPending}
+                          autoComplete='off'
+                          autoCorrect='off'
+                          autoCapitalize='off'
+                          spellCheck='false'
+                        />
+                      </div>
+                      <Button
+                        variant='ghost'
+                        className='size-[12px] flex-shrink-0 p-0'
+                        onClick={handleUpdateName}
+                        disabled={updateProfile.isPending}
+                        aria-label='Save name'
+                      >
+                        <Check className='size-[12px]' />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
+                      <Button
+                        variant='ghost'
+                        className='size-[10.5px] flex-shrink-0 p-0'
+                        onClick={() => setIsEditingName(true)}
+                        aria-label='Edit name'
+                      >
+                        <Pencil className='size-[10.5px]' />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <p className='text-[var(--text-tertiary)] text-sm'>{profile?.email || ''}</p>
+              </div>
             </div>
-          </SettingsSection>
+            {uploadError && <p className='text-[var(--text-error)] text-sm'>{uploadError}</p>}
+          </div>
+        </SettingsSection>
 
-          <SettingsSection label='Preferences'>
-            <div className='flex flex-col gap-4'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='theme-select'>Theme</Label>
-                <div className={DROPDOWN_TRIGGER_CLASS}>
-                  <ChipSelect
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                    value={settings?.theme}
-                    onChange={handleThemeChange}
-                    placeholder='Select theme'
-                    options={[
-                      { label: 'System', value: 'system' },
-                      { label: 'Light', value: 'light' },
-                      { label: 'Dark', value: 'dark' },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Timezone</Label>
-                <div className={DROPDOWN_TRIGGER_CLASS}>
-                  <ChipCombobox
-                    align='start'
-                    dropdownWidth={240}
-                    searchable
-                    searchPlaceholder='Search timezones'
-                    value={settings?.timezone ?? getBrowserTimezone()}
-                    onChange={handleTimezoneChange}
-                    placeholder='Select timezone'
-                    options={TIMEZONE_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-1.5'>
-                  <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='bottom' align='start'>
-                      <p>Automatically connect blocks when dropped near each other</p>
-                      <Tooltip.Preview
-                        src='/tooltips/auto-connect-on-drop.mp4'
-                        alt='Auto-connect on drop example'
-                        loop={true}
-                      />
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </div>
-                <Switch
-                  id='auto-connect'
-                  checked={settings?.autoConnect ?? true}
-                  onCheckedChange={handleAutoConnectChange}
+        <SettingsSection label='Preferences'>
+          <div className='flex flex-col gap-4'>
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='theme-select'>Theme</Label>
+              <div className={DROPDOWN_TRIGGER_CLASS}>
+                <ChipSelect
+                  align='start'
+                  fullWidth
+                  dropdownWidth='trigger'
+                  value={settings?.theme}
+                  onChange={handleThemeChange}
+                  placeholder='Select theme'
+                  options={[
+                    { label: 'System', value: 'system' },
+                    { label: 'Light', value: 'light' },
+                    { label: 'Dark', value: 'dark' },
+                  ]}
                 />
               </div>
-
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-1.5'>
-                  <Label htmlFor='error-notifications'>Canvas error notifications</Label>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='bottom' align='start'>
-                      <p>Show error popups on blocks when a workflow run fails</p>
-                      <Tooltip.Preview
-                        src='/tooltips/canvas-error-notification.mp4'
-                        alt='Canvas error notification example'
-                      />
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </div>
-                <Switch
-                  id='error-notifications'
-                  checked={settings?.errorNotificationsEnabled ?? true}
-                  onCheckedChange={handleErrorNotificationsChange}
-                />
-              </div>
-
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='snap-to-grid'>Snap to grid</Label>
-                <div className={DROPDOWN_TRIGGER_CLASS}>
-                  <ChipSelect
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                    value={String(snapToGridValue)}
-                    onChange={handleSnapToGridChange}
-                    placeholder='Select size'
-                    options={[
-                      { label: 'Off', value: '0' },
-                      { label: '10px', value: '10' },
-                      { label: '20px', value: '20' },
-                      { label: '30px', value: '30' },
-                      { label: '40px', value: '40' },
-                      { label: '50px', value: '50' },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='show-action-bar'>Show canvas controls</Label>
-                <Switch
-                  id='show-action-bar'
-                  checked={settings?.showActionBar ?? true}
-                  onCheckedChange={handleShowActionBarChange}
-                />
-              </div>
-
-              {isTrainingEnabled && (
-                <div className='flex items-center justify-between'>
-                  <Label htmlFor='training-controls'>Training controls</Label>
-                  <Switch
-                    id='training-controls'
-                    checked={settings?.showTrainingControls ?? false}
-                    onCheckedChange={handleTrainingControlsChange}
-                  />
-                </div>
-              )}
             </div>
-          </SettingsSection>
 
-          <SettingsSection label='Privacy'>
-            <div className='flex flex-col gap-3'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
-                <Switch
-                  id='telemetry'
-                  checked={settings?.telemetryEnabled ?? true}
-                  onCheckedChange={handleTelemetryToggle}
+            <div className='flex items-center justify-between gap-4'>
+              <Label>Timezone</Label>
+              <div className={DROPDOWN_TRIGGER_CLASS}>
+                <ChipCombobox
+                  align='start'
+                  dropdownWidth={240}
+                  searchable
+                  searchPlaceholder='Search timezones'
+                  value={settings?.timezone ?? getBrowserTimezone()}
+                  onChange={handleTimezoneChange}
+                  placeholder='Select timezone'
+                  options={TIMEZONE_OPTIONS}
                 />
               </div>
-              <p className='text-[var(--text-muted)] text-small'>
-                We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out
-                at any time.
-              </p>
             </div>
-          </SettingsSection>
-        </div>
-      </div>
 
-      {/* Password Reset Confirmation Modal */}
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom' align='start'>
+                    <p>Automatically connect blocks when dropped near each other</p>
+                    <Tooltip.Preview
+                      src='/tooltips/auto-connect-on-drop.mp4'
+                      alt='Auto-connect on drop example'
+                      loop={true}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              <Switch
+                id='auto-connect'
+                checked={settings?.autoConnect ?? true}
+                onCheckedChange={handleAutoConnectChange}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <Label htmlFor='error-notifications'>Canvas error notifications</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom' align='start'>
+                    <p>Show error popups on blocks when a workflow run fails</p>
+                    <Tooltip.Preview
+                      src='/tooltips/canvas-error-notification.mp4'
+                      alt='Canvas error notification example'
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              <Switch
+                id='error-notifications'
+                checked={settings?.errorNotificationsEnabled ?? true}
+                onCheckedChange={handleErrorNotificationsChange}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+              <div className={DROPDOWN_TRIGGER_CLASS}>
+                <ChipSelect
+                  align='start'
+                  fullWidth
+                  dropdownWidth='trigger'
+                  value={String(snapToGridValue)}
+                  onChange={handleSnapToGridChange}
+                  placeholder='Select size'
+                  options={[
+                    { label: 'Off', value: '0' },
+                    { label: '10px', value: '10' },
+                    { label: '20px', value: '20' },
+                    { label: '30px', value: '30' },
+                    { label: '40px', value: '40' },
+                    { label: '50px', value: '50' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='show-action-bar'>Show canvas controls</Label>
+              <Switch
+                id='show-action-bar'
+                checked={settings?.showActionBar ?? true}
+                onCheckedChange={handleShowActionBarChange}
+              />
+            </div>
+
+            {isTrainingEnabled && (
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='training-controls'>Training controls</Label>
+                <Switch
+                  id='training-controls'
+                  checked={settings?.showTrainingControls ?? false}
+                  onCheckedChange={handleTrainingControlsChange}
+                />
+              </div>
+            )}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection label='Privacy'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
+              <Switch
+                id='telemetry'
+                checked={settings?.telemetryEnabled ?? true}
+                onCheckedChange={handleTelemetryToggle}
+              />
+            </div>
+            <p className='text-[var(--text-muted)] text-small'>
+              We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out
+              at any time.
+            </p>
+          </div>
+        </SettingsSection>
+      </SettingsPanel>
+
       <ChipModal
         open={showResetPasswordModal}
         onOpenChange={setShowResetPasswordModal}
@@ -582,6 +576,6 @@ export function General() {
           }}
         />
       </ChipModal>
-    </div>
+    </>
   )
 }
