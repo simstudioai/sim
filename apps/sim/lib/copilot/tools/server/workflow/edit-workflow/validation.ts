@@ -1349,7 +1349,15 @@ export async function preValidateCredentialInputs(
     for (const toolId of candidateToolIds) {
       const tool = getTool(toolId)
       if (!tool?.hosting) continue
-      if (tool.hosting.enabled && !tool.hosting.enabled(toolParams)) continue
+      // The enabled predicate is tool-defined; guard it like the selector so a throw can't
+      // break edit_workflow for the request.
+      if (tool.hosting.enabled) {
+        try {
+          if (!tool.hosting.enabled(toolParams)) continue
+        } catch {
+          continue
+        }
+      }
       managedFieldIds.add(tool.hosting.apiKeyParam)
     }
 
@@ -1378,9 +1386,20 @@ export async function preValidateCredentialInputs(
   }
 
   operations.forEach((op, opIndex) => {
+    // Resolve the block type. Edit ops often omit `type` (they only carry the changed inputs),
+    // so fall back to the existing block's type from workflowState — otherwise an apiKey-only
+    // edit would skip credential/apiKey stripping entirely.
+    const opBlockType =
+      (op.params?.type as string | undefined) ??
+      ((
+        (workflowState?.blocks as Record<string, unknown>)?.[op.block_id] as
+          | Record<string, unknown>
+          | undefined
+      )?.type as string | undefined)
+
     // Process main block inputs
-    if (op.params?.inputs && op.params?.type) {
-      const blockConfig = getBlock(op.params.type)
+    if (op.params?.inputs && opBlockType) {
+      const blockConfig = getBlock(opBlockType)
       if (blockConfig) {
         // Collect credentials from main block
         collectCredentialInputs(
@@ -1388,7 +1407,7 @@ export async function preValidateCredentialInputs(
           op.params.inputs as Record<string, unknown>,
           opIndex,
           op.block_id,
-          op.params.type
+          opBlockType
         )
 
         // Check for apiKey inputs on hosted models
@@ -1416,7 +1435,7 @@ export async function preValidateCredentialInputs(
           modelValue,
           opIndex,
           op.block_id,
-          op.params.type
+          opBlockType
         )
 
         // The active tool depends on inputs (e.g. provider). On edit ops that don't restate
@@ -1441,7 +1460,7 @@ export async function preValidateCredentialInputs(
           toolParams,
           opIndex,
           op.block_id,
-          op.params.type
+          opBlockType
         )
       }
     }

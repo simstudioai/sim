@@ -469,6 +469,31 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.errors).toHaveLength(1)
   })
 
+  it('strips apiKey on a type-less edit op, resolving block type + provider from workflow state', async () => {
+    // Mirrors the real failure: agent edits only { apiKey } with no `type` restated.
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { apiKey: 'test-api-key-12345' } },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': {
+          type: 'video_generator_v3',
+          subBlocks: { provider: { value: 'falai' } },
+        },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+  })
+
   it('strips apiKey on a hosted-tool block nested inside a loop', async () => {
     const operations = [
       {
