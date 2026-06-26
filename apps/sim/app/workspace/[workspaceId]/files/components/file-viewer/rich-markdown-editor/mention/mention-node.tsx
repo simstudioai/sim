@@ -15,8 +15,22 @@ interface MentionAttrs {
   label: string
 }
 
-/** The markdown form of a mention — the chat's portable `[label](sim:<kind>/<id>)` link. */
-const MENTION_MD_RE = /^\[([^\]]+)\]\(sim:([a-z_]+)\/([^)\s]+)\)/
+/**
+ * The markdown form of a mention — the chat's portable `[label](sim:<kind>/<id>)` link. The label
+ * group accepts backslash-escaped characters so a label containing `[`/`]` (e.g. a file named
+ * `data[1].csv`) still round-trips into a chip instead of degrading to a plain link.
+ */
+const MENTION_MD_RE = /^\[((?:\\.|[^\]\\])+)\]\(sim:([a-z_]+)\/([^)\s]+)\)/
+
+/** Escape `\`, `[`, `]` in a mention label so brackets in entity names can't break the link syntax. */
+function escapeLabel(label: string): string {
+  return label.replace(/[\\[\]]/g, '\\$&')
+}
+
+/** Inverse of {@link escapeLabel}, applied when parsing a mention back from markdown. */
+function unescapeLabel(label: string): string {
+  return label.replace(/\\([\\[\]])/g, '$1')
+}
 
 /** Custom fields the mention tokenizer hangs on the marked token (all optional, like the image token). */
 interface MentionTokenFields {
@@ -78,11 +92,14 @@ export const MarkdownMention = Node.create({
   },
   parseMarkdown: (token: MarkdownToken): JSONContent => {
     const { kind, id, label } = token as MentionTokenFields
-    return { type: 'mention', attrs: { kind: kind ?? '', id: id ?? '', label: label ?? '' } }
+    return {
+      type: 'mention',
+      attrs: { kind: kind ?? '', id: id ?? '', label: unescapeLabel(label ?? '') },
+    }
   },
   renderMarkdown: (node: JSONContent): string => {
     const { kind, id, label } = (node.attrs ?? {}) as MentionAttrs
-    return `[${label}](${toSimHref(kind, id)})`
+    return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
   },
 })
 

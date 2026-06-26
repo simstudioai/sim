@@ -46,7 +46,12 @@ export const SlashCommand = Extension.create<Record<string, never>, SlashCommand
           if ($from.parentOffset === 0) return true
           return /\s/.test($from.parent.textBetween($from.parentOffset - 1, $from.parentOffset))
         },
-        items: ({ query }) => filterSlashCommands(query),
+        // The Image command is offered only where image upload is wired (the file viewer); the modal
+        // field editors never set `insertImage`, so `@`-style image insertion is hidden there.
+        items: ({ editor, query }) =>
+          filterSlashCommands(query, {
+            allowImages: editor.storage.slashCommand.insertImage != null,
+          }),
         command: ({ editor, range, props }) => {
           const ctx: SlashCommandContext = { editor, range }
           props.run(ctx)

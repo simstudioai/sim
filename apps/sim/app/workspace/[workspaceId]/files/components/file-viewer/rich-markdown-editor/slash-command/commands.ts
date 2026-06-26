@@ -156,13 +156,19 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
 ]
 
 /**
- * Filters commands by a case-insensitive match against title or aliases. Order is
- * preserved so the menu stays stable as the query narrows.
+ * Filters commands by a case-insensitive match against title or aliases. Order is preserved so the
+ * menu stays stable as the query narrows. The Image command is dropped when image insertion isn't
+ * available (`allowImages: false`) — e.g. the modal field editors, which have no upload affordance.
  */
-export function filterSlashCommands(query: string): SlashCommandItem[] {
+export function filterSlashCommands(
+  query: string,
+  options?: { allowImages?: boolean }
+): SlashCommandItem[] {
+  const allowImages = options?.allowImages ?? true
+  const available = allowImages ? SLASH_COMMANDS : SLASH_COMMANDS.filter((c) => c.title !== 'Image')
   const q = query.trim().toLowerCase()
-  if (!q) return [...SLASH_COMMANDS]
-  return SLASH_COMMANDS.filter(
+  if (!q) return [...available]
+  return available.filter(
     (command) =>
       command.title.toLowerCase().includes(q) || command.aliases.some((alias) => alias.includes(q))
   )
