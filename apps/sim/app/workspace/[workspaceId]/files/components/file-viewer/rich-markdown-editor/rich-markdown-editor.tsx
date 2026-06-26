@@ -5,6 +5,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
@@ -213,9 +214,13 @@ export function LoadedRichMarkdownEditor({
   insertImagesRef.current = async (images, at) => {
     let position = at
     for (const image of images) {
+      // Persistent (`duration: 0`) progress toast, dismissed once the upload settles — the upload
+      // hook then shows its own "Uploaded"/"Failed" toast.
+      const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
       const result = await uploadFile
         .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
         .catch(() => null)
+      toast.dismiss(uploadingToastId)
       const editor = editorInstanceRef.current
       if (!result || !editor) continue
       const safePosition = Math.min(position, editor.state.doc.content.size)
