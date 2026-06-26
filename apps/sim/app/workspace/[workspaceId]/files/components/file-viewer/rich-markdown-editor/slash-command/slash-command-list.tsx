@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import {
   SUGGESTION_GROUP_LABEL_CLASS,
@@ -6,11 +6,13 @@ import {
   SUGGESTION_SCROLL_CLASS,
   SUGGESTION_SURFACE_CLASS,
 } from '../menus/suggestion-menu-chrome'
+import {
+  type SuggestionKeyDownHandler,
+  useSuggestionKeyboard,
+} from '../menus/use-suggestion-keyboard'
 import type { SlashCommandItem } from './commands'
 
-export interface SlashCommandListHandle {
-  onKeyDown: (props: { event: KeyboardEvent }) => boolean
-}
+export type SlashCommandListHandle = SuggestionKeyDownHandler
 
 interface SlashCommandListProps {
   items: SlashCommandItem[]
@@ -24,47 +26,13 @@ interface SlashCommandListProps {
  */
 export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandListProps>(
   function SlashCommandList({ items, command }, ref) {
-    const [activeIndex, setActiveIndex] = useState(0)
     const containerRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-      setActiveIndex(0)
-    }, [items])
-
-    useEffect(() => {
-      containerRef.current
-        ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
-        ?.scrollIntoView({ block: 'nearest' })
-    }, [activeIndex])
-
-    const latest = useRef({ items, activeIndex, command })
-    latest.current = { items, activeIndex, command }
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        onKeyDown: ({ event }) => {
-          const { items, activeIndex, command } = latest.current
-          if (items.length === 0) return false
-          if (event.key === 'ArrowUp') {
-            setActiveIndex((i) => (i + items.length - 1) % items.length)
-            return true
-          }
-          if (event.key === 'ArrowDown') {
-            setActiveIndex((i) => (i + 1) % items.length)
-            return true
-          }
-          if (event.key === 'Enter') {
-            const item = items[activeIndex]
-            if (!item) return false
-            command(item)
-            return true
-          }
-          return false
-        },
-      }),
-      []
+    const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(
+      items,
+      command,
+      containerRef
     )
+    useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
     const groups = useMemo(() => {
       const ordered: { group: string; items: { item: SlashCommandItem; index: number }[] }[] = []

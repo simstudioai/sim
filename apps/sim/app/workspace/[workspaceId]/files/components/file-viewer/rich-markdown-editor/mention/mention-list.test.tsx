@@ -23,6 +23,7 @@ const items: MentionItem[] = [
 
 const arrowDown = { event: new KeyboardEvent('keydown', { key: 'ArrowDown' }) }
 const enter = { event: new KeyboardEvent('keydown', { key: 'Enter' }) }
+const tab = { event: new KeyboardEvent('keydown', { key: 'Tab' }) }
 
 describe('MentionList keyboard nav', () => {
   let container: HTMLElement
@@ -67,6 +68,24 @@ describe('MentionList keyboard nav', () => {
       ref.current?.onKeyDown(enter)
     })
     expect(command).toHaveBeenCalledWith(items[1])
+  })
+
+  it('accepts the active item on Tab, like Enter', () => {
+    const ref = createRef<MentionListHandle>()
+    const command = vi.fn()
+    const store = createMentionStore()
+
+    act(() => {
+      root.render(<MentionList ref={ref} query='' command={command} store={store} />)
+    })
+    act(() => store.set(items))
+
+    let handled: boolean | undefined
+    act(() => {
+      handled = ref.current?.onKeyDown(tab)
+    })
+    expect(handled).toBe(true)
+    expect(command).toHaveBeenCalledWith(items[0])
   })
 
   it('exposes a working onKeyDown through ReactRenderer (the suggestion plugin path)', async () => {

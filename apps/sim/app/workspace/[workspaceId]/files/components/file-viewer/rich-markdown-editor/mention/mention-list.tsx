@@ -1,12 +1,4 @@
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useSyncExternalStore } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import {
   SUGGESTION_GROUP_LABEL_CLASS,
@@ -14,12 +6,14 @@ import {
   SUGGESTION_SCROLL_CLASS,
   SUGGESTION_SURFACE_CLASS,
 } from '../menus/suggestion-menu-chrome'
+import {
+  type SuggestionKeyDownHandler,
+  useSuggestionKeyboard,
+} from '../menus/use-suggestion-keyboard'
 import type { MentionStore } from './mention-store'
 import type { MentionItem } from './types'
 
-export interface MentionListHandle {
-  onKeyDown: (props: { event: KeyboardEvent }) => boolean
-}
+export type MentionListHandle = SuggestionKeyDownHandler
 
 interface MentionListProps {
   /** The text typed after `@`, used to filter. */
@@ -54,7 +48,6 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   ref
 ) {
   const rawItems = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-  const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
   /** Filtered, group-capped, flattened in category order; `index` is the flat position for nav. */
@@ -80,44 +73,12 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
     return { flat, groups: ordered }
   }, [rawItems, query])
 
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [flat])
-
-  useEffect(() => {
-    containerRef.current
-      ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
-      ?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
-
-  const latest = useRef({ flat, activeIndex, command })
-  latest.current = { flat, activeIndex, command }
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      onKeyDown: ({ event }) => {
-        const { flat, activeIndex, command } = latest.current
-        if (flat.length === 0) return false
-        if (event.key === 'ArrowUp') {
-          setActiveIndex((i) => (i + flat.length - 1) % flat.length)
-          return true
-        }
-        if (event.key === 'ArrowDown') {
-          setActiveIndex((i) => (i + 1) % flat.length)
-          return true
-        }
-        if (event.key === 'Enter') {
-          const item = flat[activeIndex]
-          if (!item) return false
-          command(item)
-          return true
-        }
-        return false
-      },
-    }),
-    []
+  const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(
+    flat,
+    command,
+    containerRef
   )
+  useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
   if (flat.length === 0) {
     return (

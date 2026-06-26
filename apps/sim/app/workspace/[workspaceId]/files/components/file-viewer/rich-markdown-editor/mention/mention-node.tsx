@@ -4,7 +4,7 @@ import { Node } from '@tiptap/core'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { useParams, useRouter } from 'next/navigation'
-import { cn } from '@/lib/core/utils/cn'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { mentionIcon } from './mention-icon'
 import { simLinkPath, toSimHref } from './sim-link'
 import type { MentionKind } from './types'
@@ -103,8 +103,16 @@ export const MarkdownMention = Node.create({
   },
 })
 
+/**
+ * Mirrors the home chat input's mention rendering (the textarea mirror overlay
+ * in `prompt-editor.tsx`): a borderless inline icon + label that flows with the
+ * surrounding prose — no pill background, no padding, normal weight, body text
+ * color, and a 12px icon. Integration icons keep their brand color via
+ * {@link getBareIconStyle} (see {@link MentionChipView}); other kinds stay
+ * monochrome through the `--text-icon` fallback below.
+ */
 const CHIP_CLASS =
-  'mx-px inline-flex items-center gap-1 rounded-[4px] bg-[var(--surface-4)] px-1 align-middle font-medium text-[var(--text-primary)] leading-[1.5] cursor-pointer select-none [&>svg]:size-[14px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
+  'mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] cursor-pointer select-none [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
 
 /** Live chip: the entity icon + label. Cmd/Ctrl-click navigates to the resource. */
 function MentionChipView({ node }: ReactNodeViewProps) {
@@ -112,7 +120,8 @@ function MentionChipView({ node }: ReactNodeViewProps) {
   const params = useParams()
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
   const { kind, id, label } = node.attrs as MentionAttrs
-  const Icon = mentionIcon(kind, id)
+  const Icon = mentionIcon(kind, id) as StyleableIcon | undefined
+  const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
 
   const handleClick = (event: MouseEvent) => {
     if (!(event.metaKey || event.ctrlKey) || !workspaceId) return
@@ -123,8 +132,8 @@ function MentionChipView({ node }: ReactNodeViewProps) {
   }
 
   return (
-    <NodeViewWrapper as='span' className={cn(CHIP_CLASS)} onClick={handleClick} title={label}>
-      {Icon && <Icon />}
+    <NodeViewWrapper as='span' className={CHIP_CLASS} onClick={handleClick} title={label}>
+      {Icon && <Icon style={iconStyle} />}
       <span>{label}</span>
     </NodeViewWrapper>
   )
