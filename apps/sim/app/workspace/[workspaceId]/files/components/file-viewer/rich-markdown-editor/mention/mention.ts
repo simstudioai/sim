@@ -79,7 +79,7 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
             command: props.command,
             store: props.editor.storage.mention.store,
           }),
-          onOpen: (props) => props.editor.storage.mention.onOpen?.(),
+          onOpen: (props) => props.editor.storage.mention?.onOpen?.(),
         }),
       }),
     ]

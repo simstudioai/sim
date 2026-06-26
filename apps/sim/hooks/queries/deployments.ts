@@ -402,6 +402,8 @@ interface GenerateVersionDescriptionVariables {
   workflowId: string
   version: number
   onStreamChunk?: (accumulated: string) => void
+  /** Aborts the diff fetches + SSE stream when the modal unmounts mid-generation. */
+  signal?: AbortSignal
 }
 
 const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are writing deployment version descriptions for a workflow automation platform.
@@ -435,17 +437,18 @@ export function useGenerateVersionDescription() {
       workflowId,
       version,
       onStreamChunk,
+      signal,
     }: GenerateVersionDescriptionVariables): Promise<string> => {
       const { generateWorkflowDiffSummary, formatDiffSummaryForDescriptionAsync } = await import(
         '@/lib/workflows/comparison/compare'
       )
 
-      const currentState = await fetchDeploymentVersionState(workflowId, version)
+      const currentState = await fetchDeploymentVersionState(workflowId, version, signal)
 
       let previousState = null
       if (version > 1) {
         try {
-          previousState = await fetchDeploymentVersionState(workflowId, version - 1)
+          previousState = await fetchDeploymentVersionState(workflowId, version - 1, signal)
         } catch {
           // Previous version may not exist, continue without it
         }
@@ -467,6 +470,7 @@ export function useGenerateVersionDescription() {
             stream: true,
             workflowId,
           },
+          signal,
         },
         {
           headers: {
@@ -483,6 +487,7 @@ export function useGenerateVersionDescription() {
       const { readSSEStream } = await import('@/lib/core/utils/sse')
       const accumulatedContent = await readSSEStream(wandResponse.body, {
         onAccumulated: onStreamChunk,
+        signal,
       })
 
       if (!accumulatedContent) {

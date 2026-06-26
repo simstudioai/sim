@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import {
@@ -81,10 +81,19 @@ export function VersionDescriptionModal({
     onOpenChange(false)
   }
 
+  const generateAbortRef = useRef<AbortController | null>(null)
+  // Abort an in-flight generation if the modal unmounts mid-stream (e.g. the deploy modal closes),
+  // so the SSE stream stops instead of running to completion against a gone component.
+  useEffect(() => () => generateAbortRef.current?.abort(), [])
+
   const handleGenerateDescription = () => {
+    generateAbortRef.current?.abort()
+    const controller = new AbortController()
+    generateAbortRef.current = controller
     generateMutation.mutate({
       workflowId,
       version,
+      signal: controller.signal,
       onStreamChunk: (accumulated) => {
         setDescription(accumulated)
       },

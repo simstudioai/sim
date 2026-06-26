@@ -63,6 +63,10 @@ export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>
     return {
       onStart: (props) => {
         teardown()
+        // The suggestion update is async (it awaits `items()`), so onStart can fire after the editor
+        // was destroyed — e.g. a modal closed while the menu was opening. Bail before touching its
+        // now-unavailable view/storage.
+        if (props.editor.isDestroyed) return
         config.onOpen?.(props)
         component = new ReactRenderer(config.component, {
           // ReactRenderer types its props option loosely; the component still enforces P.
