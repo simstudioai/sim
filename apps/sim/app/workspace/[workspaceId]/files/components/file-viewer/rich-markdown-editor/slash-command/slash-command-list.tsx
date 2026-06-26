@@ -37,26 +37,36 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
         ?.scrollIntoView({ block: 'nearest' })
     }, [activeIndex])
 
-    useImperativeHandle(ref, () => ({
-      onKeyDown: ({ event }) => {
-        if (items.length === 0) return false
-        if (event.key === 'ArrowUp') {
-          setActiveIndex((i) => (i + items.length - 1) % items.length)
-          return true
-        }
-        if (event.key === 'ArrowDown') {
-          setActiveIndex((i) => (i + 1) % items.length)
-          return true
-        }
-        if (event.key === 'Enter') {
-          const item = items[activeIndex]
-          if (!item) return false
-          command(item)
-          return true
-        }
-        return false
-      },
-    }))
+    // Read live values: the suggestion plugin captures this handle via `ReactRenderer.ref` at mount,
+    // so closing over `items`/`activeIndex` would make Enter act on the mount-time snapshot.
+    const latest = useRef({ items, activeIndex, command })
+    latest.current = { items, activeIndex, command }
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        onKeyDown: ({ event }) => {
+          const { items, activeIndex, command } = latest.current
+          if (items.length === 0) return false
+          if (event.key === 'ArrowUp') {
+            setActiveIndex((i) => (i + items.length - 1) % items.length)
+            return true
+          }
+          if (event.key === 'ArrowDown') {
+            setActiveIndex((i) => (i + 1) % items.length)
+            return true
+          }
+          if (event.key === 'Enter') {
+            const item = items[activeIndex]
+            if (!item) return false
+            command(item)
+            return true
+          }
+          return false
+        },
+      }),
+      []
+    )
 
     const groups = useMemo(() => {
       const ordered: { group: string; items: { item: SlashCommandItem; index: number }[] }[] = []

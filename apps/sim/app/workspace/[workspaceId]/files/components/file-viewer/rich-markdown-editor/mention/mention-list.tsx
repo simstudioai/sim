@@ -90,26 +90,37 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
       ?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
-  useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }) => {
-      if (flat.length === 0) return false
-      if (event.key === 'ArrowUp') {
-        setActiveIndex((i) => (i + flat.length - 1) % flat.length)
-        return true
-      }
-      if (event.key === 'ArrowDown') {
-        setActiveIndex((i) => (i + 1) % flat.length)
-        return true
-      }
-      if (event.key === 'Enter') {
-        const item = flat[activeIndex]
-        if (!item) return false
-        command(item)
-        return true
-      }
-      return false
-    },
-  }))
+  // The suggestion plugin captures this handle via `ReactRenderer.ref` once at mount, so it must read
+  // live values rather than close over them — otherwise keyboard nav uses the initial (empty) `flat`
+  // from before the async workspace data landed, and arrow keys fall through to the editor.
+  const latest = useRef({ flat, activeIndex, command })
+  latest.current = { flat, activeIndex, command }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      onKeyDown: ({ event }) => {
+        const { flat, activeIndex, command } = latest.current
+        if (flat.length === 0) return false
+        if (event.key === 'ArrowUp') {
+          setActiveIndex((i) => (i + flat.length - 1) % flat.length)
+          return true
+        }
+        if (event.key === 'ArrowDown') {
+          setActiveIndex((i) => (i + 1) % flat.length)
+          return true
+        }
+        if (event.key === 'Enter') {
+          const item = flat[activeIndex]
+          if (!item) return false
+          command(item)
+          return true
+        }
+        return false
+      },
+    }),
+    []
+  )
 
   if (flat.length === 0) {
     return (
