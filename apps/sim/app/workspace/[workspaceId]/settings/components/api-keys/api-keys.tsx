@@ -62,7 +62,6 @@ export function ApiKeys() {
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
 
-  // React Query hooks
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
@@ -73,7 +72,6 @@ export function ApiKeys() {
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
-  // Extract data from queries
   const workspaceKeys = apiKeysData?.workspaceKeys || []
   const personalKeys = apiKeysData?.personalKeys || []
   const conflicts = apiKeysData?.conflicts || []
@@ -82,7 +80,6 @@ export function ApiKeys() {
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
 
-  // Local UI state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -126,7 +123,6 @@ export function ApiKeys() {
       })
     } catch (error) {
       logger.error('Error deleting API key:', { error })
-      // Refetch to restore correct state in case of error
       refetchApiKeys()
     }
   }
@@ -158,12 +154,10 @@ export function ApiKeys() {
           </Chip>
         }
       >
-        {/* Key list */}
         {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
           <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
-            {/* Workspace section */}
             {!searchTerm.trim() ? (
               <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
@@ -230,7 +224,6 @@ export function ApiKeys() {
               </SettingsSection>
             ) : null}
 
-            {/* Personal section */}
             {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
               <SettingsSection label='Personal'>
                 <div className='flex flex-col gap-2'>
@@ -273,7 +266,6 @@ export function ApiKeys() {
               </SettingsSection>
             )}
 
-            {/* Show message when search has no results across both sections */}
             {searchTerm.trim() &&
               filteredPersonalKeys.length === 0 &&
               filteredWorkspaceKeys.length === 0 &&
@@ -285,7 +277,6 @@ export function ApiKeys() {
           </div>
         )}
 
-        {/* Allow Personal API Keys Toggle */}
         {!isLoading && canManageWorkspaceKeys && (
           <Tooltip.Provider delayDuration={150}>
             <SettingsSection label='Permissions'>
@@ -331,7 +322,6 @@ export function ApiKeys() {
         )}
       </SettingsPanel>
 
-      {/* Create API Key Modal */}
       <CreateApiKeyModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
@@ -342,7 +332,6 @@ export function ApiKeys() {
         defaultKeyType={defaultKeyType}
       />
 
-      {/* Delete Confirmation Dialog */}
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={(open) => {

@@ -360,7 +360,6 @@ export function AuditLogs() {
 
   return (
     <SettingsPanel>
-      {/* Search + filter bar */}
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
@@ -417,7 +416,6 @@ export function AuditLogs() {
         </Button>
       </div>
 
-      {/* Table */}
       <div className='flex flex-col'>
         <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
           <span className='w-[160px] flex-shrink-0'>Timestamp</span>

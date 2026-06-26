@@ -102,7 +102,6 @@ export function Mothership() {
   return (
     <SettingsPanel>
       <div className='flex flex-col gap-6'>
-        {/* Environment selector */}
         <div className='flex items-center gap-2'>
           <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
           <ChipSelect
@@ -115,7 +114,6 @@ export function Mothership() {
           />
         </div>
 
-        {/* Tab bar */}
         <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
           {TABS.map((tab) => (
             <button
@@ -137,7 +135,6 @@ export function Mothership() {
           ))}
         </div>
 
-        {/* Time range (shared across tabs) */}
         <div className='flex items-center gap-3'>
           <div className='flex items-center gap-2'>
             <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
@@ -164,8 +161,6 @@ export function Mothership() {
     </SettingsPanel>
   )
 }
-
-/* ─── BYOK Tab ─── */
 
 function ByokTab() {
   const params = useParams()
@@ -199,8 +194,6 @@ function ByokTab() {
   )
 }
 
-/* ─── Overview Tab ─── */
-
 function OverviewTab({
   environment,
   start,
@@ -223,7 +216,6 @@ function OverviewTab({
 
   return (
     <div className='flex flex-col gap-5'>
-      {/* Summary cards */}
       <div className='grid grid-cols-4 gap-3'>
         <StatCard
           label='Total Requests'
@@ -261,7 +253,6 @@ function OverviewTab({
         />
       </div>
 
-      {/* User breakdown */}
       <SectionLabel>User Breakdown</SectionLabel>
       {breakdownLoading && (
         <div className='flex flex-col gap-2'>
@@ -307,7 +298,6 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Recent requests */}
       <Divider />
       <SectionLabel>Recent Requests ({requests?.count ?? '…'})</SectionLabel>
       {requestsLoading && (
@@ -382,8 +372,6 @@ function OverviewTab({
     </div>
   )
 }
-
-/* ─── Licenses Tab ─── */
 
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
   const { data, isLoading, refetch } = useMothershipLicenses(environment)
@@ -512,8 +500,6 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
     </div>
   )
 }
-
-/* ─── Shared components ─── */
 
 function StatCard({
   label,

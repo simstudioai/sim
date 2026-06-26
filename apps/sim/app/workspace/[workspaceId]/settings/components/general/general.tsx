@@ -546,7 +546,6 @@ export function General() {
         </SettingsSection>
       </SettingsPanel>
 
-      {/* Password Reset Confirmation Modal */}
       <ChipModal
         open={showResetPasswordModal}
         onOpenChange={setShowResetPasswordModal}

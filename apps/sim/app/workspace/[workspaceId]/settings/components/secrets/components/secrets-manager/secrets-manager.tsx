@@ -922,7 +922,6 @@ export function SecretsManager() {
 
   return (
     <>
-      {/* Hidden honeypot inputs to prevent browser autofill */}
       <div className='hidden'>
         <input
           type='text'
@@ -982,7 +981,6 @@ export function SecretsManager() {
           </>
         }
       >
-        {/* Secrets grid */}
         {!isLoading && (
           <div className='flex flex-col gap-7'>
             {(!searchTerm.trim() ||

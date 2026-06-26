@@ -1081,9 +1081,7 @@ export function GroupDetail({
       try {
         const providerId = getProviderFromModel(model)
         counts[providerId] = (counts[providerId] ?? 0) + 1
-      } catch {
-        // Unknown/blacklisted provider — omit from counts.
-      }
+      } catch {}
     }
     return counts
   }, [editingConfig.deniedModels])

@@ -75,9 +75,6 @@ export function TeamManagement() {
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
-  // Seats are consumed only by accepted members (seat count is reconciled to the
-  // member count on accept/removal). Pending invites are surfaced separately and
-  // do not count as used until they are accepted.
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
   const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const pendingSeats = Math.max(0, reservedSeats - usedSeats)

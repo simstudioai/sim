@@ -428,8 +428,6 @@ export function DataRetentionSettings() {
   const [overrides, setOverrides] = useState<RetentionOverride[]>([])
   const [modal, setModal] = useState<ActiveModal | null>(null)
   const [showUnsaved, setShowUnsaved] = useState(false)
-  // Org the form was hydrated for; re-hydrate when the active org switches so
-  // saves don't target the new org with the previous org's config.
   const hydratedOrgRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -466,8 +464,6 @@ export function DataRetentionSettings() {
   const modalChanged =
     modal !== null && normalizePolicyDraft(modal.draft) !== normalizePolicyDraft(modal.original)
 
-  // PII-only rows are only surfaced when redaction is enabled — the route
-  // rejects PII writes while the flag is off, so such rows couldn't be deleted.
   const overrideWorkspaceIds = Array.from(
     new Set([
       ...overrides.map((o) => o.workspaceId),
@@ -649,8 +645,6 @@ export function DataRetentionSettings() {
 
       const ids = draft.workspaceIds
       if (ids.length === 0) return
-      // Clear the workspaces this edit previously owned plus the new selection,
-      // so deselecting a workspace removes its override instead of orphaning it.
       const clearIds = new Set([...modal.original.workspaceIds, ...ids])
       const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
@@ -683,8 +677,6 @@ export function DataRetentionSettings() {
 
   async function removeCurrentOverride() {
     if (!modal || modal.draft.isOrgDefault) return
-    // Remove the override(s) this row originally owned, regardless of any
-    // unsaved changes to the workspace multi-select in the open modal.
     const idSet = new Set(modal.original.workspaceIds)
     try {
       await persistSnapshot({

@@ -494,7 +494,6 @@ export function SSO() {
 
   return (
     <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col'>
-      {/* Off-screen inputs to prevent browser password manager autofill */}
       <input
         type='text'
         name='fakeusernameremembered'
@@ -561,7 +560,6 @@ export function SSO() {
         }
       >
         <div className='flex flex-col gap-4.5'>
-          {/* Provider Type */}
           <FormField label='Provider Type'>
             <ChipSelect
               align='start'
@@ -582,15 +580,12 @@ export function SSO() {
             </p>
           </FormField>
 
-          {/* Provider ID */}
           <FormField
             label='Provider ID'
             error={
               showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
             }
           >
-            {/* Editable combobox (not ChipSelect): provider IDs accept any
-                validated slug, with SSO_TRUSTED_PROVIDERS as autocomplete. */}
             <ChipCombobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
@@ -603,7 +598,6 @@ export function SSO() {
             />
           </FormField>
 
-          {/* Issuer URL */}
           <FormField
             label='Issuer URL'
             error={
@@ -626,7 +620,6 @@ export function SSO() {
             />
           </FormField>
 
-          {/* Domain */}
           <FormField
             label='Domain'
             error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
@@ -652,7 +645,6 @@ export function SSO() {
 
           {formData.providerType === 'oidc' ? (
             <>
-              {/* Client ID */}
               <FormField
                 label='Client ID'
                 error={
@@ -675,7 +667,6 @@ export function SSO() {
                 />
               </FormField>
 
-              {/* Client Secret */}
               <FormField
                 label='Client Secret'
                 error={
@@ -720,7 +711,6 @@ export function SSO() {
                 />
               </FormField>
 
-              {/* Scopes */}
               <FormField
                 label='Scopes'
                 error={showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined}
@@ -743,7 +733,6 @@ export function SSO() {
             </>
           ) : (
             <>
-              {/* Entry Point URL */}
               <FormField
                 label='Entry Point URL'
                 error={
@@ -765,7 +754,6 @@ export function SSO() {
                 />
               </FormField>
 
-              {/* Identity Provider Certificate */}
               <FormField
                 label='Identity Provider Certificate'
                 error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
@@ -852,7 +840,6 @@ export function SSO() {
             </>
           )}
 
-          {/* Callback URL */}
           <FormField label='Callback URL'>
             <ChipInput
               value={callbackUrl}

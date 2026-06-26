@@ -106,7 +106,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
-  // The Subscription tab was replaced by Billing; redirect legacy links there.
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =

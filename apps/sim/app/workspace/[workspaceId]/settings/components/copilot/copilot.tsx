@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-// import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
@@ -15,11 +14,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-  // Switch,
 } from '@/components/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-// import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -33,28 +30,10 @@ const logger = createLogger('CopilotSettings')
  * Copilot Keys management component for handling API keys used with the Copilot feature.
  * Provides functionality to create, view, and delete copilot API keys.
  */
-// function McpServerSkeleton() {
-//   return (
-//     <div className='flex items-center justify-between gap-3'>
-//       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-//         <Skeleton className='h-5 w-[120px]' />
-//         <Skeleton className='h-5 w-[80px]' />
-//       </div>
-//       <Skeleton className='h-5 w-[36px] rounded-full' />
-//     </div>
-//   )
-// }
-
 export function Copilot() {
-  // const params = useParams()
-  // const workspaceId = params.workspaceId as string
-
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
-
-  // const { data: mcpServers = [], isLoading: mcpLoading } = useMcpServers(workspaceId)
-  // const updateServer = useUpdateMcpServer()
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
@@ -64,20 +43,6 @@ export function Copilot() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
-
-  // const enabledServers = mcpServers.filter((s) => s.enabled)
-
-  // const handleToggleCopilot = async (serverId: string, enabled: boolean) => {
-  //   try {
-  //     await updateServer.mutateAsync({
-  //       workspaceId,
-  //       serverId,
-  //       updates: { copilotEnabled: enabled },
-  //     })
-  //   } catch (error) {
-  //     logger.error('Failed to toggle MCP server for Mothership', { error })
-  //   }
-  // }
 
   const filteredKeys = useMemo(() => {
     if (!searchTerm.trim()) return keys
@@ -160,42 +125,6 @@ export function Copilot() {
           </Chip>
         }
       >
-        {/* MCP Tools Section — uncomment when ready to allow users to toggle MCP servers for Mothership
-            <div className='flex flex-col gap-2'>
-              <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                MCP Tools
-              </div>
-              {mcpLoading ? (
-                <div className='flex flex-col gap-2'>
-                  <McpServerSkeleton />
-                  <McpServerSkeleton />
-                </div>
-              ) : enabledServers.length === 0 ? (
-                <div className='text-sm text-[var(--text-muted)]'>
-                  No MCP servers configured. Add servers in the MCP Tools tab.
-                </div>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {enabledServers.map((server) => (
-                    <div key={server.id} className='flex items-center justify-between gap-3'>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-base'>{server.name}</span>
-                        <p className='truncate text-sm text-[var(--text-muted)]'>
-                          {server.toolCount ?? 0} tool{server.toolCount === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={server.copilotEnabled ?? false}
-                        onCheckedChange={(checked) => handleToggleCopilot(server.id, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            */}
-
-        {/* Keys List */}
         {isLoading ? null : showEmptyState ? (
           <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
         ) : (
@@ -233,7 +162,6 @@ export function Copilot() {
         )}
       </SettingsPanel>
 
-      {/* Create API Key Dialog */}
       <ChipModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
@@ -274,7 +202,6 @@ export function Copilot() {
         />
       </ChipModal>
 
-      {/* New API Key Dialog */}
       <ChipModal
         open={showNewKeyDialog}
         onOpenChange={(open) => {
@@ -313,7 +240,6 @@ export function Copilot() {
         />
       </ChipModal>
 
-      {/* Delete Confirmation Dialog */}
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={(open) => {

@@ -69,7 +69,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const updateToolMutation = useUpdateWorkflowMcpTool()
   const updateServerMutation = useUpdateWorkflowMcpServer()
 
-  // API Keys - for "Create API key" link
   const { data: apiKeysData } = useApiKeys(workspaceId)
   const { data: workspaceSettingsData } = useWorkspaceSettings(workspaceId)
   const userPermissions = useUserPermissionsContext()
@@ -257,7 +256,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
       }
 
-      // Cursor supports direct URL configuration (no mcp-remote needed)
       if (client === 'cursor') {
         const cursorConfig = isPublic
           ? { url: mcpServerUrl }
@@ -266,7 +264,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return JSON.stringify({ mcpServers: { [safeName]: cursorConfig } }, null, 2)
       }
 
-      // Claude Desktop and VS Code still use mcp-remote (stdio transport)
       const mcpRemoteArgs = isPublic
         ? ['-y', 'mcp-remote', mcpServerUrl]
         : ['-y', 'mcp-remote', mcpServerUrl, '--header', 'X-API-Key:$SIM_API_KEY']

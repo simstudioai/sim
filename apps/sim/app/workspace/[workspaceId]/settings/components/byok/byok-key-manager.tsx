@@ -383,7 +383,6 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
           <ChipModalField type='custom' title='API Key' required>
-            {/* Hidden decoy fields to prevent browser autofill */}
             <input
               type='text'
               name='fakeusernameremembered'

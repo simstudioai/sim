@@ -389,8 +389,6 @@ export function Billing() {
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
 
-  // Org admins (and solo users managing their own billing) can edit; everyone
-  // else sees the same controls rendered read-only / disabled rather than hidden.
   const canManageBilling = permissions.canEditUsageLimit
   const showUsageLimit = !subscription.isFree && !subscription.isEnterprise
   const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
