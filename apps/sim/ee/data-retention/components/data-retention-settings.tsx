@@ -34,6 +34,8 @@ import {
   SUPPORTED_PII_ENTITIES,
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useOrganizationRetention,
@@ -426,8 +428,6 @@ export function DataRetentionSettings() {
   const [overrides, setOverrides] = useState<RetentionOverride[]>([])
   const [modal, setModal] = useState<ActiveModal | null>(null)
   const [showUnsaved, setShowUnsaved] = useState(false)
-  // Org the form was hydrated for; re-hydrate when the active org switches so
-  // saves don't target the new org with the previous org's config.
   const hydratedOrgRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -464,8 +464,6 @@ export function DataRetentionSettings() {
   const modalChanged =
     modal !== null && normalizePolicyDraft(modal.draft) !== normalizePolicyDraft(modal.original)
 
-  // PII-only rows are only surfaced when redaction is enabled — the route
-  // rejects PII writes while the flag is off, so such rows couldn't be deleted.
   const overrideWorkspaceIds = Array.from(
     new Set([
       ...overrides.map((o) => o.workspaceId),
@@ -647,8 +645,6 @@ export function DataRetentionSettings() {
 
       const ids = draft.workspaceIds
       if (ids.length === 0) return
-      // Clear the workspaces this edit previously owned plus the new selection,
-      // so deselecting a workspace removes its override instead of orphaning it.
       const clearIds = new Set([...modal.original.workspaceIds, ...ids])
       const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
@@ -681,8 +677,6 @@ export function DataRetentionSettings() {
 
   async function removeCurrentOverride() {
     if (!modal || modal.draft.isOrgDefault) return
-    // Remove the override(s) this row originally owned, regardless of any
-    // unsaved changes to the workspace multi-select in the open modal.
     const idSet = new Set(modal.original.workspaceIds)
     try {
       await persistSnapshot({
@@ -705,41 +699,34 @@ export function DataRetentionSettings() {
 
   if (!orgId) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Data retention is configured per organization. Join or create an organization to continue.
-      </div>
+      </SettingsEmptyState>
     )
   }
 
   if (!data) {
-    return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Failed to load data retention settings.
-      </div>
-    )
+    return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
 
   if (isBillingEnabled && !data.isEnterprise) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Data retention is available on Enterprise plans only.
-      </div>
+      <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
     )
   }
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Only organization owners and admins can configure data retention settings.
-      </div>
+      </SettingsEmptyState>
     )
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
+    <>
+      <SettingsPanel
+        actions={
           <Chip
             leftIcon={Plus}
             variant='primary'
@@ -748,59 +735,56 @@ export function DataRetentionSettings() {
           >
             Add override
           </Chip>
-        </div>
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-8 pt-6 pb-6'>
-          <SettingsSection label='Retention policies'>
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>
-                Workspaces without an override inherit the organization defaults.
-              </span>
-              <div className='-mx-2 flex flex-col gap-y-0.5'>
+        }
+      >
+        <SettingsSection label='Retention policies'>
+          <div className='flex flex-col gap-2'>
+            <span className='text-[var(--text-muted)] text-caption'>
+              Workspaces without an override inherit the organization defaults.
+            </span>
+            <div className='-mx-2 flex flex-col gap-y-0.5'>
+              <button
+                type='button'
+                onClick={openEditOrg}
+                className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+              >
+                <div className='flex min-w-0 flex-1 flex-col'>
+                  <div className='flex items-center gap-2'>
+                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      Organization
+                    </span>
+                    <ChipTag variant='gray' className='flex-shrink-0'>
+                      Default
+                    </ChipTag>
+                  </div>
+                  <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    {orgRowSummary()}
+                  </span>
+                </div>
+                <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              </button>
+              {overrideWorkspaceIds.map((workspaceId) => (
                 <button
+                  key={workspaceId}
                   type='button'
-                  onClick={openEditOrg}
+                  onClick={() => openEditOverride(workspaceId)}
                   className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        Organization
-                      </span>
-                      <ChipTag variant='gray' className='flex-shrink-0'>
-                        Default
-                      </ChipTag>
-                    </div>
+                    <span className='truncate text-[14px] text-[var(--text-body)]'>
+                      {workspaceName(workspaceId)}
+                    </span>
                     <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                      {orgRowSummary()}
+                      {overrideRowSummary(workspaceId)}
                     </span>
                   </div>
                   <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
-                {overrideWorkspaceIds.map((workspaceId) => (
-                  <button
-                    key={workspaceId}
-                    type='button'
-                    onClick={() => openEditOverride(workspaceId)}
-                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <div className='flex min-w-0 flex-1 flex-col'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {workspaceName(workspaceId)}
-                      </span>
-                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {overrideRowSummary(workspaceId)}
-                      </span>
-                    </div>
-                    <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
-          </SettingsSection>
-        </div>
-      </div>
+          </div>
+        </SettingsSection>
+      </SettingsPanel>
       {modal && (
         <PolicyModal
           draft={modal.draft}
@@ -838,6 +822,6 @@ export function DataRetentionSettings() {
           }}
         />
       </ChipModal>
-    </div>
+    </>
   )
 }

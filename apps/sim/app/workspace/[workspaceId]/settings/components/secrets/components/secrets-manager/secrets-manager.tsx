@@ -5,19 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Chip,
-  ChipInput,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Search,
-  Tooltip,
-  toast,
-} from '@/components/emcn'
+import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -27,7 +15,10 @@ import {
 } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -67,28 +58,15 @@ interface SecretRowMenuProps {
  */
 function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          aria-label='Secret actions'
-          className={cn(chipVariants({ flush: true }), 'ml-2')}
-        >
-          <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {onViewDetails && (
-          <DropdownMenuItem onSelect={onViewDetails}>View details</DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={onCopyName}>Copy name</DropdownMenuItem>
-        {onDelete && (
-          <DropdownMenuItem className='text-[var(--text-error)]' onSelect={onDelete}>
-            Delete
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu
+      label='Secret actions'
+      triggerClassName='ml-2'
+      actions={[
+        ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
+        { label: 'Copy name', onSelect: onCopyName },
+        ...(onDelete ? [{ label: 'Delete', destructive: true, onSelect: onDelete }] : []),
+      ]}
+    />
   )
 }
 
@@ -944,36 +922,39 @@ export function SecretsManager() {
 
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        {/* Hidden honeypot inputs to prevent browser autofill */}
-        <div className='hidden'>
-          <input
-            type='text'
-            name='fakeusernameremembered'
-            autoComplete='username'
-            tabIndex={-1}
-            readOnly
-          />
-          <input
-            type='password'
-            name='fakepasswordremembered'
-            autoComplete='current-password'
-            tabIndex={-1}
-            readOnly
-          />
-          <input
-            type='email'
-            name='fakeemailremembered'
-            autoComplete='email'
-            tabIndex={-1}
-            readOnly
-          />
-        </div>
+      <div className='hidden'>
+        <input
+          type='text'
+          name='fakeusernameremembered'
+          autoComplete='username'
+          tabIndex={-1}
+          readOnly
+        />
+        <input
+          type='password'
+          name='fakepasswordremembered'
+          autoComplete='current-password'
+          tabIndex={-1}
+          readOnly
+        />
+        <input
+          type='email'
+          name='fakeemailremembered'
+          autoComplete='email'
+          tabIndex={-1}
+          readOnly
+        />
+      </div>
 
-        {/* Fixed header bar */}
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
+      <SettingsPanel
+        scrollContainerRef={scrollContainerRef}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search secrets...',
+        }}
+        actions={
+          <>
             {hasChanges && (
               <Chip onClick={handleCancel} disabled={isListSaving}>
                 Discard
@@ -997,110 +978,87 @@ export function SecretsManager() {
                 {isListSaving ? 'Saving...' : 'Save'}
               </Chip>
             )}
-          </div>
-        </div>
-
-        {/* Scrollable content */}
-        <div
-          ref={scrollContainerRef}
-          className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
-        >
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
-            {/* Search */}
-            <ChipInput
-              icon={Search}
-              placeholder='Search secrets...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              name='env_search_field'
-              autoComplete='off'
-              autoCapitalize='off'
-              spellCheck='false'
-              readOnly
-              onFocus={(e) => e.target.removeAttribute('readOnly')}
-            />
-
-            {/* Secrets grid */}
-            {!isLoading && (
-              <div className='flex flex-col gap-7'>
-                {(!searchTerm.trim() ||
-                  filteredWorkspaceEntries.length > 0 ||
-                  filteredNewWorkspaceRows.length > 0) && (
-                  <section className='flex flex-col'>
-                    <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
-                    <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-                    <div className={`${GRID_COLS} gap-y-2`}>
-                      {(searchTerm.trim()
-                        ? filteredWorkspaceEntries
-                        : Object.entries(workspaceVars)
-                      ).map(([key, value]) => {
-                        const cred = workspaceEnvKeyToCredential.get(key)
-                        const canEditRow = cred?.role === 'admin'
-                        return (
-                          <WorkspaceVariableRow
-                            key={key}
-                            envKey={key}
-                            value={value}
-                            renamingKey={renamingKey}
-                            pendingKeyValue={pendingKeyValue}
-                            hasCredential={Boolean(cred)}
-                            canEdit={canEditRow}
-                            canRename={canCreateWorkspaceSecret && canEditRow}
-                            onRenameStart={setRenamingKey}
-                            onPendingKeyChange={setPendingKeyValue}
-                            onRenameEnd={handleWorkspaceKeyRename}
-                            onValueChange={handleWorkspaceValueChange}
-                            onDelete={handleDeleteWorkspaceVar}
-                            onViewDetails={handleViewDetails}
-                          />
-                        )
-                      })}
-                      {canCreateWorkspaceSecret &&
-                        (searchTerm.trim()
-                          ? filteredNewWorkspaceRows
-                          : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
-                        ).map(({ row, originalIndex }) => (
-                          <NewWorkspaceVariableRow
-                            key={row.id || originalIndex}
-                            envVar={row}
-                            index={originalIndex}
-                            onUpdate={updateNewWorkspaceRow}
-                            onPaste={handleWorkspacePaste}
-                          />
-                        ))}
-                    </div>
-                  </section>
-                )}
-
-                {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
-                  <section className='flex flex-col'>
-                    <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
-                    <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-                    <div className={`${GRID_COLS} gap-y-2`}>
-                      {filteredEnvVars.map(({ envVar, originalIndex }) => (
-                        <div key={envVar.id || originalIndex} className='contents'>
-                          {renderEnvVarRow(envVar, originalIndex)}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-                {searchTerm.trim() &&
-                  filteredEnvVars.length === 0 &&
-                  filteredWorkspaceEntries.length === 0 &&
-                  filteredNewWorkspaceRows.length === 0 &&
-                  (envVars.length > 0 ||
-                    Object.keys(workspaceVars).length > 0 ||
-                    newWorkspaceRows.length > 0) && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                      No secrets found matching &ldquo;{searchTerm}&rdquo;
-                    </div>
-                  )}
-              </div>
+          </>
+        }
+      >
+        {!isLoading && (
+          <div className='flex flex-col gap-7'>
+            {(!searchTerm.trim() ||
+              filteredWorkspaceEntries.length > 0 ||
+              filteredNewWorkspaceRows.length > 0) && (
+              <section className='flex flex-col'>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
+                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+                <div className={`${GRID_COLS} gap-y-2`}>
+                  {(searchTerm.trim()
+                    ? filteredWorkspaceEntries
+                    : Object.entries(workspaceVars)
+                  ).map(([key, value]) => {
+                    const cred = workspaceEnvKeyToCredential.get(key)
+                    const canEditRow = cred?.role === 'admin'
+                    return (
+                      <WorkspaceVariableRow
+                        key={key}
+                        envKey={key}
+                        value={value}
+                        renamingKey={renamingKey}
+                        pendingKeyValue={pendingKeyValue}
+                        hasCredential={Boolean(cred)}
+                        canEdit={canEditRow}
+                        canRename={canCreateWorkspaceSecret && canEditRow}
+                        onRenameStart={setRenamingKey}
+                        onPendingKeyChange={setPendingKeyValue}
+                        onRenameEnd={handleWorkspaceKeyRename}
+                        onValueChange={handleWorkspaceValueChange}
+                        onDelete={handleDeleteWorkspaceVar}
+                        onViewDetails={handleViewDetails}
+                      />
+                    )
+                  })}
+                  {canCreateWorkspaceSecret &&
+                    (searchTerm.trim()
+                      ? filteredNewWorkspaceRows
+                      : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
+                    ).map(({ row, originalIndex }) => (
+                      <NewWorkspaceVariableRow
+                        key={row.id || originalIndex}
+                        envVar={row}
+                        index={originalIndex}
+                        onUpdate={updateNewWorkspaceRow}
+                        onPaste={handleWorkspacePaste}
+                      />
+                    ))}
+                </div>
+              </section>
             )}
+
+            {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
+              <section className='flex flex-col'>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
+                <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+                <div className={`${GRID_COLS} gap-y-2`}>
+                  {filteredEnvVars.map(({ envVar, originalIndex }) => (
+                    <div key={envVar.id || originalIndex} className='contents'>
+                      {renderEnvVarRow(envVar, originalIndex)}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {searchTerm.trim() &&
+              filteredEnvVars.length === 0 &&
+              filteredWorkspaceEntries.length === 0 &&
+              filteredNewWorkspaceRows.length === 0 &&
+              (envVars.length > 0 ||
+                Object.keys(workspaceVars).length > 0 ||
+                newWorkspaceRows.length > 0) && (
+                <SettingsEmptyState variant='inline'>
+                  No secrets found matching &ldquo;{searchTerm}&rdquo;
+                </SettingsEmptyState>
+              )}
           </div>
-        </div>
-      </div>
+        )}
+      </SettingsPanel>
 
       <UnsavedChangesModal
         open={showUnsavedChanges}

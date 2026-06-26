@@ -38,6 +38,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useBillingUsageNotifications,
@@ -388,8 +389,6 @@ export function Billing() {
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
 
-  // Org admins (and solo users managing their own billing) can edit; everyone
-  // else sees the same controls rendered read-only / disabled rather than hidden.
   const canManageBilling = permissions.canEditUsageLimit
   const showUsageLimit = !subscription.isFree && !subscription.isEnterprise
   const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
@@ -405,215 +404,196 @@ export function Billing() {
       : usageLimitData.minimumLimit
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='h-[30px]' />
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
-          <div className='flex flex-col gap-1'>
-            <h1 className='font-medium text-[var(--text-body)] text-lg'>Billing</h1>
-            <p className='text-[var(--text-muted)] text-md'>
-              Manage your plan, pricing, and invoices.
-            </p>
-          </div>
-
-          <div className='flex items-center justify-between gap-3'>
-            <div className='flex items-center gap-2.5'>
-              <div className='size-9 flex-shrink-0'>
-                <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                  <Credit className='size-5 text-[var(--text-icon)]' />
-                </div>
-              </div>
-              <div className='flex min-w-0 flex-col'>
-                <span className='truncate text-[14px] text-[var(--text-body)]'>
-                  {planName} plan
-                </span>
-                <span className='truncate text-[12px] text-[var(--text-muted)]'>{priceText}</span>
-              </div>
+    <SettingsPanel>
+      <div className='flex items-center justify-between gap-3'>
+        <div className='flex items-center gap-2.5'>
+          <div className='size-9 flex-shrink-0'>
+            <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+              <Credit className='size-5 text-[var(--text-icon)]' />
             </div>
-            {!subscription.isEnterprise &&
-              (canManageBilling ? (
-                <ChipLink
-                  href={upgradeHref}
-                  variant='border-shadow'
-                  flush
-                  onMouseEnter={prefetchUpgrade}
-                  onFocus={prefetchUpgrade}
-                >
-                  Explore plans
-                </ChipLink>
-              ) : (
-                <Chip variant='border-shadow' flush disabled>
-                  Explore plans
-                </Chip>
-              ))}
           </div>
-
-          {showUsageLimit && (
-            <UsageLimitField
-              currentLimit={usageLimitCurrent}
-              minimumLimit={usageLimitMinimum}
-              canEdit={permissions.canEditUsageLimit}
-              context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
-              organizationId={
-                shouldUseOrganizationBillingContext
-                  ? (billingOrganizationId ?? undefined)
-                  : undefined
-              }
-            />
-          )}
-
-          {showOnDemand && (
-            <SettingsSection label='Enable on-demand usage'>
-              <div className='flex items-center justify-between'>
-                <span className='text-[var(--text-body)] text-small'>
-                  Allow usage to go past included usage
-                </span>
-                <Switch
-                  checked={isOnDemandActive}
-                  disabled={isTogglingOnDemand || !canManageBilling}
-                  onCheckedChange={handleToggleOnDemand}
-                />
-              </div>
-            </SettingsSection>
-          )}
-
-          {!subscription.isFree && !subscription.isEnterprise && (
-            <SettingsSection label='Usage notifications'>
-              <div className='flex items-center justify-between'>
-                <span className='text-[var(--text-body)] text-small'>
-                  Email me when I reach 80% usage
-                </span>
-                <Switch
-                  checked={!!billingUsageNotificationsEnabled}
-                  disabled={updateGeneralSetting.isPending}
-                  onCheckedChange={(value: boolean) => {
-                    if (value !== billingUsageNotificationsEnabled) {
-                      updateGeneralSetting.mutate({
-                        key: 'billingUsageNotificationsEnabled',
-                        value,
-                      })
-                    }
-                  }}
-                />
-              </div>
-            </SettingsSection>
-          )}
-
-          {(subscription.isPaid || subscription.isEnterprise) && (
-            <SettingsSection label='Subscription'>
-              <div className='flex flex-col gap-4'>
-                {periodEnd && (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-[var(--text-body)] text-small'>
-                      {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
-                    </span>
-                    <span className='text-[var(--text-muted)] text-small'>
-                      {new Date(periodEnd).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-
-                <div className='flex items-center justify-between'>
-                  <span className='text-[var(--text-body)] text-small'>Payment method</span>
-                  <Chip
-                    flush
-                    disabled={!canManageBilling || openBillingPortal.isPending}
-                    onClick={handleOpenBillingPortal}
-                  >
-                    Manage in Stripe
-                  </Chip>
-                </div>
-
-                {!subscription.isEnterprise && (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-[var(--text-body)] text-small'>
-                      {isCancelledAtPeriodEnd ? 'Subscription canceled' : 'Cancel subscription'}
-                    </span>
-                    {isCancelledAtPeriodEnd ? (
-                      <Chip
-                        variant='primary'
-                        flush
-                        disabled={!canManageBilling}
-                        onClick={handleRestoreSubscription}
-                      >
-                        Restore
-                      </Chip>
-                    ) : (
-                      <Chip
-                        variant='destructive'
-                        flush
-                        disabled={!canManageBilling}
-                        onClick={handleCancelSubscription}
-                      >
-                        Cancel
-                      </Chip>
-                    )}
-                  </div>
-                )}
-              </div>
-            </SettingsSection>
-          )}
-
-          {!subscription.isFree && invoices.length > 0 && (
-            <SettingsSection label='Invoices'>
-              <div className='-mx-2 flex flex-col gap-y-0.5'>
-                {invoices.map((invoice) => {
-                  const rowClassName =
-                    'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
-                  const rowContent = (
-                    <>
-                      <span className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'>
-                        {invoice.date}
-                      </span>
-                      <Badge variant={invoice.badge.variant} size='sm'>
-                        {invoice.badge.label}
-                      </Badge>
-                      <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)]'>
-                        {invoice.amount}
-                      </span>
-                      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                    </>
-                  )
-
-                  return invoice.url ? (
-                    <a
-                      key={invoice.id}
-                      href={invoice.url}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className={cn(rowClassName, 'hover-hover:bg-[var(--surface-active)]')}
-                    >
-                      {rowContent}
-                    </a>
-                  ) : (
-                    <div key={invoice.id} className={cn(rowClassName, 'cursor-default')}>
-                      {rowContent}
-                    </div>
-                  )
-                })}
-
-                {invoicesData?.hasMore && (
-                  <button
-                    type='button'
-                    onClick={handleOpenBillingPortal}
-                    disabled={openBillingPortal.isPending || !canManageBilling}
-                    aria-label='View all invoices'
-                    className={cn(
-                      chipVariants({ fullWidth: true }),
-                      'text-[var(--text-muted)] text-small'
-                    )}
-                  >
-                    View all
-                  </button>
-                )}
-              </div>
-            </SettingsSection>
-          )}
+          <div className='flex min-w-0 flex-col'>
+            <span className='truncate text-[14px] text-[var(--text-body)]'>{planName} plan</span>
+            <span className='truncate text-[12px] text-[var(--text-muted)]'>{priceText}</span>
+          </div>
         </div>
+        {!subscription.isEnterprise &&
+          (canManageBilling ? (
+            <ChipLink
+              href={upgradeHref}
+              variant='border-shadow'
+              flush
+              onMouseEnter={prefetchUpgrade}
+              onFocus={prefetchUpgrade}
+            >
+              Explore plans
+            </ChipLink>
+          ) : (
+            <Chip variant='border-shadow' flush disabled>
+              Explore plans
+            </Chip>
+          ))}
       </div>
-    </div>
+
+      {showUsageLimit && (
+        <UsageLimitField
+          currentLimit={usageLimitCurrent}
+          minimumLimit={usageLimitMinimum}
+          canEdit={permissions.canEditUsageLimit}
+          context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
+          organizationId={
+            shouldUseOrganizationBillingContext ? (billingOrganizationId ?? undefined) : undefined
+          }
+        />
+      )}
+
+      {showOnDemand && (
+        <SettingsSection label='Enable on-demand usage'>
+          <div className='flex items-center justify-between'>
+            <span className='text-[var(--text-body)] text-small'>
+              Allow usage to go past included usage
+            </span>
+            <Switch
+              checked={isOnDemandActive}
+              disabled={isTogglingOnDemand || !canManageBilling}
+              onCheckedChange={handleToggleOnDemand}
+            />
+          </div>
+        </SettingsSection>
+      )}
+
+      {!subscription.isFree && !subscription.isEnterprise && (
+        <SettingsSection label='Usage notifications'>
+          <div className='flex items-center justify-between'>
+            <span className='text-[var(--text-body)] text-small'>
+              Email me when I reach 80% usage
+            </span>
+            <Switch
+              checked={!!billingUsageNotificationsEnabled}
+              disabled={updateGeneralSetting.isPending}
+              onCheckedChange={(value: boolean) => {
+                if (value !== billingUsageNotificationsEnabled) {
+                  updateGeneralSetting.mutate({
+                    key: 'billingUsageNotificationsEnabled',
+                    value,
+                  })
+                }
+              }}
+            />
+          </div>
+        </SettingsSection>
+      )}
+
+      {(subscription.isPaid || subscription.isEnterprise) && (
+        <SettingsSection label='Subscription'>
+          <div className='flex flex-col gap-4'>
+            {periodEnd && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>
+                  {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
+                </span>
+                <span className='text-[var(--text-muted)] text-small'>
+                  {new Date(periodEnd).toLocaleDateString()}
+                </span>
+              </div>
+            )}
+
+            <div className='flex items-center justify-between'>
+              <span className='text-[var(--text-body)] text-small'>Payment method</span>
+              <Chip
+                flush
+                disabled={!canManageBilling || openBillingPortal.isPending}
+                onClick={handleOpenBillingPortal}
+              >
+                Manage in Stripe
+              </Chip>
+            </div>
+
+            {!subscription.isEnterprise && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>
+                  {isCancelledAtPeriodEnd ? 'Subscription canceled' : 'Cancel subscription'}
+                </span>
+                {isCancelledAtPeriodEnd ? (
+                  <Chip
+                    variant='primary'
+                    flush
+                    disabled={!canManageBilling}
+                    onClick={handleRestoreSubscription}
+                  >
+                    Restore
+                  </Chip>
+                ) : (
+                  <Chip
+                    variant='destructive'
+                    flush
+                    disabled={!canManageBilling}
+                    onClick={handleCancelSubscription}
+                  >
+                    Cancel
+                  </Chip>
+                )}
+              </div>
+            )}
+          </div>
+        </SettingsSection>
+      )}
+
+      {!subscription.isFree && invoices.length > 0 && (
+        <SettingsSection label='Invoices'>
+          <div className='-mx-2 flex flex-col gap-y-0.5'>
+            {invoices.map((invoice) => {
+              const rowClassName =
+                'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
+              const rowContent = (
+                <>
+                  <span className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'>
+                    {invoice.date}
+                  </span>
+                  <Badge variant={invoice.badge.variant} size='sm'>
+                    {invoice.badge.label}
+                  </Badge>
+                  <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)]'>
+                    {invoice.amount}
+                  </span>
+                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                </>
+              )
+
+              return invoice.url ? (
+                <a
+                  key={invoice.id}
+                  href={invoice.url}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className={cn(rowClassName, 'hover-hover:bg-[var(--surface-active)]')}
+                >
+                  {rowContent}
+                </a>
+              ) : (
+                <div key={invoice.id} className={cn(rowClassName, 'cursor-default')}>
+                  {rowContent}
+                </div>
+              )
+            })}
+
+            {invoicesData?.hasMore && (
+              <button
+                type='button'
+                onClick={handleOpenBillingPortal}
+                disabled={openBillingPortal.isPending || !canManageBilling}
+                aria-label='View all invoices'
+                className={cn(
+                  chipVariants({ fullWidth: true }),
+                  'text-[var(--text-muted)] text-small'
+                )}
+              >
+                View all
+              </button>
+            )}
+          </div>
+        </SettingsSection>
+      )}
+    </SettingsPanel>
   )
 }

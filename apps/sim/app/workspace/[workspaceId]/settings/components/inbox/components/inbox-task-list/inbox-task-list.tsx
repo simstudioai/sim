@@ -5,6 +5,7 @@ import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
@@ -89,15 +90,15 @@ export function InboxTaskList() {
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {isLoading ? null : filteredTasks.length === 0 ? (
           searchTerm.trim() ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState variant='inline'>
               {`No tasks matching "${searchTerm}"`}
-            </div>
+            </SettingsEmptyState>
           ) : (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState>
               {config?.address
                 ? `No email tasks yet. Send an email to ${config.address} to get started.`
                 : 'No email tasks yet.'}
-            </div>
+            </SettingsEmptyState>
           )
         ) : (
           <div className='flex flex-col gap-0.5'>
