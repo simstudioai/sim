@@ -19,6 +19,7 @@ import {
   recentlyDeletedParsers,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
@@ -450,13 +451,11 @@ export function RecentlyDeleted() {
         </div>
       ) : isLoading ? null : filtered.length === 0 ? (
         showNoResults ? (
-          <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+          <SettingsEmptyState variant='inline'>
             {`No items found matching \u201c${urlSearchTerm}\u201d`}
-          </div>
+          </SettingsEmptyState>
         ) : (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            No deleted items
-          </div>
+          <SettingsEmptyState>No deleted items</SettingsEmptyState>
         )
       ) : (
         <div className='flex flex-col gap-2'>

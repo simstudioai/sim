@@ -5,18 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Chip,
-  ChipInput,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Tooltip,
-  toast,
-} from '@/components/emcn'
+import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -26,7 +15,9 @@ import {
 } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -67,28 +58,15 @@ interface SecretRowMenuProps {
  */
 function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          aria-label='Secret actions'
-          className={cn(chipVariants({ flush: true }), 'ml-2')}
-        >
-          <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {onViewDetails && (
-          <DropdownMenuItem onSelect={onViewDetails}>View details</DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={onCopyName}>Copy name</DropdownMenuItem>
-        {onDelete && (
-          <DropdownMenuItem className='text-[var(--text-error)]' onSelect={onDelete}>
-            Delete
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu
+      label='Secret actions'
+      triggerClassName='ml-2'
+      actions={[
+        ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
+        { label: 'Copy name', onSelect: onCopyName },
+        ...(onDelete ? [{ label: 'Delete', destructive: true, onSelect: onDelete }] : []),
+      ]}
+    />
   )
 }
 
@@ -1076,9 +1054,9 @@ export function SecretsManager() {
               (envVars.length > 0 ||
                 Object.keys(workspaceVars).length > 0 ||
                 newWorkspaceRows.length > 0) && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                <SettingsEmptyState variant='inline'>
                   No secrets found matching &ldquo;{searchTerm}&rdquo;
-                </div>
+                </SettingsEmptyState>
               )}
           </div>
         )}

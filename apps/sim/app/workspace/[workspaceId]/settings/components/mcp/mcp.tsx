@@ -6,19 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import {
-  Badge,
-  Button,
-  Chip,
-  ChipConfirmModal,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, Chip, ChipConfirmModal, Tooltip } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -34,6 +22,8 @@ import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
@@ -125,27 +115,13 @@ function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
-              aria-label='Server actions'
-              className={chipVariants({ flush: true })}
-            >
-              <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem onSelect={onViewDetails}>Details</DropdownMenuItem>
-            <DropdownMenuItem
-              className='text-[var(--text-error)]'
-              onSelect={onRemove}
-              disabled={isDeleting}
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActionsMenu
+          label='Server actions'
+          actions={[
+            { label: 'Details', onSelect: onViewDetails },
+            { label: 'Delete', destructive: true, disabled: isDeleting, onSelect: onRemove },
+          ]}
+        />
       </div>
     </div>
   )
@@ -655,9 +631,7 @@ export function MCP() {
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            Click &quot;Add Server&quot; above to get started
-          </div>
+          <SettingsEmptyState>Click &quot;Add Server&quot; above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredServers.map((server) => {
@@ -679,9 +653,9 @@ export function MCP() {
               )
             })}
             {showNoResults && (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              <SettingsEmptyState variant='inline'>
                 No servers found matching &quot;{searchTerm}&quot;
-              </div>
+              </SettingsEmptyState>
             )}
           </div>
         )}

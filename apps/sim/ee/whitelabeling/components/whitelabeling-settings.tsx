@@ -18,6 +18,7 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -279,25 +280,25 @@ export function WhitelabelingSettings() {
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           You must be part of an organization to configure whitelabeling.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           Whitelabeling is available on Enterprise plans only.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!canManage) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           Only organization owners and admins can configure whitelabeling settings.
-        </div>
+        </SettingsEmptyState>
       )
     }
   }

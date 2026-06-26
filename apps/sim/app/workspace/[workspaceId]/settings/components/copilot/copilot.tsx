@@ -17,6 +17,7 @@ import {
   SecretReveal,
   // Switch,
 } from '@/components/emcn'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import {
@@ -196,9 +197,7 @@ export function Copilot() {
 
         {/* Keys List */}
         {isLoading ? null : showEmptyState ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            Click "Create API Key" above to get started
-          </div>
+          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredKeys.map((key) => (
@@ -226,9 +225,9 @@ export function Copilot() {
               </div>
             ))}
             {showNoResults && (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              <SettingsEmptyState variant='inline'>
                 No API keys found matching "{searchTerm}"
-              </div>
+              </SettingsEmptyState>
             )}
           </div>
         )}

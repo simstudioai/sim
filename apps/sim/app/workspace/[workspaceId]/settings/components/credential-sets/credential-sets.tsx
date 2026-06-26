@@ -19,13 +19,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   type FileInputOptions,
-  MoreHorizontal,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
@@ -37,6 +31,8 @@ import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-s
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -521,26 +517,17 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                type='button'
-                                aria-label='Member actions'
-                                className={chipVariants({ flush: true })}
-                              >
-                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem
-                                className='text-[var(--text-error)]'
-                                onSelect={() => handleRemoveMember(member.id)}
-                                disabled={removeMember.isPending}
-                              >
-                                Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <RowActionsMenu
+                            label='Member actions'
+                            actions={[
+                              {
+                                label: 'Remove',
+                                destructive: true,
+                                disabled: removeMember.isPending,
+                                onSelect: () => handleRemoveMember(member.id),
+                              },
+                            ]}
+                          />
                         </div>
                       </div>
                     )
@@ -579,41 +566,30 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                type='button'
-                                aria-label='Invitation actions'
-                                className={chipVariants({ flush: true })}
-                              >
-                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem
-                                onSelect={() => handleResendInvitation(invitation.id, email)}
-                                disabled={
-                                  resendingInvitations.has(invitation.id) ||
-                                  (resendCooldowns[invitation.id] ?? 0) > 0
-                                }
-                              >
-                                {resendingInvitations.has(invitation.id)
+                          <RowActionsMenu
+                            label='Invitation actions'
+                            actions={[
+                              {
+                                label: resendingInvitations.has(invitation.id)
                                   ? 'Sending...'
                                   : resendCooldowns[invitation.id]
                                     ? `Resend (${resendCooldowns[invitation.id]}s)`
-                                    : 'Resend'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className='text-[var(--text-error)]'
-                                onSelect={() => handleCancelInvitation(invitation.id)}
-                                disabled={cancellingInvitations.has(invitation.id)}
-                              >
-                                {cancellingInvitations.has(invitation.id)
+                                    : 'Resend',
+                                disabled:
+                                  resendingInvitations.has(invitation.id) ||
+                                  (resendCooldowns[invitation.id] ?? 0) > 0,
+                                onSelect: () => handleResendInvitation(invitation.id, email),
+                              },
+                              {
+                                label: cancellingInvitations.has(invitation.id)
                                   ? 'Cancelling...'
-                                  : 'Cancel'}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                                  : 'Cancel',
+                                destructive: true,
+                                disabled: cancellingInvitations.has(invitation.id),
+                                onSelect: () => handleCancelInvitation(invitation.id),
+                              },
+                            ]}
+                          />
                         </div>
                       </div>
                     )
@@ -645,14 +621,14 @@ export function CredentialSets() {
       >
         <div className='relative'>
           {hasNoContent && !canManageCredentialSets ? (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState>
               You're not a member of any polling groups yet. When someone invites you, it will
               appear here.
-            </div>
+            </SettingsEmptyState>
           ) : hasNoResults ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState variant='inline'>
               No results found matching "{searchTerm}"
-            </div>
+            </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-4.5'>
               {filteredInvitations.length > 0 && (
@@ -754,29 +730,18 @@ export function CredentialSets() {
                               </div>
                             </div>
                             <div className='flex items-center gap-1'>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button
-                                    type='button'
-                                    aria-label='Group actions'
-                                    className={chipVariants({ flush: true })}
-                                  >
-                                    <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align='end'>
-                                  <DropdownMenuItem onSelect={() => setViewingSet(set)}>
-                                    Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className='text-[var(--text-error)]'
-                                    onSelect={() => handleDeleteClick(set)}
-                                    disabled={deletingSetIds.has(set.id)}
-                                  >
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <RowActionsMenu
+                                label='Group actions'
+                                actions={[
+                                  { label: 'Details', onSelect: () => setViewingSet(set) },
+                                  {
+                                    label: 'Delete',
+                                    destructive: true,
+                                    disabled: deletingSetIds.has(set.id),
+                                    onSelect: () => handleDeleteClick(set),
+                                  },
+                                ]}
+                              />
                             </div>
                           </div>
                         ))}

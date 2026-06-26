@@ -23,6 +23,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
@@ -138,33 +139,33 @@ export function SSO() {
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        <SettingsEmptyState>
           You must be part of an organization to configure Single Sign-On.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        <SettingsEmptyState>
           Single Sign-On is available on Enterprise plans only.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        <SettingsEmptyState>
           Only organization owners and admins can configure Single Sign-On settings.
-        </div>
+        </SettingsEmptyState>
       )
     }
   } else {
     if (activeOrganization && !canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        <SettingsEmptyState>
           Only organization owners and admins can configure Single Sign-On settings.
-        </div>
+        </SettingsEmptyState>
       )
     }
     if (
@@ -174,9 +175,9 @@ export function SSO() {
       providers.length > 0
     ) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+        <SettingsEmptyState>
           Only the user who configured SSO can manage these settings.
-        </div>
+        </SettingsEmptyState>
       )
     }
   }

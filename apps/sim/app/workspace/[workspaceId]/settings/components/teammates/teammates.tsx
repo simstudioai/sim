@@ -4,18 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Chip,
-  ChipDropdown,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Plus,
-  toast,
-} from '@/components/emcn'
+import { Chip, ChipDropdown, Plus, toast } from '@/components/emcn'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
@@ -27,6 +16,7 @@ import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
@@ -229,86 +219,77 @@ export function Teammates() {
                 )
               })()}
               menu={
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type='button'
-                      aria-label='Teammate actions'
-                      className={chipVariants({ flush: true })}
-                    >
-                      <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
-                    <DropdownMenuItem onSelect={() => copyToClipboard(teammate.email)}>
-                      Copy email
-                    </DropdownMenuItem>
-                    {canManage && teammate.isPending && (
-                      <>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            if (teammate.invitationId) {
-                              resendInvitation.mutate({
-                                invitationId: teammate.invitationId,
-                                workspaceId,
-                              })
-                            }
-                          }}
-                        >
-                          Resend invite
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            if (teammate.invitationId && teammate.token) {
-                              copyToClipboard(
-                                buildInviteLink(teammate.invitationId, teammate.token)
-                              )
-                            }
-                          }}
-                        >
-                          Copy invite link
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className='text-[var(--text-error)]'
-                          onSelect={() => {
-                            if (teammate.invitationId) {
-                              cancelInvitation.mutate({
-                                invitationId: teammate.invitationId,
-                                workspaceId,
-                              })
-                            }
-                          }}
-                        >
-                          Revoke invite
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    {canManage && !teammate.isPending && teammate.userId !== viewer?.userId && (
-                      <DropdownMenuItem
-                        className='text-[var(--text-error)]'
-                        onSelect={() => {
-                          if (teammate.userId) {
-                            removeMember.mutate(
-                              { userId: teammate.userId, workspaceId },
-                              {
-                                onError: (error) => {
-                                  toast.error("Couldn't remove teammate", {
-                                    description: getErrorMessage(
-                                      error,
-                                      'Please try again in a moment.'
-                                    ),
-                                  })
-                                },
+                <RowActionsMenu
+                  label='Teammate actions'
+                  actions={[
+                    {
+                      label: 'Copy email',
+                      onSelect: () => copyToClipboard(teammate.email),
+                    },
+                    ...(canManage && teammate.isPending
+                      ? [
+                          {
+                            label: 'Resend invite',
+                            onSelect: () => {
+                              if (teammate.invitationId) {
+                                resendInvitation.mutate({
+                                  invitationId: teammate.invitationId,
+                                  workspaceId,
+                                })
                               }
-                            )
-                          }
-                        }}
-                      >
-                        Remove
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                            },
+                          },
+                          {
+                            label: 'Copy invite link',
+                            onSelect: () => {
+                              if (teammate.invitationId && teammate.token) {
+                                copyToClipboard(
+                                  buildInviteLink(teammate.invitationId, teammate.token)
+                                )
+                              }
+                            },
+                          },
+                          {
+                            label: 'Revoke invite',
+                            destructive: true,
+                            onSelect: () => {
+                              if (teammate.invitationId) {
+                                cancelInvitation.mutate({
+                                  invitationId: teammate.invitationId,
+                                  workspaceId,
+                                })
+                              }
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(canManage && !teammate.isPending && teammate.userId !== viewer?.userId
+                      ? [
+                          {
+                            label: 'Remove',
+                            destructive: true,
+                            onSelect: () => {
+                              if (teammate.userId) {
+                                removeMember.mutate(
+                                  { userId: teammate.userId, workspaceId },
+                                  {
+                                    onError: (error) => {
+                                      toast.error("Couldn't remove teammate", {
+                                        description: getErrorMessage(
+                                          error,
+                                          'Please try again in a moment.'
+                                        ),
+                                      })
+                                    },
+                                  }
+                                )
+                              }
+                            },
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
               }
             />
           ))}

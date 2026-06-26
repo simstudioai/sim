@@ -12,6 +12,7 @@ import {
   adminParsers,
   adminUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   useAdminUsers,
@@ -277,9 +278,7 @@ export function Admin() {
               </div>
 
               {usersData.users.length === 0 && (
-                <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
-                  No users found.
-                </div>
+                <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
               )}
 
               {usersData.users.map((u) => (

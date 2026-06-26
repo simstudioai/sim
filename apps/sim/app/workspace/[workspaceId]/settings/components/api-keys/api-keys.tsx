@@ -5,21 +5,11 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Chip,
-  ChipConfirmModal,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Switch,
-  Tooltip,
-  toast,
-} from '@/components/emcn'
+import { Chip, ChipConfirmModal, Switch, Tooltip, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -53,27 +43,13 @@ interface ApiKeyRowMenuProps {
 function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
   return (
     <div className='flex-shrink-0'>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type='button'
-            aria-label='API key actions'
-            className={chipVariants({ flush: true })}
-          >
-            <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuItem onSelect={() => copyKeyName(keyName)}>Copy name</DropdownMenuItem>
-          <DropdownMenuItem
-            className='text-[var(--text-error)]'
-            onSelect={onDelete}
-            disabled={!canDelete}
-          >
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActionsMenu
+        label='API key actions'
+        actions={[
+          { label: 'Copy name', onSelect: () => copyKeyName(keyName) },
+          { label: 'Delete', destructive: true, disabled: !canDelete, onSelect: onDelete },
+        ]}
+      />
     </div>
   )
 }
@@ -184,9 +160,7 @@ export function ApiKeys() {
       >
         {/* Key list */}
         {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            Click "Create API Key" above to get started
-          </div>
+          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
             {/* Workspace section */}
@@ -304,9 +278,9 @@ export function ApiKeys() {
               filteredPersonalKeys.length === 0 &&
               filteredWorkspaceKeys.length === 0 &&
               (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                <SettingsEmptyState variant='inline'>
                   No API keys found matching "{searchTerm}"
-                </div>
+                </SettingsEmptyState>
               )}
           </div>
         )}

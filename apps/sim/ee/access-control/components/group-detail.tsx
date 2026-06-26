@@ -17,13 +17,7 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   ChipTag,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Info,
-  MoreHorizontal,
   Search,
   Skeleton,
   Switch,
@@ -38,6 +32,7 @@ import {
   MemberAvatar,
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getAllBlocks } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
@@ -1414,25 +1409,16 @@ export function GroupDetail({
                                 image={member.userImage}
                                 status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
                                 menu={
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type='button'
-                                        aria-label='Member actions'
-                                        className={chipVariants({ flush: true })}
-                                      >
-                                        <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align='end'>
-                                      <DropdownMenuItem
-                                        className='text-[var(--text-error)]'
-                                        onSelect={() => handleRemoveMember(member.id)}
-                                      >
-                                        Remove
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <RowActionsMenu
+                                    label='Member actions'
+                                    actions={[
+                                      {
+                                        label: 'Remove',
+                                        onSelect: () => handleRemoveMember(member.id),
+                                        destructive: true,
+                                      },
+                                    ]}
+                                  />
                                 }
                               />
                             ))}

@@ -19,6 +19,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
@@ -427,13 +428,11 @@ export function AuditLogs() {
 
         {isLoading ? null : allEntries.length === 0 ? (
           debouncedSearch ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
-            </div>
+            </SettingsEmptyState>
           ) : (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-              No audit logs found
-            </div>
+            <SettingsEmptyState>No audit logs found</SettingsEmptyState>
           )
         ) : (
           <div className='flex flex-col gap-0.5'>

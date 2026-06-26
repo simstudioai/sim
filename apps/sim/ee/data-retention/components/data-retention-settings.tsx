@@ -34,6 +34,7 @@ import {
   SUPPORTED_PII_ENTITIES,
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -706,33 +707,27 @@ export function DataRetentionSettings() {
 
   if (!orgId) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Data retention is configured per organization. Join or create an organization to continue.
-      </div>
+      </SettingsEmptyState>
     )
   }
 
   if (!data) {
-    return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Failed to load data retention settings.
-      </div>
-    )
+    return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
 
   if (isBillingEnabled && !data.isEnterprise) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Data retention is available on Enterprise plans only.
-      </div>
+      <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
     )
   }
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Only organization owners and admins can configure data retention settings.
-      </div>
+      </SettingsEmptyState>
     )
   }
 

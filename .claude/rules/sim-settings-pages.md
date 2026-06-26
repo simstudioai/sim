@@ -85,6 +85,22 @@ Adding a new settings page:
    `settings/[section]/settings.tsx`.
 3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
 
+## Other shared settings primitives (do not re-roll these)
+
+- **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
+  muted status message. `variant='fill'` (default) centers in the available
+  height (empty list, or a not-entitled/loading gate); `variant='inline'` sits in
+  flow (a search "no results"). Never hand-roll
+  `<div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>`
+  or `<div className='py-4 text-center …'>`. It owns the `--text-muted` + `text-sm`
+  tokens, so it also keeps these messages consistent across pages.
+- **`RowActionsMenu`** (`…/components/row-actions-menu`) — the trailing `...`
+  actions menu for a list row. Pass `label` (aria-label) and
+  `actions: RowAction[]` (`{ label, onSelect, destructive?, disabled? }`); the
+  component renders the canonical flush `...` trigger + `DropdownMenuContent`.
+  Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
+  hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
+
 ## Detail sub-views (the one exception)
 
 A drill-down view reached from a list row (selected MCP server, workflow MCP

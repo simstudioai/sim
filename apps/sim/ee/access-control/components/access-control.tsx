@@ -17,6 +17,7 @@ import {
   Label,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
@@ -132,11 +133,11 @@ export function AccessControl() {
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         {!organizationId
           ? "Access Control applies to organization workspaces. This workspace isn't part of an organization."
           : 'Only organization admins on Enterprise plans can manage Access Control settings.'}
-      </div>
+      </SettingsEmptyState>
     )
   }
 
@@ -171,13 +172,13 @@ export function AccessControl() {
       >
         <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
           {permissionGroups.length === 0 ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState variant='inline'>
               No permission groups yet. Click "Create Group" to get started.
-            </div>
+            </SettingsEmptyState>
           ) : filteredGroups.length === 0 ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState variant='inline'>
               No groups found matching "{searchTerm}"
-            </div>
+            </SettingsEmptyState>
           ) : (
             <div className='-mx-2 flex flex-col gap-y-0.5'>
               {filteredGroups.map((group) => (

@@ -23,18 +23,14 @@ import {
   ChipSelect,
   Code,
   type ComboboxOption,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Label,
-  MoreHorizontal,
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
@@ -466,29 +462,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                               </p>
                             </div>
                             <div className='flex flex-shrink-0 items-center gap-1'>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button
-                                    type='button'
-                                    aria-label='Tool actions'
-                                    className={chipVariants({ flush: true })}
-                                  >
-                                    <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align='end'>
-                                  <DropdownMenuItem onSelect={() => setToolToView(tool)}>
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className='text-[var(--text-error)]'
-                                    onSelect={() => setToolToDelete(tool)}
-                                    disabled={deleteToolMutation.isPending}
-                                  >
-                                    Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <RowActionsMenu
+                                label='Tool actions'
+                                actions={[
+                                  { label: 'Edit', onSelect: () => setToolToView(tool) },
+                                  {
+                                    label: 'Remove',
+                                    destructive: true,
+                                    disabled: deleteToolMutation.isPending,
+                                    onSelect: () => setToolToDelete(tool),
+                                  },
+                                ]}
+                              />
                             </div>
                           </div>
                         ))}
@@ -1010,9 +995,9 @@ export function WorkflowMcpServers() {
               </p>
             </div>
           ) : isLoading ? null : !hasServers ? (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+            <SettingsEmptyState>
               Click &quot;Add Server&quot; above to get started
-            </div>
+            </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-2'>
               {filteredServers.map((server) => {
@@ -1035,37 +1020,26 @@ export function WorkflowMcpServers() {
                       <p className='truncate text-[12px] text-[var(--text-muted)]'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type='button'
-                            aria-label='Server actions'
-                            className={chipVariants({ flush: true })}
-                          >
-                            <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem onSelect={() => setSelectedServerId(server.id)}>
-                            Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className='text-[var(--text-error)]'
-                            onSelect={() => setServerToDelete(server)}
-                            disabled={isDeleting}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <RowActionsMenu
+                        label='Server actions'
+                        actions={[
+                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Delete',
+                            destructive: true,
+                            disabled: isDeleting,
+                            onSelect: () => setServerToDelete(server),
+                          },
+                        ]}
+                      />
                     </div>
                   </div>
                 )
               })}
               {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                <SettingsEmptyState variant='inline'>
                   No servers found matching "{searchTerm}"
-                </div>
+                </SettingsEmptyState>
               )}
             </div>
           )}

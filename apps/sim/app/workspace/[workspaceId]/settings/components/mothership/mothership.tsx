@@ -15,6 +15,7 @@ import {
   mothershipParsers,
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type MothershipByokKey,
@@ -479,9 +480,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
             <span className='w-[140px] text-right'>Created</span>
           </div>
           {data.licenses.length === 0 && (
-            <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
-              No licenses found.
-            </div>
+            <SettingsEmptyState variant='inline'>No licenses found.</SettingsEmptyState>
           )}
           {data.licenses.map(
             (lic: {
