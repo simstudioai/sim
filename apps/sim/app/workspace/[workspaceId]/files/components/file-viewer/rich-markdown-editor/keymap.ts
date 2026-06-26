@@ -1,8 +1,22 @@
 import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
+import { MENTION_PLUGIN_KEY } from './mention'
+import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
 
 /** Leaf nodes that have no text position, so they can only be reached as a NodeSelection. */
 const SELECTABLE_LEAVES = new Set(['horizontalRule', 'image'])
+
+/**
+ * True while a `/` or `@` suggestion menu is open. Arrow keys must reach that menu's own handler, so
+ * the leaf-selection shortcuts below yield rather than stealing the key to select an adjacent divider.
+ */
+function isSuggestionMenuOpen(editor: Editor): boolean {
+  const { state } = editor
+  return (
+    MENTION_PLUGIN_KEY.getState(state)?.active === true ||
+    SLASH_COMMAND_PLUGIN_KEY.getState(state)?.active === true
+  )
+}
 
 /**
  * Arrowing off the edge of a textblock toward an adjacent divider or image selects that node
@@ -63,8 +77,9 @@ export const RichMarkdownKeymap = Extension.create({
         if (editor.state.selection.from === from && editor.state.selection.to === to) return false
         return editor.commands.setTextSelection({ from, to })
       },
-      ArrowUp: ({ editor }) => selectAdjacentLeaf(editor, 'up'),
-      ArrowDown: ({ editor }) => selectAdjacentLeaf(editor, 'down'),
+      ArrowUp: ({ editor }) => !isSuggestionMenuOpen(editor) && selectAdjacentLeaf(editor, 'up'),
+      ArrowDown: ({ editor }) =>
+        !isSuggestionMenuOpen(editor) && selectAdjacentLeaf(editor, 'down'),
     }
   },
 })

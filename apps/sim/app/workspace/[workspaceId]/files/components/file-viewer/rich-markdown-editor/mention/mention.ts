@@ -6,8 +6,8 @@ import { MentionList } from './mention-list'
 import { createMentionStore, type MentionStore } from './mention-store'
 import type { MentionItem } from './types'
 
-/** Distinct from the `/` slash command's default `suggestion` key — two plugins can't share one key. */
-const MENTION_PLUGIN_KEY = new PluginKey('mention')
+/** Distinct from the `/` slash command's key — two plugins can't share one key. Exported so the keymap can detect an open menu. */
+export const MENTION_PLUGIN_KEY = new PluginKey('mention')
 
 /**
  * Per-editor storage for the `@` mention extension. The host component populates {@link store} with

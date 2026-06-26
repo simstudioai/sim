@@ -1,4 +1,4 @@
-export { Mention, type MentionStorage } from './mention'
+export { MENTION_PLUGIN_KEY, Mention, type MentionStorage } from './mention'
 export { MarkdownMention, MentionChip } from './mention-node'
 export { parseSimHref, SIM_LINK_SCHEME, simLinkPath, toSimHref } from './sim-link'
 export type { MentionItem, MentionKind } from './types'
