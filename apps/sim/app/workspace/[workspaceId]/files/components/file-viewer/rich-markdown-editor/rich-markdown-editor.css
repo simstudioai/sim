@@ -111,6 +111,14 @@
   text-decoration: underline;
 }
 
+/* When a link is selected, drop its blue so it reads like any other highlighted text — the standard
+   MD-editor convention (Linear, Slack) where the selection takes precedence over the link color.
+   Only the selected state is affected; an unselected link stays blue. */
+.rich-markdown-prose a::selection,
+.rich-markdown-prose a ::selection {
+  color: var(--text-primary);
+}
+
 /* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
    than ProseMirror's default short horizontal bar, which reads as a stray underscore. */
 .rich-markdown-prose .ProseMirror-gapcursor::after {
