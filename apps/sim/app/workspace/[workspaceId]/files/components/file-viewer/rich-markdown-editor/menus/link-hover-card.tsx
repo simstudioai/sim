@@ -4,6 +4,7 @@ import { getMarkRange } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { Check, Copy, Pencil, Unlink } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { normalizeLinkHref } from '../markdown-fidelity'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton } from './toolbar-button'
@@ -46,6 +47,7 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
   const isEditing = draftHref !== null
   const editInputRef = useRef<HTMLInputElement>(null)
   const floatingRef = useRef<HTMLDivElement>(null)
+  const { copied, copy } = useCopyToClipboard()
   const hideTimerRef = useRef<number | undefined>(undefined)
 
   // Keep the card anchored to the hovered link with Floating UI's DOM core (the same primitive the
@@ -175,7 +177,13 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
               {rawHref}
             </span>
           )}
-          <ToolbarButton icon={Copy} label='Copy link' onClick={() => copyToClipboard(rawHref)} />
+          <ToolbarButton
+            icon={copied ? Check : Copy}
+            label={copied ? 'Copied' : 'Copy link'}
+            onClick={() => {
+              void copy(rawHref)
+            }}
+          />
           {canEdit && <ToolbarButton icon={Pencil} label='Edit link' onClick={startEdit} />}
           {canEdit && <ToolbarButton icon={Unlink} label='Remove link' onClick={removeLink} />}
         </>
@@ -183,8 +191,4 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
     </div>,
     document.body
   )
-}
-
-function copyToClipboard(text: string) {
-  if (text) void navigator.clipboard?.writeText(text).catch(() => {})
 }
