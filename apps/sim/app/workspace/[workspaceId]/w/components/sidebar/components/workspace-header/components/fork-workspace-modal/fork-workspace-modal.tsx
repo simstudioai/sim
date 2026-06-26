@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Search } from 'lucide-react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Checkbox,
+  ChevronDown,
+  ChipCopyInput,
   ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
-  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   toast,
@@ -19,6 +20,7 @@ import type {
   GetForkResourcesResponse,
 } from '@/lib/api/contracts/workspace-fork'
 import { cn } from '@/lib/core/utils/cn'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useForkResources, useForkWorkspace } from '@/hooks/queries/workspace-fork'
 
 interface ForkWorkspaceModalProps {
@@ -74,6 +76,7 @@ function ResourceKindRow({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [query, setQuery] = useState('')
+  const fieldId = useId()
 
   const total = items.length
   const selectedCount = selected.size
@@ -97,18 +100,18 @@ function ResourceKindRow({
         />
         <button
           type='button'
-          className='flex min-w-0 items-center gap-1 text-left hover:text-[var(--text-primary)]'
+          className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <ChevronRight
-            className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-90'
-            )}
-          />
-          <span className='truncate'>
+          <span className='min-w-0 flex-1 truncate'>
             {label} ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
           </span>
+          <ChevronDown
+            className={cn(
+              'h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+              expanded && 'rotate-180'
+            )}
+          />
         </button>
       </div>
 
@@ -126,23 +129,27 @@ function ResourceKindRow({
           <div className='flex max-h-44 flex-col gap-0.5 overflow-y-auto'>
             {filtered.map((item) => {
               const isChecked = selected.has(item.id)
+              const itemId = `${fieldId}-${item.id}`
               return (
-                <button
+                <label
                   key={item.id}
-                  type='button'
-                  className='flex min-w-0 items-center gap-2 rounded-md py-0.5 text-left text-[var(--text-body)] text-sm hover:text-[var(--text-primary)]'
-                  onClick={() => onToggleItem(item.id, !isChecked)}
-                  disabled={disabled}
+                  htmlFor={itemId}
+                  className={cn(
+                    'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
+                    disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer hover:text-[var(--text-primary)]'
+                  )}
                 >
                   <Checkbox
+                    id={itemId}
                     size='sm'
                     checked={isChecked}
-                    aria-hidden
-                    tabIndex={-1}
-                    className='pointer-events-none'
+                    onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
+                    disabled={disabled}
                   />
                   <span className='truncate'>{item.label}</span>
-                </button>
+                </label>
               )
             })}
             {filtered.length === 0 ? (
@@ -224,58 +231,77 @@ export function ForkWorkspaceModal({
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Fork workspace'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>Fork workspace</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='copy' title='Forking from' value={sourceWorkspaceName} />
-        <ChipModalField
-          type='input'
-          title='Name'
-          value={name}
-          onChange={setName}
-          placeholder='Workspace name'
-          maxLength={100}
-          autoComplete='off'
-          disabled={isForking}
-          onSubmit={handleSubmit}
-          required
-        />
-        {availableKinds.length > 0 ? (
-          <ChipModalField type='custom' title='Copy resources'>
-            <div className='flex flex-col gap-2'>
-              {availableKinds.map((kind) => (
-                <ResourceKindRow
-                  key={kind.key}
-                  label={kind.label}
-                  items={resources.data?.[kind.key] ?? []}
-                  selected={selected[kind.key]}
-                  onToggleAll={(selectAll) =>
-                    setSelected((prev) => ({
-                      ...prev,
-                      [kind.key]: selectAll
-                        ? new Set((resources.data?.[kind.key] ?? []).map((item) => item.id))
-                        : new Set<string>(),
-                    }))
-                  }
-                  onToggleItem={(id, checked) =>
-                    setSelected((prev) => {
-                      const next = new Set(prev[kind.key])
-                      if (checked) next.add(id)
-                      else next.delete(id)
-                      return { ...prev, [kind.key]: next }
-                    })
-                  }
-                  disabled={isForking}
-                />
-              ))}
-              <p className='text-[var(--text-muted)] text-caption'>
-                Unselected resources leave their workflow fields empty in the fork.
-              </p>
-            </div>
-          </ChipModalField>
-        ) : null}
-        {noDeployedWorkflows ? (
-          <p className='px-2 text-[var(--text-muted)] text-caption'>
-            No deployed workflows to copy — your fork will start with a blank workflow.
-          </p>
-        ) : null}
+        <div className='flex flex-col gap-7 px-2'>
+          <SettingsSection label='Forking from'>
+            <ChipCopyInput value={sourceWorkspaceName} aria-label='Forking from' />
+          </SettingsSection>
+
+          <SettingsSection
+            label='Name'
+            headerAccessory={
+              <span className='text-[var(--text-error)]' title='Required'>
+                *
+              </span>
+            }
+          >
+            <ChipInput
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  handleSubmit()
+                }
+              }}
+              placeholder='Workspace name'
+              maxLength={100}
+              autoComplete='off'
+              disabled={isForking}
+              aria-label='Workspace name'
+            />
+          </SettingsSection>
+
+          {availableKinds.length > 0 ? (
+            <SettingsSection label='Copy resources'>
+              <div className='flex flex-col gap-2'>
+                {availableKinds.map((kind) => (
+                  <ResourceKindRow
+                    key={kind.key}
+                    label={kind.label}
+                    items={resources.data?.[kind.key] ?? []}
+                    selected={selected[kind.key]}
+                    onToggleAll={(selectAll) =>
+                      setSelected((prev) => ({
+                        ...prev,
+                        [kind.key]: selectAll
+                          ? new Set((resources.data?.[kind.key] ?? []).map((item) => item.id))
+                          : new Set<string>(),
+                      }))
+                    }
+                    onToggleItem={(id, checked) =>
+                      setSelected((prev) => {
+                        const next = new Set(prev[kind.key])
+                        if (checked) next.add(id)
+                        else next.delete(id)
+                        return { ...prev, [kind.key]: next }
+                      })
+                    }
+                    disabled={isForking}
+                  />
+                ))}
+                <p className='text-[var(--text-muted)] text-caption'>
+                  Unselected resources leave their workflow fields empty in the fork.
+                </p>
+              </div>
+            </SettingsSection>
+          ) : null}
+
+          {noDeployedWorkflows ? (
+            <p className='text-[var(--text-muted)] text-caption'>
+              No deployed workflows to copy — your fork will start with a blank workflow.
+            </p>
+          ) : null}
+        </div>
         <ChipModalError>{error ?? undefined}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter

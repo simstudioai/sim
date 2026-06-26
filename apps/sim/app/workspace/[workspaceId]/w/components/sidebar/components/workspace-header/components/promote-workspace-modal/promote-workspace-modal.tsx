@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight } from 'lucide-react'
 import {
+  Badge,
   Chip,
   ChipCombobox,
   ChipConfirmModal,
+  ChipDropdown,
   ChipModal,
   ChipModalBody,
-  ChipModalField,
   ChipModalFooter,
+  type ChipModalFooterSlotAction,
   ChipModalHeader,
   Tooltip,
   toast,
@@ -20,6 +22,7 @@ import type {
   ForkMappingEntry,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ForkDirection,
   useForkDiff,
@@ -50,10 +53,10 @@ function summarizeCounts(parts: Array<[number, string]>): string {
     .join(' · ')
 }
 
-/** Section label + display order per mapping kind (grouped, Secrets-page style). */
+/** Section label + display order per mapping kind (one mapping step per kind). */
 const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
   credential: { label: 'Credentials', order: 0 },
-  'env-var': { label: 'Environment variables', order: 1 },
+  'env-var': { label: 'Secrets', order: 1 },
   table: { label: 'Tables', order: 2 },
   'knowledge-base': { label: 'Knowledge bases', order: 3 },
   'knowledge-document': { label: 'Knowledge documents', order: 4 },
@@ -71,50 +74,13 @@ interface EdgeOption {
 }
 
 /**
- * One mapping as a `display: contents` row so its cells snap into the parent grid
- * (Secrets-page grammar): source name on the left, target selector inline on the
- * right, columns aligned across every row. A required source is marked with `*`.
- */
-function MappingRow({
-  entry,
-  value,
-  onChange,
-}: {
-  entry: ForkMappingEntry
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className='contents'>
-      <div className='flex min-w-0 items-center gap-1'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{entry.sourceLabel}</span>
-        {entry.required ? (
-          <span className='text-[var(--text-error)]' title='Required to sync'>
-            *
-          </span>
-        ) : null}
-      </div>
-      <div />
-      <ChipCombobox
-        className='w-full'
-        options={entry.candidates.map((candidate) => ({
-          label: candidate.label,
-          value: candidate.id,
-        }))}
-        value={value || undefined}
-        onChange={onChange}
-        placeholder='Select target'
-      />
-    </div>
-  )
-}
-
-/**
- * Fork sync surface. From a fork (has a parent) it runs a force push/pull along the
- * parent edge: pick a direction, map required secrets and optional resources,
- * preview the per-workflow change set, and sync - with a force-confirm on drift.
- * From a fork root (no parent) it lists the forks for management. Either way, the
- * last sync into this workspace can be rolled back to its prior deployed versions.
+ * Fork sync surface. From a fork (has a parent) it force pushes/pulls along the
+ * parent edge: the overview picks a direction and lists each resource kind's
+ * mapping status, then Sync. "Edit mappings" steps through every kind (Back/Next,
+ * each source a settings-style section + full-width target) to set or review
+ * targets before landing back on Sync - with a force-confirm on drift. From a fork
+ * root (no parent) it lists the forks for management. Either way, the last sync into
+ * this workspace can be rolled back to its prior deployed versions.
  */
 export function PromoteWorkspaceModal({
   open,
@@ -147,18 +113,31 @@ export function PromoteWorkspaceModal({
   }, [parent])
 
   const [selectedKey, setSelectedKey] = useState('')
+  // User's IN-SESSION mapping overrides only - NOT the source of truth. The
+  // displayed/persisted target falls back to each entry's stored `targetId`
+  // (see `targetFor`), so a reopened edge shows its remembered mappings even
+  // though React Query's structural sharing keeps `entries` referentially stable
+  // (a target-seeding effect gated on `entries` would never re-run there).
   const [targets, setTargets] = useState<Record<string, string>>({})
+  // Wizard step: 0 is the overview; 1..N edit one resource kind each, entered via
+  // "Edit mappings". Backing out of step 1 returns to the overview.
+  const [step, setStep] = useState(0)
   const [confirmDriftOpen, setConfirmDriftOpen] = useState(false)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const rollback = useRollbackFork()
 
   useEffect(() => {
-    if (open) {
-      setSelectedKey(edgeOptions[0]?.value ?? '')
-      setTargets({})
-    }
+    if (open) setSelectedKey(edgeOptions[0]?.value ?? '')
   }, [open, edgeOptions])
+
+  // Restart at the overview and drop in-session overrides whenever it (re)opens or
+  // the direction changes - the mapping set, and therefore the steps, depend on the
+  // direction.
+  useEffect(() => {
+    setStep(0)
+    setTargets({})
+  }, [open, selectedKey])
 
   const selected = edgeOptions.find((option) => option.value === selectedKey)
   const otherWorkspaceId = selected?.otherWorkspaceId
@@ -175,26 +154,14 @@ export function PromoteWorkspaceModal({
 
   const entries = useMemo(() => mapping.data?.entries ?? [], [mapping.data])
 
-  // Seed defaults for newly-seen entries and prune entries that no longer exist,
-  // but preserve targets the user has already chosen - a background refetch of the
-  // same edge must not clobber in-progress mapping edits.
-  useEffect(() => {
-    setTargets((prev) => {
-      const next: Record<string, string> = {}
-      for (const entry of entries) {
-        const key = entryKey(entry)
-        next[key] = key in prev ? prev[key] : (entry.targetId ?? '')
-      }
-      return next
-    })
-  }, [entries])
+  // Effective target for an entry: the user's in-session override if present,
+  // else the persisted mapping from the server. Read directly from `entries` so
+  // a reopened edge reflects stored mappings without a seeding effect.
+  const targetFor = (entry: ForkMappingEntry) => targets[entryKey(entry)] ?? entry.targetId ?? ''
 
-  const requiredComplete = entries.every(
-    (entry) => !entry.required || (targets[entryKey(entry)] ?? '') !== ''
-  )
+  const requiredComplete = entries.every((entry) => !entry.required || targetFor(entry) !== '')
 
-  // Group mappings by resource type into Secrets-page-style sections: the section
-  // header conveys the type (no per-row icons), required types sort to the top.
+  // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
     const groups = new Map<ForkMappingEntry['kind'], ForkMappingEntry[]>()
     for (const entry of entries) {
@@ -209,6 +176,29 @@ export function PromoteWorkspaceModal({
     })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
   }, [entries])
 
+  // Per-kind status for the overview listing: "Fully mapped" or "n/total mapped",
+  // flagged when a REQUIRED target is still missing (which blocks Sync). Reads the
+  // effective (override-or-persisted) target so it reflects both remembered mappings
+  // and in-session edits.
+  const kindSummaries = groupedEntries.map((group) => {
+    const total = group.items.length
+    const mapped = group.items.filter((entry) => targetFor(entry) !== '').length
+    const requiredPending = group.items.some((entry) => entry.required && targetFor(entry) === '')
+    return { kind: group.kind, label: group.label, total, mapped, requiredPending }
+  })
+
+  // Step 0 is the overview (direction, deployed-workflow preview, mapping status);
+  // each subsequent step edits one resource kind, entered via "Edit mappings".
+  // `safeStep` guards against a group count that shrank on refetch.
+  const stepCount = isManage ? 1 : 1 + groupedEntries.length
+  const safeStep = Math.min(step, Math.max(0, stepCount - 1))
+  const isLastStep = safeStep >= stepCount - 1
+  const currentGroup = !isManage && safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
+  const syncDisabled = submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading
+  const headsUp =
+    (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
+    (diff.data?.inlineSecretSources.length ?? 0) > 0
+
   const runPromote = async (force: boolean) => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
@@ -221,7 +211,7 @@ export function PromoteWorkspaceModal({
           entries: entries.map((entry) => ({
             resourceType: entry.resourceType,
             sourceId: entry.sourceId,
-            targetId: targets[entryKey(entry)] || null,
+            targetId: targetFor(entry) || null,
           })),
         },
       })
@@ -291,14 +281,50 @@ export function PromoteWorkspaceModal({
     )
   }, [diff.data?.workflows])
 
-  // Rollback lives in the footer (left-docked, like a destructive "Delete"). It's
-  // a custom slot so the explanatory text shows as a tooltip in BOTH states - the
-  // footer's declarative `disabledTooltip` only covers the greyed state.
+  // Rollback is a destructive "undo the last sync into this workspace". It lives in
+  // the footer's left slot - on the Overview step in Sync mode (a leaf fork that
+  // pulled has no Manage modal, so this is its only undo path) and always in Manage.
   const rollbackDisabled = submitting || !undoableRun
   const rollbackTooltip = undoableRun
     ? `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`
     : 'No sync to roll back yet.'
   const showRollback = Boolean(undoableRun) || isManage
+
+  const rollbackChip = (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className={rollbackDisabled ? 'inline-flex cursor-not-allowed' : 'inline-flex'}>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={() => setConfirmRollbackOpen(true)}
+            disabled={rollbackDisabled}
+            className={rollbackDisabled ? 'pointer-events-none' : undefined}
+          >
+            Rollback
+          </Chip>
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{rollbackTooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+
+  // Right-cluster action sitting immediately left of the primary. The overview pairs
+  // "Edit mappings" with Sync (entering the step walk); every editing step pairs Back
+  // with Next (or with Sync on the last step). Back out of step 1 lands on the
+  // overview, restoring the "Edit mappings · Sync" pair.
+  const syncPrimaryAdjacent: ChipModalFooterSlotAction | undefined =
+    safeStep === 0
+      ? groupedEntries.length > 0
+        ? { label: 'Edit mappings', onClick: () => setStep(1), disabled: submitting }
+        : undefined
+      : { label: 'Back', onClick: () => setStep(safeStep - 1), disabled: submitting }
+
+  // Far-left cluster: Rollback, shown only on the overview (its only undo path for a
+  // leaf fork). Editing steps keep the footer to the Back/Next (or Back/Sync) pair
+  // with nothing on the left.
+  const syncSecondaryActions: ChipModalFooterSlotAction[] =
+    safeStep === 0 && showRollback ? [{ custom: rollbackChip }] : []
 
   return (
     <>
@@ -308,43 +334,51 @@ export function PromoteWorkspaceModal({
         srTitle={isManage ? 'Manage forks' : 'Sync workspace'}
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
-          {isManage ? 'Manage Forks' : 'Sync workspace'}
+          {isManage
+            ? 'Manage Forks'
+            : currentGroup
+              ? `Sync workspace: ${currentGroup.label}`
+              : 'Sync workspace'}
         </ChipModalHeader>
         <ChipModalBody>
           {isManage ? (
-            <ChipModalField type='custom' title='Forks'>
-              {childWorkspaces.length === 0 ? (
-                <div className='text-[var(--text-secondary)] text-sm'>No forks yet.</div>
-              ) : (
-                <div className='flex max-h-64 flex-col gap-1 overflow-y-auto'>
-                  {childWorkspaces.map((fork) => (
-                    <div key={fork.id} className='truncate text-[var(--text-body)] text-sm'>
-                      {fork.name}
-                    </div>
-                  ))}
+            <div className='flex flex-col gap-7 px-2'>
+              <SettingsSection label='Forks'>
+                {childWorkspaces.length === 0 ? (
+                  <div className='text-[var(--text-secondary)] text-sm'>No forks yet.</div>
+                ) : (
+                  <div className='flex max-h-64 flex-col gap-1 overflow-y-auto'>
+                    {childWorkspaces.map((fork) => (
+                      <div key={fork.id} className='truncate text-[var(--text-body)] text-sm'>
+                        {fork.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SettingsSection>
+            </div>
+          ) : safeStep === 0 ? (
+            <div className='flex flex-col gap-7 px-2'>
+              <SettingsSection label='Sync'>
+                <div className='flex flex-col gap-2'>
+                  <ChipDropdown
+                    value={selectedKey}
+                    onChange={setSelectedKey}
+                    options={edgeOptions}
+                    placeholder='Select action'
+                    align='start'
+                    fullWidth
+                  />
+                  {diff.data?.drift ? (
+                    <span className='text-[var(--text-muted)] text-small'>
+                      Target changed since the last sync — syncing will overwrite those changes.
+                    </span>
+                  ) : null}
                 </div>
-              )}
-            </ChipModalField>
-          ) : (
-            <>
-              <ChipModalField
-                type='dropdown'
-                title='Action'
-                value={selectedKey}
-                onChange={setSelectedKey}
-                options={edgeOptions}
-                placeholder='Select action'
-                align='start'
-              />
-
-              {diff.data?.drift ? (
-                <div className='px-2 text-[var(--text-secondary)] text-xs'>
-                  Target changed since the last sync — syncing will overwrite those changes.
-                </div>
-              ) : null}
+              </SettingsSection>
 
               {workflowChanges.length > 0 ? (
-                <ChipModalField type='custom' title='Deployed Workflows'>
+                <SettingsSection label='Deployed Workflows'>
                   <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
                     {workflowChanges.map((change, index) => {
                       const renamed = change.currentName !== change.otherName
@@ -368,93 +402,107 @@ export function PromoteWorkspaceModal({
                       )
                     })}
                   </div>
-                </ChipModalField>
+                </SettingsSection>
               ) : null}
 
-              {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
-              (diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
-                <ChipModalField type='custom' title='Heads up'>
+              {headsUp ? (
+                <SettingsSection label='Heads up'>
                   {(diff.data?.mcpReauthServerIds.length ?? 0) > 0 ? (
-                    <div className='text-[var(--text-secondary)] text-xs'>
+                    <div className='text-[var(--text-muted)] text-small'>
                       {diff.data?.mcpReauthServerIds.length} MCP server(s) use OAuth and must be
                       re-authorized in the target workspace.
                     </div>
                   ) : null}
                   {(diff.data?.inlineSecretSources.length ?? 0) > 0 ? (
-                    <div className='mt-1 text-[var(--text-secondary)] text-xs'>
+                    <div className='mt-1 text-[var(--text-muted)] text-small'>
                       {diff.data?.inlineSecretSources.length} inline secret(s) can't be auto-mapped
                       — set them in the target workspace.
                     </div>
                   ) : null}
-                </ChipModalField>
+                </SettingsSection>
               ) : null}
 
-              {groupedEntries.map((group) => (
-                <div key={group.kind} className='flex flex-col px-2'>
-                  <span className='text-[var(--text-muted)] text-xs'>{group.label}</span>
-                  <div className='mt-[7px] mb-2.5 h-px bg-[var(--border)]' />
-                  <div className='grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)] items-center gap-y-2'>
-                    {group.items.map((entry) => (
-                      <MappingRow
-                        key={entryKey(entry)}
-                        entry={entry}
-                        value={targets[entryKey(entry)] ?? ''}
-                        onChange={(value) =>
-                          setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                        }
-                      />
-                    ))}
+              {kindSummaries.length > 0 ? (
+                <SettingsSection label='Mappings'>
+                  <div className='flex flex-col gap-2'>
+                    {kindSummaries.map(({ kind, label, total, mapped, requiredPending }) => {
+                      const complete = mapped === total
+                      return (
+                        <div key={kind} className='flex items-center justify-between gap-2'>
+                          <span className='text-[var(--text-body)] text-small'>{label}</span>
+                          <Badge
+                            variant={
+                              complete ? 'green' : requiredPending ? 'amber' : 'gray-secondary'
+                            }
+                            size='sm'
+                            dot
+                          >
+                            {complete ? 'Fully mapped' : `${mapped}/${total} mapped`}
+                          </Badge>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
+                </SettingsSection>
+              ) : null}
+            </div>
+          ) : currentGroup ? (
+            <div className='flex flex-col gap-7 px-2'>
+              {currentGroup.items.map((entry) => (
+                <SettingsSection
+                  key={entryKey(entry)}
+                  label={entry.sourceLabel}
+                  headerAccessory={
+                    entry.required ? (
+                      <span className='text-[var(--text-error)]' title='Required to sync'>
+                        *
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  <ChipCombobox
+                    className='w-full'
+                    options={entry.candidates.map((candidate) => ({
+                      label: candidate.label,
+                      value: candidate.id,
+                    }))}
+                    value={targetFor(entry) || undefined}
+                    onChange={(value) =>
+                      setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+                    }
+                    placeholder='Select target'
+                  />
+                </SettingsSection>
               ))}
-            </>
-          )}
+            </div>
+          ) : null}
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={submitting}
+          hideCancel
           secondaryActions={
-            showRollback
-              ? [
-                  {
-                    custom: (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <span
-                            className={
-                              rollbackDisabled ? 'inline-flex cursor-not-allowed' : 'inline-flex'
-                            }
-                          >
-                            <Chip
-                              variant='destructive'
-                              flush
-                              onClick={() => setConfirmRollbackOpen(true)}
-                              disabled={rollbackDisabled}
-                              className={rollbackDisabled ? 'pointer-events-none' : undefined}
-                            >
-                              Rollback
-                            </Chip>
-                          </span>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>{rollbackTooltip}</Tooltip.Content>
-                      </Tooltip.Root>
-                    ),
-                  },
-                ]
-              : undefined
+            isManage
+              ? showRollback
+                ? [{ custom: rollbackChip }]
+                : undefined
+              : syncSecondaryActions.length > 0
+                ? syncSecondaryActions
+                : undefined
           }
+          primaryAdjacentAction={isManage ? undefined : syncPrimaryAdjacent}
           primaryAction={
             isManage
               ? { label: 'Done', onClick: () => onOpenChange(false) }
-              : {
-                  label: submitting ? 'Working...' : 'Sync',
-                  onClick: () => void runPromote(false),
-                  disabled:
-                    submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading,
-                  disabledTooltip: requiredComplete
-                    ? undefined
-                    : 'Map all required credentials and secrets first',
-                }
+              : safeStep >= 1 && !isLastStep
+                ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
+                : {
+                    label: submitting ? 'Working...' : 'Sync',
+                    onClick: () => void runPromote(false),
+                    disabled: syncDisabled,
+                    disabledTooltip: requiredComplete
+                      ? undefined
+                      : 'Map all required secrets first',
+                  }
           }
         />
       </ChipModal>

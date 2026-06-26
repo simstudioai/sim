@@ -17,7 +17,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { ManageWorkspace, PanelLeft, Rocket, Shuffle } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft, Shuffle } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -253,6 +253,24 @@ function WorkspaceHeaderImpl({
   const handleUploadLogoAction = () => {
     if (!capturedWorkspaceRef.current) return
     onUploadLogo(capturedWorkspaceRef.current.id)
+  }
+
+  const handleForkAction = () => {
+    if (!canCreateWorkspace) {
+      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+      return
+    }
+    setIsForkModalOpen(true)
+  }
+
+  const handleSyncAction = () => {
+    setForkModalMode('sync')
+    setIsPromoteModalOpen(true)
+  }
+
+  const handleManageAction = () => {
+    setForkModalMode('manage')
+    setIsPromoteModalOpen(true)
   }
 
   /**
@@ -580,58 +598,6 @@ function WorkspaceHeaderImpl({
                   >
                     New workspace
                   </Chip>
-                  {canUseForking ? (
-                    <>
-                      <Chip
-                        leftIcon={Shuffle}
-                        onClick={() => {
-                          setIsWorkspaceMenuOpen(false)
-                          if (!canCreateWorkspace) {
-                            if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                            return
-                          }
-                          setIsForkModalOpen(true)
-                        }}
-                        disabled={isCreatingWorkspace}
-                        title={createWorkspaceDisabledReason ?? undefined}
-                        fullWidth
-                        flush
-                        className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
-                      >
-                        Fork workspace
-                      </Chip>
-                      {forkLineage?.parent ? (
-                        <Chip
-                          leftIcon={Rocket}
-                          onClick={() => {
-                            setIsWorkspaceMenuOpen(false)
-                            setForkModalMode('sync')
-                            setIsPromoteModalOpen(true)
-                          }}
-                          fullWidth
-                          flush
-                          className='w-full select-none'
-                        >
-                          Sync workspace
-                        </Chip>
-                      ) : null}
-                      {forkLineage && forkLineage.children.length > 0 ? (
-                        <Chip
-                          leftIcon={Shuffle}
-                          onClick={() => {
-                            setIsWorkspaceMenuOpen(false)
-                            setForkModalMode('manage')
-                            setIsPromoteModalOpen(true)
-                          }}
-                          fullWidth
-                          flush
-                          className='w-full select-none'
-                        >
-                          Manage forks
-                        </Chip>
-                      ) : null}
-                    </>
-                  ) : null}
                 </div>
 
                 <DropdownMenuSeparator className='mx-0' />
@@ -718,6 +684,9 @@ function WorkspaceHeaderImpl({
         const contextCanAdmin = capturedPermissions === 'admin'
         const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
         const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
+        // Only the active row can offer fork actions: its lineage/availability is the
+        // data loaded for `workspaceId`. Sync needs a parent; Manage needs children.
+        const showForkInContext = capturedWorkspaceRef.current?.id === workspaceId && canUseForking
 
         return (
           <ContextMenu
@@ -729,9 +698,15 @@ function WorkspaceHeaderImpl({
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onUploadLogo={handleUploadLogoAction}
+            onFork={handleForkAction}
+            onSync={handleSyncAction}
+            onManage={handleManageAction}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
             showLeave={!isOwner && !!onLeaveWorkspace}
+            showFork={showForkInContext}
+            showSync={showForkInContext && Boolean(forkLineage?.parent)}
+            showManage={showForkInContext && (forkLineage?.children.length ?? 0) > 0}
             disableRename={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableUploadLogo={!contextCanAdmin}

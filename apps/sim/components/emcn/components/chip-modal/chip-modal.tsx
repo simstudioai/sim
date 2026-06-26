@@ -927,10 +927,12 @@ export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterC
 
 export interface ChipModalFooterProps {
   /**
-   * Dismiss handler for the always-present Cancel button. Like the header's
-   * close (X), Cancel is structural — it always reads "Cancel" and there is no
-   * prop to relabel or remove it. Its enabled state can be controlled via
-   * {@link ChipModalFooterProps.cancelDisabled}.
+   * Dismiss handler for the Cancel button. For standard form footers Cancel is
+   * structural — it always reads "Cancel" and cannot be relabeled. Its enabled
+   * state is controlled via {@link ChipModalFooterProps.cancelDisabled}. A
+   * multi-step/wizard footer whose own Back navigation plus the header close (X)
+   * already cover dismissal may suppress it via
+   * {@link ChipModalFooterProps.hideCancel}.
    */
   onCancel: () => void
   /**
@@ -940,13 +942,33 @@ export interface ChipModalFooterProps {
    * @default false
    */
   cancelDisabled?: boolean
+  /**
+   * Suppresses the Cancel button entirely. Reserve for multi-step/wizard footers
+   * where the in-footer Back navigation plus the header close (X) already provide
+   * dismissal, so a third dismiss affordance is redundant. Standard one-shot form
+   * footers keep Cancel — do not hide it merely to declutter.
+   * @default false
+   */
+  hideCancel?: boolean
   /** Primary action, anchored bottom-right (e.g. Save, Create, Delete). */
   primaryAction: ChipModalFooterAction
   /**
+   * An action rendered immediately to the LEFT of the {@link primaryAction},
+   * inside the right-anchored cluster (after the structural Cancel). Use for the
+   * trailing half of a paired control that reads as ONE unit with the primary —
+   * canonically a wizard's `Back` sitting beside `Next`, or a "skip ahead"
+   * shortcut beside the primary — where docking it to the far-left
+   * {@link secondaryActions} slot would visually divorce it from the primary it
+   * pairs with. Rendered as a bare {@link Chip} (same chrome as Cancel) so the
+   * filled primary stays the sole emphasized control; accepts a
+   * {@link ChipModalFooterCustomAction} for chip-chrome controls.
+   */
+  primaryAdjacentAction?: ChipModalFooterSlotAction
+  /**
    * Auxiliary actions docked to the far-left, opposite the Cancel/primary
    * cluster, rendered in order on the cluster's `gap-2` rhythm — e.g. Delete
-   * in an edit flow, Back in a wizard, or chip-chrome controls (a date + time
-   * picker pair in a scheduling footer) via
+   * in an edit flow, a wizard's "skip ahead" shortcut, or chip-chrome controls
+   * (a date + time picker pair in a scheduling footer) via
    * {@link ChipModalFooterCustomAction}. Like a `Resource` header's actions,
    * each entry is a constrained {@link ChipModalFooterSlotAction} — consumers
    * describe intent, never chrome.
@@ -1013,7 +1035,9 @@ function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactN
 function ChipModalFooter({
   onCancel,
   cancelDisabled,
+  hideCancel = false,
   primaryAction,
+  primaryAdjacentAction,
   secondaryActions,
 }: ChipModalFooterProps) {
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
@@ -1041,9 +1065,12 @@ function ChipModalFooter({
         ) : undefined
       }
     >
-      <Chip flush onClick={onCancel} disabled={cancelDisabled}>
-        Cancel
-      </Chip>
+      {hideCancel ? null : (
+        <Chip flush onClick={onCancel} disabled={cancelDisabled}>
+          Cancel
+        </Chip>
+      )}
+      {primaryAdjacentAction ? renderFooterSlotAction(primaryAdjacentAction) : null}
       {showsDisabledTooltip ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
