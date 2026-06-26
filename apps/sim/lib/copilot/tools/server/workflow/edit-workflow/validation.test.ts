@@ -561,6 +561,41 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
   })
 
+  it('strips apiKey on a grandchild block nested two levels deep (loop in loop)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'outer-loop',
+        params: {
+          type: 'loop',
+          inputs: {},
+          nestedNodes: {
+            'inner-loop': {
+              type: 'loop',
+              inputs: {},
+              nestedNodes: {
+                'video-child': {
+                  type: 'video_generator_v3',
+                  inputs: { provider: 'falai', apiKey: '{{FAL_API_KEY}}' },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    const innerInputs = (
+      (result.filteredOperations[0]?.params?.nestedNodes as Record<string, any>)?.['inner-loop']
+        ?.nestedNodes as Record<string, { inputs?: Record<string, unknown> }>
+    )?.['video-child']?.inputs
+    expect(innerInputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
+  })
+
   it('uses same-batch state for nested children (provider set earlier, apiKey set later)', async () => {
     const operations = [
       {

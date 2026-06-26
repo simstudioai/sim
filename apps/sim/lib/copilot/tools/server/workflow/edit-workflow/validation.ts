@@ -1392,6 +1392,22 @@ export async function preValidateCredentialInputs(
     value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
   const snapshotBlock = (blockId: string) => asRecord(asRecord(workflowState?.blocks)?.[blockId])
 
+  // nestedNodes can nest recursively (a loop/parallel child can itself contain nestedNodes), and
+  // the apply path processes them recursively — so find a descendant's inputs at any depth.
+  const findNestedInputs = (
+    nodes: unknown,
+    targetId: string
+  ): Record<string, unknown> | undefined => {
+    const map = asRecord(nodes)
+    if (!map) return undefined
+    for (const [id, node] of Object.entries(map)) {
+      if (id === targetId) return asRecord(asRecord(node)?.inputs)
+      const found = findNestedInputs(asRecord(node)?.nestedNodes, targetId)
+      if (found) return found
+    }
+    return undefined
+  }
+
   // Track each block's effective state across ops in this batch (seeded from the snapshot, then
   // updated per op), so a later type-less edit sees type/provider changed by an earlier op in the
   // same request rather than the stale snapshot — otherwise a key could survive on a block an
@@ -1449,6 +1465,26 @@ export async function preValidateCredentialInputs(
     }
   }
 
+  // Walk a nestedNodes tree (loop/parallel children, recursively) running the collectors on each
+  // descendant. Keyed by each node's own id so deeper children get the same batch/snapshot
+  // resolution as top-level blocks and can't bypass stripping.
+  const walkNested = (opIndex: number, opBlockId: string, nodes: unknown) => {
+    const map = asRecord(nodes)
+    if (!map) return
+    for (const [childId, childBlock] of Object.entries(map)) {
+      const child = asRecord(childBlock)
+      collectForBlock(
+        opIndex,
+        childId,
+        opBlockId,
+        child?.type as string | undefined,
+        asRecord(child?.inputs),
+        childId
+      )
+      walkNested(opIndex, opBlockId, child?.nestedNodes)
+    }
+  }
+
   operations.forEach((op, opIndex) => {
     collectForBlock(
       opIndex,
@@ -1457,24 +1493,7 @@ export async function preValidateCredentialInputs(
       op.params?.type as string | undefined,
       asRecord(op.params?.inputs)
     )
-
-    // Nested nodes (blocks inside loop/parallel containers) — keyed by their own child id so they
-    // get the same batch/snapshot resolution as top-level blocks.
-    const nestedNodes = op.params?.nestedNodes as
-      | Record<string, Record<string, unknown>>
-      | undefined
-    if (nestedNodes) {
-      Object.entries(nestedNodes).forEach(([childId, childBlock]) => {
-        collectForBlock(
-          opIndex,
-          childId,
-          op.block_id,
-          childBlock.type as string | undefined,
-          asRecord(childBlock.inputs),
-          childId
-        )
-      })
-    }
+    walkNested(opIndex, op.block_id, op.params?.nestedNodes)
   })
 
   const hasCredentialsToValidate = credentialInputs.length > 0
@@ -1502,11 +1521,7 @@ export async function preValidateCredentialInputs(
 
       // Handle nested block apiKey filtering
       if (apiKeyInput.nestedBlockId) {
-        const nestedNodes = op.params?.nestedNodes as
-          | Record<string, Record<string, unknown>>
-          | undefined
-        const nestedBlock = nestedNodes?.[apiKeyInput.nestedBlockId]
-        const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+        const nestedInputs = findNestedInputs(op.params?.nestedNodes, apiKeyInput.nestedBlockId)
         if (nestedInputs?.[field]) {
           nestedInputs[field] = undefined
           logger.debug('Filtered platform-managed apiKey in nested block', {
@@ -1565,11 +1580,7 @@ export async function preValidateCredentialInputs(
 
         // Handle nested block credential removal
         if (credInput.nestedBlockId) {
-          const nestedNodes = op.params?.nestedNodes as
-            | Record<string, Record<string, unknown>>
-            | undefined
-          const nestedBlock = nestedNodes?.[credInput.nestedBlockId]
-          const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+          const nestedInputs = findNestedInputs(op.params?.nestedNodes, credInput.nestedBlockId)
           if (nestedInputs?.[credInput.fieldName]) {
             delete nestedInputs[credInput.fieldName]
             logger.info('Removed invalid credential from nested block', {
