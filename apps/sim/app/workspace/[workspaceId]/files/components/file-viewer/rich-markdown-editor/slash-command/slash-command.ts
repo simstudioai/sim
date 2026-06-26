@@ -21,7 +21,9 @@ export const SLASH_COMMAND_PLUGIN_KEY = new PluginKey('slashCommand')
 
 /**
  * Adds the `/` slash-command menu to the editor. Typing `/` at the start of a block — or after
- * whitespace — opens {@link SlashCommandList}; selecting an item runs its block transform.
+ * whitespace — opens {@link SlashCommandList}; selecting an item runs its block transform. The Image
+ * command appears only where image upload is wired (the file viewer); modal field editors never set
+ * `insertImage`, so it stays hidden there.
  */
 export const SlashCommand = Extension.create<Record<string, never>, SlashCommandStorage>({
   name: 'slashCommand',
@@ -51,8 +53,6 @@ export const SlashCommand = Extension.create<Record<string, never>, SlashCommand
           if ($from.parentOffset === 0) return true
           return /\s/.test($from.parent.textBetween($from.parentOffset - 1, $from.parentOffset))
         },
-        // The Image command is offered only where image upload is wired (the file viewer); the modal
-        // field editors never set `insertImage`, so `@`-style image insertion is hidden there.
         items: ({ editor, query }) =>
           filterSlashCommands(query, {
             allowImages: editor.storage.slashCommand.insertImage != null,

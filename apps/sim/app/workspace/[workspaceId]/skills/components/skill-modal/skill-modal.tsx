@@ -65,8 +65,11 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
-  // Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically —
-  // a reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds.
+  /**
+   * Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically — a
+   * reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds (an
+   * `initialValues` change for the same skill keeps the React key otherwise stable).
+   */
   const [contentSeed, setContentSeed] = useState(0)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
@@ -74,16 +77,13 @@ export function SkillModal({
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
 
-  // Reset only when the *skill* changes (by id), not on a background refetch that returns a new
-  // object for the same open skill — otherwise an in-progress edit would be silently clobbered.
+  // Reset by skill id, not object identity — a background refetch for the same open skill must not clobber an in-progress edit.
   if ((open && !prevOpen) || (open && initialValues?.id !== prevInitialValues?.id)) {
     setName(initialValues?.name ?? '')
     setDescription(initialValues?.description ?? '')
     setContent(initialValues?.content ?? '')
     setErrors({})
     setActiveTab('create')
-    // Remount the seed-once Content editor so it re-seeds from the reset value (an `initialValues`
-    // change for the same skill keeps the React key otherwise stable).
     setContentSeed((seed) => seed + 1)
   }
   if (open !== prevOpen) setPrevOpen(open)
@@ -190,7 +190,6 @@ export function SkillModal({
       </ChipModalHeader>
 
       <ChipModalBody>
-        {/* Tab switcher — only on create flow */}
         {!isEditing && (
           <ChipModalTabs
             tabs={[

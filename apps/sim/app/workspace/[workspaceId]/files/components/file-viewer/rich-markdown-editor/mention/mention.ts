@@ -28,11 +28,12 @@ declare module '@tiptap/core' {
 }
 
 /**
- * Adds the `@` mention menu to the editor. Typing `@` at the start of a block — or after whitespace —
- * opens {@link MentionList}; selecting an entity inserts it as a portable `sim:<kind>/<id>` markdown
- * link (same wire format as the chat composer's `chip-clipboard-codec`), so it round-trips natively
- * through the editor's link + markdown machinery. The menu's data is supplied by the host via the
- * extension's `mention` storage.
+ * Adds the `@` mention menu to the editor. Typing `@` at the start of a block — or after whitespace, so
+ * `@` inside an email/handle (`name@host`) stays literal — opens {@link MentionList}; selecting an
+ * entity inserts it as a portable `sim:<kind>/<id>` markdown link (same wire format as the chat
+ * composer's `chip-clipboard-codec`), so it round-trips natively through the editor's link + markdown
+ * machinery. The plugin's `items` is an empty gate; the real list is sourced reactively from the store
+ * inside {@link MentionList}, populated by the host via the extension's `mention` storage.
  */
 export const Mention = Extension.create<Record<string, never>, MentionStorage>({
   name: 'mention',
@@ -56,10 +57,8 @@ export const Mention = Extension.create<Record<string, never>, MentionStorage>({
           }
           const $from = editor.state.doc.resolve(range.from)
           if ($from.parentOffset === 0) return true
-          // Only after whitespace, so `@` inside an email/handle (`name@host`) never triggers.
           return /\s/.test($from.parent.textBetween($from.parentOffset - 1, $from.parentOffset))
         },
-        // Items are sourced reactively from the store inside MentionList; this only gates the plugin.
         items: () => [],
         command: ({ editor, range, props }) => {
           editor

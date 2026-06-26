@@ -50,11 +50,13 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   const rawItems = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  /** Filtered, group-capped, flattened in category order; `index` is the flat position for nav. */
+  /**
+   * Filtered, group-capped, flattened in category order; `index` is the flat position for nav. A single
+   * pass over the full set filters by label and buckets by group (capped), then reads the buckets in
+   * category order — avoiding a separate filter pass per group.
+   */
   const { flat, groups } = useMemo(() => {
     const q = query.trim().toLowerCase()
-    // One pass over the full set: filter by label and bucket by group (capped), then read the
-    // buckets in category order — avoids a separate filter pass per group.
     const byGroup = new Map<string, MentionItem[]>()
     for (const item of rawItems) {
       if (q && !item.label.toLowerCase().includes(q)) continue

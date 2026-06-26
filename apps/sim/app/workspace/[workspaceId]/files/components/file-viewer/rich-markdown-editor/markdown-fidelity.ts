@@ -39,8 +39,8 @@ function isYamlFrontmatterBlock(block: string): boolean {
   for (const rawLine of interior.split('\n')) {
     const line = rawLine.trim()
     if (line === '') continue
-    if (line.startsWith('---')) return true // reached the closing fence — empty frontmatter
-    return /^[A-Za-z0-9_-]+[ \t]*:/.test(line) // first content line must be a YAML key
+    if (line.startsWith('---')) return true
+    return /^[A-Za-z0-9_-]+[ \t]*:/.test(line)
   }
   return true
 }
@@ -58,10 +58,12 @@ const HOST_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i
 
 /**
  * Normalize a user-entered link target: prefix a bare domain with `https://` so it doesn't resolve
- * as an in-app relative URL, while leaving already-qualified, relative, and protocol-relative URLs
- * intact. Dangerous schemes are rejected outright rather than trusted or mangled: any `scheme:`
- * without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`, `blob:`, …), and
- * `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …) pass through.
+ * as an in-app relative URL, while leaving already-qualified, relative (`./other.md`, `../doc.md`), and
+ * protocol-relative URLs intact. Dangerous schemes are rejected outright rather than trusted or mangled:
+ * any `scheme:` without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`,
+ * `blob:`, …), and `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …)
+ * pass through. A bare `host:port` (digits after the colon) is a domain, not a scheme, so it still gets
+ * the `https://` prefix.
  */
 export function normalizeLinkHref(href: string): string {
   const trimmed = href.trim()
@@ -69,13 +71,10 @@ export function normalizeLinkHref(href: string): string {
   if (/^[#?]/.test(trimmed)) return trimmed
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
-  // Relative paths (`./other.md`, `../doc.md`) stay relative — never prefixed into `https://./…`.
   if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed
   if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
   const schemed = trimmed.match(SCHEME_URL)
   if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed
-  // A `scheme:` without `//` (and not mailto/tel) is a script/data scheme — reject it. A bare
-  // host:port (digits after the colon) is a domain, not a scheme, so it falls through to https.
   if (HAS_SCHEME.test(trimmed) && !HOST_PORT.test(trimmed)) return ''
   return `https://${trimmed}`
 }

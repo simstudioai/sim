@@ -66,24 +66,28 @@ export function RichMarkdownField({
 }: RichMarkdownFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Frontmatter is held out-of-band and re-attached on serialize, exactly like the file editor.
-  // Split once at mount — the refs and the seed doc all derive from the initial value.
+  /**
+   * Frontmatter is held out-of-band and re-attached on serialize, exactly like the file editor. Split
+   * once at mount — the refs and the seed doc all derive from this initial value.
+   */
   const [initialSplit] = useState(() => splitFrontmatter(value))
   const frontmatterRef = useRef(initialSplit.frontmatter)
-  // The body last reflected into the editor — updated on local edits and on each streamed sync.
+  /** The body last reflected into the editor — updated on local edits and on each streamed sync. */
   const lastSyncedBodyRef = useRef(initialSplit.body)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onPasteTextRef = useRef(onPasteText)
   onPasteTextRef.current = onPasteText
 
-  // The original value verbatim, plus its canonical serialization. The editor only ever emits canonical
-  // markdown, so an already-non-canonical input would re-serialize on mount and read as an unsaved edit;
-  // reporting the original when the doc matches its canonical form keeps the field clean until a real edit.
+  /**
+   * The original value verbatim, plus its canonical serialization. The editor only ever emits canonical
+   * markdown, so an already-non-canonical input would re-serialize on mount and read as an unsaved edit;
+   * reporting the original when the doc matches its canonical form keeps the field clean until a real edit.
+   */
   const initialValueRef = useRef(value)
   const [canonicalSeed] = useState(() => normalizeMarkdownContent(value))
 
-  // TipTap extensions are stateful — build them once per mount so each field gets its own placeholder.
+  /** TipTap extensions are stateful — build them once per mount so each field gets its own placeholder. */
   const [extensions] = useState(() => createMarkdownEditorExtensions({ placeholder }))
   const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(initialSplit.body))
 
@@ -107,9 +111,11 @@ export function RichMarkdownField({
         if (!text) return false
         return handler(text)
       },
+      /**
+       * The field has no image upload; swallow any file drop so the browser doesn't navigate to the
+       * dropped file and tear down the modal. Internal text drags carry no files and fall through.
+       */
       handleDrop: (_view, event) => {
-        // The field has no image upload; swallow any file drop so the browser doesn't navigate to
-        // the dropped file and tear down the modal. Internal text drags fall through to the default.
         if (event.dataTransfer?.files.length) {
           event.preventDefault()
           return true
@@ -125,7 +131,7 @@ export function RichMarkdownField({
     },
   })
 
-  // Mirror an externally-driven value (AI generation) into the editor, then settle to editable.
+  /** Mirrors an externally-driven value (AI generation) into the editor, then settles to editable. */
   const wasStreamingRef = useRef(isStreaming)
   useEffect(() => {
     if (!editor) return
@@ -147,7 +153,6 @@ export function RichMarkdownField({
       return
     }
 
-    // Settle: re-seed the freshly-generated body once, then restore editability.
     if (wasStreamingRef.current) {
       wasStreamingRef.current = false
       if (body !== lastSyncedBodyRef.current) {

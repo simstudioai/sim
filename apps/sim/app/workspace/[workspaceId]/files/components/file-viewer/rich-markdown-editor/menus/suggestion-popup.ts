@@ -39,6 +39,13 @@ interface SuggestionPopupConfig<P, H extends SuggestionListHandle> {
  * floating-ui-positioned body element, repositions on update/scroll, forwards keys to the list's
  * imperative handle, and tears everything down on exit / Escape / editor-destroy. Shared by the `/`
  * slash command and the `@` mention menu so the popup mechanics live in exactly one place.
+ *
+ * `onStart` runs after an async suggestion update (it awaits `items()`), so it can fire once the editor
+ * is already destroyed — e.g. a modal closed while the menu was opening — and bails in that case before
+ * touching the now-unavailable view/storage. The popup mounts inside the host `[role="dialog"]` when
+ * the editor is in a modal: Radix's scroll-lock blocks wheel events outside the dialog subtree, so a
+ * body-level popup couldn't be scrolled; `position: fixed` keeps it viewport-positioned (the modal
+ * centers via flex, no transform) so it isn't clipped.
  */
 export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>(
   config: SuggestionPopupConfig<P, H>
@@ -63,22 +70,15 @@ export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>
     return {
       onStart: (props) => {
         teardown()
-        // The suggestion update is async (it awaits `items()`), so onStart can fire after the editor
-        // was destroyed — e.g. a modal closed while the menu was opening. Bail before touching its
-        // now-unavailable view/storage.
         if (props.editor.isDestroyed) return
         config.onOpen?.(props)
         component = new ReactRenderer(config.component, {
-          // ReactRenderer types its props option loosely; the component still enforces P.
           props: config.mapProps(props) as Record<string, unknown>,
           editor: props.editor,
         })
         popup = document.createElement('div')
         popup.className = 'fixed top-0 left-0 z-[var(--z-popover)]'
         popup.appendChild(component.element)
-        // Mount inside the host dialog when the editor is in a modal: Radix's scroll-lock blocks wheel
-        // events outside the dialog subtree, so a body-level popup can't be scrolled. `position: fixed`
-        // keeps it viewport-positioned (the modal centers via flex, no transform) so it isn't clipped.
         const host = props.editor.view.dom.closest('[role="dialog"]') ?? document.body
         host.appendChild(popup)
         boundEditor = props.editor

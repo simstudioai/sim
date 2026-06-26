@@ -500,6 +500,7 @@ export function useGenerateVersionDescription() {
       logger.info('Generated version description', { length: content.length })
     },
     onError: (error) => {
+      if (error.name === 'AbortError') return
       logger.error('Failed to generate version description', { error })
     },
   })

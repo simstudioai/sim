@@ -23,7 +23,8 @@ interface SuggestionKeyboard extends SuggestionKeyDownHandler {
  * resets it when the items change, scrolls the active row into view, and exposes an `onKeyDown` handle
  * for the suggestion plugin. Up/Down wrap; Enter and Tab both accept the active item (Tab matches the
  * chat composer). The handle is stable and reads live values through a ref, because the suggestion
- * plugin captures it once via `ReactRenderer.ref` while the items may still be loading.
+ * plugin captures it once via `ReactRenderer.ref` while the items may still be loading. Enter/Tab clamp
+ * the active index in case a filter shrank the list this frame before the active-index reset committed.
  */
 export function useSuggestionKeyboard<T>(
   items: T[],
@@ -57,7 +58,6 @@ export function useSuggestionKeyboard<T>(
       return true
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
-      // Clamp in case a filter shrank the list this frame before the active-index reset committed.
       const item = items[Math.min(activeIndex, items.length - 1)]
       if (!item) return false
       onSelect(item)

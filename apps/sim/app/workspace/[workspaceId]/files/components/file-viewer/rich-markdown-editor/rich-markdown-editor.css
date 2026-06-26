@@ -102,6 +102,13 @@
   text-decoration: line-through;
 }
 
+/* Selecting struck-through text reads in the primary color like any other highlighted text, so the
+   selection looks uniform (it returns to the muted strike color when deselected). */
+.rich-markdown-prose del::selection,
+.rich-markdown-prose s::selection {
+  color: var(--text-primary);
+}
+
 .rich-markdown-prose a {
   color: var(--brand-secondary);
   cursor: pointer;

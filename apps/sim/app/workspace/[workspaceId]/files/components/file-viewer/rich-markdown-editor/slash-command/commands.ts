@@ -147,8 +147,6 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     icon: ImageIcon,
     aliases: ['picture', 'photo', 'upload', 'img'],
     run: ({ editor, range }) => {
-      // Replace the typed `/query`, then hand off to the host component's picker, which uploads and
-      // inserts the image at the caret (the same path as paste/drop). No-op when no handler is wired.
       editor.chain().focus().deleteRange(range).run()
       editor.storage.slashCommand.insertImage?.(editor.state.selection.from)
     },

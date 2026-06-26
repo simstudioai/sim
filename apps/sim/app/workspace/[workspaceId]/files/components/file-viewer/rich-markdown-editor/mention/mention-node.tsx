@@ -1,12 +1,10 @@
-import type { MouseEvent } from 'react'
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
 import { Node } from '@tiptap/core'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { useParams, useRouter } from 'next/navigation'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { mentionIcon } from './mention-icon'
-import { simLinkPath, toSimHref } from './sim-link'
+import { toSimHref } from './sim-link'
 import type { MentionKind } from './types'
 
 interface MentionAttrs {
@@ -44,7 +42,9 @@ interface MentionTokenFields {
  * to the portable `[label](sim:<kind>/<id>)` markdown link — so the saved content is identical to a
  * plain link (agent-readable, round-trips through the chat's `chip-clipboard-codec`) while the editor
  * shows it as a chip rather than a blue link. Shared by the headless round-trip path (no node view)
- * and the live {@link MentionChip}, mirroring the image node's split.
+ * and the live {@link MentionChip}, mirroring the image node's split. `renderText` emits the same
+ * portable link (an atom otherwise contributes no text), so copying a chip into a plain-text target —
+ * e.g. the chat composer — pastes back as a mention.
  */
 export const MarkdownMention = Node.create({
   name: 'mention',
@@ -102,8 +102,6 @@ export const MarkdownMention = Node.create({
     return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
   },
 
-  // Copy/`getText` emit the portable link (an atom otherwise contributes no text), so copying a chip
-  // into a plain-text target — e.g. the chat composer — pastes back as a mention.
   renderText: ({ node }) => {
     const { kind, id, label } = node.attrs as MentionAttrs
     return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
@@ -119,27 +117,16 @@ export const MarkdownMention = Node.create({
  * monochrome through the `--text-icon` fallback below.
  */
 const CHIP_CLASS =
-  'mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] cursor-pointer select-none [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
+  'mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
 
-/** Live chip: the entity icon + label. Cmd/Ctrl-click navigates to the resource. */
+/** Live chip: a display-only entity icon + label, matching the chat input's mention rendering. */
 function MentionChipView({ node }: ReactNodeViewProps) {
-  const router = useRouter()
-  const params = useParams()
-  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id) as StyleableIcon | undefined
   const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
 
-  const handleClick = (event: MouseEvent) => {
-    if (!(event.metaKey || event.ctrlKey) || !workspaceId) return
-    const path = simLinkPath(workspaceId, kind, id)
-    if (!path) return
-    event.preventDefault()
-    router.push(path)
-  }
-
   return (
-    <NodeViewWrapper as='span' className={CHIP_CLASS} onClick={handleClick} title={label}>
+    <NodeViewWrapper as='span' className={CHIP_CLASS} title={label}>
       {Icon && <Icon style={iconStyle} />}
       <span>{label}</span>
     </NodeViewWrapper>

@@ -82,8 +82,10 @@ export function VersionDescriptionModal({
   }
 
   const generateAbortRef = useRef<AbortController | null>(null)
-  // Abort an in-flight generation if the modal unmounts mid-stream (e.g. the deploy modal closes),
-  // so the SSE stream stops instead of running to completion against a gone component.
+  /**
+   * Abort an in-flight generation if the modal unmounts mid-stream (e.g. the deploy modal closes), so
+   * the SSE stream stops instead of running to completion against a gone component.
+   */
   useEffect(() => () => generateAbortRef.current?.abort(), [])
 
   const handleGenerateDescription = () => {
