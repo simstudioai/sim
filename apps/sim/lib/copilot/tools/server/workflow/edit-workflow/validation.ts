@@ -1408,93 +1408,107 @@ export async function preValidateCredentialInputs(
     return undefined
   }
 
-  // Track each block's effective state across ops in this batch (seeded from the snapshot, then
-  // updated per op), so a later type-less edit sees type/provider changed by an earlier op in the
-  // same request rather than the stale snapshot — otherwise a key could survive on a block an
-  // earlier op just made hosted.
-  const batchBlockType = new Map<string, string | undefined>()
-  const batchBlockValues = new Map<string, Record<string, unknown>>()
+  const validType = (type: unknown): string | undefined =>
+    typeof type === 'string' && type.trim() ? type : undefined
 
-  // Resolve a single block (top-level or nested) against batch + snapshot state and run the
-  // collectors. `stateKey` keys the batch/snapshot lookup (the block's own id, including nested
-  // children); `reportBlockId`/`nestedBlockId` are how the strip surfaces it to the agent. Both
-  // paths route through here so they can't drift (the source of the earlier nested-vs-main gap).
-  const collectForBlock = (
+  // Visit every block an op touches — its main block and each nestedNodes descendant (recursively,
+  // since loop/parallel children can themselves contain nestedNodes) — keyed by the block's own id.
+  const visitOpBlocks = (
+    op: EditWorkflowOperation,
     opIndex: number,
-    stateKey: string,
-    reportBlockId: string,
-    rawType: string | undefined,
-    inputs: Record<string, unknown> | undefined,
-    nestedBlockId?: string
+    visit: (b: {
+      opIndex: number
+      stateKey: string
+      reportBlockId: string
+      rawType: string | undefined
+      inputs: Record<string, unknown> | undefined
+      nestedBlockId?: string
+    }) => void
   ) => {
-    // Effective type: this op's type, else the type left by an earlier batch op, else the
-    // snapshot. Edit ops omit `type`, so without this an apiKey-only edit would skip stripping.
-    const priorType = batchBlockType.has(stateKey)
-      ? batchBlockType.get(stateKey)
-      : (snapshotBlock(stateKey)?.type as string | undefined)
-    const blockType = rawType ?? priorType
-    batchBlockType.set(stateKey, blockType)
-
-    if (!inputs || !blockType) return
-    const blockConfig = getBlock(blockType)
-    if (!blockConfig) return
-
-    collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
-
-    // Both hosted collectors no-op off hosted Sim, so only reconstruct the effective inputs
-    // (prior batch/snapshot values overlaid with this op's delta) when it can matter.
-    if (isHosted) {
-      const priorValues =
-        batchBlockValues.get(stateKey) ??
-        buildSubBlockValues(
-          (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
-        )
-      const toolParams = { ...priorValues, ...inputs }
-      batchBlockValues.set(stateKey, toolParams)
-      const modelValue = toolParams.model as string | undefined
-      collectHostedApiKeyInput(inputs, modelValue, opIndex, reportBlockId, blockType, nestedBlockId)
-      collectHostedToolApiKeyInput(
-        blockConfig,
-        inputs,
-        toolParams,
-        opIndex,
-        reportBlockId,
-        blockType,
-        nestedBlockId
-      )
-    }
-  }
-
-  // Walk a nestedNodes tree (loop/parallel children, recursively) running the collectors on each
-  // descendant. Keyed by each node's own id so deeper children get the same batch/snapshot
-  // resolution as top-level blocks and can't bypass stripping.
-  const walkNested = (opIndex: number, opBlockId: string, nodes: unknown) => {
-    const map = asRecord(nodes)
-    if (!map) return
-    for (const [childId, childBlock] of Object.entries(map)) {
-      const child = asRecord(childBlock)
-      collectForBlock(
-        opIndex,
-        childId,
-        opBlockId,
-        child?.type as string | undefined,
-        asRecord(child?.inputs),
-        childId
-      )
-      walkNested(opIndex, opBlockId, child?.nestedNodes)
-    }
-  }
-
-  operations.forEach((op, opIndex) => {
-    collectForBlock(
+    visit({
       opIndex,
-      op.block_id,
-      op.block_id,
-      op.params?.type as string | undefined,
-      asRecord(op.params?.inputs)
-    )
-    walkNested(opIndex, op.block_id, op.params?.nestedNodes)
-  })
+      stateKey: op.block_id,
+      reportBlockId: op.block_id,
+      rawType: op.params?.type as string | undefined,
+      inputs: asRecord(op.params?.inputs),
+    })
+    const walk = (nodes: unknown, parentBlockId: string) => {
+      const map = asRecord(nodes)
+      if (!map) return
+      for (const [childId, childBlock] of Object.entries(map)) {
+        const child = asRecord(childBlock)
+        visit({
+          opIndex,
+          stateKey: childId,
+          reportBlockId: parentBlockId,
+          rawType: child?.type as string | undefined,
+          inputs: asRecord(child?.inputs),
+          nestedBlockId: childId,
+        })
+        walk(child?.nestedNodes, parentBlockId)
+      }
+    }
+    walk(op.params?.nestedNodes, op.block_id)
+  }
+
+  // Pass 1: fold every op into each block's FINAL effective state (type + values) for the batch,
+  // seeded from the snapshot. Deciding strips against the final state (not a forward prefix) makes
+  // order irrelevant — a key set before a later op makes the block hosted is still caught.
+  const finalType = new Map<string, string | undefined>()
+  const finalValues = new Map<string, Record<string, unknown>>()
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, rawType, inputs }) => {
+      const priorType = finalType.has(stateKey)
+        ? finalType.get(stateKey)
+        : (snapshotBlock(stateKey)?.type as string | undefined)
+      const resolved = validType(rawType) ?? priorType
+      if (resolved) finalType.set(stateKey, resolved)
+      if (isHosted) {
+        const priorValues =
+          finalValues.get(stateKey) ??
+          buildSubBlockValues(
+            (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+          )
+        finalValues.set(stateKey, { ...priorValues, ...(inputs ?? {}) })
+      }
+    })
+  }
+
+  // Pass 2: for each op, strip the managed fields it actually sets, judged against the block's
+  // final state. Both top-level and nested blocks route through the same visit so they can't drift.
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, reportBlockId, inputs, nestedBlockId }) => {
+      const blockType = finalType.get(stateKey)
+      if (!inputs || !blockType) return
+      const blockConfig = getBlock(blockType)
+      if (!blockConfig) return
+
+      collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
+
+      // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
+      if (isHosted) {
+        const toolParams = finalValues.get(stateKey) ?? inputs
+        const modelValue = toolParams.model as string | undefined
+        collectHostedApiKeyInput(
+          inputs,
+          modelValue,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+        collectHostedToolApiKeyInput(
+          blockConfig,
+          inputs,
+          toolParams,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+      }
+    })
+  }
 
   const hasCredentialsToValidate = credentialInputs.length > 0
   const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0

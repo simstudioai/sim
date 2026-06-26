@@ -630,6 +630,59 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
   })
 
+  it('strips a key set before a later op makes the block hosted (reverse batch order)', async () => {
+    // op1 sets apiKey while the block is still non-hosted (runway); op2 later flips it to falai.
+    // Deciding against final state must still strip op1's key.
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { apiKey: '{{FAL_API_KEY}}' } },
+      },
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { provider: 'falai' } },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': { type: 'video_generator_v3', subBlocks: { provider: { value: 'runway' } } },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+  })
+
+  it('does not let a bogus type on an earlier op block stripping on a later edit', async () => {
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { type: '', inputs: { prompt: 'x' } },
+      },
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { apiKey: '{{FAL_API_KEY}}' } },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': { type: 'video_generator_v3', subBlocks: { provider: { value: 'falai' } } },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[1]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+  })
+
   it('uses same-batch state: a type-less apiKey edit after an earlier op makes the block hosted', async () => {
     // op1 switches provider to falai (hosted); op2 (type-less) sets apiKey. op2 must see op1's
     // provider, not the stale snapshot (runway), and strip the key.
