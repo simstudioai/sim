@@ -9,7 +9,7 @@ import {
   workspaceEnvironment,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkResourceType } from '@/lib/workspaces/fork/mapping/mapping-store'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
@@ -55,7 +55,15 @@ export async function listForkResourceCandidates(
         providerId: credential.providerId,
       })
       .from(credential)
-      .where(eq(credential.workspaceId, workspaceId))
+      // Only real connections are mappable credentials. `env_workspace`/`env_personal`
+      // rows live in the same table but are environment variables (surfaced via the
+      // 'env-var' kind), so they must never appear as credential targets.
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          inArray(credential.type, ['oauth', 'service_account'])
+        )
+      )
       .limit(CANDIDATE_LIMIT),
     executor
       .select({ variables: workspaceEnvironment.variables })

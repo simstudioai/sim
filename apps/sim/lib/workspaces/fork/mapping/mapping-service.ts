@@ -126,11 +126,19 @@ export async function getForkMappingView(
       (c) => c.id === reference.sourceId
     )
     const sourceLabel = sourceCandidate?.label ?? reference.sourceId
-    const candidates = targetCandidates[reference.kind]
+    const sourceProviderId = sourceCandidate?.providerId
+    // A credential reference only maps to a target credential of the SAME OAuth
+    // provider - a Gmail (google-email) reference must never offer a Google Calendar
+    // credential. Non-credential kinds carry no provider, so their full list stands.
+    const candidates =
+      reference.kind === 'credential' && sourceProviderId
+        ? targetCandidates[reference.kind].filter(
+            (candidate) => candidate.providerId === sourceProviderId
+          )
+        : targetCandidates[reference.kind]
     const currentTargetId = resolver(reference.kind, reference.sourceId)
     const targetId =
-      currentTargetId ??
-      suggestTarget(reference.kind, sourceLabel, sourceCandidate?.providerId, candidates)
+      currentTargetId ?? suggestTarget(reference.kind, sourceLabel, sourceProviderId, candidates)
 
     entries.push({
       kind: reference.kind,
