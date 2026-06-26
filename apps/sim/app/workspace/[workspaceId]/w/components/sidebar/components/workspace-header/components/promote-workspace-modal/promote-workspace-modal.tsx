@@ -360,21 +360,14 @@ export function PromoteWorkspaceModal({
           ) : safeStep === 0 ? (
             <div className='flex flex-col gap-7 px-2'>
               <SettingsSection label='Sync'>
-                <div className='flex flex-col gap-2'>
-                  <ChipDropdown
-                    value={selectedKey}
-                    onChange={setSelectedKey}
-                    options={edgeOptions}
-                    placeholder='Select action'
-                    align='start'
-                    fullWidth
-                  />
-                  {diff.data?.drift ? (
-                    <span className='text-[var(--text-muted)] text-small'>
-                      Target changed since the last sync — syncing will overwrite those changes.
-                    </span>
-                  ) : null}
-                </div>
+                <ChipDropdown
+                  value={selectedKey}
+                  onChange={setSelectedKey}
+                  options={edgeOptions}
+                  placeholder='Select action'
+                  align='start'
+                  fullWidth
+                />
               </SettingsSection>
 
               {workflowChanges.length > 0 ? (

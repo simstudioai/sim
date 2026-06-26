@@ -136,7 +136,16 @@ export async function getForkMappingView(
             (candidate) => candidate.providerId === sourceProviderId
           )
         : targetCandidates[reference.kind]
-    const currentTargetId = resolver(reference.kind, reference.sourceId)
+    // Drop a stored target that no longer exists in (or no longer qualifies for) the
+    // target workspace - e.g. the parent disconnected/deleted the resource since the
+    // mapping was set. The entry then resurfaces as needing a mapping (re-suggested or
+    // required-empty) instead of silently pointing at a dangling id, and the stale row
+    // is overwritten on the next sync.
+    const storedTargetId = resolver(reference.kind, reference.sourceId)
+    const currentTargetId =
+      storedTargetId && candidates.some((candidate) => candidate.id === storedTargetId)
+        ? storedTargetId
+        : null
     const targetId =
       currentTargetId ?? suggestTarget(reference.kind, sourceLabel, sourceProviderId, candidates)
 

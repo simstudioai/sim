@@ -46,35 +46,13 @@ export class ForkError extends HttpError {
 async function requireWorkspace(
   workspaceId: string,
   userId: string
-): Promise<{
-  workspace: WorkspaceWithOwner
-  hasAccess: boolean
-  canWrite: boolean
-  canAdmin: boolean
-}> {
+): Promise<{ workspace: WorkspaceWithOwner; canAdmin: boolean }> {
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.workspace) {
     throw new ForkError('Workspace not found', 404)
   }
   await assertForkingEnabled(access.workspace.organizationId)
-  return {
-    workspace: access.workspace,
-    hasAccess: access.hasAccess,
-    canWrite: access.canWrite,
-    canAdmin: access.canAdmin,
-  }
-}
-
-/** Require at least read access; returns the (active) workspace. */
-export async function assertWorkspaceReadAccess(
-  workspaceId: string,
-  userId: string
-): Promise<WorkspaceWithOwner> {
-  const { workspace, hasAccess } = await requireWorkspace(workspaceId, userId)
-  if (!hasAccess) {
-    throw new ForkError('You do not have access to this workspace', 403)
-  }
-  return workspace
+  return { workspace: access.workspace, canAdmin: access.canAdmin }
 }
 
 /** Require admin access; returns the (active) workspace. */
@@ -128,9 +106,10 @@ export interface PromoteAuthorization {
 
 /**
  * Authorize a promote along the strict edge between `currentWorkspaceId` and
- * `otherWorkspaceId`. Requires read on the source and admin on the target (a
- * force replace is destructive). `push` sends current -> other; `pull` brings
- * other -> current.
+ * `otherWorkspaceId`. Requires admin on BOTH the source and the target: a sync
+ * reads the source's deployed workflows/resources and force-replaces the target's,
+ * and the sync surface is only ever offered to workspace admins. `push` sends
+ * current -> other; `pull` brings other -> current.
  */
 export async function assertCanPromote(
   currentWorkspaceId: string,
@@ -144,7 +123,7 @@ export async function assertCanPromote(
   }
   const sourceWorkspaceId = direction === 'push' ? currentWorkspaceId : otherWorkspaceId
   const targetWorkspaceId = direction === 'push' ? otherWorkspaceId : currentWorkspaceId
-  const source = await assertWorkspaceReadAccess(sourceWorkspaceId, userId)
+  const source = await assertWorkspaceAdminAccess(sourceWorkspaceId, userId)
   const target = await assertWorkspaceAdminAccess(targetWorkspaceId, userId)
   return { edge, source, target, sourceWorkspaceId, targetWorkspaceId }
 }
