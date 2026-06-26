@@ -1,5 +1,5 @@
 ---
-name: settings-page
+name: add-settings-page
 description: Add a new Sim settings page, or audit existing settings pages for design-system compliance with the shared SettingsPanel layout. Use when creating a settings tab, or when asked to check/clean up settings pages so they match the design system (consistent title, header, search, spacing).
 ---
 
