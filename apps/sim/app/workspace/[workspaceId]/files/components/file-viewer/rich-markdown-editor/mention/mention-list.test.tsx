@@ -75,6 +75,29 @@ describe('MentionList keyboard nav', () => {
     expect(command).toHaveBeenCalledWith(items[1])
   })
 
+  it('an active query is exempt from the per-group cap (search reaches every match)', () => {
+    const ref = createRef<MentionListHandle>()
+    const command = vi.fn()
+    const store = createMentionStore()
+    // 12 matches in one group — more than MAX_PER_GROUP (8).
+    const many: MentionItem[] = Array.from({ length: 12 }, (_, i) => ({
+      kind: 'file',
+      id: `x${i}`,
+      label: `report-${i}`,
+      group: 'Files',
+      icon: File,
+    }))
+
+    act(() => {
+      root.render(
+        <MentionList ref={ref} query='report' command={command} store={store} editor={editor} />
+      )
+    })
+    act(() => store.set(many))
+
+    expect(container.querySelectorAll('[role="option"]').length).toBe(12)
+  })
+
   it('accepts the active item on Tab, like Enter', () => {
     const ref = createRef<MentionListHandle>()
     const command = vi.fn()

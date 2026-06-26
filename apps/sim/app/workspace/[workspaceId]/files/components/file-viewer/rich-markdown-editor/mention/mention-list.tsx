@@ -21,7 +21,8 @@ interface MentionListProps {
   editor: Editor
 }
 
-/** Per-group cap so a large workspace can't flood the menu; filtering still searches the full set. */
+/** Per-group cap so a large workspace can't flood the *unfiltered* menu; an active query is exempt so
+ * search reaches every match, not just the first eight in a category. */
 const MAX_PER_GROUP = 8
 
 /** Category heading order in the menu. */
@@ -48,9 +49,10 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   const containerRef = useRef<HTMLDivElement>(null)
 
   /**
-   * Filtered, group-capped, flattened in category order; `index` is the flat position for nav. A single
-   * pass over the full set filters by label and buckets by group (capped), then reads the buckets in
-   * category order — avoiding a separate filter pass per group.
+   * Filtered, flattened in category order; `index` is the flat position for nav. A single pass over the
+   * full set filters by label and buckets by group, then reads the buckets in category order — avoiding
+   * a separate filter pass per group. The per-group cap applies only to the unfiltered menu; once a
+   * query is active every match is shown so search can reach items past the eighth in a category.
    */
   const { flat, groups } = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -59,7 +61,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
       if (q && !item.label.toLowerCase().includes(q)) continue
       const bucket = byGroup.get(item.group)
       if (!bucket) byGroup.set(item.group, [item])
-      else if (bucket.length < MAX_PER_GROUP) bucket.push(item)
+      else if (q || bucket.length < MAX_PER_GROUP) bucket.push(item)
     }
 
     const ordered: { group: string; items: { item: MentionItem; index: number }[] }[] = []
