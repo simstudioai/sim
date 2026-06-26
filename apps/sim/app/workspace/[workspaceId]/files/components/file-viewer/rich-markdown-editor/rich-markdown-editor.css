@@ -144,6 +144,14 @@
   background-color: var(--text-primary);
 }
 
+/* …except between two adjacent leaves (dividers/images), where that caret floats as a stray mark in
+   empty space the view gives no hint about. Hide it there (matching Linear): the gap cursor stays
+   functional — typing still inserts a block between them — it just isn't drawn. Leading/trailing gaps
+   keep theirs. The keymap plugin sets `data-gap-between-leaves` when both neighbours are leaves. */
+.rich-markdown-prose[data-gap-between-leaves] .ProseMirror-gapcursor::after {
+  display: none;
+}
+
 .rich-markdown-prose ul,
 .rich-markdown-prose ol {
   padding-left: 1.25em;
@@ -288,6 +296,26 @@
   border: none;
   border-top: 1px solid var(--divider);
   margin: 1.5em 0;
+}
+
+/* A divider/image swept into a range selection (e.g. select-all) — the browser's native ::selection
+   highlight skips leaf nodes (they hold no text), so the keymap's decoration paints the band itself.
+   A divider is a void <hr> (no pseudo-elements), so a box-shadow spreads the selection band around its
+   hairline without shifting layout; an image rings instead. */
+.rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-bg);
+  border-radius: 1px;
+}
+
+.dark .rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-dark);
+}
+
+.rich-markdown-prose .rich-leaf-in-selection:has(img) img,
+.rich-markdown-prose img.rich-leaf-in-selection {
+  outline: 2px solid var(--selection-bg);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .rich-markdown-prose table {

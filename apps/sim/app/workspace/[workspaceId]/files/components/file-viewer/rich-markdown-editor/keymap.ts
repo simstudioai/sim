@@ -1,6 +1,8 @@
 import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { GapCursor } from '@tiptap/pm/gapcursor'
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { MENTION_PLUGIN_KEY } from './mention'
 import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
 
@@ -64,16 +66,23 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
  * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
  *
  * - **Backspace** at the start of a heading reverts it to a paragraph (ProseMirror's default joins or
- *   no-ops, stranding the heading style; a second Backspace then merges as usual); at the start of a
- *   block whose previous sibling is a horizontal rule it deletes the rule (ProseMirror's default
- *   `joinBackward` can't cross a leaf node, so without this pressing Backspace below a divider is a
- *   confusing no-op).
+ *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of a
+ *   block whose previous sibling is a divider or image, where ProseMirror's `joinBackward` can't cross
+ *   the leaf and no-ops: an *empty* block is deleted (clearing the blank line between/below dividers
+ *   without touching the divider itself), while a *non-empty* block selects the leaf — so a first
+ *   Backspace highlights what a second deletes, the same highlight-before-delete affordance as clicking
+ *   it and parity with the arrow-key leaf selection.
  * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
  *   block is already fully selected) falls through to the default whole-document select-all, the
  *   same scoped behavior as a code editor.
  * - **ArrowUp/ArrowDown** select an adjacent divider or image, whether arrowing off a textblock edge
  *   ({@link selectAdjacentLeaf}) or stepping from one already-selected leaf to the next
  *   ({@link selectAdjacentSelectedLeaf}).
+ *
+ * Plus a plugin that (a) highlights dividers/images falling inside a range selection (e.g. select-all),
+ * which the browser's native text highlight skips because leaves carry no text, and (b) flags the
+ * editor (`data-gap-between-leaves`) while a gap cursor sits between two leaves, so the CSS can hide its
+ * otherwise-stray caret.
  */
 export const RichMarkdownKeymap = Extension.create({
   name: 'richMarkdownKeymap',
@@ -84,16 +93,25 @@ export const RichMarkdownKeymap = Extension.create({
       Backspace: ({ editor }) => {
         const { selection, doc } = editor.state
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
-        if (selection.$from.parent.type.name === 'heading') {
+        const { $from } = selection
+        if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
         }
-        const blockStart = selection.$from.before(selection.$from.depth)
+        const blockStart = $from.before($from.depth)
         const nodeBefore = doc.resolve(blockStart).nodeBefore
-        if (nodeBefore?.type.name !== 'horizontalRule') return false
-        return editor.commands.command(({ tr }) => {
-          tr.delete(blockStart - nodeBefore.nodeSize, blockStart)
-          return true
-        })
+        if (!nodeBefore || !SELECTABLE_LEAVES.has(nodeBefore.type.name)) return false
+        const leafStart = blockStart - nodeBefore.nodeSize
+        if ($from.parent.isTextblock && $from.parent.content.size === 0) {
+          return editor.commands.command(({ tr, dispatch }) => {
+            if (dispatch) {
+              tr.delete(blockStart, $from.after($from.depth))
+              tr.setSelection(NodeSelection.create(tr.doc, leafStart))
+              dispatch(tr.scrollIntoView())
+            }
+            return true
+          })
+        }
+        return editor.commands.setNodeSelection(leafStart)
       },
       'Mod-a': ({ editor }) => {
         const { $from } = editor.state.selection
@@ -110,5 +128,43 @@ export const RichMarkdownKeymap = Extension.create({
         !isSuggestionMenuOpen(editor) &&
         (selectAdjacentSelectedLeaf(editor, 'down') || selectAdjacentLeaf(editor, 'down')),
     }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('richLeafSelectionHighlight'),
+        props: {
+          decorations(state) {
+            const { selection } = state
+            if (selection.empty || selection instanceof NodeSelection) return null
+            const decorations: Decoration[] = []
+            state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+              if (SELECTABLE_LEAVES.has(node.type.name)) {
+                decorations.push(
+                  Decoration.node(pos, pos + node.nodeSize, { class: 'rich-leaf-in-selection' })
+                )
+              }
+            })
+            return decorations.length ? DecorationSet.create(state.doc, decorations) : null
+          },
+          attributes(state): Record<string, string> {
+            const { selection } = state
+            if (!(selection instanceof GapCursor)) return {}
+            const before = selection.$head.nodeBefore
+            const after = selection.$head.nodeAfter
+            if (
+              before &&
+              after &&
+              SELECTABLE_LEAVES.has(before.type.name) &&
+              SELECTABLE_LEAVES.has(after.type.name)
+            ) {
+              return { 'data-gap-between-leaves': 'true' }
+            }
+            return {}
+          },
+        },
+      }),
+    ]
   },
 })
