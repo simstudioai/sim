@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
+import { ChipInput, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getSettingsSectionMeta,
@@ -30,6 +31,27 @@ function useSettingsSection(): SettingsSection | null {
   return useContext(SettingsSectionContext)
 }
 
+interface SettingsPanelSearch {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  /**
+   * Hardens the field against browser/password-manager autofill (for pages that
+   * list sensitive data, e.g. secrets). The field stays read-only until focused.
+   */
+  preventAutofill?: boolean
+}
+
+/** Attributes that discourage browsers and password managers from autofilling. */
+const ANTI_AUTOFILL_PROPS = {
+  name: 'settings-search-field',
+  autoComplete: 'off',
+  autoCapitalize: 'off',
+  spellCheck: 'false',
+  readOnly: true,
+} as const
+
 interface SettingsPanelProps {
   /** Body content rendered below the header in the centered content column. */
   children: ReactNode
@@ -43,6 +65,12 @@ interface SettingsPanelProps {
   contentClassName?: string
   /** Ref forwarded to the scroll region (e.g. for programmatic scroll-to-bottom). */
   scrollContainerRef?: React.Ref<HTMLDivElement>
+  /**
+   * Renders the canonical search field directly below the title. Omit on pages
+   * with no search, or that pair search with extra controls (render that row in
+   * `children` instead).
+   */
+  search?: SettingsPanelSearch
 }
 
 /**
@@ -61,6 +89,7 @@ export function SettingsPanel({
   description,
   contentClassName,
   scrollContainerRef,
+  search,
 }: SettingsPanelProps) {
   const section = useSettingsSection()
   const meta = section ? getSettingsSectionMeta(section) : null
@@ -89,6 +118,22 @@ export function SettingsPanel({
                 <p className='text-[var(--text-muted)] text-md'>{resolvedDescription}</p>
               )}
             </div>
+          )}
+          {search && (
+            <ChipInput
+              icon={Search}
+              placeholder={search.placeholder ?? 'Search...'}
+              value={search.value}
+              onChange={(event) => search.onChange(event.target.value)}
+              disabled={search.disabled}
+              className='w-full'
+              {...(search.preventAutofill ? ANTI_AUTOFILL_PROPS : {})}
+              onFocus={
+                search.preventAutofill
+                  ? (event) => event.currentTarget.removeAttribute('readOnly')
+                  : undefined
+              }
+            />
           )}
           {children}
         </div>

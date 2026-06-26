@@ -7,7 +7,6 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Chip,
   ChipDropdown,
-  ChipInput,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +14,6 @@ import {
   DropdownMenuTrigger,
   MoreHorizontal,
   Plus,
-  Search,
   toast,
 } from '@/components/emcn'
 import {
@@ -177,6 +175,11 @@ export function Teammates() {
   return (
     <>
       <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search teammates...',
+        }}
         actions={
           <Chip
             leftIcon={Plus}
@@ -190,16 +193,6 @@ export function Teammates() {
           </Chip>
         }
       >
-        <div className='flex items-center gap-2'>
-          <ChipInput
-            icon={Search}
-            placeholder='Search teammates...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='flex-1'
-          />
-        </div>
-
         <MemberSection
           label={`Teammates (${teammates.length})`}
           isEmpty={showNoResults}

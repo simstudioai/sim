@@ -12,6 +12,7 @@ import {
   adminParsers,
   adminUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   useAdminUsers,
   useBanUser,
@@ -155,306 +156,294 @@ export function Admin() {
     impersonatingUserId,
   ])
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
-          <div className='flex flex-col gap-4'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='super-user-mode'>Super admin mode</Label>
-              <Switch
-                id='super-user-mode'
-                checked={settings?.superUserModeEnabled ?? false}
+    <SettingsPanel>
+      <div className='flex flex-col gap-4'>
+        <div className='flex items-center justify-between'>
+          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Switch
+            id='super-user-mode'
+            checked={settings?.superUserModeEnabled ?? false}
+            disabled={updateSetting.isPending}
+            onCheckedChange={handleSuperUserModeToggle}
+          />
+        </div>
+
+        {settings?.superUserModeEnabled && (
+          <>
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex flex-col gap-1'>
+                <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
+                <p className='text-[var(--text-secondary)] text-xs'>
+                  Default uses the configured Sim agent URL.
+                </p>
+              </div>
+              <ChipSelect
+                align='start'
+                dropdownWidth={160}
+                value={settings?.mothershipEnvironment ?? 'default'}
+                onChange={(value) =>
+                  handleMothershipEnvironmentChange(value as MothershipEnvironment)
+                }
+                placeholder='Select environment'
                 disabled={updateSetting.isPending}
-                onCheckedChange={handleSuperUserModeToggle}
+                options={MOTHERSHIP_ENV_OPTIONS}
               />
             </div>
+          </>
+        )}
+      </div>
 
-            {settings?.superUserModeEnabled && (
-              <>
-                <div className='flex items-center justify-between gap-3'>
-                  <div className='flex flex-col gap-1'>
-                    <Label className='text-[var(--text-primary)] text-sm'>
-                      Mothership Environment
-                    </Label>
-                    <p className='text-[var(--text-secondary)] text-xs'>
-                      Default uses the configured Sim agent URL.
-                    </p>
-                  </div>
-                  <ChipSelect
-                    align='start'
-                    dropdownWidth={160}
-                    value={settings?.mothershipEnvironment ?? 'default'}
-                    onChange={(value) =>
-                      handleMothershipEnvironmentChange(value as MothershipEnvironment)
-                    }
-                    placeholder='Select environment'
-                    disabled={updateSetting.isPending}
-                    options={MOTHERSHIP_ENV_OPTIONS}
-                  />
+      <div className='h-px bg-[var(--border)]' />
+
+      <div className='flex flex-col gap-2'>
+        <p className='text-[var(--text-secondary)] text-sm'>
+          Import a workflow by ID along with its associated copilot chats.
+        </p>
+        <div className='flex gap-2'>
+          <ChipInput
+            value={workflowId}
+            onChange={(e) => {
+              setWorkflowId(e.target.value)
+              importWorkflow.reset()
+            }}
+            placeholder='Enter workflow ID'
+            disabled={importWorkflow.isPending}
+          />
+          <Button
+            variant='primary'
+            onClick={handleImport}
+            disabled={importWorkflow.isPending || !workflowId.trim()}
+          >
+            {importWorkflow.isPending ? 'Importing...' : 'Import'}
+          </Button>
+        </div>
+        {importWorkflow.error && (
+          <p className='text-[var(--text-error)] text-small'>{importWorkflow.error.message}</p>
+        )}
+        {importWorkflow.isSuccess && (
+          <p className='text-[var(--text-secondary)] text-small'>
+            Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
+            {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
+          </p>
+        )}
+      </div>
+
+      <div className='h-px bg-[var(--border)]' />
+
+      <div className='flex flex-col gap-3'>
+        <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
+        <div className='flex gap-2'>
+          <ChipInput
+            icon={Search}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder='Search by email or paste a user ID...'
+            className='min-w-0 flex-1'
+          />
+          <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
+            {usersLoading ? 'Searching...' : 'Search'}
+          </Button>
+        </div>
+
+        {usersError && (
+          <p className='text-[var(--text-error)] text-small'>
+            {getErrorMessage(usersError, 'Failed to fetch users')}
+          </p>
+        )}
+
+        {(setUserRole.error ||
+          banUser.error ||
+          unbanUser.error ||
+          impersonateUser.error ||
+          impersonationGuardError) && (
+          <p className='text-[13px] text-[var(--text-error)]'>
+            {impersonationGuardError ||
+              (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
+                ?.message ||
+              'Action failed. Please try again.'}
+          </p>
+        )}
+
+        {searchQuery.length > 0 && usersData && (
+          <>
+            <div className='flex flex-col gap-0.5'>
+              <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
+                <span className='w-[200px]'>Name</span>
+                <span className='flex-1'>Email</span>
+                <span className='w-[80px]'>Role</span>
+                <span className='w-[80px]'>Status</span>
+                <span className='w-[250px] text-right'>Actions</span>
+              </div>
+
+              {usersData.users.length === 0 && (
+                <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
+                  No users found.
                 </div>
-              </>
-            )}
-          </div>
+              )}
 
-          <div className='h-px bg-[var(--border)]' />
-
-          <div className='flex flex-col gap-2'>
-            <p className='text-[var(--text-secondary)] text-sm'>
-              Import a workflow by ID along with its associated copilot chats.
-            </p>
-            <div className='flex gap-2'>
-              <ChipInput
-                value={workflowId}
-                onChange={(e) => {
-                  setWorkflowId(e.target.value)
-                  importWorkflow.reset()
-                }}
-                placeholder='Enter workflow ID'
-                disabled={importWorkflow.isPending}
-              />
-              <Button
-                variant='primary'
-                onClick={handleImport}
-                disabled={importWorkflow.isPending || !workflowId.trim()}
-              >
-                {importWorkflow.isPending ? 'Importing...' : 'Import'}
-              </Button>
-            </div>
-            {importWorkflow.error && (
-              <p className='text-[var(--text-error)] text-small'>{importWorkflow.error.message}</p>
-            )}
-            {importWorkflow.isSuccess && (
-              <p className='text-[var(--text-secondary)] text-small'>
-                Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
-                {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
-              </p>
-            )}
-          </div>
-
-          <div className='h-px bg-[var(--border)]' />
-
-          <div className='flex flex-col gap-3'>
-            <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
-            <div className='flex gap-2'>
-              <ChipInput
-                icon={Search}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder='Search by email or paste a user ID...'
-                className='min-w-0 flex-1'
-              />
-              <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
-                {usersLoading ? 'Searching...' : 'Search'}
-              </Button>
-            </div>
-
-            {usersError && (
-              <p className='text-[var(--text-error)] text-small'>
-                {getErrorMessage(usersError, 'Failed to fetch users')}
-              </p>
-            )}
-
-            {(setUserRole.error ||
-              banUser.error ||
-              unbanUser.error ||
-              impersonateUser.error ||
-              impersonationGuardError) && (
-              <p className='text-[13px] text-[var(--text-error)]'>
-                {impersonationGuardError ||
-                  (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
-                    ?.message ||
-                  'Action failed. Please try again.'}
-              </p>
-            )}
-
-            {searchQuery.length > 0 && usersData && (
-              <>
-                <div className='flex flex-col gap-0.5'>
-                  <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-                    <span className='w-[200px]'>Name</span>
-                    <span className='flex-1'>Email</span>
-                    <span className='w-[80px]'>Role</span>
-                    <span className='w-[80px]'>Status</span>
-                    <span className='w-[250px] text-right'>Actions</span>
-                  </div>
-
-                  {usersData.users.length === 0 && (
-                    <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
-                      No users found.
-                    </div>
+              {usersData.users.map((u) => (
+                <div
+                  key={u.id}
+                  className={cn(
+                    'flex flex-col gap-2 px-3 py-2 text-small',
+                    'border-[var(--border-secondary)] border-b last:border-b-0'
                   )}
-
-                  {usersData.users.map((u) => (
-                    <div
-                      key={u.id}
-                      className={cn(
-                        'flex flex-col gap-2 px-3 py-2 text-small',
-                        'border-[var(--border-secondary)] border-b last:border-b-0'
+                >
+                  <div className='flex items-center gap-3'>
+                    <span className='w-[200px] truncate text-[var(--text-primary)]'>
+                      {u.name || '—'}
+                    </span>
+                    <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+                    <span className='w-[80px]'>
+                      <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>
+                        {u.role || 'user'}
+                      </Badge>
+                    </span>
+                    <span className='w-[80px]'>
+                      {u.banned ? (
+                        <Badge variant='red'>Banned</Badge>
+                      ) : (
+                        <Badge variant='green'>Active</Badge>
                       )}
-                    >
-                      <div className='flex items-center gap-3'>
-                        <span className='w-[200px] truncate text-[var(--text-primary)]'>
-                          {u.name || '—'}
-                        </span>
-                        <span className='flex-1 truncate text-[var(--text-secondary)]'>
-                          {u.email}
-                        </span>
-                        <span className='w-[80px]'>
-                          <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>
-                            {u.role || 'user'}
-                          </Badge>
-                        </span>
-                        <span className='w-[80px]'>
-                          {u.banned ? (
-                            <Badge variant='red'>Banned</Badge>
-                          ) : (
-                            <Badge variant='green'>Active</Badge>
-                          )}
-                        </span>
-                        <span className='flex w-[250px] justify-end gap-1'>
-                          {u.id !== session?.user?.id && (
-                            <>
-                              <Button
-                                variant='active'
-                                className='h-[28px] px-2 text-[12px]'
-                                onClick={() => handleImpersonate(u.id)}
-                                disabled={pendingUserIds.has(u.id)}
-                              >
-                                {impersonatingUserId === u.id ||
-                                (impersonateUser.isPending &&
-                                  (impersonateUser.variables as { userId?: string } | undefined)
-                                    ?.userId === u.id)
-                                  ? 'Switching...'
-                                  : 'Impersonate'}
-                              </Button>
-                              <Button
-                                variant='active'
-                                className='h-[28px] px-2 text-[12px]'
-                                onClick={() => {
-                                  setUserRole.reset()
-                                  setUserRole.mutate({
-                                    userId: u.id,
-                                    role: u.role === 'admin' ? 'user' : 'admin',
-                                  })
-                                }}
-                                disabled={pendingUserIds.has(u.id)}
-                              >
-                                {u.role === 'admin' ? 'Demote' : 'Promote'}
-                              </Button>
-                              {u.banned ? (
-                                <Button
-                                  variant='active'
-                                  className='h-[28px] px-2 text-caption'
-                                  onClick={() => {
-                                    unbanUser.reset()
-                                    unbanUser.mutate({ userId: u.id })
-                                  }}
-                                  disabled={pendingUserIds.has(u.id)}
-                                >
-                                  Unban
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant='active'
-                                  className={cn(
-                                    'h-[28px] px-2 text-caption',
-                                    banUserId === u.id
-                                      ? 'text-[var(--text-primary)]'
-                                      : 'text-[var(--text-error)]'
-                                  )}
-                                  onClick={() => {
-                                    if (banUserId === u.id) {
-                                      setBanUserId(null)
-                                      setBanReason('')
-                                    } else {
-                                      setBanUserId(u.id)
-                                      setBanReason('')
-                                    }
-                                  }}
-                                  disabled={pendingUserIds.has(u.id)}
-                                >
-                                  {banUserId === u.id ? 'Cancel' : 'Ban'}
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </span>
-                      </div>
-                      {banUserId === u.id && !u.banned && (
-                        <div className='flex items-center gap-2 pl-[200px]'>
-                          <ChipInput
-                            value={banReason}
-                            onChange={(e) => setBanReason(e.target.value)}
-                            placeholder='Reason (optional)'
-                            className='flex-1'
-                          />
+                    </span>
+                    <span className='flex w-[250px] justify-end gap-1'>
+                      {u.id !== session?.user?.id && (
+                        <>
                           <Button
-                            variant='primary'
-                            className='h-[28px] px-3 text-caption'
+                            variant='active'
+                            className='h-[28px] px-2 text-[12px]'
+                            onClick={() => handleImpersonate(u.id)}
+                            disabled={pendingUserIds.has(u.id)}
+                          >
+                            {impersonatingUserId === u.id ||
+                            (impersonateUser.isPending &&
+                              (impersonateUser.variables as { userId?: string } | undefined)
+                                ?.userId === u.id)
+                              ? 'Switching...'
+                              : 'Impersonate'}
+                          </Button>
+                          <Button
+                            variant='active'
+                            className='h-[28px] px-2 text-[12px]'
                             onClick={() => {
-                              banUser.reset()
-                              banUser.mutate(
-                                {
-                                  userId: u.id,
-                                  ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
-                                },
-                                {
-                                  onSuccess: () => {
-                                    setBanUserId(null)
-                                    setBanReason('')
-                                  },
-                                }
-                              )
+                              setUserRole.reset()
+                              setUserRole.mutate({
+                                userId: u.id,
+                                role: u.role === 'admin' ? 'user' : 'admin',
+                              })
                             }}
                             disabled={pendingUserIds.has(u.id)}
                           >
-                            Confirm Ban
+                            {u.role === 'admin' ? 'Demote' : 'Promote'}
                           </Button>
-                        </div>
+                          {u.banned ? (
+                            <Button
+                              variant='active'
+                              className='h-[28px] px-2 text-caption'
+                              onClick={() => {
+                                unbanUser.reset()
+                                unbanUser.mutate({ userId: u.id })
+                              }}
+                              disabled={pendingUserIds.has(u.id)}
+                            >
+                              Unban
+                            </Button>
+                          ) : (
+                            <Button
+                              variant='active'
+                              className={cn(
+                                'h-[28px] px-2 text-caption',
+                                banUserId === u.id
+                                  ? 'text-[var(--text-primary)]'
+                                  : 'text-[var(--text-error)]'
+                              )}
+                              onClick={() => {
+                                if (banUserId === u.id) {
+                                  setBanUserId(null)
+                                  setBanReason('')
+                                } else {
+                                  setBanUserId(u.id)
+                                  setBanReason('')
+                                }
+                              }}
+                              disabled={pendingUserIds.has(u.id)}
+                            >
+                              {banUserId === u.id ? 'Cancel' : 'Ban'}
+                            </Button>
+                          )}
+                        </>
                       )}
-                    </div>
-                  ))}
-                </div>
-
-                {totalPages > 1 && (
-                  <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
-                    <span>
-                      Page {currentPage} of {totalPages} ({usersData.total} users)
                     </span>
-                    <div className='flex gap-1'>
+                  </div>
+                  {banUserId === u.id && !u.banned && (
+                    <div className='flex items-center gap-2 pl-[200px]'>
+                      <ChipInput
+                        value={banReason}
+                        onChange={(e) => setBanReason(e.target.value)}
+                        placeholder='Reason (optional)'
+                        className='flex-1'
+                      />
                       <Button
-                        variant='active'
-                        className='h-[28px] px-2 text-caption'
-                        onClick={() =>
-                          setAdminParams((prev) => ({
-                            offset: Math.max(0, prev.offset - PAGE_SIZE),
-                          }))
-                        }
-                        disabled={usersOffset === 0 || usersLoading}
+                        variant='primary'
+                        className='h-[28px] px-3 text-caption'
+                        onClick={() => {
+                          banUser.reset()
+                          banUser.mutate(
+                            {
+                              userId: u.id,
+                              ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
+                            },
+                            {
+                              onSuccess: () => {
+                                setBanUserId(null)
+                                setBanReason('')
+                              },
+                            }
+                          )
+                        }}
+                        disabled={pendingUserIds.has(u.id)}
                       >
-                        Previous
-                      </Button>
-                      <Button
-                        variant='active'
-                        className='h-[28px] px-2 text-caption'
-                        onClick={() =>
-                          setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
-                        }
-                        disabled={
-                          usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading
-                        }
-                      >
-                        Next
+                        Confirm Ban
                       </Button>
                     </div>
-                  </div>
-                )}
-              </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
+                <span>
+                  Page {currentPage} of {totalPages} ({usersData.total} users)
+                </span>
+                <div className='flex gap-1'>
+                  <Button
+                    variant='active'
+                    className='h-[28px] px-2 text-caption'
+                    onClick={() =>
+                      setAdminParams((prev) => ({
+                        offset: Math.max(0, prev.offset - PAGE_SIZE),
+                      }))
+                    }
+                    disabled={usersOffset === 0 || usersLoading}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant='active'
+                    className='h-[28px] px-2 text-caption'
+                    onClick={() => setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))}
+                    disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
-    </div>
+    </SettingsPanel>
   )
 }

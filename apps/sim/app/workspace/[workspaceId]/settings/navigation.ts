@@ -108,7 +108,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'access-control',
     label: 'Access control',
-    description: 'Manage permission groups across every workspace in your organization.',
+    description: 'Manage permission groups across your organization.',
     icon: ShieldCheck,
     section: 'enterprise',
     requiresHosted: true,
@@ -118,7 +118,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'audit-logs',
     label: 'Audit logs',
-    description: 'Review administrative and security activity across your organization.',
+    description: 'Review activity and changes across your organization.',
     icon: ClipboardList,
     section: 'enterprise',
     requiresHosted: true,
@@ -153,7 +153,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'secrets',
     label: 'Secrets',
-    description: 'Store environment variables for your workflows to use.',
+    description: 'Store environment variables for your workflows.',
     icon: Key,
     section: 'account',
   },
@@ -167,7 +167,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'mcp',
     label: 'MCP tools',
-    description: 'Connect MCP servers to use their tools in your workflows.',
+    description: 'Connect MCP servers and use their tools in workflows.',
     icon: McpIcon,
     section: 'tools',
   },
@@ -233,7 +233,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'sso',
     label: 'Single sign-on',
-    description: 'Configure SAML or OIDC single sign-on for your organization.',
+    description: 'Configure single sign-on for your organization.',
     icon: LogIn,
     section: 'enterprise',
     requiresHosted: true,
@@ -243,7 +243,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'data-retention',
     label: 'Data retention',
-    description: 'Control how long data is kept and configure PII redaction.',
+    description: 'Control data retention windows and PII redaction.',
     icon: Database,
     section: 'enterprise',
     requiresHosted: true,
@@ -263,7 +263,7 @@ export const allNavigationItems: NavigationItem[] = [
   {
     id: 'whitelabeling',
     label: 'Whitelabeling',
-    description: 'Customize the branding and appearance of your workspace.',
+    description: 'Customize your workspace branding and appearance.',
     icon: Palette,
     section: 'enterprise',
     requiresHosted: true,

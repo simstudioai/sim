@@ -15,6 +15,7 @@ import {
   mothershipParsers,
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type MothershipByokKey,
   type MothershipEnv,
@@ -98,74 +99,68 @@ export function Mothership() {
   const [end, setEnd] = useState(defaults.end)
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
-          {/* Environment selector */}
+    <SettingsPanel>
+      <div className='flex flex-col gap-6'>
+        {/* Environment selector */}
+        <div className='flex items-center gap-2'>
+          <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+          <ChipSelect
+            align='start'
+            dropdownWidth={160}
+            value={environment}
+            onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
+            placeholder='Select environment'
+            options={ENV_OPTIONS}
+          />
+        </div>
+
+        {/* Tab bar */}
+        <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type='button'
+              onClick={() => setMothershipParams({ tab: tab.id })}
+              className={cn(
+                'relative px-3 py-2 font-medium text-sm transition-colors',
+                activeTab === tab.id
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+              )}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Time range (shared across tabs) */}
+        <div className='flex items-center gap-3'>
           <div className='flex items-center gap-2'>
-            <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-            <ChipSelect
-              align='start'
-              dropdownWidth={160}
-              value={environment}
-              onChange={(value) => setMothershipParams({ env: value as MothershipEnv })}
-              placeholder='Select environment'
-              options={ENV_OPTIONS}
+            <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
+            <ChipInput
+              type='datetime-local'
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
             />
           </div>
-
-          {/* Tab bar */}
-          <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type='button'
-                onClick={() => setMothershipParams({ tab: tab.id })}
-                className={cn(
-                  'relative px-3 py-2 font-medium text-sm transition-colors',
-                  activeTab === tab.id
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-                )}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
-                )}
-              </button>
-            ))}
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
+            <ChipInput type='datetime-local' value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
-
-          {/* Time range (shared across tabs) */}
-          <div className='flex items-center gap-3'>
-            <div className='flex items-center gap-2'>
-              <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-              <ChipInput
-                type='datetime-local'
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-              />
-            </div>
-            <div className='flex items-center gap-2'>
-              <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-              <ChipInput
-                type='datetime-local'
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <Divider />
-
-          {activeTab === 'overview' && (
-            <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-          )}
-          {activeTab === 'licenses' && <LicensesTab environment={environment} />}
-          {activeTab === 'byok' && <ByokTab />}
         </div>
+
+        <Divider />
+
+        {activeTab === 'overview' && (
+          <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
+        )}
+        {activeTab === 'licenses' && <LicensesTab environment={environment} />}
+        {activeTab === 'byok' && <ByokTab />}
       </div>
-    </div>
+    </SettingsPanel>
   )
 }
 

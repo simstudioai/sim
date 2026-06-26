@@ -14,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreHorizontal,
-  Search,
   Tooltip,
   toast,
 } from '@/components/emcn'
@@ -972,6 +971,12 @@ export function SecretsManager() {
 
       <SettingsPanel
         scrollContainerRef={scrollContainerRef}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search secrets...',
+          preventAutofill: true,
+        }}
         actions={
           <>
             {hasChanges && (
@@ -1000,20 +1005,6 @@ export function SecretsManager() {
           </>
         }
       >
-        {/* Search */}
-        <ChipInput
-          icon={Search}
-          placeholder='Search secrets...'
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          name='env_search_field'
-          autoComplete='off'
-          autoCapitalize='off'
-          spellCheck='false'
-          readOnly
-          onFocus={(e) => e.target.removeAttribute('readOnly')}
-        />
-
         {/* Secrets grid */}
         {!isLoading && (
           <div className='flex flex-col gap-7'>

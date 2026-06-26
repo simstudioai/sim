@@ -8,17 +8,16 @@ import { Plus } from 'lucide-react'
 import {
   Chip,
   ChipConfirmModal,
-  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Search,
   SecretReveal,
   // Switch,
 } from '@/components/emcn'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import {
   type CopilotKey,
@@ -140,29 +139,27 @@ export function Copilot() {
 
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        {/* Fixed header bar */}
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => {
-                setIsCreateDialogOpen(true)
-                setCreateError(null)
-              }}
-              disabled={isLoading}
-            >
-              Create API Key
-            </Chip>
-          </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            {/* MCP Tools Section — uncomment when ready to allow users to toggle MCP servers for Mothership
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search API keys...',
+        }}
+        actions={
+          <Chip
+            leftIcon={Plus}
+            variant='primary'
+            onClick={() => {
+              setIsCreateDialogOpen(true)
+              setCreateError(null)
+            }}
+            disabled={isLoading}
+          >
+            Create API Key
+          </Chip>
+        }
+      >
+        {/* MCP Tools Section — uncomment when ready to allow users to toggle MCP servers for Mothership
             <div className='flex flex-col gap-2'>
               <div className='font-medium text-sm text-[var(--text-secondary)]'>
                 MCP Tools
@@ -197,57 +194,45 @@ export function Copilot() {
             </div>
             */}
 
-            {/* Search Input */}
-            <ChipInput
-              icon={Search}
-              placeholder='Search API keys...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            {/* Keys List */}
-            {isLoading ? null : showEmptyState ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "Create API Key" above to get started
+        {/* Keys List */}
+        {isLoading ? null : showEmptyState ? (
+          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+            Click "Create API Key" above to get started
+          </div>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            {filteredKeys.map((key) => (
+              <div key={key.id} className='flex items-center justify-between gap-3'>
+                <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                      {key.name || 'Unnamed Key'}
+                    </span>
+                    <span className='text-[var(--text-secondary)] text-sm'>
+                      (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                    </span>
+                  </div>
+                  <p className='truncate text-[12px] text-[var(--text-muted)]'>{key.displayKey}</p>
+                </div>
+                <Chip
+                  className='flex-shrink-0'
+                  onClick={() => {
+                    setDeleteKey(key)
+                    setShowDeleteDialog(true)
+                  }}
+                >
+                  Delete
+                </Chip>
               </div>
-            ) : (
-              <div className='flex flex-col gap-2'>
-                {filteredKeys.map((key) => (
-                  <div key={key.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                          {key.name || 'Unnamed Key'}
-                        </span>
-                        <span className='text-[var(--text-secondary)] text-sm'>
-                          (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                        </span>
-                      </div>
-                      <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {key.displayKey}
-                      </p>
-                    </div>
-                    <Chip
-                      className='flex-shrink-0'
-                      onClick={() => {
-                        setDeleteKey(key)
-                        setShowDeleteDialog(true)
-                      }}
-                    >
-                      Delete
-                    </Chip>
-                  </div>
-                ))}
-                {showNoResults && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No API keys found matching "{searchTerm}"
-                  </div>
-                )}
+            ))}
+            {showNoResults && (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                No API keys found matching "{searchTerm}"
               </div>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </SettingsPanel>
 
       {/* Create API Key Dialog */}
       <ChipModal

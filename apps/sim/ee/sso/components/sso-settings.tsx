@@ -23,6 +23,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useOrganizations } from '@/hooks/queries/organization'
@@ -433,73 +434,65 @@ export function SSO() {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Button onClick={handleEdit} variant='primary'>
-              Edit
-            </Button>
-          </div>
+      <SettingsPanel
+        actions={
+          <Button onClick={handleEdit} variant='primary'>
+            Edit
+          </Button>
+        }
+      >
+        <div className='flex flex-col gap-4.5'>
+          <FormField label='Provider ID'>
+            <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
+          </FormField>
+
+          <FormField label='Provider Type'>
+            <p className='text-[var(--text-primary)] text-small'>
+              {existingProvider.providerType.toUpperCase()}
+            </p>
+          </FormField>
+
+          <FormField label='Domain'>
+            <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
+          </FormField>
+
+          <FormField label='Issuer URL'>
+            <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
+              {existingProvider.issuer}
+            </p>
+          </FormField>
+
+          <FormField label='Callback URL'>
+            <ChipInput
+              value={providerCallbackUrl}
+              readOnly
+              endAdornment={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => copyToClipboard(providerCallbackUrl)}
+                  className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                  aria-label='Copy callback URL'
+                >
+                  {copied ? (
+                    <Check className='size-[14px]' />
+                  ) : (
+                    <Clipboard className='size-[14px]' />
+                  )}
+                </Button>
+              }
+            />
+            <p className='text-[var(--text-muted)] text-small'>
+              Configure this in your identity provider
+            </p>
+          </FormField>
         </div>
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
-            <FormField label='Provider ID'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
-            </FormField>
-
-            <FormField label='Provider Type'>
-              <p className='text-[var(--text-primary)] text-small'>
-                {existingProvider.providerType.toUpperCase()}
-              </p>
-            </FormField>
-
-            <FormField label='Domain'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
-            </FormField>
-
-            <FormField label='Issuer URL'>
-              <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
-                {existingProvider.issuer}
-              </p>
-            </FormField>
-
-            <FormField label='Callback URL'>
-              <ChipInput
-                value={providerCallbackUrl}
-                readOnly
-                endAdornment={
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => copyToClipboard(providerCallbackUrl)}
-                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                    aria-label='Copy callback URL'
-                  >
-                    {copied ? (
-                      <Check className='size-[14px]' />
-                    ) : (
-                      <Clipboard className='size-[14px]' />
-                    )}
-                  </Button>
-                }
-              />
-              <p className='text-[var(--text-muted)] text-small'>
-                Configure this in your identity provider
-              </p>
-            </FormField>
-          </div>
-        </div>
-      </div>
+      </SettingsPanel>
     )
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      autoComplete='off'
-      className='flex h-full flex-col bg-[var(--bg)]'
-    >
+    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col'>
       {/* Off-screen inputs to prevent browser password manager autofill */}
       <input
         type='text'
@@ -527,47 +520,46 @@ export function SSO() {
       />
       <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center gap-1'>
-          {isEditing && (
+      <SettingsPanel
+        actions={
+          <>
+            {isEditing && (
+              <Button
+                type='button'
+                variant='default'
+                onClick={() => {
+                  setIsEditing(false)
+                  setFormData(DEFAULT_FORM_DATA)
+                  setErrors(DEFAULT_ERRORS)
+                  setShowErrors(false)
+                  setShowAdvanced(false)
+                }}
+              >
+                Cancel
+              </Button>
+            )}
             <Button
-              type='button'
-              variant='default'
-              onClick={() => {
-                setIsEditing(false)
-                setFormData(DEFAULT_FORM_DATA)
-                setErrors(DEFAULT_ERRORS)
-                setShowErrors(false)
-                setShowAdvanced(false)
-              }}
+              type='submit'
+              variant='primary'
+              disabled={
+                configureSSOMutation.isPending ||
+                hasAnyErrors(errors) ||
+                !isFormValid() ||
+                (isEditing && !hasChanges())
+              }
             >
-              Cancel
+              {configureSSOMutation.isPending
+                ? isEditing
+                  ? 'Updating...'
+                  : 'Saving...'
+                : isEditing
+                  ? 'Update'
+                  : 'Save'}
             </Button>
-          )}
-          <Button
-            type='submit'
-            variant='primary'
-            disabled={
-              configureSSOMutation.isPending ||
-              hasAnyErrors(errors) ||
-              !isFormValid() ||
-              (isEditing && !hasChanges())
-            }
-          >
-            {configureSSOMutation.isPending
-              ? isEditing
-                ? 'Updating...'
-                : 'Saving...'
-              : isEditing
-                ? 'Update'
-                : 'Save'}
-          </Button>
-        </div>
-      </div>
-
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
+          </>
+        }
+      >
+        <div className='flex flex-col gap-4.5'>
           {/* Provider Type */}
           <FormField label='Provider Type'>
             <ChipSelect
@@ -885,7 +877,7 @@ export function SSO() {
             </p>
           </FormField>
         </div>
-      </div>
+      </SettingsPanel>
     </form>
   )
 }
