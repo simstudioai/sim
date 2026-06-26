@@ -6,21 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import {
-  Badge,
-  Button,
-  Chip,
-  ChipConfirmModal,
-  ChipInput,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Search,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, Chip, ChipConfirmModal, Tooltip } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -36,6 +22,9 @@ import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
@@ -126,27 +115,13 @@ function ServerListItem({
         </p>
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
-              aria-label='Server actions'
-              className={chipVariants({ flush: true })}
-            >
-              <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem onSelect={onViewDetails}>Details</DropdownMenuItem>
-            <DropdownMenuItem
-              className='text-[var(--text-error)]'
-              onSelect={onRemove}
-              disabled={isDeleting}
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActionsMenu
+          label='Server actions'
+          actions={[
+            { label: 'Details', onSelect: onViewDetails },
+            { label: 'Delete', destructive: true, disabled: isDeleting, onSelect: onRemove },
+          ]}
+        />
       </div>
     </div>
   )
@@ -632,70 +607,59 @@ export function MCP() {
 
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => setShowAddModal(true)}
-              disabled={serversLoading}
-            >
-              Add Server
-            </Chip>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search MCPs...',
+        }}
+        actions={
+          <Chip
+            leftIcon={Plus}
+            variant='primary'
+            onClick={() => setShowAddModal(true)}
+            disabled={serversLoading}
+          >
+            Add Server
+          </Chip>
+        }
+      >
+        {error ? (
+          <div className='flex h-full flex-col items-center justify-center gap-2'>
+            <p className='text-[var(--text-error)] text-xs leading-tight'>
+              {getErrorMessage(error, 'Failed to load MCP servers')}
+            </p>
           </div>
-        </div>
+        ) : serversLoading ? null : !hasServers ? (
+          <SettingsEmptyState>Click &quot;Add Server&quot; above to get started</SettingsEmptyState>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            {filteredServers.map((server) => {
+              if (!server?.id) return null
+              const tools = toolsByServer[server.id] || []
+              const isLoadingTools = toolsLoading || toolsFetching
 
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search MCPs...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            {error ? (
-              <div className='flex h-full flex-col items-center justify-center gap-2'>
-                <p className='text-[var(--text-error)] text-xs leading-tight'>
-                  {getErrorMessage(error, 'Failed to load MCP servers')}
-                </p>
-              </div>
-            ) : serversLoading ? null : !hasServers ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click &quot;Add Server&quot; above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-2'>
-                {filteredServers.map((server) => {
-                  if (!server?.id) return null
-                  const tools = toolsByServer[server.id] || []
-                  const isLoadingTools = toolsLoading || toolsFetching
-
-                  return (
-                    <ServerListItem
-                      key={server.id}
-                      server={server}
-                      tools={tools}
-                      isDeleting={deletingServers.has(server.id)}
-                      isLoadingTools={isLoadingTools}
-                      isRefreshing={refreshingServerId === server.id}
-                      onRemove={() => handleRemoveServer(server.id)}
-                      onViewDetails={() => handleViewDetails(server.id)}
-                    />
-                  )
-                })}
-                {showNoResults && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No servers found matching &quot;{searchTerm}&quot;
-                  </div>
-                )}
-              </div>
+              return (
+                <ServerListItem
+                  key={server.id}
+                  server={server}
+                  tools={tools}
+                  isDeleting={deletingServers.has(server.id)}
+                  isLoadingTools={isLoadingTools}
+                  isRefreshing={refreshingServerId === server.id}
+                  onRemove={() => handleRemoveServer(server.id)}
+                  onViewDetails={() => handleViewDetails(server.id)}
+                />
+              )
+            })}
+            {showNoResults && (
+              <SettingsEmptyState variant='inline'>
+                No servers found matching &quot;{searchTerm}&quot;
+              </SettingsEmptyState>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </SettingsPanel>
 
       <McpServerFormModal
         open={showAddModal}

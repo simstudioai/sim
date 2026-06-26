@@ -23,18 +23,15 @@ import {
   ChipSelect,
   Code,
   type ComboboxOption,
-  chipVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Label,
-  MoreHorizontal,
   Tooltip,
 } from '@/components/emcn'
-import { ArrowLeft, Search } from '@/components/emcn/icons'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
@@ -72,7 +69,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const updateToolMutation = useUpdateWorkflowMcpTool()
   const updateServerMutation = useUpdateWorkflowMcpServer()
 
-  // API Keys - for "Create API key" link
   const { data: apiKeysData } = useApiKeys(workspaceId)
   const { data: workspaceSettingsData } = useWorkspaceSettings(workspaceId)
   const userPermissions = useUserPermissionsContext()
@@ -260,7 +256,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
       }
 
-      // Cursor supports direct URL configuration (no mcp-remote needed)
       if (client === 'cursor') {
         const cursorConfig = isPublic
           ? { url: mcpServerUrl }
@@ -269,7 +264,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return JSON.stringify({ mcpServers: { [safeName]: cursorConfig } }, null, 2)
       }
 
-      // Claude Desktop and VS Code still use mcp-remote (stdio transport)
       const mcpRemoteArgs = isPublic
         ? ['-y', 'mcp-remote', mcpServerUrl]
         : ['-y', 'mcp-remote', mcpServerUrl, '--header', 'X-API-Key:$SIM_API_KEY']
@@ -465,29 +459,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                               </p>
                             </div>
                             <div className='flex flex-shrink-0 items-center gap-1'>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button
-                                    type='button'
-                                    aria-label='Tool actions'
-                                    className={chipVariants({ flush: true })}
-                                  >
-                                    <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align='end'>
-                                  <DropdownMenuItem onSelect={() => setToolToView(tool)}>
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className='text-[var(--text-error)]'
-                                    onSelect={() => setToolToDelete(tool)}
-                                    disabled={deleteToolMutation.isPending}
-                                  >
-                                    Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <RowActionsMenu
+                                label='Tool actions'
+                                actions={[
+                                  { label: 'Edit', onSelect: () => setToolToView(tool) },
+                                  {
+                                    label: 'Remove',
+                                    destructive: true,
+                                    disabled: deleteToolMutation.isPending,
+                                    onSelect: () => setToolToDelete(tool),
+                                  },
+                                ]}
+                              />
                             </div>
                           </div>
                         ))}
@@ -984,103 +967,81 @@ export function WorkflowMcpServers() {
 
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            <Chip
-              leftIcon={Plus}
-              variant='primary'
-              onClick={() => setShowAddModal(true)}
-              disabled={isLoading}
-            >
-              Add Server
-            </Chip>
-          </div>
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search servers...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            <div className='min-h-0 flex-1'>
-              {error ? (
-                <div className='flex h-full flex-col items-center justify-center gap-2'>
-                  <p className='text-[var(--text-error)] text-sm leading-tight'>
-                    {getErrorMessage(error, 'Failed to load MCP servers')}
-                  </p>
-                </div>
-              ) : isLoading ? null : !hasServers ? (
-                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                  Click &quot;Add Server&quot; above to get started
-                </div>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {filteredServers.map((server) => {
-                    const count = server.toolCount || 0
-                    const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}`
-                    const isDeleting = deletingServers.has(server.id)
-                    return (
-                      <div key={server.id} className='flex items-center justify-between gap-3'>
-                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
-                              {server.name}
-                            </span>
-                            {server.isPublic && (
-                              <Badge variant='outline' size='sm'>
-                                Public
-                              </Badge>
-                            )}
-                          </div>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                            {toolsLabel}
-                          </p>
-                        </div>
-                        <div className='flex flex-shrink-0 items-center gap-1'>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                type='button'
-                                aria-label='Server actions'
-                                className={chipVariants({ flush: true })}
-                              >
-                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem onSelect={() => setSelectedServerId(server.id)}>
-                                Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className='text-[var(--text-error)]'
-                                onSelect={() => setServerToDelete(server)}
-                                disabled={isDeleting}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search servers...',
+        }}
+        actions={
+          <Chip
+            leftIcon={Plus}
+            variant='primary'
+            onClick={() => setShowAddModal(true)}
+            disabled={isLoading}
+          >
+            Add Server
+          </Chip>
+        }
+      >
+        <div className='min-h-0 flex-1'>
+          {error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--text-error)] text-sm leading-tight'>
+                {getErrorMessage(error, 'Failed to load MCP servers')}
+              </p>
+            </div>
+          ) : isLoading ? null : !hasServers ? (
+            <SettingsEmptyState>
+              Click &quot;Add Server&quot; above to get started
+            </SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {filteredServers.map((server) => {
+                const count = server.toolCount || 0
+                const toolsLabel = `${count} tool${count !== 1 ? 's' : ''}`
+                const isDeleting = deletingServers.has(server.id)
+                return (
+                  <div key={server.id} className='flex items-center justify-between gap-3'>
+                    <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                      <div className='flex items-center gap-1.5'>
+                        <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
+                          {server.name}
+                        </span>
+                        {server.isPublic && (
+                          <Badge variant='outline' size='sm'>
+                            Public
+                          </Badge>
+                        )}
                       </div>
-                    )
-                  })}
-                  {showNoResults && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                      No servers found matching "{searchTerm}"
+                      <p className='truncate text-[12px] text-[var(--text-muted)]'>{toolsLabel}</p>
                     </div>
-                  )}
-                </div>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
+                      <RowActionsMenu
+                        label='Server actions'
+                        actions={[
+                          { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
+                          {
+                            label: 'Delete',
+                            destructive: true,
+                            disabled: isDeleting,
+                            onSelect: () => setServerToDelete(server),
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+              {showNoResults && (
+                <SettingsEmptyState variant='inline'>
+                  No servers found matching "{searchTerm}"
+                </SettingsEmptyState>
               )}
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      </SettingsPanel>
 
       <CreateWorkflowMcpServerModal
         open={showAddModal}
