@@ -17,11 +17,14 @@ import {
   Button,
   ChipCombobox,
   type ComboboxOption,
-  DatePicker,
   Library,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
   RefreshCw,
   toast,
 } from '@/components/emcn'
+import { Calendar } from '@/components/emcn/components/calendar/calendar'
 import { Download, Workflow } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
@@ -1425,10 +1428,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             className='w-full'
             maxHeight={320}
           />
-          <DatePicker
-            mode='range'
-            showTrigger={false}
-            showTime
+          <Popover
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {
@@ -1439,11 +1439,19 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                 }
               }
             }}
-            startDate={startDate}
-            endDate={endDate}
-            onRangeChange={handleDateRangeApply}
-            onCancel={handleDatePickerCancel}
-          />
+          >
+            <PopoverAnchor className='pointer-events-none absolute inset-0' />
+            <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
+              <Calendar
+                mode='range'
+                showTime
+                startDate={startDate}
+                endDate={endDate}
+                onRangeChange={handleDateRangeApply}
+                onCancel={handleDatePickerCancel}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
