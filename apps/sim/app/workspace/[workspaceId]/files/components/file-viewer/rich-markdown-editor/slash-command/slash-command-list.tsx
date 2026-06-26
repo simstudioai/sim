@@ -37,8 +37,6 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
         ?.scrollIntoView({ block: 'nearest' })
     }, [activeIndex])
 
-    // Read live values: the suggestion plugin captures this handle via `ReactRenderer.ref` at mount,
-    // so closing over `items`/`activeIndex` would make Enter act on the mount-time snapshot.
     const latest = useRef({ items, activeIndex, command })
     latest.current = { items, activeIndex, command }
 

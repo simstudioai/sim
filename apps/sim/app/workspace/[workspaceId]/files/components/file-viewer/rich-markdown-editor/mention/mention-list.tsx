@@ -90,9 +90,6 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
       ?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
-  // The suggestion plugin captures this handle via `ReactRenderer.ref` once at mount, so it must read
-  // live values rather than close over them — otherwise keyboard nav uses the initial (empty) `flat`
-  // from before the async workspace data landed, and arrow keys fall through to the editor.
   const latest = useRef({ flat, activeIndex, command })
   latest.current = { flat, activeIndex, command }
 
