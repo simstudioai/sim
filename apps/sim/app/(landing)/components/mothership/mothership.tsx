@@ -42,25 +42,25 @@ const AREAS: Area[] = [
   {
     word: 'Integrate',
     Mark: IsoIntegrateIllustration,
-    size: 156,
+    size: 180,
     definition: 'One catalog of 1,000+ connectors your agents reach out and act through.',
   },
   {
     word: 'Ingest context',
     Mark: IsoIngestIllustration,
-    size: 156,
+    size: 170,
     definition: 'Your data, stored semantically — the memory agents reason over.',
   },
   {
     word: 'Build',
     Mark: IsoBuildIllustration,
-    size: 156,
+    size: 174,
     definition: 'Compose agent logic on a canvas, or just describe it to Sim.',
   },
   {
     word: 'Monitor',
     Mark: IsoMonitorIllustration,
-    size: 166,
+    size: 176,
     definition: 'See inside every run — traces, logs, and real cost, live.',
   },
 ]
