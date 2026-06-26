@@ -117,7 +117,7 @@ export const MarkdownMention = Node.create({
  * monochrome through the `--text-icon` fallback below.
  */
 const CHIP_CLASS =
-  'mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
+  'mention-chip mx-px inline-flex items-center gap-1 align-middle text-[var(--text-primary)] leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
 
 /** Live chip: a display-only entity icon + label, matching the chat input's mention rendering. */
 function MentionChipView({ node }: ReactNodeViewProps) {

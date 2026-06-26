@@ -36,6 +36,14 @@
   outline-offset: 2px;
 }
 
+/* The inline mention chip is too small for the block-leaf ring above; a direct click selects it with a
+   subtle fill instead, so it never wears the heavy divider/image outline. */
+.rich-markdown-prose .mention-chip.ProseMirror-selectednode {
+  outline: none;
+  border-radius: 3px;
+  background: var(--surface-active);
+}
+
 .rich-markdown-prose > * + * {
   margin-top: 0.6em;
 }
