@@ -135,7 +135,6 @@ function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const iconStyle = getBareIconStyle(Icon)
   const navigable = editor.storage.mention?.navigable === true
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
-  // Only show the pointer / route on a kind that actually resolves to a page (e.g. not an integration).
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 
   const handleClick = (event: MouseEvent) => {

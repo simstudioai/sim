@@ -104,7 +104,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
 
   return (
     <LoadedRichMarkdownEditor
-      // Remount on a new streaming context so the stream/settle state is re-established fresh.
       key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
       file={file}
       workspaceId={workspaceId}
@@ -207,15 +206,17 @@ export function LoadedRichMarkdownEditor({
   const imageInputRef = useRef<HTMLInputElement>(null)
   const pendingImagePosRef = useRef<number | null>(null)
 
-  /** Upload then insert each image at `at` (paste caret / drop point), sequentially; held in a ref so handlers reach the latest. */
+  /**
+   * Upload then insert each image at `at` (paste caret / drop point), sequentially; held in a ref so
+   * handlers reach the latest. A persistent (`duration: 0`) progress toast shows per image during the
+   * upload and is dismissed once it settles, when the upload hook's own "Uploaded"/"Failed" toast takes over.
+   */
   const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
     Promise.resolve()
   )
   insertImagesRef.current = async (images, at) => {
     let position = at
     for (const image of images) {
-      // Persistent (`duration: 0`) progress toast, dismissed once the upload settles — the upload
-      // hook then shows its own "Uploaded"/"Failed" toast.
       const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
       const result = await uploadFile
         .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
@@ -389,7 +390,6 @@ export function LoadedRichMarkdownEditor({
       streamRafRef.current = requestAnimationFrame(tick)
       return
     }
-    // Drop a frame scheduled just before settle so it can't land afterward and clobber the final content.
     if (streamRafRef.current !== null) {
       cancelAnimationFrame(streamRafRef.current)
       streamRafRef.current = null
@@ -399,7 +399,6 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      // Re-seed only if the settled body differs from the last streamed chunk (avoids a needless doc rebuild + selection loss).
       const body = splitFrontmatter(content).body
       if (body !== lastSyncedBodyRef.current) {
         lastSyncedBodyRef.current = body
