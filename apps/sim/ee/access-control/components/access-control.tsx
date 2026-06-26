@@ -211,7 +211,7 @@ export function AccessControl() {
                           }`}
                     </span>
                   </div>
-                  <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
               ))}
             </div>
