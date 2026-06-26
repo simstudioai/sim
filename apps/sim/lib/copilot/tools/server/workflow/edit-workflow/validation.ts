@@ -1349,14 +1349,17 @@ export async function preValidateCredentialInputs(
     for (const toolId of candidateToolIds) {
       const tool = getTool(toolId)
       if (!tool?.hosting) continue
-      // The enabled predicate is tool-defined; guard it like the selector so a throw can't
-      // break edit_workflow for the request.
+      // The enabled predicate is tool-defined; guard it so a throw can't break edit_workflow. On
+      // a throw the hosting state is unknown, so fail toward treating the key as managed (strip)
+      // rather than preserving a key that may actually be platform-managed.
       if (tool.hosting.enabled) {
+        let isManaged: boolean
         try {
-          if (!tool.hosting.enabled(toolParams)) continue
+          isManaged = tool.hosting.enabled(toolParams)
         } catch {
-          continue
+          isManaged = true
         }
+        if (!isManaged) continue
       }
       managedFieldIds.add(tool.hosting.apiKeyParam)
     }
@@ -1387,18 +1390,25 @@ export async function preValidateCredentialInputs(
 
   const asRecord = (value: unknown): Record<string, unknown> | undefined =>
     value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+  const snapshotBlock = (blockId: string) => asRecord(asRecord(workflowState?.blocks)?.[blockId])
+
+  // Track each block's effective state across ops in this batch (seeded from the snapshot, then
+  // updated per op), so a later type-less edit sees type/provider changed by an earlier op in the
+  // same request rather than the stale snapshot — otherwise a key could survive on a block an
+  // earlier op just made hosted.
+  const batchBlockType = new Map<string, string | undefined>()
+  const batchBlockValues = new Map<string, Record<string, unknown>>()
 
   operations.forEach((op, opIndex) => {
-    // Edit ops carry only the changed inputs, so reconstruct the block from workflowState: its
-    // type when not restated, and its existing subblock values so the tool selector and
-    // hosted-model checks see provider/model even when the edit omits them.
-    const existingBlock =
-      op.operation_type === 'edit'
-        ? asRecord(asRecord(workflowState?.blocks)?.[op.block_id])
-        : undefined
-    const opBlockType =
-      (op.params?.type as string | undefined) ?? (existingBlock?.type as string | undefined)
     const inputs = asRecord(op.params?.inputs)
+
+    // Effective block type: this op's type, else the type left by an earlier batch op, else the
+    // snapshot. Edit ops omit `type`, so without this an apiKey-only edit would skip stripping.
+    const priorType = batchBlockType.has(op.block_id)
+      ? batchBlockType.get(op.block_id)
+      : (snapshotBlock(op.block_id)?.type as string | undefined)
+    const opBlockType = (op.params?.type as string | undefined) ?? priorType
+    batchBlockType.set(op.block_id, opBlockType)
 
     // Process main block inputs
     if (inputs && opBlockType) {
@@ -1407,12 +1417,15 @@ export async function preValidateCredentialInputs(
         collectCredentialInputs(blockConfig, inputs, opIndex, op.block_id, opBlockType)
 
         // Both hosted collectors no-op off hosted Sim, so only reconstruct the effective inputs
-        // (existing subblock values overlaid with this op's delta) when it can matter.
+        // (prior batch/snapshot values overlaid with this op's delta) when it can matter.
         if (isHosted) {
-          const existingValues = buildSubBlockValues(
-            (existingBlock?.subBlocks as Record<string, { value?: unknown }>) ?? {}
-          )
-          const toolParams = { ...existingValues, ...inputs }
+          const priorValues =
+            batchBlockValues.get(op.block_id) ??
+            buildSubBlockValues(
+              (snapshotBlock(op.block_id)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+            )
+          const toolParams = { ...priorValues, ...inputs }
+          batchBlockValues.set(op.block_id, toolParams)
           const modelValue = toolParams.model as string | undefined
           collectHostedApiKeyInput(inputs, modelValue, opIndex, op.block_id, opBlockType)
           collectHostedToolApiKeyInput(

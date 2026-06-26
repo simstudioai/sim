@@ -114,6 +114,15 @@ const imageBlockConfig = {
   tools: { access: ['image_generate'], config: { tool: () => 'image_generate' } },
 }
 
+// Tool whose hosting.enabled predicate throws — used to assert fail-toward-strip behavior.
+const throwGateBlockConfig = {
+  type: 'throw_gate_block',
+  name: 'Throw Gate Block',
+  outputs: {},
+  subBlocks: [{ id: 'provider', type: 'dropdown' }],
+  tools: { access: ['throw_gate_tool'], config: { tool: () => 'throw_gate_tool' } },
+}
+
 // Tool registry stand-in for the hosted-tool tests.
 const toolsByIdMock: Record<string, unknown> = {
   video_falai: { id: 'video_falai', hosting: { apiKeyParam: 'apiKey' } },
@@ -124,6 +133,15 @@ const toolsByIdMock: Record<string, unknown> = {
     hosting: {
       apiKeyParam: 'apiKey',
       enabled: (p: Record<string, unknown>) => p.provider === 'falai',
+    },
+  },
+  throw_gate_tool: {
+    id: 'throw_gate_tool',
+    hosting: {
+      apiKeyParam: 'apiKey',
+      enabled: () => {
+        throw new Error('boom')
+      },
     },
   },
 }
@@ -150,7 +168,9 @@ vi.mock('@/blocks/registry', () => ({
                       ? customKeyBlockConfig
                       : type === 'image_generator_v2'
                         ? imageBlockConfig
-                        : undefined,
+                        : type === 'throw_gate_block'
+                          ? throwGateBlockConfig
+                          : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -539,6 +559,55 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.filteredOperations[0]?.params?.inputs?.serviceKey).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
+  })
+
+  it('uses same-batch state: a type-less apiKey edit after an earlier op makes the block hosted', async () => {
+    // op1 switches provider to falai (hosted); op2 (type-less) sets apiKey. op2 must see op1's
+    // provider, not the stale snapshot (runway), and strip the key.
+    const operations = [
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { provider: 'falai' } },
+      },
+      {
+        operation_type: 'edit' as const,
+        block_id: 'video-1',
+        params: { inputs: { apiKey: 'test-api-key-12345' } },
+      },
+    ]
+    const workflowState = {
+      blocks: {
+        'video-1': {
+          type: 'video_generator_v3',
+          subBlocks: { provider: { value: 'runway' } },
+        },
+      },
+    }
+
+    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
+
+    expect(result.filteredOperations[1]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
+  })
+
+  it('strips apiKey when a tool hosting enabled predicate throws (fail toward stripping)', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'gate-1',
+        params: {
+          type: 'throw_gate_block',
+          inputs: { provider: 'whatever', apiKey: 'user-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, ctx)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
   })
 
   it('preserves apiKey on self-hosted deployments (isHosted false)', async () => {
