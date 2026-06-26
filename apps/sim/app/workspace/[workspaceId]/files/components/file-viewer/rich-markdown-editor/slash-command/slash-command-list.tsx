@@ -1,11 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { cn } from '@/lib/core/utils/cn'
-import {
-  SUGGESTION_GROUP_LABEL_CLASS,
-  SUGGESTION_ITEM_CLASS,
-  SUGGESTION_SCROLL_CLASS,
-  SUGGESTION_SURFACE_CLASS,
-} from '../menus/suggestion-menu-chrome'
+import { SuggestionList } from '../menus/suggestion-list'
 import {
   type SuggestionKeyDownHandler,
   useSuggestionKeyboard,
@@ -44,59 +38,32 @@ export const SlashCommandList = forwardRef<SlashCommandListHandle, SlashCommandL
       return ordered
     }, [items])
 
-    if (items.length === 0) {
-      return (
-        <div className={SUGGESTION_SURFACE_CLASS}>
-          <p className='px-2 py-1.5 text-[var(--text-tertiary)] text-caption'>No results</p>
-        </div>
-      )
-    }
-
     return (
-      <div
-        ref={containerRef}
-        role='listbox'
-        aria-label='Commands'
-        className={cn(SUGGESTION_SURFACE_CLASS, SUGGESTION_SCROLL_CLASS)}
-      >
-        {groups.map((group) => (
-          <div key={group.group} role='group' aria-label={group.group}>
-            <p aria-hidden='true' className={SUGGESTION_GROUP_LABEL_CLASS}>
-              {group.group}
-            </p>
-            {group.items.map(({ item, index }) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.title}
-                  type='button'
-                  role='option'
-                  id={`slash-command-${index}`}
-                  aria-selected={index === activeIndex}
-                  data-index={index}
-                  className={cn(
-                    SUGGESTION_ITEM_CLASS,
-                    index === activeIndex && 'bg-[var(--surface-active)]'
-                  )}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    command(item)
-                  }}
-                >
-                  <Icon />
-                  <span>{item.title}</span>
-                  {item.shortcut && (
-                    <span className='ml-auto shrink-0 pl-4 text-[var(--text-subtle)] text-micro'>
-                      {item.shortcut}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        ))}
-      </div>
+      <SuggestionList
+        containerRef={containerRef}
+        groups={groups}
+        activeIndex={activeIndex}
+        setActiveIndex={setActiveIndex}
+        command={command}
+        ariaLabel='Commands'
+        idPrefix='slash-command'
+        emptyLabel='No results'
+        itemKey={(item) => item.title}
+        renderItem={(item) => {
+          const Icon = item.icon
+          return (
+            <>
+              <Icon />
+              <span>{item.title}</span>
+              {item.shortcut && (
+                <span className='ml-auto shrink-0 pl-4 text-[var(--text-subtle)] text-micro'>
+                  {item.shortcut}
+                </span>
+              )}
+            </>
+          )
+        }}
+      />
     )
   }
 )

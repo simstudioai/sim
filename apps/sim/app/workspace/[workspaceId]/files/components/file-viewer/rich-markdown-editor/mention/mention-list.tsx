@@ -1,11 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useSyncExternalStore } from 'react'
-import { cn } from '@/lib/core/utils/cn'
-import {
-  SUGGESTION_GROUP_LABEL_CLASS,
-  SUGGESTION_ITEM_CLASS,
-  SUGGESTION_SCROLL_CLASS,
-  SUGGESTION_SURFACE_CLASS,
-} from '../menus/suggestion-menu-chrome'
+import { SuggestionList } from '../menus/suggestion-list'
 import {
   type SuggestionKeyDownHandler,
   useSuggestionKeyboard,
@@ -82,55 +76,26 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   )
   useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
-  if (flat.length === 0) {
-    return (
-      <div className={SUGGESTION_SURFACE_CLASS}>
-        <p className='px-2 py-1.5 text-[var(--text-tertiary)] text-caption'>
-          {rawItems.length === 0 ? 'Loading…' : 'No results'}
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div
-      ref={containerRef}
-      role='listbox'
-      aria-label='Mentions'
-      className={cn(SUGGESTION_SURFACE_CLASS, SUGGESTION_SCROLL_CLASS)}
-    >
-      {groups.map((group) => (
-        <div key={group.group} role='group' aria-label={group.group}>
-          <p aria-hidden='true' className={SUGGESTION_GROUP_LABEL_CLASS}>
-            {group.group}
-          </p>
-          {group.items.map(({ item, index }) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={`${item.kind}:${item.id}`}
-                type='button'
-                role='option'
-                id={`mention-${index}`}
-                aria-selected={index === activeIndex}
-                data-index={index}
-                className={cn(
-                  SUGGESTION_ITEM_CLASS,
-                  index === activeIndex && 'bg-[var(--surface-active)]'
-                )}
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  command(item)
-                }}
-              >
-                {Icon && <Icon />}
-                <span>{item.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      ))}
-    </div>
+    <SuggestionList
+      containerRef={containerRef}
+      groups={groups}
+      activeIndex={activeIndex}
+      setActiveIndex={setActiveIndex}
+      command={command}
+      ariaLabel='Mentions'
+      idPrefix='mention'
+      emptyLabel={rawItems.length === 0 ? 'Loading…' : 'No results'}
+      itemKey={(item) => `${item.kind}:${item.id}`}
+      renderItem={(item) => {
+        const Icon = item.icon
+        return (
+          <>
+            {Icon && <Icon />}
+            <span>{item.label}</span>
+          </>
+        )
+      }}
+    />
   )
 })
