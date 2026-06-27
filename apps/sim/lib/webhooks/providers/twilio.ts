@@ -1,6 +1,7 @@
 import { verifyTwilioAuth } from '@/lib/webhooks/providers/twilio-signature'
 import type {
   AuthContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   WebhookProviderHandler,
@@ -22,6 +23,23 @@ function extractMedia(b: Record<string, unknown>): Array<{ url: unknown; content
 export const twilioHandler: WebhookProviderHandler = {
   verifyAuth(ctx: AuthContext) {
     return verifyTwilioAuth(ctx, 'Twilio SMS')
+  },
+
+  /**
+   * Distinguish an inbound SMS from a delivery status callback so the two
+   * triggers don't fire on each other's deliveries when they share a URL.
+   * Twilio reports `SmsStatus: 'received'` for inbound messages; status
+   * callbacks carry a delivery `MessageStatus` (queued/sent/delivered/…).
+   */
+  matchEvent({ body, providerConfig }: EventMatchContext) {
+    const triggerId = providerConfig.triggerId as string | undefined
+    if (!triggerId) return true
+    const b = body as Record<string, unknown>
+    const status = (((b.MessageStatus as string) || (b.SmsStatus as string)) ?? '').toLowerCase()
+    const isInbound = status === 'received'
+    if (triggerId === 'twilio_sms_received') return isInbound
+    if (triggerId === 'twilio_sms_status') return !isInbound
+    return true
   },
 
   extractIdempotencyId(body: unknown) {

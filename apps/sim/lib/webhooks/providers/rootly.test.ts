@@ -41,6 +41,21 @@ describe('Rootly webhook provider', () => {
     expect(res).toBeNull()
   })
 
+  it('rejects when the signing secret is missing from config (fail-closed)', async () => {
+    const rawBody = JSON.stringify({ event: { id: 'evt-1', type: 'incident.created' }, data: {} })
+
+    const res = await rootlyHandler.verifyAuth!({
+      request: new NextRequest('http://localhost/test'),
+      rawBody,
+      requestId: 'rootly-t1b',
+      providerConfig: {},
+      webhook: {},
+      workflow: {},
+    })
+
+    expect(res?.status).toBe(401)
+  })
+
   it('rejects a request with an invalid signature', async () => {
     const secret = 'rootly-secret'
     const timestamp = Math.floor(Date.now() / 1000).toString()

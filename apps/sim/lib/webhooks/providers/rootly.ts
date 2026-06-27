@@ -67,7 +67,8 @@ export const rootlyHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      return null
+      logger.warn(`[${requestId}] Rootly webhook missing signing secret in provider configuration`)
+      return new NextResponse('Unauthorized - Rootly signing secret is required', { status: 401 })
     }
 
     const header = request.headers.get('X-Rootly-Signature')

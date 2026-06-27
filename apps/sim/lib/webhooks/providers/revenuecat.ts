@@ -22,10 +22,11 @@ const REVENUECAT_API_BASE = 'https://api.revenuecat.com/v2'
 /**
  * RevenueCat webhook handler.
  *
- * RevenueCat does not sign payloads. Instead, the user configures an Authorization
- * header value in the RevenueCat dashboard that is sent verbatim on every request.
- * We verify the incoming `Authorization` header against the configured secret using
- * a timing-safe comparison.
+ * RevenueCat does not sign payloads. Instead, an Authorization header value is sent
+ * verbatim on every request. Sim generates this secret and sets it when it creates the
+ * webhook integration (see `createSubscription`), so it is always present once the
+ * trigger is deployed. We verify the incoming `Authorization` header against it using a
+ * timing-safe comparison and fail closed if the secret is missing from config.
  *
  * @see https://www.revenuecat.com/docs/integrations/webhooks
  */
@@ -34,10 +35,12 @@ export const revenueCatHandler: WebhookProviderHandler = {
     const secret = providerConfig.authHeaderSecret as string | undefined
 
     if (!secret) {
-      logger.debug(
-        `[${requestId}] RevenueCat webhook has no Authorization secret configured, skipping verification`
+      logger.warn(
+        `[${requestId}] RevenueCat webhook missing Authorization secret in provider configuration`
       )
-      return null
+      return new NextResponse('Unauthorized - RevenueCat Authorization secret is required', {
+        status: 401,
+      })
     }
 
     const authHeader = request.headers.get('authorization')

@@ -62,6 +62,7 @@ export function buildIncidentioExtraFields(triggerId: string): SubBlockConfig[] 
       description:
         'The signing secret from your incident.io webhook endpoint. Used to verify events.',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },

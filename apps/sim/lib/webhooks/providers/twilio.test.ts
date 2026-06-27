@@ -134,6 +134,36 @@ describe('twilioHandler', () => {
     })
   })
 
+  describe('matchEvent', () => {
+    const match = (triggerId: string, body: Record<string, unknown>) =>
+      twilioHandler.matchEvent!({
+        body,
+        request: new Request('http://localhost/test') as never,
+        rawBody: '',
+        requestId: 'r1',
+        providerConfig: { triggerId },
+        webhook: {},
+        workflow: {},
+      })
+
+    const inbound = { MessageSid: 'SM1', From: '+1', Body: 'hi', SmsStatus: 'received' }
+    const status = { MessageSid: 'SM1', MessageStatus: 'delivered', SmsStatus: 'delivered' }
+
+    it('routes inbound messages only to the received trigger', () => {
+      expect(match('twilio_sms_received', inbound)).toBe(true)
+      expect(match('twilio_sms_status', inbound)).toBe(false)
+    })
+
+    it('routes delivery callbacks only to the status trigger', () => {
+      expect(match('twilio_sms_status', status)).toBe(true)
+      expect(match('twilio_sms_received', status)).toBe(false)
+    })
+
+    it('passes through when no triggerId is configured', () => {
+      expect(match('', inbound)).toBe(true)
+    })
+  })
+
   describe('formatInput', () => {
     const ctx = (body: Record<string, unknown>) => ({
       webhook: {},

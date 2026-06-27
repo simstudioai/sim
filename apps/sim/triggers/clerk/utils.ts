@@ -67,6 +67,7 @@ export function buildClerkExtraFields(triggerId: string): SubBlockConfig[] {
       placeholder: 'whsec_...',
       description: 'Copy this from your Clerk webhook endpoint to verify event signatures.',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },

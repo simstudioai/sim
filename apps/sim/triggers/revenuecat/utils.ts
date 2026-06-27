@@ -86,6 +86,7 @@ export function buildRevenueCatExtraFields(triggerId: string): SubBlockConfig[] 
       title: 'API Key',
       type: 'short-input',
       password: true,
+      paramVisibility: 'user-only',
       placeholder: 'RevenueCat v2 Secret API key (sk_...)',
       description:
         'Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat.',

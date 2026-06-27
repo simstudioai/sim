@@ -47,7 +47,7 @@ describe('RevenueCat webhook provider', () => {
   describe('verifyAuth', () => {
     const secret = 'super-secret-header-value'
 
-    it('allows requests when no secret is configured', async () => {
+    it('rejects requests when no secret is configured (fail-closed)', async () => {
       const res = await revenueCatHandler.verifyAuth!({
         request: requestWithAuth(),
         rawBody: '{}',
@@ -56,7 +56,7 @@ describe('RevenueCat webhook provider', () => {
         webhook: {},
         workflow: {},
       })
-      expect(res).toBeNull()
+      expect(res?.status).toBe(401)
     })
 
     it('rejects requests missing the Authorization header', async () => {

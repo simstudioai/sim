@@ -48,6 +48,7 @@ export function buildSentryExtraFields(triggerId: string): SubBlockConfig[] {
       type: 'short-input',
       placeholder: "Paste your Sentry Internal Integration's Client Secret",
       password: true,
+      paramVisibility: 'user-only',
       required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
@@ -199,7 +200,7 @@ export function buildMetricAlertOutputs(): Record<string, TriggerOutput> {
     },
     description_text: { type: 'string', description: 'Human-friendly description of the alert' },
     description_title: { type: 'string', description: 'Human-friendly title of the alert' },
-    web_url: { type: 'string', description: 'Browser URL for the incident' },
+    web_url: { type: 'string', description: 'API URL for the incident' },
   }
 }
 

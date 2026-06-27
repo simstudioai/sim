@@ -37,6 +37,7 @@ export function buildTwilioSmsAuthFields(): SubBlockConfig[] {
       placeholder: 'Your Twilio Auth Token',
       description: 'Your Twilio Auth Token, used to verify the X-Twilio-Signature header',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
       mode: 'trigger',
       condition,
