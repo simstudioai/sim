@@ -12,8 +12,8 @@
  */
 
 import { ChatOpenAI } from "@langchain/openai";
-import { ConversationBufferMemory } from "langchain/memory";
-import { AgentExecutor, createReactAgent } from "langchain/agents";
+import { ConversationBufferMemory } from "@langchain/langgraph";
+import { AgentExecutor, createReactAgent } from "@langchain/langgraph/prebuilt";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as fs from "fs";
