@@ -22,8 +22,13 @@ export const DB_POOL_PROFILES = {
 
 type DbRole = keyof typeof DB_POOL_PROFILES
 
-const role = process.env.SIM_DB_ROLE as DbRole | undefined
-const profile = (role && DB_POOL_PROFILES[role]) || DB_POOL_PROFILES.web
+const roleEnv = process.env.SIM_DB_ROLE?.trim()
+if (roleEnv && !(roleEnv in DB_POOL_PROFILES)) {
+  throw new Error(
+    `Invalid SIM_DB_ROLE '${roleEnv}' — expected one of ${Object.keys(DB_POOL_PROFILES).join(', ')} (or unset for web)`
+  )
+}
+const profile = DB_POOL_PROFILES[(roleEnv as DbRole) || 'web']
 
 const poolOptions = {
   prepare: false,
