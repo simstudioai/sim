@@ -283,7 +283,7 @@ def main():
             or md5(p) != md5(RU / p.relative_to(EN))
         ]
     )
-    print(f"{'DRY RUN' if dry else 'Translating'} {len(files)} files ({'8 workers' if not dry else ''})\n")
+    print(f"{'DRY RUN' if dry else 'Translating'} {len(files)} files (4 parallel workers)\n")
     ok = fail = 0
 
     if dry:
@@ -310,10 +310,10 @@ def main():
         for fut in as_completed(futures):
             f, enc, resc, err = fut.result()
             if err:
-                print(f"  [{f}] {enc}c ✗ {err}")
+                print(f"  [{f}] {enc}c ✗ {err}", flush=True)
                 fail += 1
             else:
-                print(f"  [{f}] {enc}c → {resc}c ✓")
+                print(f"  [{f}] {enc}c → {resc}c ✓", flush=True)
                 ok += 1
 
     print(f"\nDone. ✓{ok} ✗{fail} total:{len(files)}")

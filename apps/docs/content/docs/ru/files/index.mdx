@@ -1,22 +1,18 @@
 ---
 title: Обзор
-description: Файлы — это документы, изображения, таблицы и PDF, которые ваши рабочие процессы читают и создают.
+description: Файлы – это документы, изображения, электронные таблицы и файлы PDF, которые используются и создаются вашими рабочими процессами.
 pageType: concept
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-**Файл** — это документ, изображение, электронная таблица или PDF в вашем рабочем пространстве. Файлы — это то, как документы и медиа попадают в ваши агенты и выходят из них. Ваша команда загружает их, вы создаёте их в редакторе, или рабочий процесс создаёт их, и все они находятся в одном хранилище, общем для всего рабочего пространства.
+**Файл** – это документ, изображение, электронная таблица или PDF-файл в вашем рабочем пространстве. Файлы используются для перемещения документов и медиа между вашими агентами. Ваша команда загружает их, вы создаете их в редакторе, или рабочий процесс генерирует их, и все они хранятся в одном месте, доступном во всем рабочем пространстве.
 
-Any [workflow](/workflows) can read a file or produce one. You might upload a contract for an agent to review, generate a report from a table, or hand a workflow the document it needs to answer a question.
+Любой[рабочий процесс](/workflows)рабочий процесс/рабочие процессыможно прочитать файл или создать его. Вы можете загрузить договор для ознакомления агента, сгенерировать отчет из таблицы или передать документу рабочий процесс, который ему необходим для ответа на вопрос.
 
-## How files fit the workspace
-
-- **[Workflows](/workflows)** read files, like a PDF to summarize, and produce them, like a rendered report. See [using files in workflows](/files/using-in-workflows).
-- **[Knowledge bases](/knowledgebase)** are built from files you upload, turning their contents into searchable memory.
-- **[Deployments](/workflows/deployment)** can take a file as input and return one as output.
-
-Use a file when the document or media itself is what matters. Use a [table](/tables) when you need structured rows and fields, and a [knowledge base](/knowledgebase) when an agent needs to search across many documents.
+## Как файлы организуются в рабочем пространстве.
+- **[Рабочие процессы](/рабочие_процессы)** позволяют читать файлы (например, PDF для создания сводки) и создавать их (например, отчёт), отображаемый в нужном формате. Подробнее о работе с файлами в рабочих процессах: [использование файлов в рабочих процессах](/файлы/использование_в_рабочих_процессах).- **Базы знаний** создаются на основе файлов, которые вы загружаете, и превращают их содержимое в удобный для поиска архив.- **Развертывания** (/рабочие процессы/развертывание) могут принимать один файл в качестве входных данных и возвращать один файл в качестве выходных данных.
+Используйте файл, когда важен сам документ или медиа-файл. Используйте...[таблица](/tables)таблица/таблицыкогда вам нужны структурированные строки и поля, а также...[база знаний](/knowledgebase)база знаний/база знанийкогда агенту необходимо искать информацию в большом количестве документов.
 
 <Cards>
   <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file into a workflow and produce one from a run." />
