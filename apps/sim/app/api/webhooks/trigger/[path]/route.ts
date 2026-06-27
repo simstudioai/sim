@@ -69,6 +69,17 @@ async function handleWebhookPost(
   request: NextRequest,
   context: { params: Promise<{ path: string }> }
 ): Promise<NextResponse> {
+  const receivedAt = Date.now()
+  /**
+   * Slack signs every interactive request with the originating interaction time.
+   * Capturing it lets the executor surface the true trigger_id age (the window
+   * that expires at 3s) instead of only the in-workflow block timings.
+   */
+  const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
+  const triggerTimestampMs = slackRequestTimestamp
+    ? Number(slackRequestTimestamp) * 1000
+    : undefined
+
   const requestId = generateRequestId()
   const parsed = await parseRequest(webhookTriggerPostContract, request, context)
   if (!parsed.success) return parsed.response
@@ -200,6 +211,8 @@ async function handleWebhookPost(
       actorUserId: preprocessResult.actorUserId,
       executionId: preprocessResult.executionId,
       correlation: preprocessResult.correlation,
+      receivedAt,
+      triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
     })
     responses.push(response)
   }
