@@ -1,6 +1,6 @@
 ---
 title: Logs
-description: Запрос запусков рабочих процессов и получение деталей запусков
+description: Query workflow runs and fetch run details
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,66 +10,112 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#EAB308"
 />
 
-## Инструкции по использованию
 
-Query workflow run logs in the current workspace with the same filters as the Logs page, returning matching run IDs. Fetch full details for a single run, including its trace spans.
+## Инструкция по использованию
+
+
+Запрашивайте журналы выполнения рабочих процессов в текущем рабочем пространстве с использованием тех же фильтров, что и на странице "Журналы", возвращая соответствующие идентификаторы выполнения. Получайте полную информацию о конкретном выполнении, включая его трассировочные сегменты.
+
 
 
 
 ## Действия
 
+
 ### `logs_query_runs`
 
-Query workflow run logs in the current workspace with the full Logs-page filter set. Returns matching run IDs.
 
-#### Входные параметры
+Запрашивайте журналы выполнения рабочих процессов в текущем рабочем пространстве с полным набором фильтров страницы "Журналы". Возвращает соответствующие идентификаторы выполнения.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `workflowIds` | string | Нет | Comma-separated workflow IDs to filter by |
-| `folderIds` | string | Нет | Comma-separated folder IDs to filter by \(descendants included\) |
-| `level` | string | Нет | Comma-separated statuses: 'info', 'error', 'running', 'pending', 'cancelled'. Omit for all. |
-| `triggers` | string | Нет | Comma-separated trigger types \(api, webhook, schedule, manual, chat, mcp, a2a, workflow, sim, …\) |
-| `startDate` | string | Нет | ISO 8601 timestamp; only runs at or after this time |
-| `endDate` | string | Нет | ISO 8601 timestamp; only runs at or before this time |
-| `search` | string | Нет | Free-text search across log fields |
-| `costOperator` | string | Нет | Cost comparison operator: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
-| `costValue` | number | Нет | Cost threshold in credits, compared using costOperator |
-| `durationOperator` | string | Нет | Duration comparison operator: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
-| `durationValue` | number | Нет | Duration threshold in milliseconds, compared using durationOperator |
-| `limit` | number | Нет | Max run IDs to return \(default 100, max 200\) |
-| `sortBy` | string | Нет | Sort field: 'date' \(default\), 'duration', 'cost', 'status' |
-| `sortOrder` | string | Нет | Sort order: 'desc' \(default\) or 'asc' |
 
-#### Выходные параметры
+| `workflowIds` | строка | Нет | Разделенные запятыми идентификаторы рабочих процессов для фильтрации |
+
+| `folderIds` | строка | Нет | Разделенные запятыми идентификаторы папок (включая дочерние элементы) |
+
+| `level` | строка | Нет | Разделенные запятыми статусы: 'info', 'error', 'running', 'pending', 'cancelled'. Оставьте пустым для всех. |
+
+| `triggers` | строка | Нет | Разделенные запятыми типы триггеров (api, webhook, schedule, manual, chat, mcp, a2a, workflow, sim, …) |
+
+| `startDate` | строка | Нет | Дата и время в формате ISO 8601; только выполнения, начиная с этой даты и позже |
+
+| `endDate` | строка | Нет | Дата и время в формате ISO 8601; только выполнения, заканчивающиеся не позднее этой даты |
+
+| `search` | строка | Нет | Поиск по текстовым полям журналов |
+
+| `costOperator` | строка | Нет | Оператор сравнения стоимости: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
+
+| `costValue` | число | Нет | Предел стоимости в кредитах, используемый для сравнения с помощью costOperator |
+
+| `durationOperator` | строка | Нет | Оператор сравнения длительности: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
+
+| `durationValue` | число | Нет | Предел длительности в миллисекундах, используемый для сравнения с помощью durationOperator |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых идентификаторов выполнения (по умолчанию 100, максимум 200) |
+
+| `sortBy` | строка | Нет | Поле сортировки: 'date' (по умолчанию), 'duration', 'cost', 'status' |
+
+| `sortOrder` | строка | Нет | Порядок сортировки: 'desc' (по умолчанию) или 'asc' |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `runIds` | array | IDs of the runs matching the filters |
+
+| `runIds` | массив | Идентификаторы выполнения, соответствующих фильтрам |
+
 
 ### `logs_get_run_details`
 
-Fetch details for a single workflow run by its run ID, including the full trace spans.
 
-#### Входные параметры
+Получайте детали конкретного выполнения рабочего процесса по его идентификатору выполнения, включая все трассировочные сегменты.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `runId` | string | Да | The run ID to fetch details for |
 
-#### Выходные параметры
+| `runId` | строка | Да | Идентификатор выполнения для получения деталей |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `runId` | string | The run ID |
-| `workflowId` | string | Workflow ID this run belongs to |
-| `workflowName` | string | Workflow name |
-| `status` | string | Run status |
-| `trigger` | string | How the run was triggered |
-| `startedAt` | string | Run start time \(ISO 8601\) |
-| `durationMs` | number | Run duration in milliseconds |
-| `cost` | number | Run cost in credits |
-| `traceSpans` | array | Full trace spans for the run |
-| `finalOutput` | json | Final output of the run |
+
+| `runId` | строка | Идентификатор выполнения |
+
+| `workflowId` | строка | Идентификатор рабочего процесса, к которому принадлежит выполнение |
+
+| `workflowName` | строка | Название рабочего процесса |
+
+| `status` | строка | Статус выполнения |
+
+| `trigger` | строка | Способ запуска выполнения |
+
+| `startedAt` | строка | Время начала выполнения (ISO 8601) |
+
+| `durationMs` | число | Длительность выполнения в миллисекундах |
+
+| `cost` | число | Стоимость выполнения в кредитах |
+
+| `traceSpans` | массив | Полные трассировочные сегменты для выполнения |
+
+| `finalOutput` | json | Конечный результат выполнения |
+
 
 

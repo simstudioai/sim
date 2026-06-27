@@ -10,73 +10,260 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Apify](https://apify.com/)Apifyhttps://apify.com/ is a powerful platform for building, deploying, and running web automation and web scraping actors at scale. Apify enables you to extract useful data from any website, automate workflows, and connect your data pipelines seamlessly.
 
-With Apify, you can:
+===
+Руководство по использованию
 
-- **Run ready-made or custom actors**: Integrate public actors or develop your own, automating a wide range of web data extraction and browser tasks.- **Retrieve datasets**: Access and manage structured datasets collected by actors in real time.- **Scale web automation**: Leverage cloud infrastructure to run tasks reliably, asynchronously or synchronously, with robust error handling.
-In Sim, the Apify integration allows your agents to perform core Apify operations programmatically:
-
-- **Run Actor (Sync)**: Use `apify_run_actor_sync` to launch an Apify actor and wait for its completion, retrieving the results as soon as the run finishes.- **Run Actor (Async)**: Use `apify_run_actor_async` to start an actor in the background and periodically poll for results, suitable for longer or complex jobs.
-These operations equip your agents to automate, scrape, and orchestrate data collection or browser automation tasks directly inside workflows — all with flexible configuration and result handling, without the need for manual runs or external tools. Integrate Apify as a dynamic automation and data-extraction engine that programmatically powers your agents' web-scale workflows.
-{/* MANUAL-CONTENT-END */}
+Интегрируйте Apify в свой рабочий процесс. Запустите любой актер или сохраненную задачу Apify с пользовательским входными данными, получите элементы набора данных и проверьте статус выполнения.
 
 
-## Usage Instructions
-Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.
+Действия
 
 
-
-## Actions
 ### `apify_run_actor_sync`
 
-Run an APIFY actor synchronously and get results (max 5 minutes)
+Запустите APIFY-актора синхронно и получите результаты (максимум 5 минут)
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |  ||  | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |  ||  | `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |  ||  | `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |  ||  | `timeout` | number | No | Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour |  ||  | `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name" |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `success` | boolean | Whether the actor run succeeded |  ||  | `runId` | string | APIFY run ID |  ||  | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |  ||  | `items` | array | Dataset items \(if completed\) |  |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Токен API Apify из console.apify.com/account#/integrations |
+
+| `actorId` | строка | Да | ID актора или имя пользователя/имя актора. Примеры: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
+
+
+| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: \{"startUrls": [{"url": "https://example.com"}]}, "maxPages": 10\} |
+
+| `memory` | число | Нет | Выделенная память для выполнения актора в МБ (128-32768). Пример: 1024 для 1 ГБ, 2048 для 2 ГБ |
+
+
+
+| `timeout` | число | Нет | Время ожидания в секундах для выполнения актора. Пример: 300 для 5 минут, 3600 для 1 часа |
+
+
+| `build` | строка | Нет | Версия актора для запуска. Примеры: "latest", "beta", "1.2.3", "build-tag-name" |
+
+
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `success` | булево значение | Успешно ли выполнено выполнение актора |
+
+
+| `runId` | строка | ID выполнения APIFY |
+
+
+| `status` | строка | Статус выполнения (УСПЕШНО, НЕУСПЕХ, и т.д.) |
+
+| --------- | ---- | -------- | ----------- |
+
+| `items` | массив | Элементы набора данных (если завершено) |
+
 ### `apify_run_actor_async`
 
-Run an APIFY actor asynchronously with polling for long-running tasks
+Запустите APIFY-актора асинхронно с опросом для длительных задач
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |  ||  | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |  ||  | `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |  ||  | `waitForFinish` | number | No | Initial wait time in seconds \(0-60\) before polling starts. Example: 30 |  ||  | `itemLimit` | number | No | Max dataset items to fetch \(1-250000\). Default: 100. Example: 500 |  ||  | `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |  ||  | `timeout` | number | No | Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour |  ||  | `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name" |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `success` | boolean | Whether the actor run succeeded |  ||  | `runId` | string | APIFY run ID |  ||  | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |  ||  | `datasetId` | string | Dataset ID containing results |  ||  | `items` | array | Dataset items \(if completed\) |  |
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `apiKey` | строка | Да | Токен API Apify из console.apify.com/account#/integrations |
+
+
+| `actorId` | строка | Да | ID актора или имя пользователя/имя актора. Примеры: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
+
+
+| `input` | строка | Нет | Входные данные для актора в виде строки JSON. Пример: \{"startUrls": [{"url": "https://example.com"}]}, "maxPages": 10\} |
+
+| --------- | ---- | ----------- |
+
+| `waitForFinish` | число | Нет | Начальное время ожидания в секундах (0-60) перед началом опроса. Пример: 30 |
+
+| `itemLimit` | число | Нет | Максимальное количество элементов набора данных для получения (1-250000). Значение по умолчанию: 100. Пример: 500 |
+
+| `memory` | число | Нет | Выделенная память для выполнения актора в МБ (128-32768). Пример: 1024 для 1 ГБ, 2048 для 2 ГБ |
+
+| `timeout` | число | Нет | Время ожидания в секундах для выполнения актора. Пример: 300 для 5 минут, 3600 для 1 часа |
+
+
+| `build` | строка | Нет | Версия актора для запуска. Примеры: "latest", "beta", "1.2.3" |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `success` | булево значение | Успешно ли выполнено выполнение актора |
+
+| --------- | ---- | -------- | ----------- |
+
+| `runId` | строка | ID выполнения APIFY |
+
+| `status` | строка | Статус выполнения (READY, RUNNING, SUCCEEDED, FAILED, и т.д.) |
+
+| `datasetId` | строка | ID набора данных по умолчанию для выполнения |
+
+| `items` | массив | Элементы набора данных (если завершено) |
+
 ### `apify_run_task`
 
-Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
+Запустите сохраненный APIFY-актор задачи синхронно и получите элементы набора данных (максимум 5 минут)
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |  ||  | `taskId` | string | Yes | Task ID or username/task-name. Examples: "janedoe/my-task", "moJRLRc85AitArpNN" |  ||  | `input` | string | No | JSON string that overrides the task\'s saved input. Example: \{"startUrls": \[\{"url": "https://example.com"\}\]\} |  ||  | `itemLimit` | number | No | Max dataset items to return \(1-250000\). Example: 500 |  ||  | `memory` | number | No | Memory in megabytes allocated for the run \(128-32768\). Example: 1024 for 1GB |  ||  | `timeout` | number | No | Timeout in seconds for the run. Example: 300 for 5 minutes |  ||  | `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3" |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `success` | boolean | Whether the task run succeeded |  ||  | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |  ||  | `items` | array | Dataset items produced by the run |  |
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Токен API Apify из console.apify.com/account#/integrations |
+
+
+| `taskId` | строка | Да | ID задачи или имя пользователя/имя задачи. Примеры: "janedoe/my-task", "moJRLRc85AitArpNN" |
+
+| --------- | ---- | ----------- |
+
+| `input` | строка | Нет | Строка JSON, которая переопределяет сохраненные входные данные для задачи. Пример: \{"startUrls": [{"url": "https://example.com"}]},\} |
+
+| `itemLimit` | число | Нет | Максимальное количество элементов набора данных для возврата (1-250000). Пример: 500 |
+
+| `memory` | число | Нет | Выделенная память для выполнения (128-32768) |
+
+| `timeout` | число | Нет | Время ожидания в секундах. Пример: 300 для 5 минут, 3600 для 1 часа |
+
+| `build` | строка | Нет | Версия актора для запуска. Примеры: "latest", "beta", "1.2.3" |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `success` | булево значение | Успешно ли выполнено выполнение задачи |
+
+
+| `status` | строка | Статус выполнения (УСПЕШНО, НЕУСПЕХ, и т.д.) |
+
+| --------- | ---- | -------- | ----------- |
+
+| `items` | массив | Элементы набора данных, созданные в ходе выполнения |
+
 ### `apify_get_dataset_items`
 
-Retrieve items stored in an APIFY dataset
+Получите элементы из APIFY-набора данных
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |  ||  | `datasetId` | string | Yes | Dataset ID to read items from. Example: "9RnD3Pql2vGZkc5H5" |  ||  | `itemLimit` | number | No | Max items to return \(1-250000\). Default: all items. Example: 500 |  ||  | `offset` | number | No | Number of items to skip at the start. Default: 0 |  ||  | `fields` | string | No | Comma-separated list of fields to include. Example: "title,url,price" |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `success` | boolean | Whether the items were retrieved |  ||  | `datasetId` | string | Dataset ID the items were read from |  ||  | `items` | array | Items stored in the dataset |  ||  | `count` | number | Number of items returned |  |
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `apiKey` | строка | Да | Токен API Apify из console.apify.com/account#/integrations |
+
+| `datasetId` | строка | Да | ID набора данных для чтения элементов. Пример: "9RnD3Pql2vGZkc5H5" |
+
+
+| `itemLimit` | число | Нет | Максимальное количество возвращаемых элементов (1-250000). Значение по умолчанию: все элементы. Пример: 500 |
+
+
+| `offset` | число | Нет | Количество элементов для пропуска в начале. Значение по умолчанию: 0 |
+
+| --------- | ---- | ----------- |
+
+| `fields` | строка | Нет | Список полей, которые нужно включить, разделенных запятыми. Пример: "title,url,price" |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+
+| `success` | булево значение | Успешно ли получены элементы |
+
+
+| `datasetId` | строка | ID набора данных, из которого были прочитаны элементы |
+
+
+| `items` | массив | Элементы, хранящиеся в наборе данных |
+
+
+| `count` | число | Количество возвращенных элементов |
+
+| --------- | ---- | -------- | ----------- |
+
 ### `apify_get_run`
 
-Get the status and details of an APIFY actor run
+Получите статус и детали выполнения APIFY-актора
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |  ||  | `runId` | string | Yes | Actor run ID to fetch. Example: "HG7ML7M8z78YcAPEB" |  |
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `apiKey` | строка | Да | Токен API Apify из console.apify.com/account#/integrations |
+
+
+| `runId` | строка | Да | ID выполнения для получения. Пример: "HG7ML7M8z78YcAPEB" |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
+
+| Параметр | Тип | Описание |
+
+| `success` | булево значение | Успешно ли найдено выполнение |
+
+| `runId` | строка | ID выполнения APIFY |
+
+| `status` | строка | Статус выполнения (READY, RUNNING, SUCCEEDED, FAILED, и т.д.) |
+
+
+| `startedAt` | строка | Когда началось выполнение (временная метка ISO) |
+
+
+| `finishedAt` | строка | Когда завершилось выполнение (временная метка ISO) |
+
+
+| `datasetId` | строка | ID набора данных по умолчанию для выполнения |
+
+
+| `keyValueStoreId` | строка | ID хранилища ключей по умолчанию для выполнения |
+
+| --------- | ---- | -------- | ----------- |
+
+| `stats` | json | Статистика выполнения (память, процессор, продолжительность) |
+
+| `runId` | string | Yes | Actor run ID to fetch. Example: "HG7ML7M8z78YcAPEB" |
+
+
 #### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `success` | boolean | Whether the run was found |  ||  | `runId` | string | APIFY run ID |  ||  | `status` | string | Run status \(READY, RUNNING, SUCCEEDED, FAILED, etc.\) |  ||  | `startedAt` | string | When the run started \(ISO timestamp\) |  ||  | `finishedAt` | string | When the run finished \(ISO timestamp\) |  ||  | `datasetId` | string | Default dataset ID for the run |  ||  | `keyValueStoreId` | string | Default key-value store ID for the run |  ||  | `stats` | json | Run statistics \(memory, CPU, duration\) |  |
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `success` | boolean | Whether the run was found |
+
+| `runId` | string | APIFY run ID |
+
+| `status` | string | Run status \(READY, RUNNING, SUCCEEDED, FAILED, etc.\) |
+
+| `startedAt` | string | When the run started \(ISO timestamp\) |
+
+| `finishedAt` | string | When the run finished \(ISO timestamp\) |
+
+| `datasetId` | string | Default dataset ID for the run |
+
+| `keyValueStoreId` | string | Default key-value store ID for the run |
+
+| `stats` | json | Run statistics \(memory, CPU, duration\) |
+
+
 

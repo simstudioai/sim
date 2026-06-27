@@ -1,6 +1,6 @@
 ---
 title: Google Sheets
-description: Чтение, запись и обновление данных с выбором листа
+description: Считывайте, записывайте и обновляйте данные при выборе листа.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,411 +10,716 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Sheets](https://www.google.com/sheets/about/) is a cloud-based spreadsheet platform that allows teams and individuals to create, edit, and collaborate on spreadsheets in real-time. Widely used for data tracking, reporting, and lightweight database needs, Google Sheets integrates with many tools and services.
 
-With the Google Sheets integration in Sim, you can:
+[Google Sheets](https://www.google.com/sheets/about/) — это облачная платформа для электронных таблиц, которая позволяет командам и отдельным пользователям создавать, редактировать и совместно работать над электронными таблицами в режиме реального времени. Широко используется для отслеживания данных, создания отчетов и решения задач, связанных с базой данных. Google Sheets интегрируется со многими инструментами и сервисами.
 
-- **Read data**: Retrieve cell values from specific ranges in a spreadsheet
-- **Write data**: Write values to specific cell ranges
-- **Update data**: Modify existing cell values in a spreadsheet
-- **Append rows**: Add new rows of data to the end of a sheet
-- **Clear ranges**: Remove data from specific cell ranges
-- **Manage spreadsheets**: Create new spreadsheets or retrieve metadata about existing ones
-- **Batch operations**: Perform batch read, update, and clear operations across multiple ranges
-- **Copy sheets**: Duplicate sheets within or between spreadsheets
 
-In Sim, the Google Sheets integration enables your agents to read from, write to, and manage spreadsheets as part of automated workflows. This is ideal for automated reporting, data synchronization, record-keeping, and building data pipelines that use spreadsheets as a collaborative data layer.
+С интеграцией Google Sheets в Sim вы можете:
+
+
+- **Читать данные**: Получать значения ячеек из определенных диапазонов в электронной таблице.
+
+- **Записывать данные**: Записывать значения в определенные диапазоны ячеек.
+
+- **Обновлять данные**: Изменять существующие значения ячеек в электронной таблице.
+
+- **Добавлять строки**: Добавлять новые строки данных в конец листа.
+
+- **Удалять диапазоны**: Удалять данные из определенных диапазонов ячеек.
+
+- **Управлять электронными таблицами**: Создавать новые электронные таблицы или получать метаданные об существующих.
+
+- **Выполнять пакетные операции**: Выполнять пакетные операции чтения, обновления и удаления для нескольких диапазонов.
+
+- **Копировать листы**: Дублировать листы внутри или между электронными таблицами.
+
+
+В Sim интеграция Google Sheets позволяет вашим агентам читать, записывать и управлять электронными таблицами в рамках автоматизированных рабочих процессов. Это идеально подходит для автоматического создания отчетов, синхронизации данных, ведения учета и построения конвейеров данных, использующих электронные таблицы в качестве совместного слоя данных.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.
+
+Интегрируйте Google Sheets в рабочий процесс с использованием явного выбора листов. Можно читать, записывать, добавлять, обновлять и удалять данные, создавать электронные таблицы, получать информацию об электронных таблицах и копировать листы.
+
 
 
 
 ## Действия
 
+
 ### `google_sheets_read`
 
-Read data from a specific sheet in a Google Sheets spreadsheet
+
+Читать данные из определенного листа в Google Sheets электронной таблицы
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetName` | string | Да | The name of the sheet/tab to read from |
-| `cellRange` | string | Нет | The cell range to read \(e.g. "A1:D10"\). Defaults to "A1:Z1000" if not specified. |
-| `filterColumn` | string | Нет | Column name \(from the header row\) to filter on. Filtering is applied to the rows returned by the read range \(the default is A1:Z1000\), not the entire sheet. If not provided, no filtering is applied. |
-| `filterValue` | string | Нет | Value to match against the filter column. |
-| `filterMatchType` | string | Нет | How to match the filter value. Text: "contains", "not_contains", "exact", "not_equals", "starts_with", "ends_with". Numeric/ordering: "gt", "gte", "lt", "lte" \(numeric when both values are numbers, otherwise lexicographic\). Defaults to "contains". |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetName` | строка | Да | Название листа/таба для чтения |
+
+| `cellRange` | строка | Нет | Диапазон ячеек для чтения (например, "A1:D10"). По умолчанию "A1:Z1000", если не указано. |
+
+| `filterColumn` | строка | Нет | Имя столбца (из строки заголовков) для фильтрации. Фильтрация применяется к строкам, возвращаемым диапазоном чтения (по умолчанию "A1:Z1000", а не вся таблица). Если не указано, фильтрация не применяется. |
+
+| `filterValue` | строка | Нет | Значение для сопоставления с столбцом фильтра. |
+
+| `filterMatchType` | строка | Нет | Способ сопоставления значения фильтра. Текст: "contains", "not_contains", "exact", "not_equals", "starts_with", "ends_with". Числовые/упорядоченные: "gt", "gte", "lt", "lte" (числовые, когда оба значения являются числами, в противном случае - лексикографические). По умолчанию "contains". |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `sheetName` | string | Name of the sheet that was read |
-| `range` | string | The range of cells that was read |
-| `values` | array | The cell values as a 2D array |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `sheetName` | строка | Название листа, из которого было прочитано |
+
+| `range` | строка | Диапазон ячеек, который был прочитан |
+
+| `values` | массив | Значения ячеек в виде двумерного массива |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_write`
 
-Write data to a specific sheet in a Google Sheets spreadsheet
+
+Записывать данные в определенный лист в Google Sheets электронной таблицы
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetName` | string | Да | The name of the sheet/tab to write to |
-| `cellRange` | string | Нет | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
-| `values` | array | Да | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
-| `valueInputOption` | string | Нет | The format of the data to write |
-| `includeValuesInResponse` | boolean | Нет | Whether to include the written values in the response |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetName` | строка | Да | Название листа/таба для записи |
+
+| `cellRange` | строка | Нет | Диапазон ячеек для записи (например, "A1:D10", "A1"). По умолчанию "A1", если не указано. |
+
+| `values` | массив | Да | Данные для записи в виде двумерного массива (например, \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]) или массив объектов. |
+
+| `valueInputOption` | строка | Нет | Формат данных для записи |
+
+| `includeValuesInResponse` | булево | Нет | Включать ли записанные значения в ответ |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `updatedRange` | string | Range of cells that were updated |
-| `updatedRows` | number | Number of rows updated |
-| `updatedColumns` | number | Number of columns updated |
-| `updatedCells` | number | Number of cells updated |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `updatedRange` | строка | Диапазон ячеек, которые были обновлены |
+
+| `updatedRows` | число | Количество строк, которые были обновлены |
+
+| `updatedColumns` | число | Количество столбцов, которые были обновлены |
+
+| `updatedCells` | число | Количество ячеек, которые были обновлены |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_update`
 
-Update data in a specific sheet in a Google Sheets spreadsheet
+
+Обновлять данные в определенном листе в Google Sheets электронной таблицы
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetName` | string | Да | The name of the sheet/tab to update |
-| `cellRange` | string | Нет | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
-| `values` | array | Да | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
-| `valueInputOption` | string | Нет | The format of the data to update |
-| `includeValuesInResponse` | boolean | Нет | Whether to include the updated values in the response |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetName` | строка | Да | Название листа/таба для обновления |
+
+| `cellRange` | строка | Нет | Диапазон ячеек для обновления (например, "A1:D10", "A1"). По умолчанию "A1", если не указано. |
+
+| `values` | массив | Да | Данные для обновления в виде двумерного массива (например, \[\["Name", "Age"\], \["Alice", 30\]\]) или массив объектов. |
+
+| `valueInputOption` | строка | Нет | Формат данных для обновления |
+
+| `includeValuesInResponse` | булево | Нет | Включать ли обновленные значения в ответ |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `updatedRange` | string | Range of cells that were updated |
-| `updatedRows` | number | Number of rows updated |
-| `updatedColumns` | number | Number of columns updated |
-| `updatedCells` | number | Number of cells updated |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `updatedRange` | строка | Диапазон ячеек, которые были обновлены |
+
+| `updatedRows` | число | Количество строк, которые были обновлены |
+
+| `updatedColumns` | число | Количество столбцов, которые были обновлены |
+
+| `updatedCells` | число | Количество ячеек, которые были обновлены |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_append`
 
-Append data to the end of a specific sheet in a Google Sheets spreadsheet
+
+Добавлять данные в конец определенного листа в Google Sheets электронной таблицы
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetName` | string | Да | The name of the sheet/tab to append to |
-| `values` | array | Да | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
-| `valueInputOption` | string | Нет | The format of the data to append |
-| `insertDataOption` | string | Нет | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
-| `includeValuesInResponse` | boolean | Нет | Whether to include the appended values in the response |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetName` | строка | Да | Название листа/таба для добавления данных |
+
+| `values` | массив | Да | Данные для добавления в виде двумерного массива (например, \[\["Alice", 30\], \["Bob", 25\]\]) или массив объектов. |
+
+| `valueInputOption` | строка | Нет | Формат данных для добавления |
+
+| `insertDataOption` | строка | Нет | Способ вставки данных (OVERWRITE или INSERT_ROWS) |
+
+| `includeValuesInResponse` | булево | Нет | Включать ли добавленные значения в ответ |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `tableRange` | string | Range of the table where data was appended |
-| `updatedRange` | string | Range of cells that were updated |
-| `updatedRows` | number | Number of rows updated |
-| `updatedColumns` | number | Number of columns updated |
-| `updatedCells` | number | Number of cells updated |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `tableRange` | строка | Диапазон таблицы, где были добавлены данные |
+
+| `updatedRange` | строка | Диапазон ячеек, которые были обновлены |
+
+| `updatedRows` | число | Количество строк, которые были обновлены |
+
+| `updatedColumns` | число | Количество столбцов, которые были обновлены |
+
+| `updatedCells` | число | Количество ячеек, которые были обновлены |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_clear`
 
-Clear values from a specific range in a Google Sheets spreadsheet
+
+Очистить значения из определенного диапазона в Google Sheets электронной таблицы
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetName` | string | Да | The name of the sheet/tab to clear |
-| `cellRange` | string | Нет | The cell range to clear \(e.g. "A1:D10"\). Clears entire sheet if not specified. |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetName` | строка | Да | Название листа/таба для очистки |
+
+| `cellRange` | строка | Нет | Диапазон ячеек для очистки (например, "A1:D10"). Очищает всю таблицу, если не указано. |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `clearedRange` | string | The range that was cleared |
-| `sheetName` | string | Name of the sheet that was cleared |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `clearedRange` | строка | Диапазон, который был очищен |
+
+| `sheetName` | строка | Название листа, который был очищен |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_get_spreadsheet`
 
-Get metadata about a Google Sheets spreadsheet including title and sheet list
+
+Получить метаданные об электронной таблице Google Sheets, включая название и список листов
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `includeGridData` | boolean | Нет | Whether to include grid data \(cell values\). Defaults to false. |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `includeGridData` | булево | Нет | Включать ли данные сетки (значения ячеек). По умолчанию false. |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `spreadsheetId` | string | The spreadsheet ID |
-| `title` | string | The title of the spreadsheet |
-| `locale` | string | The locale of the spreadsheet |
-| `timeZone` | string | The time zone of the spreadsheet |
-| `spreadsheetUrl` | string | URL to the spreadsheet |
-| `sheets` | array | List of sheets in the spreadsheet |
-|   ↳ `sheetId` | number | The sheet ID |
-|   ↳ `title` | string | The sheet title/name |
-|   ↳ `index` | number | The sheet index \(position\) |
-|   ↳ `rowCount` | number | Number of rows in the sheet |
-|   ↳ `columnCount` | number | Number of columns in the sheet |
-|   ↳ `hidden` | boolean | Whether the sheet is hidden |
+
+| `spreadsheetId` | строка | ID электронной таблицы |
+
+| `title` | строка | Название электронной таблицы |
+
+| `locale` | строка | Локаль электронной таблицы (например, "en_US") |
+
+| `timeZone` | строка | Часовой пояс электронной таблицы (например, "America/New_York") |
+
+| `spreadsheetUrl` | строка | URL электронной таблицы |
+
+| `sheets` | массив | Список листов в электронной таблице |
+
+|   ↳ `sheetId` | число | ID листа |
+
+|   ↳ `title` | строка | Название листа/таба |
+
+|   ↳ `index` | число | Индекс листа (позиция) |
+
+|   ↳ `rowCount` | число | Количество строк в листе |
+
+|   ↳ `columnCount` | число | Количество столбцов в листе |
+
+|   ↳ `hidden` | булево | Скрыт ли лист |
+
 
 ### `google_sheets_create_spreadsheet`
 
-Create a new Google Sheets spreadsheet
+
+Создать новую электронную таблицу Google Sheets
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `title` | string | Да | The title of the new spreadsheet |
-| `sheetTitles` | json | Нет | Array of sheet names to create \(e.g., \["Sheet1", "Data", "Summary"\]\). Defaults to a single "Sheet1". |
-| `locale` | string | Нет | The locale of the spreadsheet \(e.g., "en_US"\) |
-| `timeZone` | string | Нет | The time zone of the spreadsheet \(e.g., "America/New_York"\) |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `title` | строка | Да | Название новой электронной таблицы |
+
+| `sheetTitles` | json | Нет | Массив названий листов для создания (например, \["Sheet1", "Data", "Summary"\]). По умолчанию создается один лист с названием "Sheet1". |
+
+| `locale` | строка | Нет | Локаль электронной таблицы (например, "en_US") |
+
+| `timeZone` | строка | Нет | Часовой пояс электронной таблицы (например, "America/New_York") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `spreadsheetId` | string | The ID of the created spreadsheet |
-| `title` | string | The title of the created spreadsheet |
-| `spreadsheetUrl` | string | URL to the created spreadsheet |
-| `sheets` | array | List of sheets created in the spreadsheet |
-|   ↳ `sheetId` | number | The sheet ID |
-|   ↳ `title` | string | The sheet title/name |
-|   ↳ `index` | number | The sheet index \(position\) |
 
-### `google_sheets_batch_get`
+| `spreadsheetId` | строка | ID созданной электронной таблицы |
 
-Read multiple ranges from a Google Sheets spreadsheet in a single request
+| `title` | строка | Название созданной электронной таблицы |
 
-#### Входные параметры
+| `spreadsheetUrl` | строка | URL созданной электронной таблицы |
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `ranges` | json | Да | Array of ranges to read \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
-| `majorDimension` | string | Нет | The major dimension of values: "ROWS" \(default\) or "COLUMNS" |
-| `valueRenderOption` | string | Нет | How values should be rendered: "FORMATTED_VALUE" \(default\), "UNFORMATTED_VALUE", or "FORMULA" |
+| `sheets` | массив | Список созданных листов в электронной таблице |
 
-#### Выходные параметры
+|   ↳ `sheetId` | число | ID листа |
 
-| Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `spreadsheetId` | string | The spreadsheet ID |
-| `valueRanges` | array | Array of value ranges read from the spreadsheet |
-|   ↳ `range` | string | The range that was read |
-|   ↳ `majorDimension` | string | Major dimension \(ROWS or COLUMNS\) |
-|   ↳ `values` | array | The cell values as a 2D array |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `title` | строка | Название листа/таба |
 
-### `google_sheets_batch_update`
+|   ↳ `index` | число | Индекс листа (позиция) |
 
-Update multiple ranges in a Google Sheets spreadsheet in a single request
-
-#### Входные параметры
-
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `data` | json | Да | Array of value ranges to update. Each item should have "range" \(e.g., "Sheet1!A1:D10"\) and "values" \(2D array\). |
-| `valueInputOption` | string | Нет | How input data should be interpreted: "RAW" or "USER_ENTERED" \(default\). USER_ENTERED parses formulas. |
-
-#### Выходные параметры
-
-| Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `spreadsheetId` | string | The spreadsheet ID |
-| `totalUpdatedRows` | number | Total number of rows updated |
-| `totalUpdatedColumns` | number | Total number of columns updated |
-| `totalUpdatedCells` | number | Total number of cells updated |
-| `totalUpdatedSheets` | number | Total number of sheets updated |
-| `responses` | array | Array of update responses for each range |
-|   ↳ `spreadsheetId` | string | The spreadsheet ID |
-|   ↳ `updatedRange` | string | The range that was updated |
-|   ↳ `updatedRows` | number | Number of rows updated in this range |
-|   ↳ `updatedColumns` | number | Number of columns updated in this range |
-|   ↳ `updatedCells` | number | Number of cells updated in this range |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
-
-### `google_sheets_batch_clear`
-
-Clear multiple ranges in a Google Sheets spreadsheet in a single request
-
-#### Входные параметры
-
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `ranges` | json | Да | Array of ranges to clear \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
-
-#### Выходные параметры
-
-| Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `spreadsheetId` | string | The spreadsheet ID |
-| `clearedRanges` | array | Array of ranges that were cleared |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_copy_sheet`
 
-Copy a sheet from one spreadsheet to another
+
+Копировать лист из одной электронной таблицы в другую
+
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `sourceSpreadsheetId` | string | Да | Source Google Sheets spreadsheet ID |
-| `sheetId` | number | Да | The ID of the sheet to copy \(numeric ID, not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
-| `destinationSpreadsheetId` | string | Да | The ID of the destination spreadsheet where the sheet will be copied |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `sourceSpreadsheetId` | строка | Да | ID исходной электронной таблицы Google Sheets |
+
+| `sheetId` | число | Да | ID листа для копирования (числовой ID, а не название листа). Используйте Get Spreadsheet для получения ID листов. |
+
+| `destinationSpreadsheetId` | строка | Да | ID целевой электронной таблицы |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `sheetId` | число | ID нового листа, созданного в целевой таблице |
+
 | --------- | ---- | ----------- |
-| `sheetId` | number | The ID of the newly created sheet in the destination |
-| `title` | string | The title of the copied sheet |
-| `index` | number | The index \(position\) of the copied sheet |
-| `sheetType` | string | The type of the sheet \(GRID, CHART, etc.\) |
-| `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
-| `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
+
+| `title` | строка | Название скопированного листа |
+
+| `index` | число | Индекс (позиция) скопированного листа |
+
+| `sheetType` | строка | Тип листа (GRID, CHART и т.д.) |
+
+| `destinationSpreadsheetId` | строка | ID целевой электронной таблицы |
+
+| `destinationSpreadsheetUrl` | строка | URL целевой электронной таблицы |
 
 ### `google_sheets_delete_rows`
 
-Delete rows from a sheet in a Google Sheets spreadsheet
+Удалить строки из листа в Google Sheets электронной таблицы
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetId` | number | Да | The numeric ID of the sheet/tab \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
-| `startIndex` | number | Да | The start row index \(0-based, inclusive\) of the rows to delete |
-| `endIndex` | number | Да | The end row index \(0-based, exclusive\) of the rows to delete |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+
+| `sheetId` | число | Да | Числовой ID листа/таба (не название листа). Используйте Get Spreadsheet для получения ID листов. |
+
+
+| `startIndex` | число | Да | Индекс начальной строки (0-based, включительно) строк для удаления |
+
+| --------- | ---- | -------- | ----------- |
+
+| `endIndex` | число | Да | Индекс конечной строки (0-based, исключительно) строк для удаления |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `spreadsheetId` | строка | ID электронной таблицы |
+
+
+| `sheetId` | число | Числовой ID листа |
+
 | --------- | ---- | ----------- |
-| `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| `sheetId` | number | The numeric ID of the sheet |
-| `deletedRowRange` | string | Description of the deleted row range |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `deletedRowRange` | строка | Описание диапазона удаленных строк |
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
 
 ### `google_sheets_delete_sheet`
 
-Delete a sheet/tab from a Google Sheets spreadsheet
+Удалить лист/таб из Google Sheets электронной таблицы
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | Google Sheets spreadsheet ID |
-| `sheetId` | number | Да | The numeric ID of the sheet/tab to delete \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+| Параметр | Тип | Обязательно | Описание |
 
-#### Выходные параметры
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets |
+
+| `sheetId` | число | Да | Числовой ID листа/таба для удаления (не название листа). Используйте Get Spreadsheet для получения ID листов. |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| `deletedSheetId` | number | The numeric ID of the deleted sheet |
-| `metadata` | json | Spreadsheet metadata including ID and URL |
-|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+| `spreadsheetId` | строка | ID электронной таблицы |
+
+| `deletedSheetId` | число | Числовой ID удаленного листа |
+
+
+| `metadata` | json | Метаданные электронной таблицы, включая ID и URL |
+
+
+|   ↳ `spreadsheetId` | строка | ID электронной таблицы Google Sheets |
+
+
+|   ↳ `spreadsheetUrl` | строка | URL электронной таблицы |
+
 
 ### `google_sheets_delete_spreadsheet`
 
-Permanently delete a Google Sheets spreadsheet using the Google Drive API
+| --------- | ---- | -------- | ----------- |
+
+Постоянно удалить электронную таблицу Google Sheets, используя API Google Drive
 
 #### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Да | The ID of the Google Sheets spreadsheet to delete |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+
+| `spreadsheetId` | строка | Да | ID электронной таблицы Google Sheets для удаления |
+
+| --------- | ---- | ----------- |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `spreadsheetId` | строка | ID удаленной электронной таблицы |
+
+| `deleted` | булево | Флаг, указывающий, была ли электронная таблица успешно удалена |
+
+## Триггеры
+
+
+**Триггер** — это блок, который запускает рабочий процесс при возникновении события в этом сервисе.
+===
+
+
+Copy a sheet from one spreadsheet to another
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `sourceSpreadsheetId` | string | Yes | Source Google Sheets spreadsheet ID |
+
+| `sheetId` | number | Yes | The ID of the sheet to copy \(numeric ID, not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+
+| `destinationSpreadsheetId` | string | Yes | The ID of the destination spreadsheet where the sheet will be copied |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
+| `sheetId` | number | The ID of the newly created sheet in the destination |
+
+| `title` | string | The title of the copied sheet |
+
+| `index` | number | The index \(position\) of the copied sheet |
+
+| `sheetType` | string | The type of the sheet \(GRID, CHART, etc.\) |
+
+| `destinationSpreadsheetId` | string | The ID of the destination spreadsheet |
+
+| `destinationSpreadsheetUrl` | string | URL to the destination spreadsheet |
+
+
+### `google_sheets_delete_rows`
+
+
+Delete rows from a sheet in a Google Sheets spreadsheet
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+
+| `sheetId` | number | Yes | The numeric ID of the sheet/tab \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+
+| `startIndex` | number | Yes | The start row index \(0-based, inclusive\) of the rows to delete |
+
+| `endIndex` | number | Yes | The end row index \(0-based, exclusive\) of the rows to delete |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `spreadsheetId` | string | Google Sheets spreadsheet ID |
+
+| `sheetId` | number | The numeric ID of the sheet |
+
+| `deletedRowRange` | string | Description of the deleted row range |
+
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+
+### `google_sheets_delete_sheet`
+
+
+Delete a sheet/tab from a Google Sheets spreadsheet
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
+
+| `sheetId` | number | Yes | The numeric ID of the sheet/tab to delete \(not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `spreadsheetId` | string | Google Sheets spreadsheet ID |
+
+| `deletedSheetId` | number | The numeric ID of the deleted sheet |
+
+| `metadata` | json | Spreadsheet metadata including ID and URL |
+
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+
+
+### `google_sheets_delete_spreadsheet`
+
+
+Permanently delete a Google Sheets spreadsheet using the Google Drive API
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `spreadsheetId` | string | Yes | The ID of the Google Sheets spreadsheet to delete |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
 | `spreadsheetId` | string | The ID of the deleted spreadsheet |
+
 | `deleted` | boolean | Whether the spreadsheet was successfully deleted |
+
 
 
 
 ## Triggers
 
+
 A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
 
+
 ### Google Sheets New Row Trigger
+
 
 Triggers when new rows are added to a Google Sheet
 
+
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `triggerCredentials` | string | Да | Connect your Google account to access Google Sheets. |
-| `spreadsheetId` | file-selector | Да | The spreadsheet to monitor for new rows. |
-| `manualSpreadsheetId` | string | Да | The spreadsheet to monitor for new rows. |
-| `sheetName` | sheet-selector | Да | The sheet tab to monitor for new rows. |
-| `manualSheetName` | string | Да | The sheet tab to monitor for new rows. |
-| `valueRenderOption` | string | Нет | How values are rendered. Formatted returns display strings, Unformatted returns raw numbers/booleans, Formula returns the formula text. |
-| `dateTimeRenderOption` | string | Нет | How dates and times are rendered. Only applies when Value Render is not  |
 
-#### Выходные параметры
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Sheets. |
 
-| Параметр | Тип | Описание |
+| `spreadsheetId` | file-selector | Yes | The spreadsheet to monitor for new rows. |
+
+| `manualSpreadsheetId` | string | Yes | The spreadsheet to monitor for new rows. |
+
+| `sheetName` | sheet-selector | Yes | The sheet tab to monitor for new rows. |
+
+| `manualSheetName` | string | Yes | The sheet tab to monitor for new rows. |
+
+| `valueRenderOption` | string | No | How values are rendered. Formatted returns display strings, Unformatted returns raw numbers/booleans, Formula returns the formula text. |
+
+| `dateTimeRenderOption` | string | No | How dates and times are rendered. Only applies when Value Render is not  |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `row` | json | Row data mapped to column headers from row 1 |
+
 | `rawRow` | json | Raw row values as an array |
+
 | `headers` | json | Column headers from row 1 |
+
 | `rowNumber` | number | The 1-based row number of the new row |
+
 | `spreadsheetId` | string | The spreadsheet ID |
+
 | `sheetName` | string | The sheet tab name |
+
 | `timestamp` | string | Event timestamp in ISO format |
+
 

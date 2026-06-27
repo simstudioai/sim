@@ -1,6 +1,6 @@
 ---
-title: Mem0
-description: Управление памятью агента
+title: Память
+description: Agent memory management
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,117 +10,204 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#181C1E"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Mem0](https://mem0.ai) is a powerful memory management system designed specifically for AI agents. It provides a persistent, searchable memory store that enables agents to remember past interactions, learn from experiences, and maintain context across conversations and workflow executions.
+[Mem0](https://mem0.ai) — мощная система управления памятью, разработанная специально для ИИ-агентов. Она предоставляет постоянное и индексируемое хранилище памяти, позволяющее агентам запоминать прошлые взаимодействия, учиться на опыте и поддерживать контекст в разговорах и при выполнении задач.
 
-With Mem0, you can:
+С Mem0 вы можете:
 
-- **Store agent memories**: Save conversation history, user preferences, and important context
-- **Retrieve relevant information**: Use semantic search to find the most relevant past interactions
-- **Build context-aware agents**: Enable your agents to reference past conversations and maintain continuity
-- **Personalize interactions**: Tailor responses based on user history and preferences
-- **Implement long-term memory**: Create agents that learn and adapt over time
-- **Scale memory management**: Handle memory needs for multiple users and complex workflows
 
-In Sim, the Mem0 integration enables your agents to maintain persistent memory across workflow executions. This allows for more natural, context-aware interactions where agents can recall past conversations, remember user preferences, and build upon previous interactions. By connecting Sim with Mem0, you can create agents that feel more human-like in their ability to remember and learn from past experiences. The integration supports adding new memories, searching existing memories semantically, and retrieving specific memory records. This memory management capability is essential for building sophisticated agents that can maintain context over time, personalize interactions based on user history, and continuously improve their performance through accumulated knowledge.
+- Хранить воспоминания агента: сохранять историю разговоров, предпочтения пользователей и важный контекст
+
+
+- Извлекать релевантную информацию: использовать семантический поиск для поиска наиболее подходящих прошлых взаимодействий
+
+- Создавать агентов с учетом контекста: позволять вашим агентам ссылаться на предыдущие разговоры и поддерживать последовательность
+
+- Персонализировать взаимодействие: адаптировать ответы на основе истории и предпочтений пользователя
+
+- Реализовывать долгосрочное хранение памяти: создавать агентов, которые учатся и адаптируются со временем
+
+- Масштабировать управление памятью: обрабатывать потребности в памяти для нескольких пользователей и сложных рабочих процессов
+
+В Sim, интеграция Mem0 позволяет вашим агентам поддерживать постоянную память при выполнении задач. Это обеспечивает более естественное взаимодействие с учетом контекста, где агенты могут вспоминать прошлые разговоры, запоминать предпочтения пользователя и строить на предыдущих взаимодействиях. Подключив Sim к Mem0, вы можете создать агентов, которые кажутся более человечными в своей способности запоминать и учиться на прошлом опыте. Интеграция поддерживает добавление новых воспоминаний, семантический поиск существующих воспоминаний и получение конкретных записей памяти. Эта функциональность управления памятью необходима для создания сложных агентов, способных поддерживать контекст во времени, персонализировать взаимодействие на основе истории пользователя и непрерывно улучшать свою производительность благодаря накопленным знаниям.
+
+
 {/* MANUAL-CONTENT-END */}
-
 
 ## Инструкции по использованию
 
-Integrate Mem0 into the workflow. Can add, search, and retrieve memories.
 
+
+Интегрируйте Mem0 в рабочий процесс. Можно добавлять, искать и извлекать воспоминания.
 
 
 ## Действия
 
+
+
+
 ### `mem0_add_memories`
 
-Add memories to Mem0 for persistent storage and retrieval
 
-#### Входные параметры
+Добавляйте воспоминания в Mem0 для постоянного хранения и извлечения
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `userId` | строка | Да | Идентификатор пользователя, связанный с воспоминанием (например, "user_123", "alice@example.com") |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | User ID associated with the memory \(e.g., "user_123", "alice@example.com"\) |
-| `messages` | json | Да | Array of message objects with role and content \(e.g., \[\{"role": "user", "content": "Hello"\}\]\) |
-| `apiKey` | string | Да | Your Mem0 API key |
 
-#### Выходные параметры
+| `messages` | json | Да | Массив объектов сообщений со статусом и содержимым (например, \[\{"role": "user", "content": "Hello"\}\]) |
+
+| `apiKey` | строка | Да | Ваш API-ключ Mem0 |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `message` | строка | Сообщение статуса для приостановленной задачи обработки памяти |
+
 | --------- | ---- | ----------- |
-| `message` | string | Status message for the queued memory processing job |
-| `status` | string | Processing status returned by Mem0 |
-| `event_id` | string | Event ID for polling memory processing status |
+
+| `status` | строка | Статус обработки, возвращаемый Mem0 |
+
+| `event_id` | строка | Идентификатор события для опроса статуса обработки памяти |
 
 ### `mem0_search_memories`
 
-Search for memories in Mem0 using semantic search
 
-#### Входные параметры
+Ищите воспоминания в Mem0 с использованием семантического поиска
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `userId` | строка | Да | Идентификатор пользователя для поиска воспоминаний (например, "user_123", "alice@example.com") |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | User ID to search memories for \(e.g., "user_123", "alice@example.com"\) |
-| `query` | string | Да | Search query to find relevant memories \(e.g., "What are my favorite foods?"\) |
-| `limit` | number | Нет | Maximum number of results to return \(e.g., 10, 50, 100\) |
-| `apiKey` | string | Да | Your Mem0 API key |
 
-#### Выходные параметры
+| `query` | строка | Да | Поисковый запрос для поиска соответствующих воспоминаний (например, "What are my favorite foods?") |
+
+| `limit` | число | Нет | Максимальное количество результатов для возврата (например, 10, 50, 100) |
+
+| `apiKey` | строка | Да | Ваш API-ключ Mem0 |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `searchResults` | массив | Массив результатов поиска с данными памяти и оценками схожести |
+
 | --------- | ---- | ----------- |
-| `searchResults` | array | Array of search results with memory data and similarity scores |
-|   ↳ `id` | string | Unique identifier for the memory |
-|   ↳ `memory` | string | The content of the memory |
-|   ↳ `user_id` | string | User ID associated with this memory |
-|   ↳ `agent_id` | string | Agent ID associated with this memory |
-|   ↳ `app_id` | string | App ID associated with this memory |
-|   ↳ `run_id` | string | Run/session ID associated with this memory |
-|   ↳ `hash` | string | Hash of the memory content |
-|   ↳ `metadata` | json | Custom metadata associated with the memory |
-|   ↳ `categories` | json | Auto-assigned categories for the memory |
-|   ↳ `created_at` | string | ISO 8601 timestamp when the memory was created |
-|   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
-|   ↳ `score` | number | Similarity score from vector search |
-| `ids` | array | Array of memory IDs found in the search results |
+
+|   ↳ `id` | строка | Уникальный идентификатор воспоминания |
+
+|   ↳ `memory` | строка | Содержимое воспоминания |
+
+|   ↳ `user_id` | строка | Идентификатор пользователя, связанный с этим воспоминанием |
+
+|   ↳ `agent_id` | строка | Идентификатор агента, связанного с этим воспоминанием |
+
+|   ↳ `app_id` | строка | Идентификатор приложения, связанного с этим воспоминанием |
+
+|   ↳ `run_id` | строка | Идентификатор выполнения/сессии, связанный с этим воспоминанием |
+
+|   ↳ `hash` | строка | Хэш содержимого памяти |
+
+|   ↳ `metadata` | json | Пользовательские метаданные, связанные с воспоминанием |
+
+|   ↳ `categories` | json | Автоматически назначенные категории для воспоминания |
+
+|   ↳ `created_at` | строка | Временная метка ISO 8601, когда было создано воспоминание |
+
+|   ↳ `updated_at` | строка | Временная метка ISO 8601, когда последнее обновление |
+
+|   ↳ `score` | число | Оценка схожести из векторного поиска |
+
+| `ids` | массив | Массив идентификаторов воспоминаний, найденных в результатах поиска |
 
 ### `mem0_get_memories`
 
-Retrieve memories from Mem0 by ID or filter criteria
 
-#### Входные параметры
+Извлекайте воспоминания из Mem0 по ID или критериям фильтрации
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `userId` | строка | Да | Идентификатор пользователя для извлечения воспоминаний (например, "user_123", "alice@example.com") |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | User ID to retrieve memories for \(e.g., "user_123", "alice@example.com"\) |
-| `memoryId` | string | Нет | Specific memory ID to retrieve \(e.g., "mem_abc123"\) |
-| `startDate` | string | Нет | Start date for filtering by created_at \(e.g., "2024-01-15"\) |
-| `endDate` | string | Нет | End date for filtering by created_at \(e.g., "2024-12-31"\) |
-| `limit` | number | Нет | Maximum number of results to return \(e.g., 10, 50, 100\) |
-| `page` | number | Нет | Page number to retrieve for paginated list results |
-| `apiKey` | string | Да | Your Mem0 API key |
 
-#### Выходные параметры
+| `memoryId` | строка | Нет | Конкретный идентификатор памяти для извлечения (например, "mem_abc123") |
+
+| `startDate` | строка | Нет | Дата начала для фильтрации по created_at (например, "2024-01-15") |
+
+| `endDate` | строка | Нет | Дата окончания для фильтрации по created_at (например, "2024-12-31") |
+
+| `limit` | число | Нет | Максимальное количество результатов для возврата (например, 10, 50, 100) |
+
+| `page` | число | Нет | Номер страницы для получения результатов в виде списка |
+
+| `apiKey` | строка | Да | Ваш API-ключ Mem0 |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `memories` | массив | Массив извлеченных объектов памяти |
+
 | --------- | ---- | ----------- |
-| `memories` | array | Array of retrieved memory objects |
-|   ↳ `id` | string | Unique identifier for the memory |
-|   ↳ `memory` | string | The content of the memory |
-|   ↳ `user_id` | string | User ID associated with this memory |
-|   ↳ `agent_id` | string | Agent ID associated with this memory |
-|   ↳ `app_id` | string | App ID associated with this memory |
-|   ↳ `run_id` | string | Run/session ID associated with this memory |
-|   ↳ `hash` | string | Hash of the memory content |
-|   ↳ `metadata` | json | Custom metadata associated with the memory |
-|   ↳ `categories` | json | Auto-assigned categories for the memory |
-|   ↳ `created_at` | string | ISO 8601 timestamp when the memory was created |
-|   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
-| `ids` | array | Array of memory IDs that were retrieved |
-| `count` | number | Total number of memories matching the filters |
-| `next` | string | URL for the next page of results |
+
+|   ↳ `id` | строка | Уникальный идентификатор памяти |
+
+|   ↳ `memory` | строка | Содержимое памяти |
+
+|   ↳ `user_id` | строка | Идентификатор пользователя, связанный с этой памятью |
+
+|   ↳ `agent_id` | строка | Идентификатор агента, связанного с этой памятью |
+
+|   ↳ `app_id` | строка | Идентификатор приложения, связанного с этой памятью |
+
+|   ↳ `run_id` | строка | Идентификатор выполнения/сессии, связанный с этой памятью |
+
+|   ↳ `hash` | строка | Хэш содержимого памяти |
+
+|   ↳ `metadata` | json | Пользовательские метаданные, связанные с памятью |
+
+|   ↳ `categories` | json | Автоматически назначенные категории для памяти |
+
+|   ↳ `created_at` | строка | Временная метка ISO 8601, когда была создана память |
+
+|   ↳ `updated_at` | строка | Временная метка ISO 8601, когда последнее обновление |
+
+| `ids` | массив | Массив идентификаторов памяти, которые были извлечены |
+
+| `count` | число | Общее количество воспоминаний, соответствующих фильтрам |
+
+| `next` | строка | URL для следующей страницы результатов |
+
+| `previous` | строка | URL для предыдущей страницы результатов |
+
 | `previous` | string | URL for the previous page of results |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: Google Ads
-description: Запрос кампаний, групп объявлений и показателей эффективности
+description: Query campaigns, ad groups, and performance metrics
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,183 +10,320 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Google Ads](https://ads.google.com) is Google's online advertising platform that lets businesses create ads to reach customers across Google Search, YouTube, Gmail, and millions of partner websites. It supports campaign types including Search, Display, Video, Shopping, and Performance Max, with detailed targeting, bidding strategies, and performance analytics.
 
-In Sim, the Google Ads integration enables your agents to query campaign data, monitor ad group performance, and pull detailed metrics using the Google Ads Query Language (GAQL). This supports use cases such as automated performance reporting, budget monitoring, campaign health checks, and data-driven optimization workflows. By connecting Sim with Google Ads, your agents can retrieve real-time advertising data and act on insights without manual dashboard navigation.
+===
+[Google Ads](https://ads.google.com) — это онлайн-платформа для рекламы, предоставляемая Google, которая позволяет предприятиям создавать рекламные объявления для охвата клиентов в Google Search, YouTube, Gmail и на миллионах сторонних веб-сайтов. Она поддерживает различные типы кампаний, включая Search, Display, Video, Shopping и Performance Max, с подробным таргетингом, стратегиями ставок и аналитикой производительности.
+
+В Sim интеграция Google Ads позволяет вашим агентам запрашивать данные кампании, отслеживать производительность групп объявлений и получать подробные метрики, используя язык запросов Google Ads (GAQL). Это поддерживает сценарии использования, такие как автоматизированное создание отчетов о производительности, мониторинг бюджета, проверки состояния кампаний и оптимизация на основе данных. Подключив Sim к Google Ads, ваши агенты могут получать данные об онлайн-рекламе в режиме реального времени и принимать решения на основе полученной информации без необходимости ручного навигации по панелям управления.
+
+
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
-
-Connect to Google Ads to list accessible accounts, list campaigns, view ad group details, get performance metrics, and run custom GAQL queries.
+## Инструкция по использованию
 
 
 
-## Actions
+Подключитесь к Google Ads, чтобы получить список доступных аккаунтов, перечислить кампании, просмотреть детали групп объявлений, получить метрики производительности и выполнять пользовательские запросы GAQL.
+
+
+## Действия
+
+
+
 
 ### `google_ads_list_customers`
 
-List all Google Ads customer accounts accessible by the authenticated user
 
-#### Input
+Получите список всех учетных записей Google Ads, доступных для аутентифицированного пользователя.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `developerToken` | строка | Да | Токен разработчика API Google Ads |
+
 | --------- | ---- | -------- | ----------- |
-| `developerToken` | string | Yes | Google Ads API developer token |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `customerIds` | массив | Список идентификаторов клиентов |
+
 | --------- | ---- | ----------- |
-| `customerIds` | array | List of accessible customer IDs |
-| `totalCount` | number | Total number of accessible customer accounts |
+
+| `totalCount` | число | Общее количество доступных учетных записей клиентов |
 
 ### `google_ads_search`
 
-Run a custom Google Ads Query Language (GAQL) query
 
-#### Input
+Выполните пользовательский запрос GAQL (Google Ads Query Language)
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `customerId` | строка | Да | Идентификатор клиента Google Ads (числовой, без дефисов) |
+
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
-| `developerToken` | string | Yes | Google Ads API developer token |
-| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
-| `query` | string | Yes | GAQL query to execute |
-| `pageToken` | string | No | Page token for pagination |
 
-#### Output
+| `developerToken` | строка | Да | Токен разработчика API Google Ads |
 
-| Parameter | Type | Description |
+| `managerCustomerId` | строка | Нет | Идентификатор клиента учетной записи менеджера (если доступ осуществляется через учетную запись менеджера) |
+
+| `query` | строка | Да | Запрос GAQL для выполнения |
+
+| `pageToken` | строка | Нет | Токен страницы для постраничной обработки |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `results` | json | Массив объектов результатов запроса GAQL |
+
 | --------- | ---- | ----------- |
-| `results` | json | Array of result objects from the GAQL query |
-| `totalResultsCount` | number | Total number of matching results |
-| `nextPageToken` | string | Token for the next page of results |
+
+| `totalResultsCount` | число | Общее количество соответствующих результатов |
+
+| `nextPageToken` | строка | Токен для следующей страницы результатов |
 
 ### `google_ads_list_campaigns`
 
-List campaigns in a Google Ads account with optional status filtering
 
-#### Input
+Получите список кампаний в учетной записи Google Ads с опциональным фильтром статуса.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `customerId` | строка | Да | Идентификатор клиента Google Ads (числовой, без дефисов) |
+
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
-| `developerToken` | string | Yes | Google Ads API developer token |
-| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
-| `status` | string | No | Filter by campaign status \(ENABLED, PAUSED, REMOVED\) |
-| `limit` | number | No | Maximum number of campaigns to return |
 
-#### Output
+| `developerToken` | строка | Да | Токен разработчика API Google Ads |
 
-| Parameter | Type | Description |
+| `managerCustomerId` | строка | Нет | Идентификатор клиента учетной записи менеджера (если доступ осуществляется через учетную запись менеджера) |
+
+| `status` | строка | Нет | Фильтр по статусу кампании (ENABLED, PAUSED, REMOVED) |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых кампаний |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `campaigns` | массив | Список кампаний в учетной записи |
+
 | --------- | ---- | ----------- |
-| `campaigns` | array | List of campaigns in the account |
-|   ↳ `id` | string | Campaign ID |
-|   ↳ `name` | string | Campaign name |
-|   ↳ `status` | string | Campaign status \(ENABLED, PAUSED, REMOVED\) |
-|   ↳ `channelType` | string | Advertising channel type \(SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX\) |
-|   ↳ `startDate` | string | Campaign start date \(YYYY-MM-DD\) |
-|   ↳ `endDate` | string | Campaign end date \(YYYY-MM-DD\) |
-|   ↳ `budgetAmountMicros` | string | Daily budget in micros \(divide by 1,000,000 for currency value\) |
-| `totalCount` | number | Total number of campaigns returned |
+
+|   ↳ `id` | строка | Идентификатор кампании |
+
+|   ↳ `name` | строка | Название кампании |
+
+|   ↳ `status` | строка | Статус кампании (ENABLED, PAUSED, REMOVED) |
+
+|   ↳ `channelType` | строка | Тип канала рекламы (SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX) |
+
+|   ↳ `startDate` | строка | Дата начала кампании (YYYY-MM-DD) |
+
+|   ↳ `endDate` | строка | Дата окончания кампании (YYYY-MM-DD) |
+
+|   ↳ `budgetAmountMicros` | строка | Ежедневный бюджет в микросах (разделите на 1,000,000 для получения значения валюты) |
+
+| `totalCount` | число | Общее количество возвращенных кампаний |
 
 ### `google_ads_campaign_performance`
 
-Get performance metrics for Google Ads campaigns over a date range
 
-#### Input
+Получите метрики производительности для кампаний Google Ads за указанный период.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `customerId` | строка | Да | Идентификатор клиента Google Ads (числовой, без дефисов) |
+
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
-| `developerToken` | string | Yes | Google Ads API developer token |
-| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
-| `campaignId` | string | No | Filter by specific campaign ID |
-| `dateRange` | string | No | Predefined date range \(LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, TODAY, YESTERDAY\) |
-| `startDate` | string | No | Custom start date in YYYY-MM-DD format |
-| `endDate` | string | No | Custom end date in YYYY-MM-DD format |
 
-#### Output
+| `developerToken` | строка | Да | Токен разработчика API Google Ads |
 
-| Parameter | Type | Description |
+| `managerCustomerId` | строка | Нет | Идентификатор клиента учетной записи менеджера (если доступ осуществляется через учетную запись менеджера) |
+
+| `campaignId` | строка | Нет | Фильтр по конкретному идентификатору кампании |
+
+| `dateRange` | строка | Нет | Предопределенный диапазон дат (LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, TODAY, YESTERDAY) |
+
+| `startDate` | строка | Нет | Пользовательская дата начала в формате YYYY-MM-DD |
+
+| `endDate` | строка | Нет | Пользовательская дата окончания в формате YYYY-MM-DD |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `campaigns` | массив | Данные о производительности кампаний, разбитые по датам |
+
 | --------- | ---- | ----------- |
-| `campaigns` | array | Campaign performance data broken down by date |
-|   ↳ `id` | string | Campaign ID |
-|   ↳ `name` | string | Campaign name |
-|   ↳ `status` | string | Campaign status |
-|   ↳ `impressions` | string | Number of impressions |
-|   ↳ `clicks` | string | Number of clicks |
-|   ↳ `costMicros` | string | Cost in micros \(divide by 1,000,000 for currency value\) |
-|   ↳ `ctr` | number | Click-through rate \(0.0 to 1.0\) |
-|   ↳ `conversions` | number | Number of conversions |
-|   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
-| `totalCount` | number | Total number of result rows |
+
+|   ↳ `id` | строка | Идентификатор кампании |
+
+|   ↳ `name` | строка | Название кампании |
+
+|   ↳ `status` | строка | Статус кампании |
+
+|   ↳ `impressions` | строка | Количество показов |
+
+|   ↳ `clicks` | строка | Количество кликов |
+
+|   ↳ `costMicros` | строка | Стоимость в микросах (разделите на 1,000,000 для получения значения валюты) |
+
+|   ↳ `ctr` | число | Коэффициент клика (от 0.0 до 1.0) |
+
+|   ↳ `conversions` | число | Количество конверсий |
+
+|   ↳ `date` | строка | Дата для этой строки (YYYY-MM-DD) |
+
+| `totalCount` | число | Общее количество строк результатов |
 
 ### `google_ads_list_ad_groups`
 
-List ad groups in a Google Ads campaign
 
-#### Input
+Получите список групп объявлений в кампании Google Ads с опциональным фильтром статуса.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `customerId` | строка | Да | Идентификатор клиента Google Ads (числовой, без дефисов) |
+
 | --------- | ---- | -------- | ----------- |
-| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
-| `developerToken` | string | Yes | Google Ads API developer token |
-| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
-| `campaignId` | string | Yes | Campaign ID to list ad groups for |
-| `status` | string | No | Filter by ad group status \(ENABLED, PAUSED, REMOVED\) |
-| `limit` | number | No | Maximum number of ad groups to return |
 
-#### Output
+| `developerToken` | строка | Да | Токен разработчика API Google Ads |
 
-| Parameter | Type | Description |
+| `managerCustomerId` | строка | Нет | Идентификатор клиента учетной записи менеджера (если доступ осуществляется через учетную запись менеджера) |
+
+| `campaignId` | строка | Да | Идентификатор кампании для получения списка групп объявлений |
+
+| `status` | строка | Нет | Фильтр по статусу группы объявлений (ENABLED, PAUSED, REMOVED) |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых групп объявлений |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `adGroups` | массив | Список групп объявлений в кампании |
+
 | --------- | ---- | ----------- |
-| `adGroups` | array | List of ad groups in the campaign |
-|   ↳ `id` | string | Ad group ID |
-|   ↳ `name` | string | Ad group name |
-|   ↳ `status` | string | Ad group status \(ENABLED, PAUSED, REMOVED\) |
-|   ↳ `type` | string | Ad group type \(SEARCH_STANDARD, DISPLAY_STANDARD, SHOPPING_PRODUCT_ADS\) |
-|   ↳ `campaignId` | string | Parent campaign ID |
-|   ↳ `campaignName` | string | Parent campaign name |
+
+|   ↳ `id` | строка | Идентификатор группы объявлений |
+
+|   ↳ `name` | строка | Название группы объявлений |
+
+|   ↳ `status` | строка | Статус группы объявлений (ENABLED, PAUSED, REMOVED) |
+
+|   ↳ `type` | строка | Тип группы объявлений (SEARCH_STANDARD, DISPLAY_STANDARD, SHOPPING_PRODUCT_ADS) |
+
+|   ↳ `campaignId` | строка | Идентификатор родительской кампании |
+
+|   ↳ `campaignName` | строка | Название родительской кампании |
+
+| `totalCount` | число | Общее количество возвращенных групп объявлений |
+
 | `totalCount` | number | Total number of ad groups returned |
+
 
 ### `google_ads_ad_performance`
 
+
 Get performance metrics for individual ads over a date range
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
+
 | `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+
 | `developerToken` | string | Yes | Google Ads API developer token |
+
 | `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+
 | `campaignId` | string | No | Filter by campaign ID |
+
 | `adGroupId` | string | No | Filter by ad group ID |
+
 | `dateRange` | string | No | Predefined date range \(LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, TODAY, YESTERDAY\) |
+
 | `startDate` | string | No | Custom start date in YYYY-MM-DD format |
+
 | `endDate` | string | No | Custom end date in YYYY-MM-DD format |
+
 | `limit` | number | No | Maximum number of results to return |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `ads` | array | Ad performance data broken down by date |
+
 |   ↳ `adId` | string | Ad ID |
+
 |   ↳ `adGroupId` | string | Parent ad group ID |
+
 |   ↳ `adGroupName` | string | Parent ad group name |
+
 |   ↳ `campaignId` | string | Parent campaign ID |
+
 |   ↳ `campaignName` | string | Parent campaign name |
+
 |   ↳ `adType` | string | Ad type \(RESPONSIVE_SEARCH_AD, EXPANDED_TEXT_AD, etc.\) |
+
 |   ↳ `impressions` | string | Number of impressions |
+
 |   ↳ `clicks` | string | Number of clicks |
+
 |   ↳ `costMicros` | string | Cost in micros \(divide by 1,000,000 for currency value\) |
+
 |   ↳ `ctr` | number | Click-through rate \(0.0 to 1.0\) |
+
 |   ↳ `conversions` | number | Number of conversions |
+
 |   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
+
 | `totalCount` | number | Total number of result rows |
+
 
 

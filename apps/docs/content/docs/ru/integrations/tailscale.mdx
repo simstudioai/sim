@@ -1,6 +1,6 @@
 ---
 title: Tailscale
-description: Управление устройствами и сетевыми настройками в Tailscale tailnet
+description: Управляйте устройствами и настройками сети в вашей сети Tailscale
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,489 +10,839 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2E2D2D"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 ## Overview
+
 
 [Tailscale](https://tailscale.com) is a zero-config mesh VPN built on WireGuard that makes it easy to connect devices, services, and users across any network. The Tailscale block lets you automate network management tasks like device provisioning, access control, route management, and DNS configuration directly from your Sim workflows.
 
+
 ## Authentication
 
-The Tailscale block uses Ключ API authentication. To get an Ключ API:
+
+The Tailscale block uses API key authentication. To get an API key:
+
 
 1. Go to the [Tailscale admin console](https://login.tailscale.com/admin/settings/keys)
+
 2. Navigate to **Settings > Keys**
-3. Click **Generate Ключ API**
+
+3. Click **Generate API key**
+
 4. Set an expiry (1-90 days) and copy the key (starts with `tskey-api-`)
 
-You must have an **Owner**, **Admin**, **IT admin**, or **Network admin** role to generate Ключ APIs.
+
+You must have an **Owner**, **Admin**, **IT admin**, or **Network admin** role to generate API keys.
+
 
 ## Tailnet Identifier
 
-Every operation requires a **tailnet** parameter. This is typically your organization's domain name (e.g., `example.com`). You can also use `"-"` to refer to your по умолчанию tailnet.
+
+Every operation requires a **tailnet** parameter. This is typically your organization's domain name (e.g., `example.com`). You can also use `"-"` to refer to your default tailnet.
+
 
 ## Common Use Cases
 
-- **Device inventory**: Получение списка and monitor all devices connected to your network
+
+- **Device inventory**: List and monitor all devices connected to your network
+
 - **Automated provisioning**: Create and manage auth keys to pre-authorize new devices
+
 - **Access control**: Authorize or deauthorize devices, manage device tags for ACL policies
+
 - **Route management**: View and enable subnet routes for devices acting as subnet routers
+
 - **DNS management**: Configure nameservers, MagicDNS, and search paths
+
 - **Key lifecycle**: Create, list, inspect, and revoke auth keys
-- **User auditing**: Получение списка users in the tailnet and their roles
-- **Policy review**: Получение the current ACL policy for inspection or backup
+
+- **User auditing**: List all users in the tailnet and their roles
+
+- **Policy review**: Retrieve the current ACL policy for inspection or backup
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
+
+## Usage Instructions
+
 
 Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.
 
 
 
-## Действия
+
+## Actions
+
 
 ### `tailscale_list_devices`
 
-Получение списка devices in the tailnet
 
-#### Вход
+List all devices in the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `devices` | array | Получение списка of devices in the tailnet |
+
+| `devices` | array | List of devices in the tailnet |
+
 |   ↳ `id` | string | Device ID |
+
 |   ↳ `name` | string | Device name |
+
 |   ↳ `hostname` | string | Device hostname |
+
 |   ↳ `user` | string | Associated user |
+
 |   ↳ `os` | string | Operating system |
+
 |   ↳ `clientVersion` | string | Tailscale client version |
+
 |   ↳ `addresses` | array | Tailscale IP addresses |
+
 |   ↳ `tags` | array | Device tags |
-|   ↳ `authorized` | boolean | Указывает,  device is authorized |
-|   ↳ `blocksIncomingConnections` | boolean | Указывает,  device blocks incoming connections |
+
+|   ↳ `authorized` | boolean | Whether the device is authorized |
+
+|   ↳ `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
+
 |   ↳ `lastSeen` | string | Last seen timestamp |
+
 |   ↳ `created` | string | Creation timestamp |
+
 | `count` | number | Total number of devices |
+
 
 ### `tailscale_get_device`
 
-Получение details of a specific device by ID
 
-#### Вход
+Get details of a specific device by ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `id` | string | Device ID |
+
 | `name` | string | Device name |
+
 | `hostname` | string | Device hostname |
+
 | `user` | string | Associated user |
+
 | `os` | string | Operating system |
+
 | `clientVersion` | string | Tailscale client version |
+
 | `addresses` | array | Tailscale IP addresses |
+
 | `tags` | array | Device tags |
-| `authorized` | boolean | Указывает,  device is authorized |
-| `blocksIncomingConnections` | boolean | Указывает,  device blocks incoming connections |
+
+| `authorized` | boolean | Whether the device is authorized |
+
+| `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
+
 | `lastSeen` | string | Last seen timestamp |
+
 | `created` | string | Creation timestamp |
-| `isExternal` | boolean | Указывает,  device is external |
+
+| `isExternal` | boolean | Whether the device is external |
+
 | `updateAvailable` | boolean | Whether an update is available |
+
 | `machineKey` | string | Machine key |
+
 | `nodeKey` | string | Node key |
+
 
 ### `tailscale_delete_device`
 
+
 Remove a device from the tailnet
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID to delete |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID to delete |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  device was successfully deleted |
+
+| `success` | boolean | Whether the device was successfully deleted |
+
 | `deviceId` | string | ID of the deleted device |
+
 
 ### `tailscale_authorize_device`
 
+
 Authorize or deauthorize a device on the tailnet
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID to authorize |
-| `authorized` | boolean | Да | Whether to authorize \(true\) or deauthorize \(false\) the device |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID to authorize |
+
+| `authorized` | boolean | Yes | Whether to authorize \(true\) or deauthorize \(false\) the device |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  operation succeeded |
+
+| `success` | boolean | Whether the operation succeeded |
+
 | `deviceId` | string | Device ID |
+
 | `authorized` | boolean | Authorization status after the operation |
+
 
 ### `tailscale_set_device_tags`
 
+
 Set tags on a device in the tailnet
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID |
-| `tags` | string | Да | Comma-separated list of tags (например, "tag:server,tag:production"\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID |
+
+| `tags` | string | Yes | Comma-separated list of tags \(e.g., "tag:server,tag:production"\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  tags were successfully set |
+
+| `success` | boolean | Whether the tags were successfully set |
+
 | `deviceId` | string | Device ID |
+
 | `tags` | array | Tags set on the device |
+
 
 ### `tailscale_get_device_routes`
 
-Получение the subnet routes for a device
 
-#### Вход
+Get the subnet routes for a device
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `advertisedRoutes` | array | Subnet routes the device is advertising |
+
 | `enabledRoutes` | array | Subnet routes that are approved/enabled |
+
 
 ### `tailscale_set_device_routes`
 
+
 Set the enabled subnet routes for a device
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID |
-| `routes` | string | Да | Comma-separated list of subnet routes to enable (например, "10.0.0.0/24,192.168.1.0/24"\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID |
+
+| `routes` | string | Yes | Comma-separated list of subnet routes to enable \(e.g., "10.0.0.0/24,192.168.1.0/24"\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `advertisedRoutes` | array | Subnet routes the device is advertising |
+
 | `enabledRoutes` | array | Subnet routes that are now enabled |
+
 
 ### `tailscale_update_device_key`
 
+
 Enable or disable key expiry on a device
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `deviceId` | string | Да | Device ID |
-| `keyExpiryDisabled` | boolean | Да | Whether to disable key expiry \(true\) or enable it \(false\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `deviceId` | string | Yes | Device ID |
+
+| `keyExpiryDisabled` | boolean | Yes | Whether to disable key expiry \(true\) or enable it \(false\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  operation succeeded |
+
+| `success` | boolean | Whether the operation succeeded |
+
 | `deviceId` | string | Device ID |
+
 | `keyExpiryDisabled` | boolean | Whether key expiry is now disabled |
+
 
 ### `tailscale_list_dns_nameservers`
 
-Получение the DNS nameservers configured for the tailnet
 
-#### Вход
+Get the DNS nameservers configured for the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `dns` | array | Получение списка of DNS nameserver addresses |
+
+| `dns` | array | List of DNS nameserver addresses |
+
 | `magicDNS` | boolean | Whether MagicDNS is enabled |
+
 
 ### `tailscale_set_dns_nameservers`
 
+
 Set the DNS nameservers for the tailnet
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `dns` | string | Да | Comma-separated list of DNS nameserver IP addresses (например, "8.8.8.8,8.8.4.4"\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `dns` | string | Yes | Comma-separated list of DNS nameserver IP addresses \(e.g., "8.8.8.8,8.8.4.4"\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `dns` | array | Updated list of DNS nameserver addresses |
+
 | `magicDNS` | boolean | Whether MagicDNS is enabled |
+
 
 ### `tailscale_get_dns_preferences`
 
-Получение the DNS preferences for the tailnet including MagicDNS status
 
-#### Вход
+Get the DNS preferences for the tailnet including MagicDNS status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `magicDNS` | boolean | Whether MagicDNS is enabled |
+
 
 ### `tailscale_set_dns_preferences`
 
+
 Set DNS preferences for the tailnet (enable/disable MagicDNS)
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `magicDNS` | boolean | Да | Whether to enable \(true\) or disable \(false\) MagicDNS |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `magicDNS` | boolean | Yes | Whether to enable \(true\) or disable \(false\) MagicDNS |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `magicDNS` | boolean | Updated MagicDNS status |
+
 
 ### `tailscale_get_dns_searchpaths`
 
-Получение the DNS search paths configured for the tailnet
 
-#### Вход
+Get the DNS search paths configured for the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `searchPaths` | array | Получение списка of DNS search path domains |
+
+| `searchPaths` | array | List of DNS search path domains |
+
 
 ### `tailscale_set_dns_searchpaths`
 
+
 Set the DNS search paths for the tailnet
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `searchPaths` | string | Да | Comma-separated list of DNS search path domains (например, "corp.example.com,internal.example.com"\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `searchPaths` | string | Yes | Comma-separated list of DNS search path domains \(e.g., "corp.example.com,internal.example.com"\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `searchPaths` | array | Updated list of DNS search path domains |
+
 
 ### `tailscale_list_users`
 
-Получение списка users in the tailnet
 
-#### Вход
+List all users in the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `users` | array | Получение списка of users in the tailnet |
+
+| `users` | array | List of users in the tailnet |
+
 |   ↳ `id` | string | User ID |
+
 |   ↳ `displayName` | string | Display name |
+
 |   ↳ `loginName` | string | Login name / email |
+
 |   ↳ `profilePicURL` | string | Profile picture URL |
+
 |   ↳ `role` | string | User role \(owner, admin, member, etc.\) |
+
 |   ↳ `status` | string | User status \(active, suspended, etc.\) |
+
 |   ↳ `type` | string | User type \(member, shared, tagged\) |
+
 |   ↳ `created` | string | Creation timestamp |
+
 |   ↳ `lastSeen` | string | Last seen timestamp |
+
 |   ↳ `deviceCount` | number | Number of devices owned by user |
+
 | `count` | number | Total number of users |
+
 
 ### `tailscale_create_auth_key`
 
-Создание нового auth key for the tailnet to pre-authorize devices
 
-#### Вход
+Create a new auth key for the tailnet to pre-authorize devices
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `reusable` | boolean | Нет | Указывает,  key can be used more than once |
-| `ephemeral` | boolean | Нет | Whether devices authenticated with this key are ephemeral |
-| `preauthorized` | boolean | Нет | Whether devices are pre-authorized \(skip manual approval\) |
-| `tags` | string | Нет | Comma-separated list of tags for devices using this key (например, "tag:server,tag:prod"\) |
-| `description` | string | Нет | Description for the auth key |
-| `expirySeconds` | number | Нет | Key expiry time in seconds \(по умолчанию: 90 days\) |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `reusable` | boolean | No | Whether the key can be used more than once |
+
+| `ephemeral` | boolean | No | Whether devices authenticated with this key are ephemeral |
+
+| `preauthorized` | boolean | No | Whether devices are pre-authorized \(skip manual approval\) |
+
+| `tags` | string | No | Comma-separated list of tags for devices using this key \(e.g., "tag:server,tag:prod"\) |
+
+| `description` | string | No | Description for the auth key |
+
+| `expirySeconds` | number | No | Key expiry time in seconds \(default: 90 days\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `id` | string | Auth key ID |
+
 | `key` | string | The auth key value \(only shown once at creation\) |
+
 | `description` | string | Key description |
+
 | `created` | string | Creation timestamp |
+
 | `expires` | string | Expiration timestamp |
+
 | `revoked` | string | Revocation timestamp \(empty if not revoked\) |
+
 | `capabilities` | object | Key capabilities |
-|   ↳ `reusable` | boolean | Указывает,  key is reusable |
+
+|   ↳ `reusable` | boolean | Whether the key is reusable |
+
 |   ↳ `ephemeral` | boolean | Whether devices are ephemeral |
+
 |   ↳ `preauthorized` | boolean | Whether devices are pre-authorized |
+
 |   ↳ `tags` | array | Tags applied to devices using this key |
+
 
 ### `tailscale_list_auth_keys`
 
-Получение списка auth keys in the tailnet
 
-#### Вход
+List all auth keys in the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `keys` | array | Получение списка of auth keys |
+
+| `keys` | array | List of auth keys |
+
 |   ↳ `id` | string | Auth key ID |
+
 |   ↳ `description` | string | Key description |
+
 |   ↳ `created` | string | Creation timestamp |
+
 |   ↳ `expires` | string | Expiration timestamp |
+
 |   ↳ `revoked` | string | Revocation timestamp |
+
 |   ↳ `capabilities` | object | Key capabilities |
-|     ↳ `reusable` | boolean | Указывает,  key is reusable |
+
+|     ↳ `reusable` | boolean | Whether the key is reusable |
+
 |     ↳ `ephemeral` | boolean | Whether devices are ephemeral |
+
 |     ↳ `preauthorized` | boolean | Whether devices are pre-authorized |
+
 |     ↳ `tags` | array | Tags applied to devices |
+
 | `count` | number | Total number of auth keys |
+
 
 ### `tailscale_get_auth_key`
 
-Получение details of a specific auth key
 
-#### Вход
+Get details of a specific auth key
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `keyId` | string | Да | Auth key ID |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `keyId` | string | Yes | Auth key ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `id` | string | Auth key ID |
+
 | `description` | string | Key description |
+
 | `created` | string | Creation timestamp |
+
 | `expires` | string | Expiration timestamp |
+
 | `revoked` | string | Revocation timestamp |
+
 | `capabilities` | object | Key capabilities |
-|   ↳ `reusable` | boolean | Указывает,  key is reusable |
+
+|   ↳ `reusable` | boolean | Whether the key is reusable |
+
 |   ↳ `ephemeral` | boolean | Whether devices are ephemeral |
+
 |   ↳ `preauthorized` | boolean | Whether devices are pre-authorized |
+
 |   ↳ `tags` | array | Tags applied to devices using this key |
+
 
 ### `tailscale_delete_auth_key`
 
+
 Revoke and delete an auth key
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
-| `keyId` | string | Да | Auth key ID to delete |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+| `keyId` | string | Yes | Auth key ID to delete |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  auth key was successfully deleted |
+
+| `success` | boolean | Whether the auth key was successfully deleted |
+
 | `keyId` | string | ID of the deleted auth key |
+
 
 ### `tailscale_get_acl`
 
-Получение the current ACL policy for the tailnet
 
-#### Вход
+Get the current ACL policy for the tailnet
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Tailscale Ключ API |
-| `tailnet` | string | Да | Tailnet name (например, example.com\) or "-" for по умолчанию |
 
-#### Выход
+| `apiKey` | string | Yes | Tailscale API key |
+
+| `tailnet` | string | Yes | Tailnet name \(e.g., example.com\) or "-" for default |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `acl` | string | ACL policy as JSON string |
+
 | `etag` | string | ETag for the current ACL version \(use with If-Match header for updates\) |
+
 
 

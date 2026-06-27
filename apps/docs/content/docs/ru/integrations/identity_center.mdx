@@ -1,5 +1,5 @@
 ---
-title: AWS Identity Center
+title: Центр идентификации AWS
 description: Управление временным повышенным доступом в AWS IAM Identity Center
 ---
 
@@ -10,331 +10,577 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) (formerly AWS Single Sign-On) is the recommended service for managing workforce access to multiple AWS accounts and applications. It provides a central place to assign users and groups temporary, permission-scoped access to AWS accounts using permission sets — without creating long-lived IAM credentials.
 
-With AWS IAM Identity Center, you can:
+[AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) (ранее AWS Single Sign-On) — это рекомендуемый сервис для управления доступом персонала к нескольким учетным записам и приложениям AWS. Он предоставляет централизованное место для назначения пользователям и группам временного доступа с ограниченными разрешениями к учетным записам AWS, используя наборы разрешений — без создания долгоживущих учетных данных IAM.
 
-- **Provision account assignments**: Grant a user or group access to a specific AWS account with a specific permission set — the core primitive of temporary elevated access
-- **Revoke access on demand**: Delete account assignments to immediately remove elevated permissions when they are no longer needed
-- **Look up users by email**: Resolve a federated identity (email address) to an Identity Store user ID for programmatic access provisioning
-- **List permission sets**: Enumerate the available permission sets (e.g., ReadOnly, PowerUser, AdministratorAccess) defined in your Identity Center instance
-- **Monitor assignment status**: Poll the provisioning status of create/delete operations, which are asynchronous in AWS
-- **List accounts in your organization**: Enumerate all AWS accounts in your AWS Organizations structure to populate access request dropdowns
-- **Manage groups**: List groups and resolve group IDs by display name for group-based access grants
 
-In Sim, the AWS Identity Center integration is designed to power **TEAM (Temporary Elevated Access Management)** workflows — automated pipelines where users request elevated access, approvers approve or deny it, access is provisioned with a time limit, and auto-revocation removes it when the window expires. This replaces manual console-based access management with auditable, agent-driven workflows that integrate with Slack, email, ticketing systems, and CloudTrail for full traceability.
+С помощью AWS IAM Identity Center вы можете:
+
+
+- **Назначать учетные записи**: Предоставить пользователю или группе доступ к конкретной учетной записи AWS с определенным набором разрешений — это основной механизм для предоставления временного доступа с повышенными привилегиями.
+
+- **Отзывать доступ по требованию**: Удалять назначения учетных записей, чтобы немедленно отменить повышенные разрешения, когда они больше не нужны.
+
+- **Искать пользователей по электронной почте**: Разрешать федеративную идентификацию (адрес электронной почты) для получения доступа к Identity Store пользователю.
+
+- **Перечислять наборы разрешений**: Перечислять доступные наборы разрешений (например, ReadOnly, PowerUser, AdministratorAccess), определенные в вашей инстанции Identity Center.
+
+- **Мониторить статус назначения**: Отслеживать статус операций создания/удаления, которые являются асинхронными в AWS.
+
+- **Перечислять учетные записи в вашей организации**: Перечислять все учетные записи AWS в вашей структуре AWS Organizations для заполнения выпадающих списков запросов доступа.
+
+- **Управлять группами**: Перечислять группы и разрешать доступ на основе групп, разрешая идентификаторы групп по имени.
+
+
+В Sim интеграция AWS Identity Center предназначена для поддержки рабочих процессов TEAM (Temporary Elevated Access Management) — автоматизированных конвейеров, в которых пользователи запрашивают повышенные привилегии, утверждающие их утверждают или отклоняют, доступ предоставляется с ограниченным сроком действия, и автоматическое снятие доступа удаляет его по истечении срока. Это заменяет ручное управление доступом на консоли с проверяемыми рабочими процессами, управляемыми агентами, которые интегрируются со Slack, электронной почтой, системами тикетов и CloudTrail для полной отслеживаемости.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.
+
+Предоставляйте и отзывайте временный доступ к учетным записам AWS через IAM Identity Center (SSO). Назначайте наборы разрешений пользователям или группам, ищите пользователей по электронной почте и перечисляйте учетные записи и наборы разрешений для рабочих процессов запросов доступа.
+
 
 
 
 ## Действия
 
+
 ### `identity_center_list_instances`
 
-List all AWS IAM Identity Center instances in your account
 
-#### Входные параметры
+Перечислить все экземпляры AWS IAM Identity Center в вашей учетной записи
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `maxResults` | number | Нет | Maximum number of instances to return \(1-100\) |
-| `nextToken` | string | Нет | Pagination token from a previous request |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `maxResults` | число | Нет | Максимальное количество экземпляров для возврата (1-100) |
+
+| `nextToken` | строка | Нет | Токен страницы для предыдущих запросов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `instances` | json | List of Identity Center instances with instanceArn, identityStoreId, name, status, statusReason |
-| `nextToken` | string | Pagination token for the next page of results |
-| `count` | number | Number of instances returned |
+
+| `instances` | json | Список экземпляров Identity Center с instanceArn, identityStoreId, name, status, statusReason |
+
+| `nextToken` | строка | Токен страницы для следующей страницы результатов |
+
+| `count` | число | Количество возвращенных экземпляров |
+
 
 ### `identity_center_list_accounts`
 
-List all AWS accounts in your organization
 
-#### Входные параметры
+Перечислить все учетные записи AWS в вашей организации
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `maxResults` | number | Нет | Maximum number of accounts to return |
-| `nextToken` | string | Нет | Pagination token from a previous request |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `maxResults` | число | Нет | Максимальное количество учетных записей для возврата |
+
+| `nextToken` | строка | Нет | Токен страницы для предыдущих запросов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `accounts` | json | List of AWS accounts with id, arn, name, email, status |
-| `nextToken` | string | Pagination token for the next page of results |
-| `count` | number | Number of accounts returned |
+
+| `accounts` | json | Список учетных записей AWS с id, arn, name, email, status |
+
+| `nextToken` | строка | Токен страницы для следующей страницы результатов |
+
+| `count` | число | Количество возвращенных учетных записей |
+
 
 ### `identity_center_describe_account`
 
-Retrieve details about a specific AWS account by its ID
 
-#### Входные параметры
+Получить детали конкретной учетной записи AWS по ее ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `accountId` | string | Да | AWS account ID to describe |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `accountId` | строка | Да | ID учетной записи AWS для описания |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | AWS account ID |
-| `arn` | string | AWS account ARN |
-| `name` | string | Account name |
-| `email` | string | Root email address of the account |
-| `status` | string | Account status \(ACTIVE, SUSPENDED, etc.\) |
-| `joinedTimestamp` | string | Date the account joined the organization |
+
+| `id` | строка | ID учетной записи AWS |
+
+| `arn` | строка | ARN учетной записи AWS |
+
+| `name` | строка | Имя учетной записи |
+
+| `email` | строка | Адрес электронной почты корневой учетной записи |
+
+| `status` | строка | Статус учетной записи (ACTIVE, SUSPENDED и т.д.) |
+
+| `joinedTimestamp` | строка | Дата присоединения к организации |
+
 
 ### `identity_center_list_permission_sets`
 
-List all permission sets defined in an IAM Identity Center instance
 
-#### Входные параметры
+Перечислить все наборы разрешений, определенные в экземпляре IAM Identity Center
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `maxResults` | number | Нет | Maximum number of permission sets to return |
-| `nextToken` | string | Нет | Pagination token from a previous request |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `instanceArn` | строка | Да | ARN экземпляра Identity Center |
+
+| `maxResults` | число | Нет | Максимальное количество наборов разрешений для возврата |
+
+| `nextToken` | строка | Нет | Токен страницы для предыдущих запросов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `permissionSets` | json | List of permission sets with permissionSetArn, name, description, sessionDuration |
-| `nextToken` | string | Pagination token for the next page of results |
-| `count` | number | Number of permission sets returned |
+
+| `permissionSets` | json | Список наборов разрешений с permissionSetArn, name, description, sessionDuration |
+
+| `nextToken` | строка | Токен страницы для следующей страницы результатов |
+
+| `count` | число | Количество возвращенных наборов разрешений |
+
 
 ### `identity_center_get_user`
 
-Look up a user in the Identity Store by email address
 
-#### Входные параметры
+Получить пользователя из Identity Store по адресу электронной почты
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `identityStoreId` | string | Да | Identity Store ID \(from the Identity Center instance\) |
-| `email` | string | Да | Email address of the user to look up |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `identityStoreId` | строка | Да | ID Identity Store (из экземпляра Identity Center) |
+
+| `email` | строка | Да | Адрес электронной почты пользователя для поиска |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `userId` | string | Identity Store user ID \(use as principalId\) |
-| `userName` | string | Username in the Identity Store |
-| `displayName` | string | Display name of the user |
-| `email` | string | Email address of the user |
+
+| `userId` | строка | ID пользователя в Identity Store (используется как principalId) |
+
+| `userName` | строка | Имя пользователя в Identity Store |
+
+| `displayName` | строка | Отображаемое имя пользователя |
+
+| `email` | строка | Адрес электронной почты пользователя |
+
 
 ### `identity_center_get_group`
 
-Look up a group in the Identity Store by display name
 
-#### Входные параметры
+Получить группу из Identity Store по имени |
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `identityStoreId` | string | Да | Identity Store ID \(from the Identity Center instance\) |
-| `displayName` | string | Да | Display name of the group to look up |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `identityStoreId` | строка | Да | ID Identity Store (из экземпляра Identity Center) |
+
+| `displayName` | строка | Да | Отображаемое имя группы для поиска |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `groupId` | string | Identity Store group ID \(use as principalId\) |
-| `displayName` | string | Display name of the group |
-| `description` | string | Group description |
+
+| `groupId` | строка | ID группы в Identity Store (используется как principalId) |
+
+| `displayName` | строка | Отображаемое имя группы |
+
+| `description` | строка | Описание группы |
+
 
 ### `identity_center_list_groups`
 
-List all groups in the Identity Store
 
-#### Входные параметры
+Перечислить все группы в Identity Store
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `identityStoreId` | string | Да | Identity Store ID \(from the Identity Center instance\) |
-| `maxResults` | number | Нет | Maximum number of groups to return |
-| `nextToken` | string | Нет | Pagination token from a previous request |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `identityStoreId` | строка | Да | ID Identity Store (из экземпляра Identity Center) |
+
+| `maxResults` | число | Нет | Максимальное количество групп для возврата |
+
+| `nextToken` | строка | Нет | Токен страницы для предыдущих запросов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `groups` | json | List of groups with groupId, displayName, description |
-| `nextToken` | string | Pagination token for the next page of results |
-| `count` | number | Number of groups returned |
+
+| `groups` | json | Список групп с groupId, displayName, description |
+
+| `nextToken` | строка | Токен страницы для следующей страницы результатов |
+
+| `count` | число | Количество возвращенных групп |
+
 
 ### `identity_center_create_account_assignment`
 
-Grant a user or group access to an AWS account via a permission set (temporary elevated access)
 
-#### Входные параметры
+Предоставить пользователю или группе доступ к учетной записи AWS с помощью набора разрешений (временный повышенный доступ)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `accountId` | string | Да | AWS account ID to grant access to |
-| `permissionSetArn` | string | Да | ARN of the permission set to assign |
-| `principalType` | string | Да | Type of principal: USER or GROUP |
-| `principalId` | string | Да | Identity Store ID of the user or group |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `instanceArn` | строка | Да | ARN экземпляра Identity Center |
+
+| `accountId` | строка | Да | ID учетной записи AWS для предоставления доступа |
+
+| `permissionSetArn` | строка | Да | ARN набора разрешений для назначения |
+
+| `principalType` | строка | Да | Тип принципа: USER или GROUP |
+
+| `principalId` | строка | Да | ID пользователя или группы в Identity Store |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Status message |
-| `status` | string | Provisioning status: IN_PROGRESS, FAILED, or SUCCEEDED |
-| `requestId` | string | Request ID to use with Check Assignment Status |
-| `accountId` | string | Target AWS account ID |
-| `permissionSetArn` | string | Permission set ARN |
-| `principalType` | string | Principal type \(USER or GROUP\) |
-| `principalId` | string | Principal ID |
-| `failureReason` | string | Reason for failure if status is FAILED |
-| `createdDate` | string | Date the request was created |
+
+| `message` | строка | Сообщение статуса |
+
+| `status` | строка | Статус развертывания: IN_PROGRESS, FAILED или SUCCEEDED |
+
+| `requestId` | строка | ID запроса для использования с Check Assignment Status |
+
+| `accountId` | строка | ID целевой учетной записи AWS |
+
+| `permissionSetArn` | строка | ARN набора разрешений |
+
+| `principalType` | строка | Тип принципа (USER или GROUP) |
+
+| `principalId` | строка | ID принципа |
+
+| `failureReason` | строка | Причина сбоя, если статус FAILED |
+
+| `createdDate` | строка | Дата создания запроса |
+
 
 ### `identity_center_delete_account_assignment`
 
-Revoke a user or group access to an AWS account by removing a permission set assignment
 
-#### Входные параметры
+Отменить доступ пользователю или группе к учетной записи AWS путем удаления назначения набора разрешений
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `accountId` | string | Да | AWS account ID to revoke access from |
-| `permissionSetArn` | string | Да | ARN of the permission set to remove |
-| `principalType` | string | Да | Type of principal: USER or GROUP |
-| `principalId` | string | Да | Identity Store ID of the user or group |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `instanceArn` | строка | Да | ARN экземпляра Identity Center |
+
+| `accountId` | строка | Да | ID учетной записи AWS для отмены доступа |
+
+| `permissionSetArn` | строка | Да | ARN набора разрешений для удаления |
+
+| `principalType` | строка | Да | Тип принципа: USER или GROUP |
+
+| `principalId` | строка | Да | ID пользователя или группы в Identity Store |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Status message |
-| `status` | string | Deprovisioning status: IN_PROGRESS, FAILED, or SUCCEEDED |
-| `requestId` | string | Request ID to use with Check Assignment Status |
-| `accountId` | string | Target AWS account ID |
-| `permissionSetArn` | string | Permission set ARN |
-| `principalType` | string | Principal type \(USER or GROUP\) |
-| `principalId` | string | Principal ID |
-| `failureReason` | string | Reason for failure if status is FAILED |
-| `createdDate` | string | Date the request was created |
+
+| `message` | строка | Сообщение статуса |
+
+| `status` | строка | Статус удаления: IN_PROGRESS, FAILED или SUCCEEDED |
+
+| `requestId` | строка | ID запроса для использования с Check Assignment Status |
+
+| `accountId` | строка | ID целевой учетной записи AWS |
+
+| `permissionSetArn` | строка | ARN набора разрешений |
+
+| `principalType` | строка | Тип принципа (USER или GROUP) |
+
+| `principalId` | строка | ID принципа |
+
+| `failureReason` | строка | Причина сбоя, если статус FAILED |
+
+| `createdDate` | строка | Дата создания запроса |
+
 
 ### `identity_center_check_assignment_status`
 
-Check the provisioning status of an account assignment creation request
 
-#### Входные параметры
+Проверить статус развертывания запроса создания назначения учетной записи
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `requestId` | string | Да | Request ID returned from Create or Delete Account Assignment |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `instanceArn` | строка | Да | ARN экземпляра Identity Center |
+
+| `requestId` | строка | Да | ID запроса, возвращенный при создании или удалении назначения учетной записи |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Human-readable status message |
-| `status` | string | Current status: IN_PROGRESS, FAILED, or SUCCEEDED |
-| `requestId` | string | The request ID that was checked |
-| `accountId` | string | Target AWS account ID |
-| `permissionSetArn` | string | Permission set ARN |
-| `principalType` | string | Principal type \(USER or GROUP\) |
-| `principalId` | string | Principal ID |
-| `failureReason` | string | Reason for failure if status is FAILED |
-| `createdDate` | string | Date the request was created |
+
+| `message` | строка | Человекочитаемое сообщение статуса |
+
+| `status` | строка | Текущий статус: IN_PROGRESS, FAILED или SUCCEEDED |
+
+| `requestId` | строка | ID запроса, который проверяется |
+
+| `accountId` | строка | ID целевой учетной записи AWS |
+
+| `permissionSetArn` | строка | ARN набора разрешений |
+
+| `principalType` | строка | Тип принципа (USER или GROUP) |
+
+| `principalId` | строка | ID принципа |
+
+| `failureReason` | строка | Причина сбоя, если статус FAILED |
+
+| `createdDate` | строка | Дата создания запроса |
+
 
 ### `identity_center_check_assignment_deletion_status`
 
-Check the deprovisioning status of an account assignment deletion request
 
-#### Входные параметры
+Проверить статус удаления назначения учетной записи
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `requestId` | string | Да | Request ID returned from Delete Account Assignment |
 
-#### Выходные параметры
+| `region` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `accessKeyId` | строка | Да | Идентификатор ключа доступа AWS |
+
+| `secretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `instanceArn` | строка | Да | ARN экземпляра Identity Center |
+
+| `requestId` | строка | Да | ID запроса, возвращенный при создании или удалении назначения учетной записи |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Human-readable status message |
-| `status` | string | Current deletion status: IN_PROGRESS, FAILED, or SUCCEEDED |
-| `requestId` | string | The deletion request ID that was checked |
-| `accountId` | string | Target AWS account ID |
-| `permissionSetArn` | string | Permission set ARN |
-| `principalType` | string | Principal type \(USER or GROUP\) |
-| `principalId` | string | Principal ID |
-| `failureReason` | string | Reason for failure if status is FAILED |
-| `createdDate` | string | Date the request was created |
+
+| `message` | строка | Человекочитаемое сообщение статуса |
+
+| `status` | строка | Текущий статус удаления: IN_PROGRESS, FAILED или SUCCEEDED |
+
+| `requestId` | строка | ID запроса, который проверяется |
+
+| `accountId` | строка | ID целевой учетной записи AWS |
+
+| `permissionSetArn` | строка | ARN набора разрешений |
+
+| `principalType` | строка | Тип принципа (USER или GROUP) |
+
+| `principalId` | строка | ID принципа |
+
+| `failureReason` | строка | Причина сбоя, если статус FAILED |
+
+| `createdDate` | строка | Дата создания запроса |
+
 
 ### `identity_center_list_account_assignments`
 
-List all account assignments for a specific user or group across all accounts
 
-#### Входные параметры
+Перечислить все назначения учетных записей для конкретного пользователя или группы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | AWS region \(e.g., us-east-1\) |
-| `accessKeyId` | string | Да | AWS access key ID |
-| `secretAccessKey` | string | Да | AWS secret access key |
-| `instanceArn` | string | Да | ARN of the Identity Center instance |
-| `principalId` | string | Да | Identity Store ID of the user or group |
-| `principalType` | string | Да | Type of principal: USER or GROUP |
-| `maxResults` | number | Нет | Maximum number of assignments to return |
-| `nextToken` | string | Нет | Pagination token from a previous request |
 
-#### Выходные параметры
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 
-| Параметр | Тип | Описание |
+| `accessKeyId` | string | Yes | AWS access key ID |
+
+| `secretAccessKey` | string | Yes | AWS secret access key |
+
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+
+| `principalId` | string | Yes | Identity Store ID of the user or group |
+
+| `principalType` | string | Yes | Type of principal: USER or GROUP |
+
+| `maxResults` | number | No | Maximum number of assignments to return |
+
+| `nextToken` | string | No | Pagination token from a previous request |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assignments` | json | List of account assignments with accountId, permissionSetArn, principalType, principalId |
+
 | `nextToken` | string | Pagination token for the next page of results |
+
 | `count` | number | Number of assignments returned |
+
 
 

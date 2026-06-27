@@ -1,6 +1,6 @@
 ---
-title: Memory
-description: Добавление хранилища памяти
+title: Память
+description: Add memory store
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,104 +10,171 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F64F9E"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-The Memory tool enables your agents to store, retrieve, and manage conversation memories across workflows. It acts as a persistent memory store that agents can access to maintain conversation context, recall facts, or track actions over time.
 
-With the Memory tool, you can:
+Инструмент "Память" позволяет вашим агентам хранить, извлекать и управлять воспоминаниями о разговорах в рамках рабочих процессов. Он действует как постоянное хранилище памяти, к которому агенты могут получить доступ для поддержания контекста разговора, вспоминания фактов или отслеживания действий с течением времени.
 
-- **Add new memories**: Store relevant information, events, or conversation history by saving agent or user messages into a structured memory database
-- **Retrieve memories**: Fetch specific memories or all memories tied to a conversation, helping agents recall previous interactions or facts
-- **Delete memories**: Remove outdated or incorrect memories from the database to maintain accurate context
-- **Append to existing conversations**: Update or expand on existing memory threads by appending new messages with the same conversation identifier
 
-Sim’s Memory block is especially useful for building agents that require persistent state—helping them remember what was said earlier in a conversation, persist facts between tasks, or apply long-term history in decision-making. By integrating Memory, you enable richer, more contextual, and more dynamic workflows for your agents.
+Используя инструмент "Память", вы можете:
+
+
+- **Добавить новые воспоминания**: Сохранять соответствующие сведения, события или историю разговоров путем сохранения сообщений агента или пользователя в структурированной базе данных памяти
+
+- **Извлечь воспоминания**: Получать конкретные воспоминания или все воспоминания, связанные с разговором, помогая агентам вспомнить предыдущие взаимодействия или факты
+
+- **Удалить воспоминания**: Удалять устаревшие или неточные воспоминания из базы данных для поддержания точного контекста
+
+- **Дополнять существующие разговоры**: Обновлять или расширять существующие потоки памяти путем добавления новых сообщений с тем же идентификатором разговора
+
+
+Блок "Память" в Sim особенно полезен для создания агентов, которым требуется постоянное состояние — помогая им помнить, что было сказано ранее в разговоре, сохранять факты между задачами или применять долгосрочную историю при принятии решений. Интегрируя "Память", вы обеспечиваете более богатые, контекстно-зависимые и динамичные рабочие процессы для ваших агентов.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интеграция Memory в рабочий процесс. Позволяет добавлять, получать воспоминание, получать все воспоминания и удалять воспоминания.
+
+Интегрируйте "Память" в рабочий процесс. Можно добавлять, получать память, получать все воспоминания и удалять воспоминания.
+
 
 
 
 ## Действия
 
+
 ### `memory_add`
 
-Add a new memory to the database or append to existing memory with the same ID.
 
-#### Входные параметры
+Добавить новое воспоминание в базу данных или добавить к существующему с тем же ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Нет | Conversation identifier \(e.g., user-123, session-abc\). If a memory with this conversationId already exists, the new message will be appended to it. |
-| `id` | string | Нет | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
-| `role` | string | Да | Role for agent memory \(user, assistant, or system\) |
-| `content` | string | Да | Content for agent memory |
 
-#### Выходные параметры
+| `conversationId` | строка | Нет | Идентификатор разговора (например, user-123, session-abc). Если в базе данных уже существует память с этим идентификатором conversationId, новое сообщение будет добавлено к ней. |
+
+| `id` | строка | Нет | Устаревший параметр для идентификатора разговора. Используйте conversationId вместо этого. Предоставляется для обратной совместимости. |
+
+| `role` | строка | Да | Роль памяти агента (user, assistant или system) |
+
+| `content` | строка | Да | Содержание памяти агента |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was added successfully |
-| `memories` | array | Array of memory objects including the new or updated memory |
-| `error` | string | Error message if operation failed |
+
+| `success` | логическое значение | Успешно ли добавлена память |
+
+| `memories` | массив | Массив объектов памяти, включая новую или обновленную память |
+
+| `error` | строка | Сообщение об ошибке в случае неудачи операции |
+
 
 ### `memory_get`
 
-Retrieve memory by conversationId. Returns matching memories.
 
-#### Входные параметры
+Получить память по идентификатору conversationId. Возвращает соответствующие воспоминания.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Нет | Conversation identifier \(e.g., user-123, session-abc\). Returns memories for this conversation. |
-| `id` | string | Нет | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
 
-#### Выходные параметры
+| `conversationId` | строка | Нет | Идентификатор разговора (например, user-123, session-abc). Возвращает воспоминания для этого разговора. |
+
+| `id` | строка | Нет | Устаревший параметр для идентификатора разговора. Используйте conversationId вместо этого. Предоставляется для обратной совместимости. |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was retrieved successfully |
-| `memories` | array | Array of memory objects with conversationId and data fields |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+
+| `success` | логическое значение | Успешно ли получена память |
+
+| `memories` | массив | Массив объектов памяти с полями conversationId и data |
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
+| `error` | строка | Сообщение об ошибке в случае неудачи операции |
+
 
 ### `memory_get_all`
 
-Retrieve all memories from the database
 
-#### Входные параметры
+Получить все воспоминания из базы данных
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
 
-#### Выходные параметры
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether all memories were retrieved successfully |
-| `memories` | array | Array of all memory objects with key, conversationId, and data fields |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+
+| `success` | логическое значение | Успешно ли получены все воспоминания |
+
+| `memories` | массив | Массив всех объектов памяти с полями key, conversationId и data |
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
+| `error` | строка | Сообщение об ошибке в случае неудачи операции |
+
 
 ### `memory_delete`
 
-Delete memories by conversationId.
 
-#### Входные параметры
+Удалить воспоминания по идентификатору conversationId.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `conversationId` | string | Нет | Conversation identifier \(e.g., user-123, session-abc\). Deletes all memories for this conversation. |
-| `id` | string | Нет | Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility. |
 
-#### Выходные параметры
+| `conversationId` | строка | Нет | Идентификатор разговора (например, user-123, session-abc). Удаляет все воспоминания для этого разговора. |
+
+| `id` | строка | Нет | Устаревший параметр для идентификатора разговора. Используйте conversationId вместо этого. Предоставляется для обратной совместимости. |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the memory was deleted successfully |
-| `message` | string | Success or error message |
-| `error` | string | Error message if operation failed |
+
+| `success` | логическое значение | Успешно ли удалено воспоминание |
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
+| `error` | строка | Сообщение об ошибке в случае неудачи операции |
+
 
 

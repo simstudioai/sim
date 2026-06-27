@@ -4075,6 +4075,22 @@ import {
   zoomUpdateMeetingTool,
 } from '@/tools/zoom'
 import {
+import {
+import {
+  yandexMusicSearchTracksTool,
+  yandexMusicGetTrackDetailsTool,
+  yandexMusicCreatePlaylistTool,
+  yandexMusicAddTracksToPlaylistTool,
+  yandexMusicGetUserProfileTool,
+  yandexMusicSearchAlbumsTool,
+} from '@/tools/yandex_music'
+  stripeCreateChargeTool,
+  stripeRetrieveCustomerTool,
+  stripeCreateCheckoutSessionTool,
+  stripeListProductsTool,
+  stripeCreateSubscriptionTool,
+  stripeWebhookListenTool,
+} from '@/tools/stripe'
   zoominfoEnrichCompaniesTool,
   zoominfoEnrichContactsTool,
   zoominfoSearchCompaniesTool,
@@ -4278,6 +4294,12 @@ export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
+  stripe_create_charge: stripeCreateChargeTool,
+  stripe_create_checkout_session: stripeCreateCheckoutSessionTool,
+  stripe_create_subscription: stripeCreateSubscriptionTool,
+  stripe_list_products: stripeListProductsTool,
+  stripe_retrieve_customer: stripeRetrieveCustomerTool,
+  stripe_webhook_listen: stripeWebhookListenTool,
   webhook_request: webhookRequestTool,
   huggingface_chat: huggingfaceChatTool,
   llm_chat: llmChatTool,
@@ -5056,6 +5078,12 @@ export const tools: Record<string, ToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  yandex_music_add_tracks_to_playlist: yandexMusicAddTracksToPlaylistTool,
+  yandex_music_create_playlist: yandexMusicCreatePlaylistTool,
+  yandex_music_get_track_details: yandexMusicGetTrackDetailsTool,
+  yandex_music_get_user_profile: yandexMusicGetUserProfileTool,
+  yandex_music_search_albums: yandexMusicSearchAlbumsTool,
+  yandex_music_search_tracks: yandexMusicSearchTracksTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,

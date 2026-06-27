@@ -1,6 +1,6 @@
 ---
 title: AgentMail
-description: Управляйте почтовыми ящиками, темами и сообщениями с помощью AgentMail.
+description: Управляйте своими почтовыми ящиками, темами и сообщениями с помощью AgentMail
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,235 +10,1035 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
-{/* НАЧАЛО РУЧНОГО СОДЕРЖИЯ: введение */}
-[AgentMail](https://agentmail.to/)AgentMailhttps://agentmail.to/AgentMail – это платформа для работы с электронной почтой, разработанная специально для агентов и автоматизации. Она позволяет создавать почтовые ящики "на лету", отправлять и получать сообщения, отвечать на переписки, управлять черновиками и организовывать общение с помощью меток — все через простой REST API, предназначенный для программного доступа.
-
-**Почему стоит выбрать AgentMail?**
-- **Электронная почта, разработанная специально для ИИ-агентов и автоматизации:** Создайте почтовые ящики, отправляйте сообщения и управляйте переписками без необходимости использования пользовательского интерфейса, ориентированного на человека.- **Полный цикл работы с электронной почтой:** Отправка новых сообщений, ответы на переписку, пересылка электронных писем, управление черновиками и планирование отправки – все это осуществляется через единый API.- **Управление темами и перепиской:** Организуйте электронные письма в темы с полной поддержкой чтения, ответов, пересылки и меток для структурированного отслеживания переписки.- **Предлагаемый рабочий процесс:** Создавайте черновики, редактируйте их, планируйте отправку и отправляйте, когда будете готовы – идеально подходит для рабочих процессов с предварительной проверкой перед отправкой.- **Организация меток:** Присваивайте темам и сообщениям пользовательские метки для фильтрации, маршрутизации и автоматизации дальнейших действий.
-**Использование AgentMail в Sim**
-
-Интеграция Sim AgentMail позволяет напрямую подключать ваши рабочие процессы к AgentMail с использованием ключа API. Благодаря 20 операциям, охватывающим входящие почты, темы, сообщения и черновики, вы можете создавать мощные автоматизированные системы электронной почты без написания кода для backend-а.
-
-**Основные преимущества использования AgentMail в Sim:**
-- **Создание новых почтовых ящиков в режиме реального времени:** Создавайте новые почтовые ящики для каждого агента, рабочего процесса или клиента по мере необходимости – идеально подходит для обработки электронной почты в многопользовательской среде.- **Автоматизированная обработка электронной почты:** Отображение и чтение входящих сообщений, а также запуск последующих действий на основе содержимого, отправителя или меток.- **Электронная переписка:** Отвечайте на темы и пересылайте сообщения, чтобы поддерживать естественный ход разговоров в ваших автоматизированных рабочих процессах.- **Разработка и проверка рабочих процессов:** Создавайте черновики, обновляйте их с использованием контента, сгенерированного ИИ, и отправляйте после утверждения – идеально подходит для сценариев, в которых участвует человек.- **Организация электронной почты:** Применяйте метки к темам и сообщениям для категоризации, фильтрации и маршрутизации электронных писем через ваш автоматизированный процесс.
-Независимо от того, создаете ли вы AI-помощника для электронной почты, автоматизируете ответы на запросы клиентов, обрабатываете входящие заявки или управляете многоагентскими рабочими процессами по электронной почте, AgentMail в Sim предоставляет вам прямой и безопасный доступ ко всему API AgentMail — без необходимости использования промежуточного программного обеспечения. Просто настройте свой ключ API, выберите необходимую операцию, и Sim позаботится обо всем остальном.
-{/* КОНЕЦ МАНУАЛЬНОГО СОДЕРЖИЯ */}
-
-
-## Инструкция по применению
-Интегрируйте AgentMail в свою рабочую среду. Создавайте и управляйте почтовыми ящиками, отправляйте и получайте сообщения, отвечайте на цепочки сообщений, управляйте черновиками и организуйте цепочки с помощью меток. Требуется API-ключ.
 
 
 
-## Действия
+[AgentMail](https://agentmail.to/) is an API-first email platform built for agents and automation. AgentMail lets you create email inboxes on the fly, send and receive messages, reply to threads, manage drafts, and organize conversations with labels — all through a simple REST API designed for programmatic access.
+
+
+**Why AgentMail?**
+
+- **Agent-Native Email:** Purpose-built for AI agents and automation — create inboxes, send messages, and manage threads without human-facing UI overhead.
+
+- **Full Email Lifecycle:** Send new messages, reply to threads, forward emails, manage drafts, and schedule sends — all from a single API.
+
+- **Thread & Conversation Management:** Organize emails into threads with full read, reply, forward, and label support for structured conversation tracking.
+
+- **Draft Workflow:** Compose drafts, update them, schedule sends, and dispatch when ready — perfect for review-before-send workflows.
+
+- **Label Organization:** Tag threads and messages with custom labels for filtering, routing, and downstream automation.
+
+
+**Using AgentMail in Sim**
+
+
+Sim's AgentMail integration connects your agentic workflows directly to AgentMail using an API key. With 20 operations spanning inboxes, threads, messages, and drafts, you can build powerful email automations without writing backend code.
+
+
+**Key benefits of using AgentMail in Sim:**
+
+- **Dynamic inbox creation:** Spin up new inboxes on the fly for each agent, workflow, or customer — perfect for multi-tenant email handling.
+
+- **Automated email processing:** List and read incoming messages, then trigger downstream actions based on content, sender, or labels.
+
+- **Conversational email:** Reply to threads and forward messages to keep conversations flowing naturally within your automated workflows.
+
+- **Draft and review workflows:** Create drafts, update them with AI-generated content, and send when approved — ideal for human-in-the-loop patterns.
+
+- **Email organization:** Apply labels to threads and messages to categorize, filter, and route emails through your automation pipeline.
+
+
+Whether you're building an AI email assistant, automating customer support replies, processing incoming leads, or managing multi-agent email workflows, AgentMail in Sim gives you direct, secure access to the full AgentMail API — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
+
+{/* MANUAL-CONTENT-END */}
+
+
+
+## Usage Instructions
+
+
+Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.
+
+
+
+
+## Actions
+
+
 ### `agentmail_create_draft`
 
-Создайте новый черновик письма в программе AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, в котором нужно создать черновик |  ||  | `to` | строка | Нет | Адреса электронной почты получателей (разделенные запятыми) |  ||  | `subject` | строка | Нет | Предлагаемый вариант темы письма |  ||  | `text` | строка | Нет | Черновик текста в обычном формате |  ||  | `html` | строка | Нет | Тело проекта HTML |  ||  | `cc` | строка | Нет | Адреса электронной почты получателей CC (разделенные запятыми) |  ||  | `bcc` | строка | Нет | Адреса электронной почты получателей в поле «Копия всем» (разделенные запятыми) |  ||  | `inReplyTo` | строка | Нет | Идентификатор сообщения, на которое осуществляется ответ. |  ||  | `sendAt` | строка | Нет | Временная метка ISO 8601 для планирования отправки. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `draftId` | строка | Уникальный идентификатор для черновика |  ||  | `inboxId` | строка | В папке «Входящие» находится черновик, принадлежащий... |  ||  | `subject` | строка | Предварительный вариант темы |  ||  | `to` | массив | Адреса электронной почты получателей |  ||  | `cc` | массив | Адреса электронной почты для уведомлений |  ||  | `bcc` | массив | Адреса электронной почты для "копировать в" |  ||  | `text` | строка | Текст в обычном формате |  ||  | `html` | строка | Содержимое HTML |  ||  | `preview` | строка | Предварительный текст |  ||  | `labels` | массив | Метки, назначенные для черновика |  ||  | `inReplyTo` | строка | Идентификатор сообщения, на которое отвечает этот черновик |  ||  | `sendStatus` | строка | Статус отправки (планируется, в процессе отправки, ошибка) |  ||  | `sendAt` | строка | Запланированное время отправки |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Create a new email draft in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to create the draft in |
+
+| `to` | string | No | Recipient email addresses \(comma-separated\) |
+
+| `subject` | string | No | Draft subject line |
+
+| `text` | string | No | Plain text draft body |
+
+| `html` | string | No | HTML draft body |
+
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+| `inReplyTo` | string | No | ID of message being replied to |
+
+| `sendAt` | string | No | ISO 8601 timestamp to schedule sending |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `draftId` | string | Unique identifier for the draft |
+
+| `inboxId` | string | Inbox the draft belongs to |
+
+| `subject` | string | Draft subject |
+
+| `to` | array | Recipient email addresses |
+
+| `cc` | array | CC email addresses |
+
+| `bcc` | array | BCC email addresses |
+
+| `text` | string | Plain text content |
+
+| `html` | string | HTML content |
+
+| `preview` | string | Draft preview text |
+
+| `labels` | array | Labels assigned to the draft |
+
+| `inReplyTo` | string | Message ID this draft replies to |
+
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+
+| `sendAt` | string | Scheduled send time |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_create_inbox`
 
-Создайте новую почтовую ячейку с помощью AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `username` | строка | Нет | Имя пользователя для адреса электронной почты в папке входящих. |  ||  | `domain` | строка | Нет | Домен для адреса электронной почты в папке «Входящие». |  ||  | `displayName` | строка | Нет | Имя для отображения входящих сообщений |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `inboxId` | строка | Уникальный идентификатор для входящих сообщений |  ||  | `email` | строка | Адрес электронной почты для входящих сообщений |  ||  | `displayName` | строка | Имя отображаемого почтового ящика |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Create a new email inbox with AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `username` | string | No | Username for the inbox email address |
+
+| `domain` | string | No | Domain for the inbox email address |
+
+| `displayName` | string | No | Display name for the inbox |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `inboxId` | string | Unique identifier for the inbox |
+
+| `email` | string | Email address of the inbox |
+
+| `displayName` | string | Display name of the inbox |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_delete_draft`
 
-Удалить черновик письма в AgentMail
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего черновик |  ||  | `draftId` | строка | Да | Идентификатор черновика для удаления |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `deleted` | логическое значение | Удалось ли успешно удалить черновик? |  |
+Delete an email draft in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+
+| `draftId` | string | Yes | ID of the draft to delete |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `deleted` | boolean | Whether the draft was successfully deleted |
+
+
 ### `agentmail_delete_inbox`
 
-Удалить папку «Входящие» в AgentMail
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для удаления |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `deleted` | логическое значение | Удалось ли успешно удалить папку «Входящие»? |  |
+Delete an email inbox in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to delete |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `deleted` | boolean | Whether the inbox was successfully deleted |
+
+
 ### `agentmail_delete_thread`
 
-Удалить тему электронной почты в AgentMail (переместить в корзину или удалить навсегда, если она уже находится в корзине)
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего эту тему. |  ||  | `threadId` | строка | Да | Идентификатор темы для удаления |  ||  | `permanent` | логическое значение | Нет | Принудительное удаление вместо перемещения в корзину. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `deleted` | логическое значение | Было ли сообщение успешно удалено? |  |
+Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+
+| `threadId` | string | Yes | ID of the thread to delete |
+
+| `permanent` | boolean | No | Force permanent deletion instead of moving to trash |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `deleted` | boolean | Whether the thread was successfully deleted |
+
+
 ### `agentmail_forward_message`
 
-Отправьте электронное письмо новым получателям через AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего сообщение. |  ||  | `messageId` | строка | Да | Идентификатор сообщения для пересылки |  ||  | `to` | строка | Да | Адреса электронной почты получателей (разделенные запятыми) |  ||  | `subject` | строка | Нет | Переопределить тему письма |  ||  | `text` | строка | Нет | Дополнительный текст в простом формате для добавления в начало |  ||  | `html` | строка | Нет | Дополнительный HTML для добавления в начало |  ||  | `cc` | строка | Нет | Адреса электронной почты получателей CC (разделенные запятыми) |  ||  | `bcc` | строка | Нет | Адреса электронной почты получателей в поле «Копия всем» (разделенные запятыми) |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messageId` | строка | Идентификатор пересылаемого сообщения |  ||  | `threadId` | строка | Идентификатор темы |  |
+Forward an email message to new recipients in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+
+| `messageId` | string | Yes | ID of the message to forward |
+
+| `to` | string | Yes | Recipient email addresses \(comma-separated\) |
+
+| `subject` | string | No | Override subject line |
+
+| `text` | string | No | Additional plain text to prepend |
+
+| `html` | string | No | Additional HTML to prepend |
+
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messageId` | string | ID of the forwarded message |
+
+| `threadId` | string | ID of the thread |
+
+
 ### `agentmail_get_draft`
 
-Получите подробную информацию о конкретном черновике письма в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор входящей почты, к которой относится черновик. |  ||  | `draftId` | строка | Да | Идентификатор черновика для получения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `draftId` | строка | Уникальный идентификатор для черновика |  ||  | `inboxId` | строка | В папке «Входящие» находится черновик, принадлежащий... |  ||  | `subject` | строка | Предварительный вариант темы |  ||  | `to` | массив | Адреса электронной почты получателей |  ||  | `cc` | массив | Адреса электронной почты для уведомлений |  ||  | `bcc` | массив | Адреса электронной почты для "копировать в" (BCC) |  ||  | `text` | строка | Текст в обычном формате |  ||  | `html` | строка | Содержимое HTML |  ||  | `preview` | строка | Предварительный текст |  ||  | `labels` | массив | Метки, назначенные для черновика |  ||  | `inReplyTo` | строка | Идентификатор сообщения, на которое отвечает этот черновик |  ||  | `sendStatus` | строка | Статус отправки (планируется, в процессе отправки, ошибка) |  ||  | `sendAt` | строка | Запланированное время отправки |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Get details of a specific email draft in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox the draft belongs to |
+
+| `draftId` | string | Yes | ID of the draft to retrieve |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `draftId` | string | Unique identifier for the draft |
+
+| `inboxId` | string | Inbox the draft belongs to |
+
+| `subject` | string | Draft subject |
+
+| `to` | array | Recipient email addresses |
+
+| `cc` | array | CC email addresses |
+
+| `bcc` | array | BCC email addresses |
+
+| `text` | string | Plain text content |
+
+| `html` | string | HTML content |
+
+| `preview` | string | Draft preview text |
+
+| `labels` | array | Labels assigned to the draft |
+
+| `inReplyTo` | string | Message ID this draft replies to |
+
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+
+| `sendAt` | string | Scheduled send time |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_get_inbox`
 
-Получите подробную информацию о конкретной почтовой ячейке в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для получения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `inboxId` | строка | Уникальный идентификатор для почтового ящика |  ||  | `email` | строка | Адрес электронной почты для входящих сообщений |  ||  | `displayName` | строка | Имя отображаемого почтового ящика |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Get details of a specific email inbox in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to retrieve |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `inboxId` | string | Unique identifier for the inbox |
+
+| `email` | string | Email address of the inbox |
+
+| `displayName` | string | Display name of the inbox |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_get_message`
 
-Получите подробную информацию о конкретном электронном письме в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего сообщение. |  ||  | `messageId` | строка | Да | Идентификатор сообщения для получения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messageId` | строка | Уникальный идентификатор сообщения |  ||  | `threadId` | строка | Идентификатор темы, к которой относится это сообщение. |  ||  | `from` | строка | Адрес электронной почты отправителя |  ||  | `to` | массив | Адреса электронной почты получателей |  ||  | `cc` | массив | Адреса электронной почты для уведомлений |  ||  | `bcc` | массив | Адреса электронной почты для "копировать в" |  ||  | `subject` | строка | Тема сообщения |  ||  | `text` | строка | Текст в обычном формате |  ||  | `html` | строка | Содержимое HTML |  ||  | `labels` | массив | Метки, присвоенные сообщению |  ||  | `timestamp` | строка | Укажите время отправки сообщения или его составления. |  ||  | `createdAt` | строка | Дата и время создания |  |
+Get details of a specific email message in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+
+| `messageId` | string | Yes | ID of the message to retrieve |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messageId` | string | Unique identifier for the message |
+
+| `threadId` | string | ID of the thread this message belongs to |
+
+| `from` | string | Sender email address |
+
+| `to` | array | Recipient email addresses |
+
+| `cc` | array | CC email addresses |
+
+| `bcc` | array | BCC email addresses |
+
+| `subject` | string | Message subject |
+
+| `text` | string | Plain text content |
+
+| `html` | string | HTML content |
+
+| `labels` | array | Labels assigned to the message |
+
+| `timestamp` | string | Time the message was sent or drafted |
+
+| `createdAt` | string | Creation timestamp |
+
+
 ### `agentmail_get_thread`
 
-Получите подробную информацию о конкретной цепочке электронных писем, включая сообщения в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего эту тему. |  ||  | `threadId` | строка | Да | Идентификатор темы для получения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `threadId` | строка | Уникальный идентификатор для темы обсуждения |  ||  | `subject` | строка | Тема обсуждения |  ||  | `senders` | массив | Список адресов электронной почты отправителей |  ||  | `recipients` | массив | Список адресов электронной почты получателей |  ||  | `messageCount` | число | Количество сообщений в теме |  ||  | `labels` | массив | Метки, назначенные для этой темы. |  ||  | `lastMessageAt` | строка | Дата и время последнего сообщения |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  ||  | `messages` | массив | Сообщения в этой теме |  ||  | ↳ `messageId` | строка | Уникальный идентификатор сообщения |  ||  | ↳ `from` | строка | Адрес электронной почты отправителя |  ||  | ↳ `to` | массив | Адреса электронной почты получателей |  ||  | ↳ `cc` | массив | Адреса электронной почты для уведомлений |  ||  | ↳ `bcc` | массив | Адреса электронной почты для "копировать в" (BCC) |  ||  | ↳ `subject` | строка | Тема сообщения |  ||  | ↳ `text` | строка | Текст в обычном формате |  ||  | ↳ `html` | строка | Содержимое HTML |  ||  | ↳ `labels` | массив | Метки, присвоенные сообщению |  ||  | ↳ `timestamp` | строка | Укажите время отправки сообщения или его составления. |  ||  | ↳ `createdAt` | строка | Дата и время создания |  |
+Get details of a specific email thread including messages in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+
+| `threadId` | string | Yes | ID of the thread to retrieve |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `threadId` | string | Unique identifier for the thread |
+
+| `subject` | string | Thread subject |
+
+| `senders` | array | List of sender email addresses |
+
+| `recipients` | array | List of recipient email addresses |
+
+| `messageCount` | number | Number of messages in the thread |
+
+| `labels` | array | Labels assigned to the thread |
+
+| `lastMessageAt` | string | Timestamp of last message |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+| `messages` | array | Messages in the thread |
+
+|   ↳ `messageId` | string | Unique identifier for the message |
+
+|   ↳ `from` | string | Sender email address |
+
+|   ↳ `to` | array | Recipient email addresses |
+
+|   ↳ `cc` | array | CC email addresses |
+
+|   ↳ `bcc` | array | BCC email addresses |
+
+|   ↳ `subject` | string | Message subject |
+
+|   ↳ `text` | string | Plain text content |
+
+|   ↳ `html` | string | HTML content |
+
+|   ↳ `labels` | array | Labels assigned to the message |
+
+|   ↳ `timestamp` | string | Time the message was sent or drafted |
+
+|   ↳ `createdAt` | string | Creation timestamp |
+
+
 ### `agentmail_list_drafts`
 
-Перечислите черновики писем в папке «Входящие» в программе AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для отображения черновиков |  ||  | `limit` | число | Нет | Максимальное количество версий для возврата |  ||  | `pageToken` | строка | Нет | Токен для следующей страницы результатов. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `drafts` | массив | Список черновиков |  ||  | ↳ `draftId` | строка | Уникальный идентификатор для черновика |  ||  | ↳ `inboxId` | строка | В папке «Входящие» находится черновик, принадлежащий... |  ||  | ↳ `subject` | строка | Предварительный вариант темы |  ||  | ↳ `to` | массив | Адреса электронной почты получателей |  ||  | ↳ `cc` | массив | Адреса электронной почты для уведомлений |  ||  | ↳ `bcc` | массив | Адреса электронной почты для "копировать в" (BCC) |  ||  | ↳ `preview` | строка | Предварительный текст |  ||  | ↳ `sendStatus` | строка | Состояние отправки (планируется, в процессе отправки, ошибка) |  ||  | ↳ `sendAt` | строка | Запланированное время отправки |  ||  | ↳ `createdAt` | строка | Дата и время создания |  ||  | ↳ `updatedAt` | строка | Дата последнего обновления |  ||  | `count` | число | Общее количество черновиков |  ||  | `nextPageToken` | строка | Токен для получения следующей страницы |  |
+List email drafts in an inbox in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to list drafts from |
+
+| `limit` | number | No | Maximum number of drafts to return |
+
+| `pageToken` | string | No | Pagination token for next page of results |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `drafts` | array | List of drafts |
+
+|   ↳ `draftId` | string | Unique identifier for the draft |
+
+|   ↳ `inboxId` | string | Inbox the draft belongs to |
+
+|   ↳ `subject` | string | Draft subject |
+
+|   ↳ `to` | array | Recipient email addresses |
+
+|   ↳ `cc` | array | CC email addresses |
+
+|   ↳ `bcc` | array | BCC email addresses |
+
+|   ↳ `preview` | string | Draft preview text |
+
+|   ↳ `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+
+|   ↳ `sendAt` | string | Scheduled send time |
+
+|   ↳ `createdAt` | string | Creation timestamp |
+
+|   ↳ `updatedAt` | string | Last updated timestamp |
+
+| `count` | number | Total number of drafts |
+
+| `nextPageToken` | string | Token for retrieving the next page |
+
+
 ### `agentmail_list_inboxes`
 
-Перечислите все почтовые ящики в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `limit` | число | Нет | Максимальное количество почтовых ящиков для получения |  ||  | `pageToken` | строка | Нет | Токен для следующей страницы результатов. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `inboxes` | массив | Список входящих почт |  ||  | ↳ `inboxId` | строка | Уникальный идентификатор для почтового ящика |  ||  | ↳ `email` | строка | Адрес электронной почты для входящих сообщений |  ||  | ↳ `displayName` | строка | Имя отображаемого почтового ящика |  ||  | ↳ `createdAt` | строка | Дата и время создания |  ||  | ↳ `updatedAt` | строка | Дата последнего обновления |  ||  | `count` | число | Общее количество ящиков входящих сообщений |  ||  | `nextPageToken` | строка | Токен для получения следующей страницы |  |
+List all email inboxes in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `limit` | number | No | Maximum number of inboxes to return |
+
+| `pageToken` | string | No | Pagination token for next page of results |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `inboxes` | array | List of inboxes |
+
+|   ↳ `inboxId` | string | Unique identifier for the inbox |
+
+|   ↳ `email` | string | Email address of the inbox |
+
+|   ↳ `displayName` | string | Display name of the inbox |
+
+|   ↳ `createdAt` | string | Creation timestamp |
+
+|   ↳ `updatedAt` | string | Last updated timestamp |
+
+| `count` | number | Total number of inboxes |
+
+| `nextPageToken` | string | Token for retrieving the next page |
+
+
 ### `agentmail_list_messages`
 
-Перечислите сообщения в папке «Входящие» в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для отображения сообщений |  ||  | `limit` | число | Нет | Максимальное количество сообщений для возврата |  ||  | `pageToken` | строка | Нет | Токен для перехода к следующей странице результатов. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messages` | массив | Список сообщений в папке «Входящие» |  ||  | ↳ `messageId` | строка | Уникальный идентификатор сообщения |  ||  | ↳ `from` | строка | Адрес электронной почты отправителя |  ||  | ↳ `to` | массив | Адреса электронной почты получателей |  ||  | ↳ `subject` | строка | Тема сообщения |  ||  | ↳ `preview` | строка | Текст предварительного просмотра сообщения |  ||  | ↳ `timestamp` | строка | Укажите время отправки сообщения или его составления. |  ||  | ↳ `createdAt` | строка | Дата и время создания |  ||  | `count` | число | Общее количество сообщений |  ||  | `nextPageToken` | строка | Токен для получения следующей страницы |  |
+List messages in an inbox in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to list messages from |
+
+| `limit` | number | No | Maximum number of messages to return |
+
+| `pageToken` | string | No | Pagination token for next page of results |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messages` | array | List of messages in the inbox |
+
+|   ↳ `messageId` | string | Unique identifier for the message |
+
+|   ↳ `from` | string | Sender email address |
+
+|   ↳ `to` | array | Recipient email addresses |
+
+|   ↳ `subject` | string | Message subject |
+
+|   ↳ `preview` | string | Message preview text |
+
+|   ↳ `timestamp` | string | Time the message was sent or drafted |
+
+|   ↳ `createdAt` | string | Creation timestamp |
+
+| `count` | number | Total number of messages |
+
+| `nextPageToken` | string | Token for retrieving the next page |
+
+
 ### `agentmail_list_threads`
 
-Перечислите темы электронной почты в AgentMail
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для отображения списков сообщений |  ||  | `limit` | число | Нет | Максимальное количество потоков для возврата |  ||  | `pageToken` | строка | Нет | Токен для следующей страницы результатов. |  ||  | `labels` | строка | Нет | Метки, разделенные запятыми, для фильтрации тем. |  ||  | `before` | строка | Нет | Фильтруйте темы до указанной метки времени в формате ISO 8601. |  ||  | `after` | строка | Нет | Фильтруйте темы после этой метки времени в формате ISO 8601. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `threads` | массив | Список переписок по электронной почте |  ||  | ↳ `threadId` | строка | Уникальный идентификатор для темы обсуждения |  ||  | ↳ `subject` | строка | Тема обсуждения |  ||  | ↳ `senders` | массив | Список адресов электронной почты отправителей |  ||  | ↳ `recipients` | массив | Список адресов электронной почты получателей |  ||  | ↳ `messageCount` | число | Количество сообщений в теме |  ||  | ↳ `lastMessageAt` | строка | Дата и время последнего сообщения |  ||  | ↳ `createdAt` | строка | Дата и время создания |  ||  | ↳ `updatedAt` | строка | Дата последнего обновления |  ||  | `count` | число | Общее количество потоков |  ||  | `nextPageToken` | строка | Токен для получения следующей страницы |  |
+List email threads in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to list threads from |
+
+| `limit` | number | No | Maximum number of threads to return |
+
+| `pageToken` | string | No | Pagination token for next page of results |
+
+| `labels` | string | No | Comma-separated labels to filter threads by |
+
+| `before` | string | No | Filter threads before this ISO 8601 timestamp |
+
+| `after` | string | No | Filter threads after this ISO 8601 timestamp |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `threads` | array | List of email threads |
+
+|   ↳ `threadId` | string | Unique identifier for the thread |
+
+|   ↳ `subject` | string | Thread subject |
+
+|   ↳ `senders` | array | List of sender email addresses |
+
+|   ↳ `recipients` | array | List of recipient email addresses |
+
+|   ↳ `messageCount` | number | Number of messages in the thread |
+
+|   ↳ `lastMessageAt` | string | Timestamp of last message |
+
+|   ↳ `createdAt` | string | Creation timestamp |
+
+|   ↳ `updatedAt` | string | Last updated timestamp |
+
+| `count` | number | Total number of threads |
+
+| `nextPageToken` | string | Token for retrieving the next page |
+
+
 ### `agentmail_reply_message`
 
-Ответить на существующее электронное письмо в программе AgentMail
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, из которого нужно отправить ответ. |  ||  | `messageId` | строка | Да | Идентификатор сообщения, на которое нужно ответить |  ||  | `text` | строка | Нет | Текст ответа |  ||  | `html` | строка | Нет | Тело ответа в формате HTML |  ||  | `to` | строка | Нет | Переопределить адреса электронной почты получателей (разделенные запятыми) |  ||  | `cc` | строка | Нет | Адреса электронной почты для уведомлений (разделенные запятыми) |  ||  | `bcc` | строка | Нет | Адреса электронной почты для рассылки в поле «Копия всем» (разделимые запятыми) |  ||  | `replyAll` | логическое значение | Нет | Ответить всем получателям исходного сообщения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messageId` | строка | Идентификатор отправленного сообщения ответа |  ||  | `threadId` | строка | Идентификатор темы |  |
+Reply to an existing email message in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to reply from |
+
+| `messageId` | string | Yes | ID of the message to reply to |
+
+| `text` | string | No | Plain text reply body |
+
+| `html` | string | No | HTML reply body |
+
+| `to` | string | No | Override recipient email addresses \(comma-separated\) |
+
+| `cc` | string | No | CC email addresses \(comma-separated\) |
+
+| `bcc` | string | No | BCC email addresses \(comma-separated\) |
+
+| `replyAll` | boolean | No | Reply to all recipients of the original message |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messageId` | string | ID of the sent reply message |
+
+| `threadId` | string | ID of the thread |
+
+
 ### `agentmail_send_draft`
 
-Отправьте существующий черновик письма в приложении AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего черновик |  ||  | `draftId` | строка | Да | Идентификатор черновика для отправки |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messageId` | строка | Идентификатор отправленного сообщения |  ||  | `threadId` | строка | Идентификатор темы |  |
+Send an existing email draft in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+
+| `draftId` | string | Yes | ID of the draft to send |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messageId` | string | ID of the sent message |
+
+| `threadId` | string | ID of the thread |
+
+
 ### `agentmail_send_message`
 
-Отправить электронное письмо из почтового ящика AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, из которого нужно отправлять |  ||  | `to` | строка | Да | Адрес электронной почты получателя (разделенный запятыми для нескольких адресов) |  ||  | `subject` | строка | Да | Тема письма |  ||  | `text` | строка | Нет | Текст письма в формате обычного электронного письма |  ||  | `html` | строка | Нет | Тело электронного письма в формате HTML |  ||  | `cc` | строка | Нет | Адреса электронной почты получателей CC (разделенные запятыми) |  ||  | `bcc` | строка | Нет | Адреса электронной почты получателей в поле «Копия всем» (разделимые запятыми) |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `threadId` | строка | Идентификатор созданного потока |  ||  | `messageId` | строка | Идентификатор отправленного сообщения |  ||  | `subject` | строка | Тема письма |  ||  | `to` | строка | Адрес электронной почты получателя |  |
+Send an email message from an AgentMail inbox
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to send from |
+
+| `to` | string | Yes | Recipient email address \(comma-separated for multiple\) |
+
+| `subject` | string | Yes | Email subject line |
+
+| `text` | string | No | Plain text email body |
+
+| `html` | string | No | HTML email body |
+
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `threadId` | string | ID of the created thread |
+
+| `messageId` | string | ID of the sent message |
+
+| `subject` | string | Email subject line |
+
+| `to` | string | Recipient email address |
+
+
 ### `agentmail_update_draft`
 
-Обновить существующий черновик письма в AgentMail
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего черновик |  ||  | `draftId` | строка | Да | Идентификатор черновика для обновления |  ||  | `to` | строка | Нет | Адреса электронной почты получателей (разделенные запятыми) |  ||  | `subject` | строка | Нет | Предлагаемый вариант темы письма |  ||  | `text` | строка | Нет | Черновик текста в обычном формате |  ||  | `html` | строка | Нет | Тело проекта HTML |  ||  | `cc` | строка | Нет | Адреса электронной почты получателей CC (разделенные запятыми) |  ||  | `bcc` | строка | Нет | Адреса электронной почты получателей в поле «Копия скрытая» (разделенные запятыми) |  ||  | `sendAt` | строка | Нет | Временная метка ISO 8601 для планирования отправки. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `draftId` | строка | Уникальный идентификатор для черновика |  ||  | `inboxId` | строка | В папке «Входящие» находится черновик, принадлежащий... |  ||  | `subject` | строка | Предварительный вариант темы |  ||  | `to` | массив | Адреса электронной почты получателей |  ||  | `cc` | массив | Адреса электронной почты для уведомлений |  ||  | `bcc` | массив | Адреса электронной почты для "копировать в" (BCC) |  ||  | `text` | строка | Текст в обычном формате |  ||  | `html` | строка | Содержимое HTML |  ||  | `preview` | строка | Предварительный текст |  ||  | `labels` | массив | Метки, назначенные для черновика |  ||  | `inReplyTo` | строка | Идентификатор сообщения, на которое отвечает этот черновик |  ||  | `sendStatus` | строка | Состояние отправки (планируется, в процессе отправки, ошибка) |  ||  | `sendAt` | строка | Запланированное время отправки |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Update an existing email draft in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+
+| `draftId` | string | Yes | ID of the draft to update |
+
+| `to` | string | No | Recipient email addresses \(comma-separated\) |
+
+| `subject` | string | No | Draft subject line |
+
+| `text` | string | No | Plain text draft body |
+
+| `html` | string | No | HTML draft body |
+
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+| `sendAt` | string | No | ISO 8601 timestamp to schedule sending |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `draftId` | string | Unique identifier for the draft |
+
+| `inboxId` | string | Inbox the draft belongs to |
+
+| `subject` | string | Draft subject |
+
+| `to` | array | Recipient email addresses |
+
+| `cc` | array | CC email addresses |
+
+| `bcc` | array | BCC email addresses |
+
+| `text` | string | Plain text content |
+
+| `html` | string | HTML content |
+
+| `preview` | string | Draft preview text |
+
+| `labels` | array | Labels assigned to the draft |
+
+| `inReplyTo` | string | Message ID this draft replies to |
+
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+
+| `sendAt` | string | Scheduled send time |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_update_inbox`
 
-Обновите имя отображаемой папки электронной почты в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика для обновления |  ||  | `displayName` | строка | Да | Новое имя для папки "Входящие" |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `inboxId` | строка | Уникальный идентификатор для почтового ящика |  ||  | `email` | строка | Адрес электронной почты для входящих сообщений |  ||  | `displayName` | строка | Имя отображаемого почтового ящика |  ||  | `createdAt` | строка | Дата и время создания |  ||  | `updatedAt` | строка | Дата последнего обновления |  |
+Update the display name of an email inbox in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox to update |
+
+| `displayName` | string | Yes | New display name for the inbox |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `inboxId` | string | Unique identifier for the inbox |
+
+| `email` | string | Email address of the inbox |
+
+| `displayName` | string | Display name of the inbox |
+
+| `createdAt` | string | Creation timestamp |
+
+| `updatedAt` | string | Last updated timestamp |
+
+
 ### `agentmail_update_message`
 
-Добавьте или удалите метки в электронном письме в приложении AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего сообщение. |  ||  | `messageId` | строка | Да | Идентификатор сообщения для обновления |  ||  | `addLabels` | строка | Нет | Метки, разделенные запятыми, для добавления к сообщению. |  ||  | `removeLabels` | строка | Нет | Метки, разделенные запятыми, для удаления из сообщения. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `messageId` | строка | Уникальный идентификатор сообщения |  ||  | `labels` | массив | Текущие метки для сообщения |  |
+Add or remove labels on an email message in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+
+| `messageId` | string | Yes | ID of the message to update |
+
+| `addLabels` | string | No | Comma-separated labels to add to the message |
+
+| `removeLabels` | string | No | Comma-separated labels to remove from the message |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `messageId` | string | Unique identifier for the message |
+
+| `labels` | array | Current labels on the message |
+
+
 ### `agentmail_update_thread`
 
-Добавьте или удалите метки в теме электронной почты в AgentMail.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API для AgentMail |  ||  | `inboxId` | строка | Да | Идентификатор почтового ящика, содержащего эту тему. |  ||  | `threadId` | строка | Да | Идентификатор темы для обновления |  ||  | `addLabels` | строка | Нет | Метки, разделенные запятыми, для добавления в обсуждение. |  ||  | `removeLabels` | строка | Нет | Метки, разделенные запятыми, для удаления из темы. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `threadId` | строка | Уникальный идентификатор для темы обсуждения |  ||  | `labels` | массив | Текущие метки в обсуждении. |  |
+Add or remove labels on an email thread in AgentMail
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | AgentMail API key |
+
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+
+| `threadId` | string | Yes | ID of the thread to update |
+
+| `addLabels` | string | No | Comma-separated labels to add to the thread |
+
+| `removeLabels` | string | No | Comma-separated labels to remove from the thread |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `threadId` | string | Unique identifier for the thread |
+
+| `labels` | array | Current labels on the thread |
+
+
 

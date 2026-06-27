@@ -1,6 +1,6 @@
 ---
-title: Jina
-description: Поиск в интернете или извлечение контента из URL
+title: Джина
+description: Поиск в интернете или извлечение контента из URL-адресов
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,94 +10,163 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#333333"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Jina AI](https://jina.ai/) is a powerful content extraction tool that seamlessly integrates with Sim to transform web content into clean, readable text. This integration allows developers to easily incorporate web content processing capabilities into their agentic workflows.
 
-Jina AI Reader specializes in extracting the most relevant content from web pages, removing clutter, advertisements, and formatting issues to produce clean, structured text that's optimized for language models and other text processing tasks.
+[Jina AI](https://jina.ai/) — мощный инструмент для извлечения контента, который бесшовно интегрируется с Sim для преобразования веб-контента в чистый и читаемый текст. Эта интеграция позволяет разработчикам легко включать возможности обработки веб-контента в свои агентизированные рабочие процессы.
 
-With the Jina AI integration in Sim, you can:
 
-- **Extract clean content** from any web page by simply providing a URL
-- **Process complex web layouts** into structured, readable text
-- **Maintain important context** while removing unnecessary elements
-- **Prepare web content** for further processing in your agent workflows
-- **Streamline research tasks** by quickly converting web information into usable data
+Jina AI Reader специализируется на извлечении наиболее релевантного контента со страниц, удаляет лишние элементы, рекламу и форматирование для получения чистого, структурированного текста, оптимизированного для языковых моделей и других задач обработки текста.
 
-This integration is particularly valuable for building agents that need to gather and process information from the web, conduct research, or analyze online content as part of their workflow.
+
+С интеграцией Jina AI в Sim вы можете:
+
+
+- Извлекать чистый контент с любой веб-страницы, просто предоставляя URL
+
+- Обрабатывать сложные макеты веб-страниц в структурированный, читаемый текст
+
+- Сохранять важный контекст при удалении ненужных элементов
+
+- Подготавливать веб-контент для дальнейшей обработки в ваших агентизированных рабочих процессах
+
+- Упрощать задачи исследования путем быстрого преобразования информации из Интернета в полезные данные
+
+
+Эта интеграция особенно полезна для создания агентов, которым необходимо собирать и обрабатывать информацию из Интернета, проводить исследования или анализировать онлайн-контент в рамках своей работы.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.
+
+Интегрируйте Jina AI в рабочий процесс. Найдите веб-ресурсы и получите результаты, дружественные для LLM, или извлеките чистый контент с конкретных URL-адресов с помощью расширенных опций парсинга.
+
 
 
 
 ## Действия
 
+
 ### `jina_read_url`
 
-Extract and process web content into clean, LLM-friendly text using Jina AI Reader. Supports advanced content parsing, link gathering, and multiple output formats with configurable processing options.
 
-#### Входные параметры
+Извлекайте и обрабатывайте веб-контент в чистый, дружественный для LLM текст, используя Jina AI Reader. Поддерживает расширенное парсинг контента, сбор ссылок и различные форматы вывода с настраиваемыми опциями обработки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Да | The URL to read and convert to markdown \(e.g., "https://example.com/page"\) |
-| `useReaderLMv2` | boolean | Нет | Whether to use ReaderLM-v2 for better quality \(3x token cost\) |
-| `gatherLinks` | boolean | Нет | Whether to gather all links at the end |
-| `jsonResponse` | boolean | Нет | Whether to return response in JSON format |
-| `apiKey` | string | Да | Your Jina AI API key |
-| `withImagesummary` | boolean | Нет | Gather all images from the page with metadata |
-| `retainImages` | string | Нет | Control image inclusion: "none" removes all, "all" keeps all |
-| `returnFormat` | string | Нет | Output format: markdown, html, text, screenshot, or pageshot |
-| `withIframe` | boolean | Нет | Include iframe content in extraction |
-| `withShadowDom` | boolean | Нет | Extract Shadow DOM content |
-| `noCache` | boolean | Нет | Bypass cached content for real-time retrieval |
-| `withGeneratedAlt` | boolean | Нет | Generate alt text for images using VLM |
-| `robotsTxt` | string | Нет | Bot User-Agent for robots.txt checking |
-| `dnt` | boolean | Нет | Do Not Track - prevents caching/tracking |
-| `noGfm` | boolean | Нет | Disable GitHub Flavored Markdown |
 
-#### Выходные параметры
+| `url` | строка | Да | URL для чтения и преобразования в Markdown (например, "https://example.com/page") |
+
+| `useReaderLMv2` | булево | Нет | Использовать ли ReaderLM-v2 для лучшего качества (3 раза больше токенов) |
+
+| `gatherLinks` | булево | Нет | Собирать ли все ссылки в конце |
+
+| `jsonResponse` | булево | Нет | Вернуть ли ответ в формате JSON |
+
+| `apiKey` | строка | Да | Ваш API-ключ Jina AI |
+
+| `withImagesummary` | булево | Нет | Собирать ли все изображения со страницы с метаданными |
+
+| `retainImages` | строка | Нет | Управление включением изображений: "none" удаляет все, "all" сохраняет все |
+
+| `returnFormat` | строка | Нет | Формат вывода: markdown, html, text, screenshot или pageshot |
+
+| `withIframe` | булево | Нет | Включать ли контент iframe в извлечение |
+
+| `withShadowDom` | булево | Нет | Извлекать ли контент Shadow DOM |
+
+| `noCache` | булево | Нет | Обход кэшированного содержимого для получения в реальном времени |
+
+| `withGeneratedAlt` | булево | Нет | Генерировать ли альтернативный текст для изображений с помощью VLM |
+
+| `robotsTxt` | строка | Нет | Пользователь агента для проверки robots.txt |
+
+| `dnt` | булево | Нет | Do Not Track - предотвращает кэширование/отслеживание |
+
+| `noGfm` | булево | Нет | Отключить GitHub Flavored Markdown |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `content` | string | The extracted content from the URL, processed into clean, LLM-friendly text |
-| `tokensUsed` | number | Number of Jina tokens consumed by this request |
+
+| `content` | строка | Извлеченный контент с URL, обработанный в чистый, дружественный для LLM текст |
+
+| `tokensUsed` | число | Количество токенов Jina, использованных в этом запросе |
+
 
 ### `jina_search`
 
-Search the web and return top 5 results with LLM-friendly content. Each result is automatically processed through Jina Reader API. Supports geographic filtering, site restrictions, and pagination.
 
-#### Входные параметры
+Найдите веб-ресурсы и получите 5 лучших результатов с контентом, дружественным для LLM. Каждый результат автоматически обрабатывается API Jina Reader. Поддерживает фильтрацию по географическому положению, ограничениям сайта и постраничную навигацию.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `q` | string | Да | Search query string \(e.g., "machine learning tutorials"\) |
-| `apiKey` | string | Да | Your Jina AI API key |
-| `num` | number | Нет | Maximum number of results per page \(default: 5\) |
-| `site` | string | Нет | Restrict results to specific domain\(s\). Can be comma-separated for multiple sites \(e.g., "jina.ai,github.com"\) |
-| `withFavicon` | boolean | Нет | Include website favicons in results |
-| `withImagesummary` | boolean | Нет | Gather all images from result pages with metadata |
-| `withLinksummary` | boolean | Нет | Gather all links from result pages |
-| `retainImages` | string | Нет | Control image inclusion: "none" removes all, "all" keeps all |
-| `noCache` | boolean | Нет | Bypass cached content for real-time retrieval |
-| `withGeneratedAlt` | boolean | Нет | Generate alt text for images using VLM |
-| `respondWith` | string | Нет | Set to "no-content" to get only metadata without page content |
-| `returnFormat` | string | Нет | Output format: markdown, html, text, screenshot, or pageshot |
 
-#### Выходные параметры
+| `q` | строка | Да | Строка поискового запроса (например, "машинное обучение туториалы") |
+
+| `apiKey` | строка | Да | Ваш API-ключ Jina AI |
+
+| `num` | число | Нет | Максимальное количество результатов на странице (по умолчанию: 5) |
+
+| `site` | строка | Нет | Ограничить результаты конкретными доменами. Может быть разделенным запятыми для нескольких доменов (например, "jina.ai,github.com") |
+
+| `withFavicon` | булево | Нет | Включать ли иконки сайта в результаты |
+
+| `withImagesummary` | булево | Нет | Собирать ли все изображения со страниц результатов с метаданными |
+
+| `withLinksummary` | булево | Нет | Собирать ли все ссылки со страниц результатов |
+
+| `retainImages` | строка | Нет | Управление включением изображений: "none" удаляет все, "all" сохраняет все |
+
+| `noCache` | булево | Нет | Обход кэшированного содержимого для получения в реальном времени |
+
+| `withGeneratedAlt` | булево | Нет | Генерировать ли альтернативный текст для изображений с помощью VLM |
+
+| `respondWith` | строка | Нет | Установить значение "no-content", чтобы получить только метаданные без содержимого страницы |
+
+| `returnFormat` | строка | Нет | Формат вывода: markdown, html, text, screenshot или pageshot |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `results` | array | Array of search results, each containing title, description, url, and LLM-friendly content |
-|   ↳ `title` | string | Page title |
-|   ↳ `description` | string | Page description or meta description |
-|   ↳ `url` | string | Page URL |
-|   ↳ `content` | string | LLM-friendly extracted content |
-|   ↳ `usage` | object | Token usage information |
-|     ↳ `tokens` | number | Number of tokens consumed by this request |
+
+| `results` | массив | Массив результатов поиска, каждый из которых содержит название, описание, URL и контент, дружественный для LLM |
+
+|   ↳ `title` | строка | Название страницы |
+
+|   ↳ `description` | строка | Описание страницы или мета-описание |
+
+|   ↳ `url` | строка | URL страницы |
+
+|   ↳ `content` | строка | Извлеченный контент, дружественный для LLM |
+
+|   ↳ `usage` | объект | Информация о использовании токенов |
+
+|     ↳ `tokens` | число | Количество токенов, использованных в этом запросе |
+===
+
 | `tokensUsed` | number | Number of Jina tokens consumed by this request |
+
 
 

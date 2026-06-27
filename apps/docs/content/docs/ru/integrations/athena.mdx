@@ -1,6 +1,6 @@
 ---
 title: Athena
-description: Выполнение SQL-запросов к данным в Amazon S3 с помощью AWS Athena
+description: Выполняйте запросы SQL к данным в Amazon S3 с помощью AWS Athena
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,227 +10,416 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon Athena](https://aws.amazon.com/athena/) — это интерактивный сервис запросов от AWS, который позволяет легко анализировать данные непосредственно в Amazon S3 с использованием стандартного SQL. Athena является бессерверным сервисом, поэтому вам не нужно управлять инфраструктурой, и вы платите только за выполненные запросы.
+AWS Athena — это интерактивный сервис запросов от AWS, который позволяет легко анализировать данные непосредственно в Amazon S3 с использованием стандартного SQL. Athena является сервером без управления, поэтому нет необходимости управлять инфраструктурой, и вы платите только за выполняемые запросы.
 
 С помощью Athena вы можете:
+- Запрашивать данные в S3: выполнять SQL-запросы напрямую к данным, хранящимся в Amazon S3, не загружая их в базу данных.
+- Поддерживать различные форматы: выполнять запросы для CSV, JSON, Parquet, ORC, Avro и других распространенных форматов данных.
+- Интегрироваться с AWS Glue: использовать каталог данных AWS Glue для управления метаданными таблиц и схемами.
+- Автоматически масштабироваться: обрабатывать запросы любого размера без выделения серверов или кластеров.
+- Сохранять и повторно использовать запросы: создавать именованные запросы для часто используемых SQL-операций.
 
-- **Выполнять запросы к данным в S3**: запускайте SQL-запросы непосредственно к данным, хранящимся в Amazon S3, без необходимости загрузки в базу данных
-- **Поддерживать множество форматов**: запрашивайте данные в CSV, JSON, Parquet, ORC, Avro и других распространённых форматах
-- **Интегрироваться с AWS Glue**: используйте каталог данных AWS Glue для управления метаданными таблиц и схемами
-- **Автоматически масштабироваться**: обрабатывайте запросы любого размера без выделения серверов или кластеров
-- **Сохранять и переиспользовать запросы**: создавайте именованные запросы для часто используемых SQL-выражений
+В Sim, интеграция Athena позволяет вашим агентам выполнять SQL-запросы к данным в S3, проверять статус выполнения запросов, получать результаты и управлять сохраненными запросами — все это внутри рабочих процессов ваших агентов. Поддерживаемые операции включают:
+- Запуск запроса: выполнение SQL-запросов к вашим данным в S3.
+- Получение статуса выполнения запроса: проверка статуса и деталей выполняющегося или завершенного запроса.
+- Получение результатов запроса: получение результатов завершенного запроса.
+- Остановка запроса: отмена выполнения запроса.
+- Перечисление выполненных запросов: просмотр идентификаторов недавних выполненных запросов.
+- Создание именованного запроса: сохранение запроса для повторного использования.
+- Получение именованного запроса: получение деталей сохраненного запроса.
+- Перечисление именованных запросов: просмотр всех идентификаторов сохраненных запросов.
 
-В Sim интеграция с Athena позволяет вашим агентам выполнять SQL-запросы к данным в S3, проверять статус выполнения запросов, получать результаты и управлять сохранёнными запросами — всё в рамках ваших агентных рабочих процессов. Поддерживаемые операции включают:
+Эта интеграция позволяет агентам Sim автоматизировать задачи анализа данных с использованием AWS Athena, обеспечивая рабочие процессы для запроса, мониторинга и управления большими объемами данных в S3 без ручного вмешательства или управления инфраструктурой.
 
-- **Запуск запроса**: выполнение SQL-запросов к вашим данным в S3
-- **Получение статуса выполнения запроса**: проверка статуса и деталей выполняющегося или завершённого запроса
-- **Получение результатов запроса**: извлечение результатов завершённого запроса
-- **Остановка запроса**: отмена выполняющегося запроса
-- **Список выполненных запросов**: просмотр недавних идентификаторов выполненных запросов
-- **Создание именованного запроса**: сохранение запроса для повторного использования
-- **Получение именованного запроса**: получение деталей сохранённого запроса
-- **Список именованных запросов**: просмотр всех сохранённых идентификаторов запросов
-
-Эта интеграция позволяет агентам Sim автоматизировать задачи анализа данных с помощью AWS Athena, обеспечивая рабочие процессы, которые запрашивают, отслеживают и управляют крупномасштабными данными в S3 без ручных усилий или управления инфраструктурой.
-{/* MANUAL-CONTENT-END */}
+## Инструкции по использованию
 
 
-## Инструкция по использованию
-
-Интегрируйте AWS Athena в рабочие процессы. Выполняйте SQL-запросы к данным в S3, проверяйте статус запросов, получайте результаты, управляйте именованными запросами и просматривайте список выполненных запросов. Требуется ключ доступа AWS и секретный ключ доступа.
-
+Интегрируйте AWS Athena в свои рабочие процессы. Выполняйте SQL-запросы к данным в S3, проверяйте статус запросов, получайте результаты, управляйте именованными запросами и перечисляйте выполнения. Требуется доступ к AWS с использованием ключа и секретного ключа доступа.
 
 
 ## Действия
 
 ### `athena_start_query`
 
-Запуск выполнения SQL-запроса в AWS Athena
+Запускает выполнение SQL-запроса в AWS Athena
 
-#### Input
+#### Входные данные
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `queryString` | string | Yes | Строка SQL-запроса для выполнения |
-| `database` | string | No | Имя базы данных в каталоге |
-| `catalog` | string | No | Имя каталога данных (по умолчанию: AwsDataCatalog) |
-| `outputLocation` | string | No | Расположение в S3 для результатов запроса (например, s3://bucket/path/) |
-| `workGroup` | string | No | Рабочая группа для выполнения запроса (по умолчанию: primary) |
+| Параметр | Тип | Требуется | Описание |
 
-#### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `queryExecutionId` | string | Уникальный идентификатор запущенного выполнения запроса |
+| `awsRegion` | строка | Да | Регион AWS (например, us-east-1) |
+
+
+| `awsAccessKeyId` | строка | Да | Ключ доступа AWS |
+
+| `awsSecretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `queryString` | строка | Да | Строка SQL-запроса для выполнения |
+
+| `database` | строка | Нет | Имя базы данных в каталоге |
+
+| `catalog` | строка | Нет | Имя каталога данных (по умолчанию: AwsDataCatalog) |
+
+| `outputLocation` | строка | Нет | S3-место для хранения результатов запроса (например, s3://bucket/path/) |
+
+| `workGroup` | строка | Нет | Рабочий группинг для выполнения запроса (по умолчанию: primary) |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| `queryExecutionId` | строка | Уникальный идентификатор выполненного запроса |
+
+
 
 ### `athena_get_query_execution`
 
-Получение статуса и деталей выполнения запроса Athena
 
-#### Input
+Получает статус и детали выполнения запроса Athena
 
-| Parameter | Type | Required | Description |
+
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `awsRegion` | строка | Да | Регион AWS (например, us-east-1) |
+
+
+| `awsAccessKeyId` | строка | Да | Ключ доступа AWS |
+
+
+| `awsSecretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `queryExecutionId` | string | Yes | Идентификатор выполнения запроса для проверки |
 
-#### Output
+| `queryExecutionId` | строка | Да | Идентификатор выполнения запроса для проверки |
 
-| Parameter | Type | Description |
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `queryExecutionId` | строка | Идентификатор выполнения запроса |
+
+| `query` | строка | Строка SQL-запроса |
+
+| `state` | строка | Состояние запроса (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED) |
+
+| `stateChangeReason` | строка | Причина изменения состояния (например, сообщение об ошибке) |
+
+| `statementType` | строка | Тип оператора (DDL, DML, UTILITY) |
+
+
+| `database` | строка | Имя базы данных |
+
+
+| `catalog` | строка | Имя каталога данных |
+
 | --------- | ---- | ----------- |
-| `queryExecutionId` | string | Идентификатор выполнения запроса |
-| `query` | string | Строка SQL-запроса |
-| `state` | string | Состояние запроса (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED) |
-| `stateChangeReason` | string | Причина изменения состояния (например, сообщение об ошибке) |
-| `statementType` | string | Тип выражения (DDL, DML, UTILITY) |
-| `database` | string | Имя базы данных |
-| `catalog` | string | Имя каталога данных |
-| `workGroup` | string | Имя рабочей группы |
-| `submissionDateTime` | number | Время отправки запроса (Unix эпоха, мс) |
-| `completionDateTime` | number | Время завершения запроса (Unix эпоха, мс) |
-| `dataScannedInBytes` | number | Объём просканированных данных в байтах |
-| `engineExecutionTimeInMillis` | number | Время выполнения движка в миллисекундах |
-| `queryPlanningTimeInMillis` | number | Время планирования запроса в миллисекундах |
-| `queryQueueTimeInMillis` | number | Время нахождения запроса в очереди в миллисекундах |
-| `totalExecutionTimeInMillis` | number | Общее время выполнения в миллисекундах |
-| `outputLocation` | string | Расположение результатов запроса в S3 |
+
+| `workGroup` | строка | Имя рабочей группы |
+
+
+| `submissionDateTime` | число | Время отправки запроса (Unix epoch ms) |
+
+
+| `completionDateTime` | число | Время завершения запроса (Unix epoch ms) |
+
+
+| `dataScannedInBytes` | число | Количество просканированных данных в байтах |
+
+
+| `engineExecutionTimeInMillis` | число | Время выполнения движка в миллисекундах |
+
+| --------- | ---- | -------- | ----------- |
+
+| `queryPlanningTimeInMillis` | число | Время планирования запроса в миллисекундах |
+
+| `queryQueueTimeInMillis` | число | Время, затраченное на ожидание запроса в миллисекундах |
+
+| `totalExecutionTimeInMillis` | число | Общее время выполнения в миллисекундах |
+
+| `outputLocation` | строка | Местоположение S3 для результатов запроса |
+
 
 ### `athena_get_query_results`
 
-Получение результатов завершённого выполнения запроса Athena
 
-#### Input
+Получает результаты выполненного запроса Athena
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `queryExecutionId` | string | Yes | Идентификатор выполнения запроса для получения результатов |
-| `maxResults` | number | No | Максимальное количество строк для возврата (1–999) |
-| `nextToken` | string | No | Токен пагинации из предыдущего запроса |
-
-#### Output
-
-| Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `columns` | array | Метаданные столбцов (имя и тип) |
-| `rows` | array | Строки результатов в виде объектов ключ-значение |
-| `nextToken` | string | Токен пагинации для следующей страницы результатов |
-| `updateCount` | number | Количество затронутых строк (для выражений INSERT/UPDATE) |
+
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `awsRegion` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `awsAccessKeyId` | строка | Да | Ключ доступа AWS |
+
+| `awsSecretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+| `queryExecutionId` | строка | Да | Идентификатор выполнения запроса для получения результатов |
+
+| `maxResults` | число | Нет | Максимальное количество строк, которые нужно вернуть (1-999) |
+
+| `nextToken` | строка | Нет | Токен страницы из предыдущего запроса |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `columns` | массив | Метаданные столбцов (имя и тип) |
+
+| `rows` | массив | Строки результатов в виде объектов ключ-значение |
+
+| `nextToken` | строка | Токен страницы для следующей страницы результатов |
+
+| `updateCount` | число | Количество строк, затронутых операциями INSERT/UPDATE |
 
 ### `athena_stop_query`
 
-Остановка выполняющегося запроса Athena
+Останавливает выполнение запроса Athena
 
-#### Input
 
-| Parameter | Type | Required | Description |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `awsRegion` | строка | Да | Регион AWS (например, us-east-1) |
+
+
+| `awsAccessKeyId` | строка | Да | Ключ доступа AWS |
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `queryExecutionId` | string | Yes | Идентификатор выполнения запроса для остановки |
 
-#### Output
+| `awsSecretAccessKey` | строка | Да | Секретный ключ доступа AWS |
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Был ли запрос успешно остановлен |
+| `queryExecutionId` | строка | Да | Идентификатор выполнения запроса для остановки |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `success` | логическое значение | Успешно ли остановлен запрос |
 
 ### `athena_list_query_executions`
 
-Список недавних идентификаторов выполнения запросов Athena
 
-#### Input
+Перечисляет идентификаторы недавних выполненных запросов Athena
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+| --------- | ---- | ----------- |
+
+| Параметр | Тип | Требуется | Описание |
+
+| `awsRegion` | строка | Да | Регион AWS (например, us-east-1) |
+
+| `awsAccessKeyId` | строка | Да | Ключ доступа AWS |
+
+| `awsSecretAccessKey` | строка | Да | Секретный ключ доступа AWS |
+
+
+| `workGroup` | строка | Нет | Рабочий группинг для перечисления выполненных запросов (по умолчанию: primary) |
+
+
+| `maxResults` | число | Нет | Максимальное количество результатов (0-50) |
+
+
+| `nextToken` | строка | Нет | Токен страницы из предыдущего запроса |
+
+
+#### Выходные данные
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `workGroup` | string | No | Рабочая группа для отображения выполненных запросов (по умолчанию: primary) |
-| `maxResults` | number | No | Максимальное количество результатов (0–50) |
-| `nextToken` | string | No | Токен пагинации из предыдущего запроса |
+
+| Параметр | Тип | Описание |
+
+| `queryExecutionIds` | массив | Список идентификаторов выполнения запросов |
+
+| `nextToken` | строка | Токен страницы для следующей страницы |
+===
+
+| `queryExecutionId` | string | Yes | Query execution ID to stop |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `queryExecutionIds` | array | Список идентификаторов выполненных запросов |
-| `nextToken` | string | Токен пагинации для следующей страницы |
+
+| `success` | boolean | Whether the query was successfully stopped |
+
+
+### `athena_list_query_executions`
+
+
+List recent Athena query execution IDs
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+
+| `workGroup` | string | No | Workgroup to list executions for \(default: primary\) |
+
+| `maxResults` | number | No | Maximum number of results \(0-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous request |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `queryExecutionIds` | array | List of query execution IDs |
+
+| `nextToken` | string | Pagination token for next page |
+
 
 ### `athena_create_named_query`
 
-Создание сохранённого/именованного запроса в AWS Athena
+
+Create a saved/named query in AWS Athena
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `name` | string | Yes | Имя для сохранённого запроса |
-| `database` | string | Yes | База данных, к которой выполняется запрос |
-| `queryString` | string | Yes | Строка SQL-запроса для сохранения |
-| `description` | string | No | Описание именованного запроса |
-| `workGroup` | string | No | Рабочая группа для создания именованного запроса |
+
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+
+| `name` | string | Yes | Name for the saved query |
+
+| `database` | string | Yes | Database the query runs against |
+
+| `queryString` | string | Yes | SQL query string to save |
+
+| `description` | string | No | Description of the named query |
+
+| `workGroup` | string | No | Workgroup to create the named query in |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `namedQueryId` | string | Идентификатор созданного именованного запроса |
+
+| `namedQueryId` | string | ID of the created named query |
+
 
 ### `athena_get_named_query`
 
-Получение деталей сохранённого/именованного запроса в AWS Athena
+
+Get details of a saved/named query in AWS Athena
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `namedQueryId` | string | Yes | Идентификатор именованного запроса для получения |
+
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+
+| `namedQueryId` | string | Yes | Named query ID to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `namedQueryId` | string | Идентификатор именованного запроса |
-| `name` | string | Имя сохранённого запроса |
-| `description` | string | Описание запроса |
-| `database` | string | База данных, к которой выполняется запрос |
-| `queryString` | string | Строка SQL-запроса |
-| `workGroup` | string | Имя рабочей группы |
+
+| `namedQueryId` | string | Named query ID |
+
+| `name` | string | Name of the saved query |
+
+| `description` | string | Query description |
+
+| `database` | string | Database the query runs against |
+
+| `queryString` | string | SQL query string |
+
+| `workGroup` | string | Workgroup name |
+
 
 ### `athena_list_named_queries`
 
-Список идентификаторов сохранённых/именованных запросов в AWS Athena
+
+List saved/named query IDs in AWS Athena
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `awsRegion` | string | Yes | Регион AWS (например, us-east-1) |
-| `awsAccessKeyId` | string | Yes | Идентификатор ключа доступа AWS |
-| `awsSecretAccessKey` | string | Yes | Секретный ключ доступа AWS |
-| `workGroup` | string | No | Рабочая группа для отображения именованных запросов |
-| `maxResults` | number | No | Максимальное количество результатов (0–50) |
-| `nextToken` | string | No | Токен пагинации из предыдущего запроса |
+
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+
+| `workGroup` | string | No | Workgroup to list named queries for |
+
+| `maxResults` | number | No | Maximum number of results \(0-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous request |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `namedQueryIds` | array | Список идентификаторов именованных запросов |
-| `nextToken` | string | Токен пагинации для следующей страницы |
+
+| `namedQueryIds` | array | List of named query IDs |
+
+| `nextToken` | string | Pagination token for next page |
+
+
+

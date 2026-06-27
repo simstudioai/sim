@@ -1,6 +1,6 @@
 ---
 title: Qdrant
-description: Использование векторной базы данных Qdrant
+description: Используйте векторную базу данных Qdrant
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,115 +10,197 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#1A223F"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Qdrant](https://qdrant.tech) is an open-source vector database designed for efficient storage, management, and retrieval of high-dimensional vector embeddings. Qdrant enables fast and scalable semantic search, making it ideal for AI applications that require similarity search, recommendation systems, and contextual information retrieval.
 
-With Qdrant, you can:
+Qdrant — это открытый векторный база данных, предназначенная для эффективного хранения, управления и извлечения высокоразмерных векторных вложений. Qdrant позволяет выполнять быстрый и масштабируемый семантический поиск, что делает его идеальным решением для ИИ-приложений, требующих поиска по сходству, систем рекомендаций и извлечения контекстной информации.
 
-- **Store vector embeddings**: Efficiently manage and persist high-dimensional vectors at scale
-- **Perform semantic similarity search**: Find the most similar vectors to a query vector in real time
-- **Filter and organize data**: Use advanced filtering to narrow down search results based on metadata or payload
-- **Fetch specific points**: Получение vectors and their associated payloads by ID
-- **Scale seamlessly**: Handle large collections and high-throughput workloads
 
-In Sim, the Qdrant integration enables your agents to interact with Qdrant programmatically as part of their workflows. Supported operations include:
+С помощью Qdrant вы можете:
 
-- **Upsert**: Insert or update points (vectors and payloads) in a Qdrant collection
-- **Search**: Perform similarity search to find vectors most similar to a given query vector, with optional filtering and result customization
-- **Fetch**: Получение specific points from a collection by their IDs, with options to include payloads and vectors
 
-This integration allows your agents to leverage powerful vector search and management capabilities, enabling advanced automation scenarios such as semantic search, recommendation, and contextual retrieval. By connecting Sim with Qdrant, you can build agents that understand context, retrieve relevant information from large datasets, and deliver more intelligent and personalized responses—all without managing complex infrastructure.
+- **Хранить векторные вложения**: Эффективно управлять и сохранять высокоразмерные векторы в масштабе
+
+- **Выполнять семантический поиск по сходству**: Находить наиболее похожие векторы к запросному вектору в реальном времени
+
+- **Фильтровать и организовывать данные**: Использовать расширенные фильтры для сужения результатов поиска на основе метаданных или содержимого
+
+- **Извлекать конкретные точки**: Получать векторы и связанные с ними данные по ID
+
+- **Бесшовно масштабироваться**: Обрабатывать большие коллекции и высокопроизводительные нагрузки
+
+
+В Sim, интеграция с Qdrant позволяет вашим агентам взаимодействовать с Qdrant программно в рамках их рабочих процессов. Поддерживаемые операции включают:
+
+
+- **Upsert**: Вставлять или обновлять точки (векторы и данные) в коллекции Qdrant
+
+- **Поиск**: Выполнять поиск по сходству для нахождения векторов, наиболее похожих на заданный запрос, с возможностью фильтрации и настройки результатов
+
+- **Извлечение**: Получать конкретные точки из коллекции по их ID, с возможностью включения данных и векторов
+
+
+Эта интеграция позволяет вашим агентам использовать мощные возможности поиска и управления векторами, обеспечивая продвинутые сценарии автоматизации, такие как семантический поиск, рекомендации и контекстное извлечение. Подключив Sim к Qdrant, вы сможете создавать агентов, способных понимать контекст, извлекать релевантную информацию из больших наборов данных и предоставлять более интеллектуальные и персонализированные ответы — все без необходимости управления сложной инфраструктурой.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте Qdrant в рабочий процесс. Can upsert, search, and fetch points.
+
+Интегрируйте Qdrant в рабочий процесс. Возможность upsert, поиска и извлечения точек.
+
 
 
 
 ## Действия
 
+
 ### `qdrant_upsert_points`
 
-Insert or update points in a Qdrant collection
 
-#### Вход
+Вставлять или обновлять точки в коллекции Qdrant
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Да | Qdrant instance URL (например, https://your-cluster.qdrant.io\) |
-| `apiKey` | string | Нет | Qdrant Ключ API for authentication |
-| `collection` | string | Да | Collection name for upsert (например, "my_collection"\) |
-| `points` | array | Да | Array of points to upsert |
 
-#### Выход
+| `url` | строка | Да | URL экземпляра Qdrant (например, https://your-cluster.qdrant.io) |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Нет | Ключ API Qdrant для аутентификации |
+
+| `collection` | строка | Да | Имя коллекции для upsert (например, "my_collection") |
+
+| `points` | массив | Да | Массив точек для upsert |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `status` | string | Статус операции \(ok, error\) |
-| `data` | object | Result data from the upsert operation |
-|   ↳ `operation_id` | number | Operation ID for async tracking |
-|   ↳ `status` | string | Статус операции \(acknowledged, completed\) |
+
+| `status` | строка | Статус операции (ok, error) |
+
+| `data` | объект | Данные результата операции upsert |
+
+|   ↳ `operation_id` | число | ID операции для отслеживания в реальном времени |
+
+|   ↳ `status` | строка | Статус операции (acknowledged, completed) |
+
 
 ### `qdrant_search_vector`
 
-Search for similar vectors in a Qdrant collection
 
-#### Вход
+Выполнять поиск похожих векторов в коллекции Qdrant
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Да | Qdrant instance URL (например, https://your-cluster.qdrant.io\) |
-| `apiKey` | string | Нет | Qdrant Ключ API for authentication |
-| `collection` | string | Да | Collection name to search (например, "my_collection"\) |
-| `vector` | array | Да | Query vector for similarity search (например, \[0.1, 0.2, 0.3, ...\]\) |
-| `limit` | number | Нет | Maximum number of results to return (например, 10\) |
-| `filter` | object | Нет | Qdrant filter object (например, \{"must": \[\{"key": "field", "match": \{"value": "val"\}\}\]\}\) |
-| `search_return_data` | string | Нет | Data to return from search |
-| `with_payload` | boolean | Нет | Include payload in response |
-| `with_vector` | boolean | Нет | Include vector in response |
 
-#### Выход
+| `url` | строка | Да | URL экземпляра Qdrant (например, https://your-cluster.qdrant.io) |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Нет | Ключ API Qdrant для аутентификации |
+
+| `collection` | строка | Да | Имя коллекции для поиска (например, "my_collection") |
+
+| `vector` | массив | Да | Запрос вектор для поиска по сходству (например, \[0.1, 0.2, 0.3, ...]) |
+
+| `limit` | число | Нет | Максимальное количество результатов для возврата (например, 10) |
+
+| `filter` | объект | Нет | Объект фильтра Qdrant (например, \{"must": \[{"key": "field", "match": {"value": "val"}}\]\}\) |
+
+| `search_return_data` | строка | Нет | Данные для возврата из поиска |
+
+| `with_payload` | логическое значение | Нет | Включить данные payload в ответ |
+
+| `with_vector` | логическое значение | Нет | Включить вектор в ответ |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `status` | string | Статус операции \(ok, error\) |
-| `data` | array | Vector search results with ID, score, payload, and optional vector data |
-|   ↳ `id` | string | Point ID \(integer or UUID string\) |
-|   ↳ `version` | number | Point version number |
-|   ↳ `score` | number | Similarity score |
-|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
-|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
-|   ↳ `shard_key` | string | Shard key for routing |
-|   ↳ `order_value` | number | Order value for sorting |
+
+| `status` | строка | Статус операции (ok, error) |
+
+| `data` | массив | Результаты поиска по векторам с ID, оценкой, payload и необязательными данными вектора |
+
+|   ↳ `id` | строка | ID точки (число или строка UUID) |
+
+|   ↳ `version` | число | Номер версии точки |
+
+|   ↳ `score` | число | Оценка сходства |
+
+|   ↳ `payload` | json | Данные payload точки (ключ-значение пары) |
+
+|   ↳ `vector` | json | Вектор(ы) точки - одиночный массив или объект с именованными векторами |
+
+|   ↳ `shard_key` | строка | Ключ шарда для маршрутизации |
+
+|   ↳ `order_value` | число | Значение сортировки |
+
 
 ### `qdrant_fetch_points`
 
-Fetch points by ID from a Qdrant collection
 
-#### Вход
+Извлекать точки по ID из коллекции Qdrant
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Да | Qdrant instance URL (например, https://your-cluster.qdrant.io\) |
-| `apiKey` | string | Нет | Qdrant Ключ API for authentication |
-| `collection` | string | Да | Collection name to fetch from (например, "my_collection"\) |
-| `ids` | array | Да | Array of point IDs to fetch (например, \["id1", "id2"\] or \[1, 2\]\) |
-| `fetch_return_data` | string | Нет | Data to return from fetch |
-| `with_payload` | boolean | Нет | Include payload in response |
-| `with_vector` | boolean | Нет | Include vector in response |
 
-#### Выход
+| `url` | строка | Да | URL экземпляра Qdrant (например, https://your-cluster.qdrant.io) |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Нет | Ключ API Qdrant для аутентификации |
+
+| `collection` | строка | Да | Имя коллекции для извлечения (например, "my_collection") |
+
+| `ids` | массив | Да | Массив ID точек для извлечения (например, \["id1", "id2"\] или \[1, 2\]) |
+
+| `fetch_return_data` | строка | Нет | Данные для возврата из извлечения |
+
+| `with_payload` | логическое значение | Нет | Включить данные payload в ответ |
+
+| `with_vector` | логическое значение | Нет | Включить вектор в ответ |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `status` | string | Статус операции \(ok, error\) |
-| `data` | array | Fetched points with ID, payload, and optional vector data |
-|   ↳ `id` | string | Point ID \(integer or UUID string\) |
-|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
-|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
-|   ↳ `shard_key` | string | Shard key for routing |
-|   ↳ `order_value` | number | Order value for sorting |
+
+| `status` | строка | Статус операции (ok, error) |
+
+| `data` | массив | Извлеченные точки с ID, payload и необязательными данными вектора |
+
+|   ↳ `id` | строка | ID точки (число или строка UUID) |
+
+|   ↳ `payload` | json | Данные payload точки (ключ-значение пары) |
+
+|   ↳ `vector` | json | Вектор(ы) точки - одиночный массив или объект с именованными векторами |
+
+|   ↳ `shard_key` | строка | Ключ шарда для маршрутизации |
+
+|   ↳ `order_value` | число | Значение сортировки |
+
 
 

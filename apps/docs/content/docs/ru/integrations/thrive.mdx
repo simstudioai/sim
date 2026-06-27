@@ -1,6 +1,6 @@
 ---
-title: Thrive
-description: Управление пользователями, аудиториями, обучением и CPD в Thrive
+title: Процветать
+description: Управление пользователями, аудиториями, обучением и непрерывным профессиональным развитием в Thrive
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,1483 +10,2676 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-## Инструкции по использованию
-
-Интегрируйте Thrive Learning в рабочий процесс. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.
 
 
 
-## Действия
+
+Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.
+
+
+
+
+## Actions
+
 
 ### `thrive_create_user`
 
-Создание нового user in Thrive.
 
-#### Вход
+Create a new user in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `ref` | string | Да | Your organisation's unique identifier for this individual |
-| `firstName` | string | Да | The given name of the individual |
-| `lastName` | string | Да | The family name of the individual |
-| `email` | string | Нет | The email address for the user \(required unless loginMethod is 'ref'\) |
-| `loginMethod` | string | Нет | How the user logs in: 'email' or 'ref' \(defaults to 'email'\) |
-| `role` | string | Нет | Role assigned: 'administrator', 'learneradmin', or 'learner' \(defaults to 'learner'\) |
-| `jobTitle` | string | Нет | Name of this individual's role in your organisation |
-| `managerRef` | string | Нет | Your organisation's unique identifier for this individual's line manager |
-| `startDate` | string | Нет | Date this individual started with your organisation \(ISO 8601\) |
-| `endDate` | string | Нет | Date this individual left your organisation \(ISO 8601\) |
-| `timeZone` | string | Нет | The user's preferred timezone \(tenant по умолчанию if omitted\) |
-| `languageCode` | string | Нет | The user's preferred language (например, 'en-gb'\) |
-| `sso` | boolean | Нет | Указывает,  account is managed by an authentication provider |
-| `domain` | string | Нет | Domain this individual is associated with |
-| `additionalFields` | string | Нет | JSON object of custom field key-value pairs. Example: \{"department":"Sales"\} |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `ref` | string | Yes | Your organisation's unique identifier for this individual |
+
+| `firstName` | string | Yes | The given name of the individual |
+
+| `lastName` | string | Yes | The family name of the individual |
+
+| `email` | string | No | The email address for the user \(required unless loginMethod is 'ref'\) |
+
+| `loginMethod` | string | No | How the user logs in: 'email' or 'ref' \(defaults to 'email'\) |
+
+| `role` | string | No | Role assigned: 'administrator', 'learneradmin', or 'learner' \(defaults to 'learner'\) |
+
+| `jobTitle` | string | No | Name of this individual's role in your organisation |
+
+| `managerRef` | string | No | Your organisation's unique identifier for this individual's line manager |
+
+| `startDate` | string | No | Date this individual started with your organisation \(ISO 8601\) |
+
+| `endDate` | string | No | Date this individual left your organisation \(ISO 8601\) |
+
+| `timeZone` | string | No | The user's preferred timezone \(tenant default if omitted\) |
+
+| `languageCode` | string | No | The user's preferred language \(e.g. 'en-gb'\) |
+
+| `sso` | boolean | No | Whether the account is managed by an authentication provider |
+
+| `domain` | string | No | Domain this individual is associated with |
+
+| `additionalFields` | string | No | JSON object of custom field key-value pairs. Example: \{"department":"Sales"\} |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The created user |
+
 |   ↳ `id` | string | The user ID |
+
 |   ↳ `loginMethod` | string | How the user logs in |
+
 |   ↳ `ref` | string | Your organisation's unique identifier for the user |
+
 |   ↳ `email` | string | The email address for the user |
+
 |   ↳ `firstName` | string | The given name of the individual |
+
 |   ↳ `lastName` | string | The family name of the individual |
+
 |   ↳ `role` | string | Role assigned to this individual |
+
 |   ↳ `jobTitle` | string | Name of this individual's role |
+
 |   ↳ `managerRef` | string | The line manager's ref |
+
 |   ↳ `startDate` | string | Date started with the organisation |
+
 |   ↳ `endDate` | string | Date left the organisation |
+
 |   ↳ `timeZone` | string | The user's preferred timezone |
+
 |   ↳ `languageCode` | string | The user's preferred language |
-|   ↳ `active` | boolean | Указывает,  account is active or suspended |
+
+|   ↳ `active` | boolean | Whether the account is active or suspended |
+
 |   ↳ `createdAt` | string | Date/time the user was created |
+
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
-|   ↳ `sso` | boolean | Указывает,  account is managed by an auth provider |
+
+|   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
+
 |   ↳ `domain` | string | Domain this individual is associated with |
+
 |   ↳ `additionalFields` | json | Custom field values for this user |
+
 
 ### `thrive_update_user`
 
-Обновление existing user in Thrive by ref. Only the fields provided are changed.
 
-#### Вход
+Update an existing user in Thrive by ref. Only the fields provided are changed.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `ref` | string | Да | The user ref to update |
-| `firstName` | string | Нет | The given name of the individual |
-| `lastName` | string | Нет | The family name of the individual |
-| `email` | string | Нет | The email address for the user |
-| `loginMethod` | string | Нет | How the user logs in: 'email' or 'ref' |
-| `role` | string | Нет | Role assigned: 'administrator', 'learneradmin', or 'learner' |
-| `jobTitle` | string | Нет | Name of this individual's role in your organisation |
-| `managerRef` | string | Нет | Your organisation's unique identifier for this individual's line manager |
-| `startDate` | string | Нет | Date this individual started with your organisation \(ISO 8601\) |
-| `endDate` | string | Нет | Date this individual left your organisation \(ISO 8601\) |
-| `timeZone` | string | Нет | The user's preferred timezone |
-| `languageCode` | string | Нет | The user's preferred language (например, 'en-gb'\) |
-| `sso` | boolean | Нет | Указывает,  account is managed by an authentication provider |
-| `domain` | string | Нет | Domain this individual is associated with |
-| `additionalFields` | string | Нет | JSON object of custom field key-value pairs. Example: \{"department":"Sales"\} |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `ref` | string | Yes | The user ref to update |
+
+| `firstName` | string | No | The given name of the individual |
+
+| `lastName` | string | No | The family name of the individual |
+
+| `email` | string | No | The email address for the user |
+
+| `loginMethod` | string | No | How the user logs in: 'email' or 'ref' |
+
+| `role` | string | No | Role assigned: 'administrator', 'learneradmin', or 'learner' |
+
+| `jobTitle` | string | No | Name of this individual's role in your organisation |
+
+| `managerRef` | string | No | Your organisation's unique identifier for this individual's line manager |
+
+| `startDate` | string | No | Date this individual started with your organisation \(ISO 8601\) |
+
+| `endDate` | string | No | Date this individual left your organisation \(ISO 8601\) |
+
+| `timeZone` | string | No | The user's preferred timezone |
+
+| `languageCode` | string | No | The user's preferred language \(e.g. 'en-gb'\) |
+
+| `sso` | boolean | No | Whether the account is managed by an authentication provider |
+
+| `domain` | string | No | Domain this individual is associated with |
+
+| `additionalFields` | string | No | JSON object of custom field key-value pairs. Example: \{"department":"Sales"\} |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The updated user |
+
 |   ↳ `id` | string | The user ID |
+
 |   ↳ `loginMethod` | string | How the user logs in |
+
 |   ↳ `ref` | string | Your organisation's unique identifier for the user |
+
 |   ↳ `email` | string | The email address for the user |
+
 |   ↳ `firstName` | string | The given name of the individual |
+
 |   ↳ `lastName` | string | The family name of the individual |
+
 |   ↳ `role` | string | Role assigned to this individual |
+
 |   ↳ `jobTitle` | string | Name of this individual's role |
+
 |   ↳ `managerRef` | string | The line manager's ref |
+
 |   ↳ `startDate` | string | Date started with the organisation |
+
 |   ↳ `endDate` | string | Date left the organisation |
+
 |   ↳ `timeZone` | string | The user's preferred timezone |
+
 |   ↳ `languageCode` | string | The user's preferred language |
-|   ↳ `active` | boolean | Указывает,  account is active or suspended |
+
+|   ↳ `active` | boolean | Whether the account is active or suspended |
+
 |   ↳ `createdAt` | string | Date/time the user was created |
+
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
-|   ↳ `sso` | boolean | Указывает,  account is managed by an auth provider |
+
+|   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
+
 |   ↳ `domain` | string | Domain this individual is associated with |
+
 |   ↳ `additionalFields` | json | Custom field values for this user |
+
 
 ### `thrive_delete_user`
 
+
 Permanently delete (obfuscate) a user in Thrive by ref while retaining training history.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `ref` | string | Да | The user ref to delete |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `ref` | string | Yes | The user ref to delete |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  user was deleted |
+
+| `success` | boolean | Whether the user was deleted |
+
 
 ### `thrive_suspend_user`
 
+
 Suspend a user in Thrive by ref, marking the account inactive.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `ref` | string | Да | The user ref to suspend |
-| `endDate` | string | Нет | The date this individual left your organisation \(ISO 8601\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `ref` | string | Yes | The user ref to suspend |
+
+| `endDate` | string | No | The date this individual left your organisation \(ISO 8601\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The suspended user |
+
 |   ↳ `id` | string | The user ID |
+
 |   ↳ `loginMethod` | string | How the user logs in |
+
 |   ↳ `ref` | string | Your organisation's unique identifier for the user |
+
 |   ↳ `email` | string | The email address for the user |
+
 |   ↳ `firstName` | string | The given name of the individual |
+
 |   ↳ `lastName` | string | The family name of the individual |
+
 |   ↳ `role` | string | Role assigned to this individual |
+
 |   ↳ `jobTitle` | string | Name of this individual's role |
+
 |   ↳ `managerRef` | string | The line manager's ref |
+
 |   ↳ `startDate` | string | Date started with the organisation |
+
 |   ↳ `endDate` | string | Date left the organisation |
+
 |   ↳ `timeZone` | string | The user's preferred timezone |
+
 |   ↳ `languageCode` | string | The user's preferred language |
-|   ↳ `active` | boolean | Указывает,  account is active or suspended |
+
+|   ↳ `active` | boolean | Whether the account is active or suspended |
+
 |   ↳ `createdAt` | string | Date/time the user was created |
+
 |   ↳ `updatedAt` | string | Date/time the user was last modified |
-|   ↳ `sso` | boolean | Указывает,  account is managed by an auth provider |
+
+|   ↳ `sso` | boolean | Whether the account is managed by an auth provider |
+
 |   ↳ `domain` | string | Domain this individual is associated with |
+
 |   ↳ `additionalFields` | json | Custom field values for this user |
+
 
 ### `thrive_search_users`
 
+
 Search users in Thrive and return basic user information with pagination.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
-| `updatedSince` | string | Нет | Return only users updated on or after this date/time \(ISO 8601\) |
-| `statuses` | string | Нет | Comma-separated statuses to include: active, inactive, expired, new |
-| `omitStatuses` | string | Нет | Comma-separated statuses to exclude: active, inactive, expired, new |
-| `status` | string | Нет | Filter by a single status: active, inactive, expired, or new |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+| `updatedSince` | string | No | Return only users updated on or after this date/time \(ISO 8601\) |
+
+| `statuses` | string | No | Comma-separated statuses to include: active, inactive, expired, new |
+
+| `omitStatuses` | string | No | Comma-separated statuses to exclude: active, inactive, expired, new |
+
+| `status` | string | No | Filter by a single status: active, inactive, expired, or new |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching users |
+
 |   ↳ `id` | string | The user's ID |
+
 |   ↳ `ref` | string | The user's ref |
+
 |   ↳ `firstName` | string | The user's first name |
+
 |   ↳ `lastName` | string | The user's last name |
+
 |   ↳ `email` | string | The user's email |
+
 |   ↳ `role` | string | The user's role |
+
 |   ↳ `status` | string | The user's status |
+
 |   ↳ `positions` | array | The user's positions |
+
 |   ↳ `additionalFields` | json | Custom field values |
+
 |   ↳ `languageCode` | string | The user's language code |
-|   ↳ `deleted` | boolean | Указывает,  user has been deleted |
+
+|   ↳ `deleted` | boolean | Whether the user has been deleted |
+
 |   ↳ `compliance` | number | The user's compliance score |
+
 |   ↳ `level` | number | The user's level |
+
 |   ↳ `firstLogin` | string | First login timestamp \(ISO 8601\) |
+
 |   ↳ `lastLogin` | string | Last login timestamp \(ISO 8601\) |
-|   ↳ `tags` | json | Tag membership (например, skills\) |
+
+|   ↳ `tags` | json | Tag membership \(e.g. skills\) |
+
 |   ↳ `usersFollowing` | array | IDs of users this user follows |
+
 |   ↳ `tagsFollowing` | array | Tags this user follows |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
-|   ↳ `hasPicture` | boolean | Указывает,  user has a profile picture |
+
+|   ↳ `hasPicture` | boolean | Whether the user has a profile picture |
+
 |   ↳ `timeZone` | string | The user's time zone |
+
 |   ↳ `summary` | string | The user's summary |
+
 |   ↳ `relevancy` | number | The user's relevancy score |
+
 |   ↳ `rank` | json | The user's rank details |
-|   ↳ `agreedTerms` | boolean | Указывает,  user agreed to the terms |
-|   ↳ `onboarded` | boolean | Указывает,  user has been onboarded |
+
+|   ↳ `agreedTerms` | boolean | Whether the user agreed to the terms |
+
+|   ↳ `onboarded` | boolean | Whether the user has been onboarded |
+
 |   ↳ `audiences` | array | Audience IDs the user belongs to |
-|   ↳ `singleSignOn` | boolean | Указывает,  user uses single sign-on |
+
+|   ↳ `singleSignOn` | boolean | Whether the user uses single sign-on |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_user_by_id`
 
-Получение a single user in Thrive by their ID and return basic user information.
 
-#### Вход
+Get a single user in Thrive by their ID and return basic user information.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `id` | string | Да | The user ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `id` | string | Yes | The user ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The user |
+
 |   ↳ `id` | string | The user's ID |
+
 |   ↳ `ref` | string | The user's ref |
+
 |   ↳ `firstName` | string | The user's first name |
+
 |   ↳ `lastName` | string | The user's last name |
+
 |   ↳ `email` | string | The user's email |
+
 |   ↳ `role` | string | The user's role |
+
 |   ↳ `status` | string | The user's status |
+
 |   ↳ `positions` | array | The user's positions |
+
 |   ↳ `additionalFields` | json | Custom field values |
+
 |   ↳ `languageCode` | string | The user's language code |
-|   ↳ `deleted` | boolean | Указывает,  user has been deleted |
+
+|   ↳ `deleted` | boolean | Whether the user has been deleted |
+
 |   ↳ `compliance` | number | The user's compliance score |
+
 |   ↳ `level` | number | The user's level |
+
 |   ↳ `firstLogin` | string | First login timestamp \(ISO 8601\) |
+
 |   ↳ `lastLogin` | string | Last login timestamp \(ISO 8601\) |
-|   ↳ `tags` | json | Tag membership (например, skills\) |
+
+|   ↳ `tags` | json | Tag membership \(e.g. skills\) |
+
 |   ↳ `usersFollowing` | array | IDs of users this user follows |
+
 |   ↳ `tagsFollowing` | array | Tags this user follows |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
-|   ↳ `hasPicture` | boolean | Указывает,  user has a profile picture |
+
+|   ↳ `hasPicture` | boolean | Whether the user has a profile picture |
+
 |   ↳ `timeZone` | string | The user's time zone |
+
 |   ↳ `summary` | string | The user's summary |
+
 |   ↳ `relevancy` | number | The user's relevancy score |
+
 |   ↳ `rank` | json | The user's rank details |
-|   ↳ `agreedTerms` | boolean | Указывает,  user agreed to the terms |
-|   ↳ `onboarded` | boolean | Указывает,  user has been onboarded |
+
+|   ↳ `agreedTerms` | boolean | Whether the user agreed to the terms |
+
+|   ↳ `onboarded` | boolean | Whether the user has been onboarded |
+
 |   ↳ `audiences` | array | Audience IDs the user belongs to |
-|   ↳ `singleSignOn` | boolean | Указывает,  user uses single sign-on |
+
+|   ↳ `singleSignOn` | boolean | Whether the user uses single sign-on |
+
 
 ### `thrive_get_user_by_ref`
 
-Получение a single user in Thrive by their ref and return basic user information.
 
-#### Вход
+Get a single user in Thrive by their ref and return basic user information.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `ref` | string | Да | The user ref |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `ref` | string | Yes | The user ref |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The user \(basic information\) |
+
 |   ↳ `id` | string | The user's ID |
+
 |   ↳ `ref` | string | The user's ref |
+
 |   ↳ `firstName` | string | The user's first name |
+
 |   ↳ `lastName` | string | The user's last name |
+
 |   ↳ `email` | string | The user's email |
+
 |   ↳ `role` | string | The user's role |
+
 |   ↳ `status` | string | The user's status |
+
 |   ↳ `positions` | array | The user's positions |
+
 |   ↳ `additionalFields` | json | Custom field values |
+
 |   ↳ `languageCode` | string | The user's language code |
+
 
 ### `thrive_list_audiences`
 
-Получение списка audiences and structures in Thrive with pagination.
 
-#### Вход
+List audiences and structures in Thrive with pagination.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `apiControlled` | boolean | Нет | Filter to only return audiences which are / are not API controlled |
-| `updatedSince` | string | Нет | Return only audiences updated on or after this date/time \(ISO 8601\) |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `apiControlled` | boolean | No | Filter to only return audiences which are / are not API controlled |
+
+| `updatedSince` | string | No | Return only audiences updated on or after this date/time \(ISO 8601\) |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching audiences |
+
 |   ↳ `id` | string | The id of the audience |
+
 |   ↳ `name` | string | The name of the audience |
+
 |   ↳ `reference` | string | The external reference for the audience |
-|   ↳ `apiControlled` | boolean | Указывает,  audience is API controlled |
+
+|   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
+
 |   ↳ `category` | string | Either "audience" or "structure" |
+
 |   ↳ `type` | string | Either "manual" or "smart" |
+
 |   ↳ `parent` | object | Parent audience/structure information |
+
 |     ↳ `name` | string | The name of the parent audience |
+
 |     ↳ `reference` | string | The external reference for the parent |
+
 |     ↳ `id` | string | The id of the parent audience/structure |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_create_audience`
 
-Создание нового audience or structure in Thrive.
 
-#### Вход
+Create a new audience or structure in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `name` | string | Нет | The name of the audience \(max 100 characters\) |
-| `reference` | string | Нет | The external reference for the audience \(max 100 characters\) |
-| `parentId` | string | Нет | The id or reference of the parent audience/structure; leave blank for a parent audience/structure |
-| `category` | string | Нет | The audience category: 'audience' or 'structure' |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `name` | string | No | The name of the audience \(max 100 characters\) |
+
+| `reference` | string | No | The external reference for the audience \(max 100 characters\) |
+
+| `parentId` | string | No | The id or reference of the parent audience/structure; leave blank for a parent audience/structure |
+
+| `category` | string | No | The audience category: 'audience' or 'structure' |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `audience` | object | The created audience |
+
 |   ↳ `id` | string | The id of the audience |
+
 |   ↳ `name` | string | The name of the audience |
+
 |   ↳ `reference` | string | The external reference for the audience |
-|   ↳ `apiControlled` | boolean | Указывает,  audience is API controlled |
+
+|   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
+
 |   ↳ `category` | string | Either "audience" or "structure" |
+
 |   ↳ `type` | string | Either "manual" or "smart" |
+
 |   ↳ `parent` | object | Parent audience/structure information |
+
 |     ↳ `name` | string | The name of the parent audience |
+
 |     ↳ `reference` | string | The external reference for the parent |
+
 |     ↳ `id` | string | The id of the parent audience/structure |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_get_audience`
 
-Получение a single audience or structure in Thrive by id or reference.
 
-#### Вход
+Get a single audience or structure in Thrive by id or reference.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `audience` | object | The audience |
+
 |   ↳ `id` | string | The id of the audience |
+
 |   ↳ `name` | string | The name of the audience |
+
 |   ↳ `reference` | string | The external reference for the audience |
-|   ↳ `apiControlled` | boolean | Указывает,  audience is API controlled |
+
+|   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
+
 |   ↳ `category` | string | Either "audience" or "structure" |
+
 |   ↳ `type` | string | Either "manual" or "smart" |
+
 |   ↳ `parent` | object | Parent audience/structure information |
+
 |     ↳ `name` | string | The name of the parent audience |
+
 |     ↳ `reference` | string | The external reference for the parent |
+
 |     ↳ `id` | string | The id of the parent audience/structure |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_update_audience`
 
-Обновление audience in Thrive, optionally moving it to a new parent.
 
-#### Вход
+Update an audience in Thrive, optionally moving it to a new parent.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `name` | string | Нет | The name of the audience \(max 100 characters\) |
-| `reference` | string | Нет | The external reference for the audience \(max 100 characters\) |
-| `parentId` | string | Нет | The id of the parent audience/structure to move the audience to |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `name` | string | No | The name of the audience \(max 100 characters\) |
+
+| `reference` | string | No | The external reference for the audience \(max 100 characters\) |
+
+| `parentId` | string | No | The id of the parent audience/structure to move the audience to |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `audience` | object | The updated audience |
+
 |   ↳ `id` | string | The id of the audience |
+
 |   ↳ `name` | string | The name of the audience |
+
 |   ↳ `reference` | string | The external reference for the audience |
-|   ↳ `apiControlled` | boolean | Указывает,  audience is API controlled |
+
+|   ↳ `apiControlled` | boolean | Whether the audience is API controlled |
+
 |   ↳ `category` | string | Either "audience" or "structure" |
+
 |   ↳ `type` | string | Either "manual" or "smart" |
+
 |   ↳ `parent` | object | Parent audience/structure information |
+
 |     ↳ `name` | string | The name of the parent audience |
+
 |     ↳ `reference` | string | The external reference for the parent |
+
 |     ↳ `id` | string | The id of the parent audience/structure |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_delete_audience`
 
-Удалениеn audience in Thrive (only if it has no child audiences).
 
-#### Вход
+Delete an audience in Thrive (only if it has no child audiences).
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  audience was deleted |
+
+| `success` | boolean | Whether the audience was deleted |
+
 
 ### `thrive_list_audience_members`
 
-Получение списка the members of a Thrive audience with pagination.
 
-#### Вход
+List the members of a Thrive audience with pagination.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The audience members |
+
 |   ↳ `userId` | string | The user's id |
+
 |   ↳ `reference` | string | The user's reference |
+
 |   ↳ `email` | string | The user's email |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_add_audience_members`
 
+
 Add members to a Thrive audience by email, ref, or id.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `users` | string | Да | JSON array of user emails/refs/ids to add \(1-100\). Example: \["user@example.com"\] |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `users` | string | Yes | JSON array of user emails/refs/ids to add \(1-100\). Example: \["user@example.com"\] |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `result` | object | The add/replace result, with successfully and unsuccessfully processed entities |
+
 |   ↳ `success` | object | Successfully processed entities |
+
 |     ↳ `count` | number | Number of successfully processed entities |
+
 |     ↳ `entities` | array | The successfully processed entities |
+
 |       ↳ `reference` | string | The entity reference |
+
 |   ↳ `failure` | object | Unsuccessfully processed entities |
+
 |     ↳ `count` | number | Number of unsuccessfully processed entities |
+
 |     ↳ `entities` | array | The unsuccessfully processed entities |
+
 |       ↳ `reason` | string | The reason for the failure |
+
 |       ↳ `reference` | string | The entity reference |
+
 
 ### `thrive_replace_audience_members`
 
+
 Replace a Thrive audience's entire members list with the given users (does not support an empty array).
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `users` | string | Да | JSON array of user emails/refs/ids that replaces the whole members list \(1-100, no empty array\). Example: \["user@example.com"\] |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `users` | string | Yes | JSON array of user emails/refs/ids that replaces the whole members list \(1-100, no empty array\). Example: \["user@example.com"\] |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `result` | object | The add/replace result, with successfully and unsuccessfully processed entities |
+
 |   ↳ `success` | object | Successfully processed entities |
+
 |     ↳ `count` | number | Number of successfully processed entities |
+
 |     ↳ `entities` | array | The successfully processed entities |
+
 |       ↳ `reference` | string | The entity reference |
+
 |   ↳ `failure` | object | Unsuccessfully processed entities |
+
 |     ↳ `count` | number | Number of unsuccessfully processed entities |
+
 |     ↳ `entities` | array | The unsuccessfully processed entities |
+
 |       ↳ `reason` | string | The reason for the failure |
+
 |       ↳ `reference` | string | The entity reference |
+
 
 ### `thrive_remove_audience_member`
 
+
 Remove a single member from a Thrive audience.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `userRef` | string | Да | The user email, ref, or id to remove |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `userRef` | string | Yes | The user email, ref, or id to remove |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  audience member was removed |
+
+| `success` | boolean | Whether the audience member was removed |
+
 
 ### `thrive_list_audience_managers`
 
-Получение списка the managers of a Thrive audience.
 
-#### Вход
+List the managers of a Thrive audience.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `managers` | array | The audience managers |
+
 |   ↳ `userId` | string | The user's id |
+
 |   ↳ `reference` | string | The user's reference |
+
 |   ↳ `email` | string | The user's email |
+
 |   ↳ `permissions` | object | The manager permissions |
+
 |     ↳ `audienceManager` | json | Audience manager permissions |
+
 |     ↳ `peopleManager` | json | People manager permissions |
+
 |     ↳ `administrator` | json | Administrator permissions \(structures only\) |
+
 
 ### `thrive_add_audience_managers`
 
+
 Add managers to a Thrive audience with their permissions.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `managers` | string | Да | JSON array of manager objects \(1-100\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `managers` | string | Yes | JSON array of manager objects \(1-100\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `result` | object | The add/replace result, with successfully and unsuccessfully processed entities |
+
 |   ↳ `success` | object | Successfully processed entities |
+
 |     ↳ `count` | number | Number of successfully processed entities |
+
 |     ↳ `entities` | array | The successfully processed entities |
+
 |       ↳ `reference` | string | The entity reference |
+
 |   ↳ `failure` | object | Unsuccessfully processed entities |
+
 |     ↳ `count` | number | Number of unsuccessfully processed entities |
+
 |     ↳ `entities` | array | The unsuccessfully processed entities |
+
 |       ↳ `reason` | string | The reason for the failure |
+
 |       ↳ `reference` | string | The entity reference |
+
 
 ### `thrive_replace_audience_managers`
 
+
 Replace a Thrive audience's entire manager list with the given managers (does not support an empty array).
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `managers` | string | Да | JSON array of manager objects that replaces the whole manager list \(1-100, no empty array\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `managers` | string | Yes | JSON array of manager objects that replaces the whole manager list \(1-100, no empty array\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `result` | object | The add/replace result, with successfully and unsuccessfully processed entities |
+
 |   ↳ `success` | object | Successfully processed entities |
+
 |     ↳ `count` | number | Number of successfully processed entities |
+
 |     ↳ `entities` | array | The successfully processed entities |
+
 |       ↳ `reference` | string | The entity reference |
+
 |   ↳ `failure` | object | Unsuccessfully processed entities |
+
 |     ↳ `count` | number | Number of unsuccessfully processed entities |
+
 |     ↳ `entities` | array | The unsuccessfully processed entities |
+
 |       ↳ `reason` | string | The reason for the failure |
+
 |       ↳ `reference` | string | The entity reference |
+
 
 ### `thrive_remove_audience_manager`
 
+
 Remove a single manager from a Thrive audience.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience id or audience reference |
-| `userId` | string | Да | The user email, ref, or id to remove as a manager |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience id or audience reference |
+
+| `userId` | string | Yes | The user email, ref, or id to remove as a manager |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  audience manager was removed |
+
+| `success` | boolean | Whether the audience manager was removed |
+
 
 ### `thrive_list_assignments`
 
-Получение списка compliance assignments in Thrive, optionally filtered by audience.
 
-#### Вход
+List compliance assignments in Thrive, optionally filtered by audience.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Нет | Filter by audience ID or audience reference |
-| `updatedSince` | string | Нет | Return only items updated on or after this date/time \(ISO 8601\) |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-100, по умолчанию 100\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | No | Filter by audience ID or audience reference |
+
+| `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assignments` | array | The matching assignments |
+
 |   ↳ `id` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The content ID for the primary content |
+
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
+
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
+
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
+
 |   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
-|   ↳ `isActive` | boolean | Указывает,  assignment is active |
-|   ↳ `isDeleted` | boolean | Указывает,  assignment is deleted |
+
+|   ↳ `isActive` | boolean | Whether the assignment is active |
+
+|   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_create_assignment`
 
+
 Create a compliance assignment in Thrive for an audience and content item.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceId` | string | Да | The audience ID |
-| `contentId` | string | Да | The content ID for the primary content |
-| `alternativeContentIds` | string | Нет | JSON array of content IDs that can also complete the assignment |
-| `hideAlternativeContent` | boolean | Нет | Whether to hide the alternative content |
-| `completionPeriod` | number | Нет | The number of days required to complete the assignment \(по умолчанию 30\) |
-| `recurrence` | number | Нет | The number of days until the assignment will reoccur |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceId` | string | Yes | The audience ID |
+
+| `contentId` | string | Yes | The content ID for the primary content |
+
+| `alternativeContentIds` | string | No | JSON array of content IDs that can also complete the assignment |
+
+| `hideAlternativeContent` | boolean | No | Whether to hide the alternative content |
+
+| `completionPeriod` | number | No | The number of days required to complete the assignment \(default 30\) |
+
+| `recurrence` | number | No | The number of days until the assignment will reoccur |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assignment` | object | The created assignment |
+
 |   ↳ `id` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The content ID for the primary content |
+
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
+
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
+
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
+
 |   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
-|   ↳ `isActive` | boolean | Указывает,  assignment is active |
-|   ↳ `isDeleted` | boolean | Указывает,  assignment is deleted |
+
+|   ↳ `isActive` | boolean | Whether the assignment is active |
+
+|   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_get_assignment`
 
-Получение a single compliance assignment in Thrive by its ID.
 
-#### Вход
+Get a single compliance assignment in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `assignmentId` | string | Да | The assignment ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `assignmentId` | string | Yes | The assignment ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assignment` | object | The assignment |
+
 |   ↳ `id` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The content ID for the primary content |
+
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
+
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
+
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
+
 |   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
-|   ↳ `isActive` | boolean | Указывает,  assignment is active |
-|   ↳ `isDeleted` | boolean | Указывает,  assignment is deleted |
+
+|   ↳ `isActive` | boolean | Whether the assignment is active |
+
+|   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_update_assignment`
 
+
 Update a compliance assignment in Thrive.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `assignmentId` | string | Да | The assignment ID |
-| `audienceId` | string | Да | The audience ID |
-| `contentId` | string | Нет | The content ID for the primary content |
-| `completionPeriod` | number | Нет | The number of days required to complete the assignment |
-| `recurrence` | number | Нет | The number of days until the assignment will reoccur |
-| `alternativeContentIds` | string | Нет | JSON array of content IDs that can also complete the assignment |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `assignmentId` | string | Yes | The assignment ID |
+
+| `audienceId` | string | Yes | The audience ID |
+
+| `contentId` | string | No | The content ID for the primary content |
+
+| `completionPeriod` | number | No | The number of days required to complete the assignment |
+
+| `recurrence` | number | No | The number of days until the assignment will reoccur |
+
+| `alternativeContentIds` | string | No | JSON array of content IDs that can also complete the assignment |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assignment` | object | The updated assignment |
+
 |   ↳ `id` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The content ID for the primary content |
+
 |   ↳ `alternativeContentIds` | array | Content IDs that can also complete the assignment |
+
 |   ↳ `hideAlternativeContent` | boolean | Whether to hide the alternative content |
+
 |   ↳ `completionPeriod` | number | Number of days required to complete the assignment |
+
 |   ↳ `recurrence` | number | Number of days until the assignment reoccurs |
-|   ↳ `isActive` | boolean | Указывает,  assignment is active |
-|   ↳ `isDeleted` | boolean | Указывает,  assignment is deleted |
+
+|   ↳ `isActive` | boolean | Whether the assignment is active |
+
+|   ↳ `isDeleted` | boolean | Whether the assignment is deleted |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_delete_assignment`
 
-Удаление compliance assignment in Thrive.
 
-#### Вход
+Delete a compliance assignment in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `assignmentId` | string | Да | The assignment ID |
-| `audienceId` | string | Да | The audience ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `assignmentId` | string | Yes | The assignment ID |
+
+| `audienceId` | string | Yes | The audience ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  assignment was deleted |
+
+| `success` | boolean | Whether the assignment was deleted |
+
 
 ### `thrive_list_enrolments`
 
-Получение списка enrolments for a compliance assignment in Thrive.
 
-#### Вход
+List enrolments for a compliance assignment in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `assignmentId` | string | Да | The assignment ID |
-| `updatedAtFrom` | string | Нет | Start date to filter enrolments from \(ISO 8601\) |
-| `updatedAtTo` | string | Нет | Date to filter enrolments up to \(ISO 8601\). Requires updatedAtFrom. |
-| `status` | string | Нет | Filter by enrolment status: archived, complete, open, overdue, scheduled, or unassigned |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-100, по умолчанию 100\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `assignmentId` | string | Yes | The assignment ID |
+
+| `updatedAtFrom` | string | No | Start date to filter enrolments from \(ISO 8601\) |
+
+| `updatedAtTo` | string | No | Date to filter enrolments up to \(ISO 8601\). Requires updatedAtFrom. |
+
+| `status` | string | No | Filter by enrolment status: archived, complete, open, overdue, scheduled, or unassigned |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-100, default 100\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `enrolments` | array | The matching enrolments |
+
 |   ↳ `id` | string | The enrolment ID |
+
 |   ↳ `userId` | string | The assignee user ID |
+
 |   ↳ `assignmentId` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The assigned content ID |
+
 |   ↳ `status` | string | Enrolment status |
+
 |   ↳ `availableDate` | string | Date a scheduled enrolment becomes open |
+
 |   ↳ `dueDate` | string | Date after which a scheduled enrolment is overdue |
+
 |   ↳ `lastCompletedAt` | string | Date a scheduled enrolment was last completed |
+
 |   ↳ `history` | array | Event-log history entries |
+
 |     ↳ `type` | string | The type of the logged event |
+
 |     ↳ `completionId` | string | The completion ID |
+
 |     ↳ `previousStatus` | string | The previous enrolment status |
+
 |     ↳ `nextStatus` | string | The next enrolment status |
+
 |     ↳ `createdAt` | string | Date the event was logged |
+
 |     ↳ `updatedAt` | string | Date the event was last modified |
+
 |   ↳ `updatedAt` | string | Date the enrolment was last updated |
+
 
 ### `thrive_get_enrolment`
 
-Получение a single enrolment for a compliance assignment in Thrive.
 
-#### Вход
+Get a single enrolment for a compliance assignment in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `assignmentId` | string | Да | The assignment ID |
-| `enrolmentId` | string | Да | The enrolment ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `assignmentId` | string | Yes | The assignment ID |
+
+| `enrolmentId` | string | Yes | The enrolment ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `enrolment` | object | The enrolment |
+
 |   ↳ `id` | string | The enrolment ID |
+
 |   ↳ `userId` | string | The assignee user ID |
+
 |   ↳ `assignmentId` | string | The assignment ID |
+
 |   ↳ `audienceId` | string | The audience ID |
+
 |   ↳ `primaryContentId` | string | The assigned content ID |
+
 |   ↳ `status` | string | Enrolment status |
+
 |   ↳ `availableDate` | string | Date a scheduled enrolment becomes open |
+
 |   ↳ `dueDate` | string | Date after which a scheduled enrolment is overdue |
+
 |   ↳ `lastCompletedAt` | string | Date a scheduled enrolment was last completed |
+
 |   ↳ `history` | array | Event-log history entries |
+
 |     ↳ `type` | string | The type of the logged event |
+
 |     ↳ `completionId` | string | The completion ID |
+
 |     ↳ `previousStatus` | string | The previous enrolment status |
+
 |     ↳ `nextStatus` | string | The next enrolment status |
+
 |     ↳ `createdAt` | string | Date the event was logged |
+
 |     ↳ `updatedAt` | string | Date the event was last modified |
+
 |   ↳ `updatedAt` | string | Date the enrolment was last updated |
+
 
 ### `thrive_list_completions`
 
-Получение списка learning completion records in Thrive, optionally filtered by user or content.
 
-#### Вход
+List learning completion records in Thrive, optionally filtered by user or content.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `contentId` | string | Нет | Filter by content |
-| `isRPL` | boolean | Нет | Filter by completions imported via Recognition of Prior Learning \(RPL\) |
-| `userId` | string | Нет | Filter by user |
-| `completedDateRangeStart` | string | Нет | Filter by completedDate \(completedDate &gt;= this date/date-time\) |
-| `completedDateRangeEnd` | string | Нет | Filter by completedDate \(completedDate &lt;= this date/date-time\) |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 1000\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `contentId` | string | No | Filter by content |
+
+| `isRPL` | boolean | No | Filter by completions imported via Recognition of Prior Learning \(RPL\) |
+
+| `userId` | string | No | Filter by user |
+
+| `completedDateRangeStart` | string | No | Filter by completedDate \(completedDate &gt;= this date/date-time\) |
+
+| `completedDateRangeEnd` | string | No | Filter by completedDate \(completedDate &lt;= this date/date-time\) |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 1000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `completions` | array | The matching completion records |
+
 |   ↳ `id` | string | The completion ID |
+
 |   ↳ `userId` | string | The user ID |
+
 |   ↳ `contentId` | string | The content ID for the content completed |
+
 |   ↳ `contentVersion` | number | The version of the content |
+
 |   ↳ `skills` | array | The skills acquired by completing this content |
+
 |   ↳ `completionType` | string | The type of completion record |
-|   ↳ `hadDueDate` | boolean | Указывает,  completion had a due date |
-|   ↳ `isRPL` | boolean | Указывает,  completion was imported via RPL |
+
+|   ↳ `hadDueDate` | boolean | Whether the completion had a due date |
+
+|   ↳ `isRPL` | boolean | Whether the completion was imported via RPL |
+
 |   ↳ `completedAt` | string | Timestamp when the completion occurred \(ISO 8601\) |
+
 |   ↳ `activeUntil` | string | Timestamp the completion is valid until \(ISO 8601\) |
+
 
 ### `thrive_get_completion`
 
-Получение a single learning completion record in Thrive by its ID.
 
-#### Вход
+Get a single learning completion record in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `id` | string | Да | The completion ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `id` | string | Yes | The completion ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `completion` | object | The completion record |
+
 |   ↳ `id` | string | The completion ID |
+
 |   ↳ `userId` | string | The user ID |
+
 |   ↳ `contentId` | string | The content ID for the content completed |
+
 |   ↳ `contentVersion` | number | The version of the content |
+
 |   ↳ `skills` | array | The skills acquired by completing this content |
+
 |   ↳ `completionType` | string | The type of completion record |
-|   ↳ `hadDueDate` | boolean | Указывает,  completion had a due date |
-|   ↳ `isRPL` | boolean | Указывает,  completion was imported via RPL |
+
+|   ↳ `hadDueDate` | boolean | Whether the completion had a due date |
+
+|   ↳ `isRPL` | boolean | Whether the completion was imported via RPL |
+
 |   ↳ `completedAt` | string | Timestamp when the completion occurred \(ISO 8601\) |
+
 |   ↳ `activeUntil` | string | Timestamp the completion is valid until \(ISO 8601\) |
+
 
 ### `thrive_create_completion`
 
+
 Record a learning completion in Thrive for a user and content item.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `userId` | string | Да | The user ID |
-| `contentId` | string | Да | The content ID for the content completed |
-| `completedAt` | string | Да | ISO8601 timestamp when the completion occurred |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `userId` | string | Yes | The user ID |
+
+| `contentId` | string | Yes | The content ID for the content completed |
+
+| `completedAt` | string | Yes | ISO8601 timestamp when the completion occurred |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `statementId` | string | The completion statement ID |
+
 
 ### `thrive_get_content`
 
-Получение a single content record in Thrive by its ID.
 
-#### Вход
+Get a single content record in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `id` | string | Да | Уникальный идентификатор of the content item |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `id` | string | Yes | Unique identifier of the content item |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `content` | object | The content record |
-|   ↳ `id` | string | Уникальный идентификатор for the content |
+
+|   ↳ `id` | string | Unique identifier for the content |
+
 |   ↳ `title` | string | Title of the content |
+
 |   ↳ `description` | string | Detailed description \(may contain HTML\) |
+
 |   ↳ `tags` | array | Tags associated with this content |
+
 |   ↳ `type` | string | The kind of artifact associated with this content |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 |   ↳ `author` | string | User ID who authored the content |
-|   ↳ `isOfficial` | boolean | Указывает,  content is recognised as official |
+
+|   ↳ `isOfficial` | boolean | Whether the content is recognised as official |
+
 |   ↳ `duration` | object | Expected time to complete the content |
+
 |     ↳ `value` | number | Duration value |
+
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
+
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+
 
 ### `thrive_query_content`
 
+
 Query content records in Thrive with pagination and filtering options.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 20\) |
-| `types` | string | Нет | Comma-separated content types \(article, assessment, broadcast, cmi5, elearning, event, file, pathway, question, quiz, scorm, url, video, mixed\). If both set, omitTypes is ignored. |
-| `omitTypes` | string | Нет | Comma-separated content types \(article, assessment, broadcast, cmi5, elearning, event, file, pathway, question, quiz, scorm, url, video, mixed\). If both set, omitTypes is ignored. |
-| `updatedSince` | string | Нет | Return only items updated on or after this date/time \(ISO 8601\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 20\) |
+
+| `types` | string | No | Comma-separated content types \(article, assessment, broadcast, cmi5, elearning, event, file, pathway, question, quiz, scorm, url, video, mixed\). If both set, omitTypes is ignored. |
+
+| `omitTypes` | string | No | Comma-separated content types \(article, assessment, broadcast, cmi5, elearning, event, file, pathway, question, quiz, scorm, url, video, mixed\). If both set, omitTypes is ignored. |
+
+| `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching content records |
-|   ↳ `id` | string | Уникальный идентификатор for the content |
+
+|   ↳ `id` | string | Unique identifier for the content |
+
 |   ↳ `title` | string | Title of the content |
+
 |   ↳ `description` | string | Detailed description \(may contain HTML\) |
+
 |   ↳ `tags` | array | Tags associated with this content |
+
 |   ↳ `type` | string | The kind of artifact associated with this content |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 |   ↳ `author` | string | User ID who authored the content |
-|   ↳ `isOfficial` | boolean | Указывает,  content is recognised as official |
+
+|   ↳ `isOfficial` | boolean | Whether the content is recognised as official |
+
 |   ↳ `duration` | object | Expected time to complete the content |
+
 |     ↳ `value` | number | Duration value |
+
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
+
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_activity`
 
-Получение a single activity record in Thrive by its ID.
 
-#### Вход
+Get a single activity record in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `id` | string | Да | Уникальный идентификатор of the activity |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `id` | string | Yes | Unique identifier of the activity |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `activity` | object | The activity record |
+
 |   ↳ `type` | string | The activity action type |
+
 |   ↳ `name` | string | The name of the activity |
+
 |   ↳ `id` | string | Unique ID for this activity record |
+
 |   ↳ `user` | string | User ID who triggered the activity |
+
 |   ↳ `date` | string | Timestamp when the activity occurred \(ISO 8601\) |
+
 |   ↳ `contextId` | string | Identifier for the context item |
+
 |   ↳ `contextType` | string | What this activity was in relation to |
+
 |   ↳ `data` | json | Unstructured activity data; shape varies by type |
+
 |   ↳ `with` | json | Additional context information |
+
 
 ### `thrive_query_activities`
 
+
 Query activity records in Thrive with pagination and filtering options.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 20\) |
-| `actions` | string | Нет | comma-separated activity types e.g. viewed,completed |
-| `omitActions` | string | Нет | comma-separated activity types e.g. viewed,completed |
-| `contentIds` | string | Нет | comma-separated content IDs |
-| `contentType` | string | Нет | Filter by content type |
-| `timestampFrom` | string | Нет | format YYYY-MM-DD hh:mm:ss |
-| `timestampTo` | string | Нет | format YYYY-MM-DD hh:mm:ss |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 20\) |
+
+| `actions` | string | No | comma-separated activity types e.g. viewed,completed |
+
+| `omitActions` | string | No | comma-separated activity types e.g. viewed,completed |
+
+| `contentIds` | string | No | comma-separated content IDs |
+
+| `contentType` | string | No | Filter by content type |
+
+| `timestampFrom` | string | No | format YYYY-MM-DD hh:mm:ss |
+
+| `timestampTo` | string | No | format YYYY-MM-DD hh:mm:ss |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching activity records |
+
 |   ↳ `type` | string | The activity action type |
+
 |   ↳ `name` | string | The name of the activity |
+
 |   ↳ `id` | string | Unique ID for this activity record |
+
 |   ↳ `user` | string | User ID who triggered the activity |
+
 |   ↳ `date` | string | Timestamp when the activity occurred \(ISO 8601\) |
+
 |   ↳ `contextId` | string | Identifier for the context item |
+
 |   ↳ `contextType` | string | What this activity was in relation to |
+
 |   ↳ `data` | json | Unstructured activity data; shape varies by type |
+
 |   ↳ `with` | json | Additional context information |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_cpd_category`
 
-Получение a single CPD category in Thrive by its ID.
 
-#### Вход
+Get a single CPD category in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `categoryId` | string | Да | The CPD category ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `categoryId` | string | Yes | The CPD category ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `category` | object | The CPD category |
+
 |   ↳ `categoryId` | string | Unique ID for this category record |
+
 |   ↳ `name` | string | Name of the category of CPD activity |
+
 
 ### `thrive_query_cpd_categories`
 
+
 Query CPD categories in Thrive and return results with pagination.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
-| `updatedSince` | string | Нет | Return only items updated on or after this date/time \(ISO 8601\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+| `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching CPD categories |
+
 |   ↳ `categoryId` | string | Unique ID for this category record |
+
 |   ↳ `name` | string | Name of the category of CPD activity |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_cpd_entry`
 
-Получение a single CPD log entry in Thrive by its ID.
 
-#### Вход
+Get a single CPD log entry in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `logEntryId` | string | Да | The CPD log entry ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `logEntryId` | string | Yes | The CPD log entry ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `entry` | object | The CPD entry |
+
 |   ↳ `logEntryId` | string | Unique ID for this activity record |
+
 |   ↳ `userId` | string | User ID who triggered this activity record |
+
 |   ↳ `activity` | object | The content item associated with the CPD log entry |
-|     ↳ `type` | string | The type of content (например, file, article, video\) |
+
+|     ↳ `type` | string | The type of content \(e.g. file, article, video\) |
+
 |     ↳ `name` | string | The name of the content item |
+
 |   ↳ `category` | object | The CPD category |
+
 |     ↳ `categoryId` | string | Unique ID for this category record |
+
 |     ↳ `name` | string | Name of the category of CPD activity |
+
 |   ↳ `entryDate` | string | The date and time the CPD entry was logged \(ISO 8601\) |
+
 |   ↳ `durationMinutes` | number | Minutes logged as CPD from this activity |
+
 |   ↳ `description` | string | Summary or reflective statement |
-|   ↳ `isVerified` | boolean | Указывает,  activity was generated from verified system activity |
+
+|   ↳ `isVerified` | boolean | Whether the activity was generated from verified system activity |
+
 
 ### `thrive_query_cpd_entries`
 
+
 Query CPD log entries in Thrive and return results with pagination.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
-| `entryDateFrom` | string | Нет | Filter entries after this date \(format YYYY-MM-DD hh:mm:ss\) |
-| `entryDateTo` | string | Нет | Filter entries before this date \(format YYYY-MM-DD hh:mm:ss\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+| `entryDateFrom` | string | No | Filter entries after this date \(format YYYY-MM-DD hh:mm:ss\) |
+
+| `entryDateTo` | string | No | Filter entries before this date \(format YYYY-MM-DD hh:mm:ss\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching CPD entries |
+
 |   ↳ `logEntryId` | string | Unique ID for this activity record |
+
 |   ↳ `userId` | string | User ID who triggered this activity record |
+
 |   ↳ `activity` | object | The content item associated with the CPD log entry |
-|     ↳ `type` | string | The type of content (например, file, article, video\) |
+
+|     ↳ `type` | string | The type of content \(e.g. file, article, video\) |
+
 |     ↳ `name` | string | The name of the content item |
+
 |   ↳ `category` | object | The CPD category |
+
 |     ↳ `categoryId` | string | Unique ID for this category record |
+
 |     ↳ `name` | string | Name of the category of CPD activity |
+
 |   ↳ `entryDate` | string | The date and time the CPD entry was logged \(ISO 8601\) |
+
 |   ↳ `durationMinutes` | number | Minutes logged as CPD from this activity |
+
 |   ↳ `description` | string | Summary or reflective statement |
-|   ↳ `isVerified` | boolean | Указывает,  activity was generated from verified system activity |
+
+|   ↳ `isVerified` | boolean | Whether the activity was generated from verified system activity |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_cpd_requirement`
 
-Получение a single CPD requirement summary in Thrive by its ID.
 
-#### Вход
+Get a single CPD requirement summary in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `audienceRequirementId` | string | Да | The CPD requirement ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `audienceRequirementId` | string | Yes | The CPD requirement ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `requirement` | object | The CPD requirement |
+
 |   ↳ `audienceRequirementId` | string | Unique ID for this requirement record |
+
 |   ↳ `audienceId` | string | ID of the audience this requirement applies to |
+
 |   ↳ `requiredMinutes` | number | Number of minutes required for CPD completion |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 
 ### `thrive_query_cpd_requirements`
 
+
 Query CPD requirement summaries in Thrive and return results with pagination.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
-| `updatedSince` | string | Нет | Return only items updated on or after this date/time \(ISO 8601\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+| `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching CPD requirements |
+
 |   ↳ `audienceRequirementId` | string | Unique ID for this requirement record |
+
 |   ↳ `audienceId` | string | ID of the audience this requirement applies to |
+
 |   ↳ `requiredMinutes` | number | Number of minutes required for CPD completion |
+
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_query_cpd_user_summaries`
 
+
 Query CPD user log summaries in Thrive and return results with pagination.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `entryDateFrom` | string | Да | Filter entries after this date \(format YYYY-MM-DDThh:mm:ss\) |
-| `entryDateTo` | string | Да | Filter entries before this date \(format YYYY-MM-DDThh:mm:ss\) |
-| `userIds` | string | Нет | Comma-separated user IDs to filter by |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `entryDateFrom` | string | Yes | Filter entries after this date \(format YYYY-MM-DDThh:mm:ss\) |
+
+| `entryDateTo` | string | Yes | Filter entries before this date \(format YYYY-MM-DDThh:mm:ss\) |
+
+| `userIds` | string | No | Comma-separated user IDs to filter by |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The matching CPD user summaries |
+
 |   ↳ `userId` | string | ID of the user this summary is for |
+
 |   ↳ `durationMinutes` | number | Total CPD minutes logged by the user in the period |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_list_tags`
 
-Получение списка tags in Thrive and return tag information with pagination.
 
-#### Вход
+List tags in Thrive and return tag information with pagination.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `page` | number | Нет | Page number for pagination \(по умолчанию 1\) |
-| `perPage` | number | Нет | Number of results per page \(1-1000, по умолчанию 100\) |
-| `updatedSince` | string | Нет | Return only tags updated on or after this date/time \(ISO 8601\) |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `page` | number | No | Page number for pagination \(default 1\) |
+
+| `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
+
+| `updatedSince` | string | No | Return only tags updated on or after this date/time \(ISO 8601\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | The tags |
+
 |   ↳ `tag` | string | The name of the tag |
+
 |   ↳ `id` | string | The ID of the tag |
+
 |   ↳ `contents` | array | IDs of contents using this tag |
+
 |   ↳ `campaigns` | array | IDs of campaigns using this tag |
+
 |   ↳ `interests` | array | IDs of users interested in this tag |
+
 |   ↳ `skills` | array | IDs of users skilled in this tag |
+
 | `pagination` | object | Pagination details |
+
 |   ↳ `totalResults` | number | Total number of results matching the query |
+
 |   ↳ `totalPages` | number | Total number of pages available |
+
 |   ↳ `page` | number | Current page number |
+
 |   ↳ `perPage` | number | Number of results per page |
+
 
 ### `thrive_get_tag`
 
-Получение a single tag in Thrive by its ID.
 
-#### Вход
+Get a single tag in Thrive by its ID.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `tagId` | string | Да | The tag ID |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `tagId` | string | Yes | The tag ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tag` | object | The tag |
+
 |   ↳ `tag` | string | The name of the tag |
+
 |   ↳ `id` | string | The ID of the tag |
+
 |   ↳ `contents` | array | IDs of contents using this tag |
+
 |   ↳ `campaigns` | array | IDs of campaigns using this tag |
+
 |   ↳ `interests` | array | IDs of users interested in this tag |
+
 |   ↳ `skills` | array | IDs of users skilled in this tag |
+
 
 ### `thrive_add_user_tags`
 
+
 Add one or more tags to a learner in Thrive.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `userId` | string | Да | The learner ID |
-| `tags` | string | Да | JSON array of tag names to add \(1-100\). Example: \["leadership"\] |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `userId` | string | Yes | The learner ID |
+
+| `tags` | string | Yes | JSON array of tag names to add \(1-100\). Example: \["leadership"\] |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `status` | number | The HTTP status code of the operation |
+
 | `message` | string | A human-readable result message |
+
 
 ### `thrive_remove_user_tags`
 
+
 Remove one or more tags from a learner in Thrive.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `userId` | string | Да | The learner ID |
-| `tags` | string | Да | JSON array of tag names to remove \(1-100\). Example: \["leadership"\] |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `userId` | string | Yes | The learner ID |
+
+| `tags` | string | Yes | JSON array of tag names to remove \(1-100\). Example: \["leadership"\] |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `status` | number | The HTTP status code of the operation |
+
 | `message` | string | A human-readable result message |
+
 
 ### `thrive_update_user_skills`
 
+
 Update skills and levels for a learner in Thrive.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
-| `userId` | string | Да | The learner ID |
-| `skills` | string | Да | JSON array of skill objects \(1-100\). Each: \{"tagName":"leadership","level":1,"targetLevel":3\}. level/targetLevel optional \(min -1\). |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+| `userId` | string | Yes | The learner ID |
+
+| `skills` | string | Yes | JSON array of skill objects \(1-100\). Each: \{"tagName":"leadership","level":1,"targetLevel":3\}. level/targetLevel optional \(min -1\). |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `status` | number | The HTTP status code of the operation |
+
 | `message` | string | A human-readable result message |
+
 
 ### `thrive_get_skill_levels`
 
-Получение the available skill levels configured in Thrive.
 
-#### Вход
+Get the available skill levels configured in Thrive.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Да | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Да | Thrive Ключ API \(used as the Basic auth password\) |
-| `host` | string | Нет | Region-specific API host |
 
-#### Выход
+| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
+
+| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
+
+| `host` | string | No | Region-specific API host |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `levels` | array | The available skill levels |
+
 |   ↳ `name` | string | The name of the skill level |
-|   ↳ `isEnabled` | boolean | Указывает,  skill level is enabled |
+
+|   ↳ `isEnabled` | boolean | Whether the skill level is enabled |
+
 |   ↳ `value` | number | The numeric value of the skill level |
+
 
 

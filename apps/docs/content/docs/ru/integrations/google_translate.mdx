@@ -1,6 +1,6 @@
 ---
-title: Google Translate
-description: Перевод текста с помощью Google Cloud Translation
+title: Переводчик Google
+description: Мы предлагаем широкий спектр услуг, включая разработку программного обеспечения на заказ, поддержку и обслуживание существующих систем, а также консультационные услуги в области информационных технологий. Наша команда состоит из опытных профессионалов, которые обладают глубокими знаниями в различных областях IT. Мы стремимся предоставлять нашим клиентам высококачественные решения, отвечающие их конкретным потребностям.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,67 +10,109 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Translate](https://translate.google.com/) is Google's powerful translation service, supporting over 100 languages for text, documents, and websites. Backed by advanced neural machine translation, Google Translate delivers fast and accurate translations for a wide range of use cases.
 
-With the Google Translate integration in Sim, you can:
+[Google Translate](https://translate.google.com/) — это мощный сервис перевода от Google, поддерживающий более 100 языков для текста, документов и веб-сайтов. Благодаря продвинутому машинному переводу, Google Translate обеспечивает быстрые и точные переводы для широкого спектра задач.
 
-- **Translate text**: Convert text between over 100 languages using Google Cloud Translation
-- **Detect languages**: Automatically identify the language of a given text input
 
-In Sim, the Google Translate integration allows your agents to translate text and detect languages as part of automated workflows. This enables use cases such as localization, multilingual support, content translation, and language detection at scale.
+С интеграцией Google Translate в Sim, вы можете:
+
+
+- **Переводить текст**: Преобразовывать текст между более чем 100 языками с использованием Google Cloud Translation
+
+- **Определять язык**: Автоматически определять язык заданного текста
+
+
+В Sim, интеграция Google Translate позволяет вашим агентам переводить текст и определять язык в рамках автоматизированных рабочих процессов. Это открывает возможности для таких задач, как локализация, поддержка нескольких языков, перевод контента и определение языка в масштабе.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Перевод и определение языков с помощью Google Cloud Translation API. Supports auto-detection of the source language.
+
+Переводить и определять язык с использованием Google Cloud Translation API. Поддерживается автоматическое определение исходного языка.
+
 
 
 
 ## Действия
 
+
 ### `google_translate_text`
 
-Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.
 
-#### Входные параметры
+Переводить текст между языками с использованием Google Cloud Translation API. Поддерживается автоматическое определение исходного языка.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Google Cloud API key with Cloud Translation API enabled |
-| `text` | string | Да | The text to translate |
-| `target` | string | Да | Target language code \(e.g., "es", "fr", "de", "ja"\) |
-| `source` | string | Нет | Source language code. If omitted, the API will auto-detect the source language. |
-| `format` | string | Нет | Format of the text: "text" for plain text, "html" for HTML content |
-| `pricing` | custom | Нет | No description |
-| `rateLimit` | string | Нет | No description |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Google Cloud с включенным API Cloud Translation |
+
+| `text` | строка | Да | Текст для перевода |
+
+| `target` | строка | Да | Код целевого языка (например, "es", "fr", "de", "ja") |
+
+| `source` | строка | Нет | Код исходного языка. Если не указан, API автоматически определит исходный язык. |
+
+| `format` | строка | Нет | Формат текста: "text" для обычного текста, "html" для HTML-контента |
+
+| `pricing` | пользовательский | Нет | Нет описания |
+
+| `rateLimit` | строка | Нет | Нет описания |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `translatedText` | string | The translated text |
-| `detectedSourceLanguage` | string | The detected source language code \(if source was not specified\) |
+
+| `translatedText` | строка | Переведенный текст |
+
+| `detectedSourceLanguage` | строка | Код определенного исходного языка (если исходный язык не был указан) |
+
 
 ### `google_translate_detect`
 
-Detect the language of text using the Google Cloud Translation API.
 
-#### Входные параметры
+Определять язык текста с использованием Google Cloud Translation API.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Google Cloud API key with Cloud Translation API enabled |
-| `text` | string | Да | The text to detect the language of |
-| `pricing` | custom | Нет | No description |
-| `rateLimit` | string | Нет | No description |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Google Cloud с включенным API Cloud Translation |
+
+| `text` | строка | Да | Текст для определения языка |
+
+| `pricing` | пользовательский | Нет | Нет описания |
+
+| `rateLimit` | строка | Нет | Нет описания |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `language` | string | The detected language code \(e.g., "en", "es", "fr"\) |
-| `confidence` | number | Confidence score of the detection |
+
+| `language` | строка | Код определенного языка (например, "en", "es", "fr") |
+
+| `confidence` | число | Уровень уверенности в определении |
+
 
 

@@ -1,6 +1,6 @@
 ---
-title: Wiza
-description: Поиск, обогащение и проверка B2B-контактных данных с Wiza
+title: Виза
+description: Найдите, обогатите и проверьте данные контактов для бизнеса с помощью Wiza
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,222 +10,394 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#9284BC"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Wiza](https://wiza.co/) is a B2B contact data platform that finds and verifies emails and phone numbers for sales, recruiting, and marketing teams. Wiza pairs a global prospect database with real-time enrichment, so the data you act on stays accurate and deliverable.
 
-With Wiza, you can:
+[Wiza](https://wiza.co/) – это платформа для работы с контактными данными B2B, которая помогает командам продаж, найма и маркетинга находить и проверять адреса электронной почты и номера телефонов. Wiza объединяет глобальную базу данных потенциальных клиентов с оперативной расширенной информацией, чтобы данные, на которые вы работаете, оставались актуальными и доступными.
 
-- **Search a global prospect database**: Find people using person, company, and financial filters
-- **Enrich companies**: Resolve firmographic data from a name, domain, or LinkedIn URL
-- **Reveal individual contacts**: Получение verified work emails, personal emails, and mobile phone numbers
-- **Track credit usage**: Check remaining email, phone, export, and API credits at any time
 
-In Sim, the Wiza integration lets your agents drive prospecting and enrichment workflows end-to-end:
+С помощью Wiza вы можете:
 
-- **Prospect Search**: Use `wiza_prospect_search` to discover prospects matching detailed filters.
-- **Company Enrichment**: Use `wiza_company_enrichment` to enrich a company from name, domain, LinkedIn ID, or LinkedIn slug.
-- **Start Individual Reveal**: Use `wiza_start_individual_reveal` to begin enrichment for a contact via LinkedIn URL, name + company, or email — with configurable enrichment depth (`none`, `partial`, `phone`, `full`).
-- **Получение Individual Reveal**: Use `wiza_get_individual_reveal` to poll a reveal and retrieve verified emails, phones, and full company context.
-- **Получение Credits**: Use `wiza_get_credits` to monitor remaining credit balances before scaling up runs.
 
-Individual reveals are asynchronous: start a reveal, then poll `wiza_get_individual_reveal` until `is_complete` is `true`. Combine these tools to build agents that source, enrich, and qualify leads on demand — without leaving your workflow.
+- **Найти людей в глобальной базе данных**: Используйте фильтры по имени, компании и финансовым данным.
+
+- **Улучшить информацию о компаниях**: Получите фирменную информацию на основе названия, домена или URL LinkedIn.
+
+- **Получить контактные данные**: Узнайте проверенные адреса электронной почты (рабочие и личные) и номера мобильных телефонов.
+
+- **Отслеживать использование кредитов**: В любое время проверяйте оставшиеся кредиты на электронную почту, телефон, экспорт и API.
+
+
+В Sim интеграция Wiza позволяет вашим агентам управлять рабочими процессами поиска и расширения данных:
+
+
+- **Поиск потенциальных клиентов**: Используйте `wiza_prospect_search` для поиска потенциальных клиентов на основе подробных фильтров.
+
+- **Расширение информации о компаниях**: Используйте `wiza_company_enrichment` для получения дополнительной информации о компании по названию, домену, ID LinkedIn или URL LinkedIn.
+
+- **Начать получение контактной информации**: Используйте `wiza_start_individual_reveal` для начала процесса получения данных о контакте через LinkedIn URL, имя + название компании или адрес электронной почты — с настраиваемой глубиной получения (`none`, `partial`, `phone`, `full`).
+
+- **Получить контактную информацию**: Используйте `wiza_get_individual_reveal` для получения информации о контакте и проверенных адресов электронной почты, телефонов и полной информации о компании.
+
+- **Получить кредиты**: Используйте `wiza_get_credits` для мониторинга оставшихся балансов кредитов перед масштабированием операций.
+
+
+Получение контактной информации происходит асинхронно: начните получение данных, затем используйте `wiza_get_individual_reveal`, чтобы запросить данные, пока `is_complete` не станет `true`. Совместите эти инструменты для создания агентов, которые могут находить, расширять и квалифицировать лидов по требованию — без прерывания вашего рабочего процесса.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
+
 {/* MANUAL-CONTENT-START:usage */}
-### Wiza Ключ API Setup
 
-Wiza authenticates via Ключ API. To get yours:
+### Настройка API ключа Wiza
 
-1. Log in to your [Wiza account](https://app.wiza.co/).
-2. Open **Settings → API** and generate a new Ключ API (or copy an existing one).
-3. In Sim, open the Wiza block and paste the key into the **Wiza Ключ API** field.
 
-The same key is used for every Wiza operation. Wiza enforces a rate limit of 30 requests per minute (43,200 per day) per key.
+Wiza аутентифицируется с помощью API ключа. Чтобы получить свой:
 
-### Individual Reveals Are Asynchronous
 
-`wiza_start_individual_reveal` returns immediately with a reveal `id` and a `status` of `queued` or `resolving`. To retrieve the enriched contact data, call `wiza_get_individual_reveal` with that `id` and check `is_complete`. Possible statuses are `queued`, `resolving`, `finished`, and `failed`.
+1. Войдите в свою учетную запись [Wiza](https://app.wiza.co/).
 
-For real-time delivery without polling, pass a `callback_url` when starting the reveal — Wiza will POST the completed payload to that URL.
+2. Откройте раздел **Настройки → API** и создайте новый API ключ (или скопируйте существующий).
 
-### Enrichment Levels and Credits
+3. В Sim откройте блок Wiza и вставьте ключ в поле **API Key Wiza**.
 
-When starting an individual reveal, choose the enrichment level that matches the data you need:
 
-- **`none`** — Identity only, no contact info (no credit spend)
-- **`partial`** — Verified work email (email credits)
-- **`phone`** — Mobile phone (phone credits)
-- **`full`** — Email + phone (email + phone credits)
+Один и тот же ключ используется для всех операций с Wiza. Wiza устанавливает ограничение на 30 запросов в минуту (43200 в день) для каждого ключа.
 
-Use `wiza_get_credits` to monitor remaining email, phone, export, and API credits before running large batches.
+
+### Получение контактной информации происходит асинхронно
+
+
+`wiza_start_individual_reveal`
+Немедленно возвращает `id` и статус `queued` или `resolving`. Чтобы получить расширенные данные о контакте, вызовите `wiza_get_individual_reveal` с этим `id` и проверьте `is_complete`. Возможные статусы: `queued`, `resolving`, `finished` и `failed`.
+
+
+Для получения данных в реальном времени без опроса, передайте `callback_url` при запуске процесса получения — Wiza отправит завершенный payload по этому URL.
+
+
+### Уровни расширения и кредиты
+
+
+При запуске получения данных о контакте выберите уровень расширения, который соответствует необходимым данным:
+
+
+- **`none`** – только идентификация, без контактной информации (без затрат)
+
+- **`partial`** – проверенная рабочая электронная почта (требуются кредиты на электронную почту)
+
+- **`phone`** – мобильный телефон (требуются кредиты на телефон)
+
+- **`full`** – электронная почта + телефон (требуются кредиты на электронную почту и телефон)
+
+
+Используйте `wiza_get_credits`, чтобы отслеживать оставшиеся кредиты на электронную почту, телефон, экспорт и API перед запуском больших объемов данных.
+
 {/* MANUAL-CONTENT-END */}
 
 
-Integrates Wiza в рабочий процесс. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.
+
+Интегрируйте Wiza в рабочий процесс. Ищите потенциальных клиентов, расширяйте информацию о компаниях, получайте проверенные адреса электронной почты и номера телефонов для отдельных контактов и проверяйте баланс кредитов вашей учетной записи.
+
 
 
 
 ## Действия
 
+
 ### `wiza_prospect_search`
 
-Search Wiza's database of prospects using person, company, and financial filters
 
-#### Вход
+Ищите потенциальных клиентов в базе данных Wiza с помощью фильтров по имени, компании и финансовым данным
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Wiza Ключ API |
-| `size` | number | Нет | Number of sample profiles to return \(0-30, по умолчанию 0\) |
-| `filters` | object | Нет | Full filters object \(overrides individual filter params if provided\) |
-| `first_name` | array | Нет | Exact first names to match (например, \["John", "Jane"\]\) |
-| `last_name` | array | Нет | Exact last names to match |
-| `job_title` | array | Нет | Job titles to include/exclude (например, \[\{"v":"CEO","s":"i"\},\{"v":"CTO","s":"e"\}\]\) |
-| `job_title_level` | array | Нет | Seniority levels (например, \["cxo", "director", "manager"\]\) |
-| `job_role` | array | Нет | Job role categories (например, \["sales", "engineering", "marketing"\]\) |
-| `job_sub_role` | array | Нет | Detailed role categories (например, \["software", "product"\]\) |
-| `location` | array | Нет | Person's location filters \(city/state/country with include/exclude\) |
-| `skill` | array | Нет | Professional skills (например, \["python", "marketing"\]\) |
-| `school` | array | Нет | Educational institutions |
-| `major` | array | Нет | Field of study |
-| `linkedin_slug` | array | Нет | LinkedIn profile slugs |
-| `job_company` | array | Нет | Current company filters \(include/exclude\) |
-| `past_company` | array | Нет | Past company filters |
-| `company_location` | array | Нет | Company HQ location filters |
-| `company_industry` | array | Нет | Company industry filters \(include/exclude\) |
-| `company_size` | array | Нет | Company headcount brackets (например, \["1-10", "11-50", "51-200"\]\) |
-| `company_type` | array | Нет | Company type (например, \["private", "public", "educational"\]\) |
 
-#### Выход
+| `apiKey` | string | Да | API ключ Wiza |
 
-| Parameter | Type | Description |
+| `size` | number | Нет | Количество образцов профилей для возврата (0-30, по умолчанию 0) |
+
+| `filters` | object | Нет | Полный объект фильтров (переопределяет отдельные параметры фильтра, если предоставлен) |
+
+| `first_name` | array | Нет | Точные имена для сопоставления (например, \["John", "Jane"\]) |
+
+| `last_name` | array | Нет | Точные фамилии для сопоставления |
+
+| `job_title` | array | Нет | Должности для включения/исключения (например, \[\{"v":"CEO","s":"i"\},\{"v":"CTO","s":"e"\}\] ) |
+
+| `job_title_level` | array | Нет | Уровень должности (например, \["cxo", "director", "manager"\]) |
+
+| `job_role` | array | Нет | Категории должностей (например, \["sales", "engineering", "marketing"\]) |
+
+| `job_sub_role` | array | Нет | Детальные категории ролей (например, \["software", "product"\]) |
+
+| `location` | array | Нет | Фильтры местоположения человека (город/штат/страна с включением/исключением) |
+
+| `skill` | array | Нет | Профессиональные навыки (например, \["python", "marketing"\]) |
+
+| `school` | array | Нет | Образовательные учреждения |
+
+| `major` | array | Нет | Специальность |
+
+| `linkedin_slug` | array | Нет | URL профилей LinkedIn |
+
+| `job_company` | array | Нет | Фильтры текущей компании (включение/исключение) |
+
+| `past_company` | array | Нет | Фильтры предыдущих компаний |
+
+| `company_location` | array | Нет | Фильтры местоположения компании (HQ) |
+
+| `company_industry` | array | Нет | Фильтры отрасли компании (включение/исключение) |
+
+| `company_size` | array | Нет | Диапазон размера компании (например, \["1-10", "11-50", "51-200"\]) |
+
+| `company_type` | array | Нет | Тип компании (например, \["private", "public", "educational"\]) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `total` | number | Total number of matching prospects |
-| `profiles` | array | Sample profiles matching the filter criteria |
+
+| `total` | number | Общее количество соответствующих потенциальных клиентов |
+
+| `profiles` | array | Образцы профилей, соответствующие критериям фильтра |
+
 
 ### `wiza_company_enrichment`
 
-Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data
 
-#### Вход
+Расширьте информацию о компании по названию, домену, ID LinkedIn или URL LinkedIn подробными данными о фирме
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Wiza Ключ API |
-| `company_name` | string | Нет | Company name (например, "Wiza"\) |
-| `company_domain` | string | Нет | Company domain (например, "wiza.co"\) |
-| `company_linkedin_id` | string | Нет | Company LinkedIn ID |
-| `company_linkedin_slug` | string | Нет | Company LinkedIn slug from the URL |
 
-#### Выход
+| `apiKey` | string | Да | API ключ Wiza |
 
-| Parameter | Type | Description |
+| `company_name` | string | Нет | Название компании (например, "Wiza") |
+
+| `company_domain` | string | Нет | Домен компании (например, "wiza.co") |
+
+| `company_linkedin_id` | string | Нет | ID LinkedIn компании |
+
+| `company_linkedin_slug` | string | Нет | URL LinkedIn компании |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `company_name` | string | Company name |
-| `company_domain` | string | Company domain |
-| `domain` | string | Domain |
-| `company_industry` | string | Industry |
-| `company_size` | number | Employee count |
-| `company_size_range` | string | Headcount range |
-| `company_founded` | number | Year founded |
-| `company_revenue_range` | string | Revenue range |
-| `company_funding` | string | Total funding |
-| `company_type` | string | Company type |
-| `company_description` | string | Description |
-| `company_ticker` | string | Stock ticker |
-| `company_last_funding_round` | string | Last funding round |
-| `company_last_funding_amount` | string | Last funding amount |
-| `company_last_funding_at` | string | Last funding date |
-| `company_location` | string | Full location string |
-| `company_twitter` | string | Twitter URL |
-| `company_facebook` | string | Facebook URL |
-| `company_linkedin` | string | LinkedIn URL |
-| `company_linkedin_id` | string | LinkedIn ID |
-| `company_street` | string | Street address |
-| `company_locality` | string | City |
-| `company_region` | string | State/region |
-| `company_postal_code` | string | Postal code |
-| `company_country` | string | Country |
-| `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
+
+| `company_name` | string | Название компании |
+
+| `company_domain` | string | Домен компании |
+
+| `domain` | string | Домен |
+
+| `company_industry` | string | Отрасль |
+
+| `company_size` | number | Количество сотрудников |
+
+| `company_size_range` | string | Диапазон headcount |
+
+| `company_founded` | number | Год основания |
+
+| `company_revenue_range` | string | Диапазон выручки |
+
+| `company_funding` | string | Объем финансирования |
+
+| `company_type` | string | Тип компании |
+
+| `company_description` | string | Описание |
+
+| `company_ticker` | string | Символ акции |
+
+| `company_last_funding_round` | string | Последний раунд финансирования |
+
+| `company_last_funding_amount` | string | Объем последнего раунда финансирования |
+
+| `company_last_funding_at` | string | Дата последнего раунда финансирования |
+
+| `company_location` | string | Полный адрес местоположения |
+
+| `company_twitter` | string | URL Twitter |
+
+| `company_facebook` | string | URL Facebook |
+
+| `company_linkedin` | string | URL LinkedIn |
+
+| `company_linkedin_id` | string | ID LinkedIn |
+
+| `company_street` | string | Улица |
+
+| `company_locality` | string | Город |
+
+| `company_region` | string | Штат/регион |
+
+| `company_postal_code` | string | Почтовый индекс |
+
+| `company_country` | string | Страна |
+
+| `credits` | json | Кредиты, использованные для расширения (api_credits: { total, company_credits }) |
+
 
 ### `wiza_individual_reveal`
 
-Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.
 
-#### Вход
+Получите контактные данные через LinkedIn URL, имя + название компании/домен или адрес электронной почты. Запускает получение данных и опрашивает до завершения. Использует 2 кредита за каждый подтвержденный адрес электронной почты и 5 кредитов за телефон, стоимость начисляется только при успешном получении.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Wiza Ключ API |
-| `enrichment_level` | string | Да | Enrichment depth: none, partial, phone, or full |
-| `profile_url` | string | Нет | LinkedIn profile URL (например, https://linkedin.com/in/johndoe\) |
-| `full_name` | string | Нет | Full name \(used with company or domain\) |
-| `company` | string | Нет | Company name \(used with full_name\) |
-| `domain` | string | Нет | Company domain \(used with full_name\) |
-| `email` | string | Нет | Email address \(use alone or with other identifiers\) |
-| `accept_work` | boolean | Нет | Whether to accept work emails \(email_options\) |
-| `accept_personal` | boolean | Нет | Whether to accept personal emails \(email_options\) |
 
-#### Выход
+| `apiKey` | string | Да | API ключ Wiza |
 
-| Parameter | Type | Description |
+| `enrichment_level` | string | Да | Уровень расширения: none, partial, phone или full |
+
+| `profile_url` | string | Нет | URL профиля LinkedIn (например, https://linkedin.com/in/johndoe) |
+
+| `full_name` | string | Нет | Полное имя (используется с названием компании или доменом) |
+
+| `company` | string | Нет | Название компании (используется с full_name) |
+
+| `domain` | string | Нет | Домен компании (используется с full_name) |
+
+| `email` | string | Нет | Адрес электронной почты (используется самостоятельно или вместе с другими идентификаторами) |
+
+| `accept_work` | boolean | Нет | Принять адреса электронной почты для работы (email_options) |
+
+| `accept_personal` | boolean | Нет | Принять личные адреса электронной почты (email_options) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | number | Reveal ID |
+
+| `id` | number | ID Reveal |
+
 | `status` | string | queued \| resolving \| finished \| failed |
-| `is_complete` | boolean | Указывает,  reveal has completed |
-| `name` | string | Full name |
-| `company` | string | Company name |
-| `enrichment_level` | string | Enrichment level used |
-| `linkedin_profile_url` | string | LinkedIn URL |
-| `title` | string | Job title |
-| `location` | string | Location |
-| `email` | string | Primary email |
-| `email_type` | string | Email type |
+
+| `is_complete` | boolean | Указывает, завершено ли получение данных |
+
+| `name` | string | Полное имя |
+
+| `company` | string | Название компании |
+
+| `enrichment_level` | string | Уровень расширения, использованный |
+
+| `linkedin_profile_url` | string | URL LinkedIn |
+
+| `title` | string | Должность |
+
+| `location` | string | Местоположение |
+
+| `email` | string | Основной адрес электронной почты |
+
+| `email_type` | string | Тип адреса электронной почты |
+
 | `email_status` | string | valid \| risky \| unfound |
-| `emails` | array | All emails found |
-| `mobile_phone` | string | Mobile phone |
-| `phone_number` | string | Direct/office phone |
+
+| `emails` | array | Все найденные адреса электронной почты |
+
+| `mobile_phone` | string | Номер мобильного телефона |
+
+| `phone_number` | string | Офисный/прямой номер телефона |
+
 | `phone_status` | string | found \| unfound |
-| `phones` | array | All phones found |
-| `company_size` | number | Employee count |
-| `company_size_range` | string | Headcount range |
-| `company_type` | string | Company type |
-| `company_domain` | string | Company domain |
-| `company_locality` | string | City |
-| `company_region` | string | State/region |
-| `company_country` | string | Country |
-| `company_street` | string | Street |
-| `company_postal_code` | string | Postal code |
-| `company_founded` | number | Year founded |
-| `company_funding` | string | Funding total |
-| `company_revenue` | string | Revenue |
-| `company_industry` | string | Industry |
-| `company_subindustry` | string | Subindustry |
-| `company_linkedin` | string | Company LinkedIn URL |
-| `company_location` | string | Full company location |
-| `company_description` | string | Company description |
-| `credits` | json | Credits consumed by the reveal |
+
+| `phones` | array | Все найденные номера телефонов |
+
+| `company_size` | number | Количество сотрудников |
+
+| `company_size_range` | string | Диапанд headcount |
+
+| `company_type` | string | Тип компании |
+
+| `company_domain` | string | Домен компании |
+
+| `company_locality` | string | Город |
+
+| `company_region` | string | Штат/регион |
+
+| `company_country` | string | Страна |
+
+| `company_street` | string | Улица |
+
+| `company_postal_code` | string | Почтовый индекс |
+
+| `company_founded` | number | Год основания |
+
+| `company_funding` | string | Объем финансирования |
+
+| `company_revenue` | string | Выручка |
+
+| `company_industry` | string | Отрасль |
+
+| `company_subindustry` | string | Подотрасль |
+
+| `company_linkedin` | string | URL LinkedIn компании |
+
+| `company_location` | string | Полное местоположение компании |
+
+| `company_description` | string | Описание компании |
+
+| `credits` | json | Кредиты, использованные для получения данных (api_credits: { total, company_credits }) |
+
 
 ### `wiza_get_credits`
 
-Получение the remaining credits on your Wiza account
 
-#### Вход
+Получите оставшиеся кредиты на своей учетной записи Wiza
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Wiza Ключ API |
 
-#### Выход
+| `apiKey` | string | Да | API ключ Wiza |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email_credits` | json | Remaining email credits \(number or "unlimited"\) |
-| `phone_credits` | json | Remaining phone credits \(number or "unlimited"\) |
-| `export_credits` | number | Remaining export credits |
-| `api_credits` | number | Remaining API credits |
+
+| `email_credits` | json | Остаток кредитов на электронную почту (число или "unlimited") |
+
+| `phone_credits` | json | Остаток кредитов на телефон (число или "unlimited") |
+
+| `export_credits` | number | Остаток кредитов для экспорта |
+
+| `api_credits` | number | Остаток API кредитов |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: SharePoint
-description: Работа со страницами и списками
+description: Work with pages and lists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,283 +10,505 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) is a collaborative platform from Microsoft that enables users to build and manage internal websites, share documents, and organize team resources. It provides a powerful, flexible solution for creating digital workspaces and streamlining content management across organizations.
 
-With SharePoint, you can:
+[SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) — это платформа совместной работы от Microsoft, которая позволяет пользователям создавать и управлять внутренними веб-сайтами, обмениваться документами и организовывать ресурсы команды. Она предоставляет мощное и гибкое решение для создания цифровых рабочих пространств и оптимизации управления контентом в организациях.
 
-- **Create team and communication sites**: Set up pages and portals to support collaboration, announcements, and content distribution
-- **Organize and share content**: Store documents, manage files, and enable version control with secure sharing capabilities
-- **Customize pages**: Add text parts to tailor each site to your team's needs
-- **Improve discoverability**: Use metadata, search, and navigation tools to help users quickly find what they need
-- **Collaborate securely**: Control access with robust permission settings and Microsoft 365 integration
 
-In Sim, the SharePoint integration empowers your agents to create and access SharePoint sites and pages as part of their workflows. This enables automated document management, knowledge sharing, and workspace creation without manual effort. Agents can generate new project pages, upload or retrieve files, and organize resources dynamically, based on workflow inputs. By connecting Sim with SharePoint, you bring structured collaboration and content management into your automation flows — giving your agents the ability to coordinate team activities, surface key information, and maintain a single source of truth across your organization.
+С помощью SharePoint вы можете:
+
+
+- **Создать сайты для команд и коммуникации**: Настроить страницы и порталы для поддержки совместной работы, объявлений и распространения контента
+
+- **Организовать и делиться контентом**: Хранить документы, управлять файлами и использовать функции контроля версий с безопасным обменом данными
+
+- **Настраивать страницы**: Добавлять текстовые блоки для адаптации каждого сайта к потребностям вашей команды
+
+- **Улучшить навигацию**: Использовать метаданные, инструменты поиска и навигации, чтобы помочь пользователям быстро находить нужную информацию
+
+- **Обеспечить безопасное сотрудничество**: Контролировать доступ с помощью надежных настроек разрешений и интеграции с Microsoft 365
+
+
+В Sim, интеграция SharePoint позволяет вашим агентам создавать и получать доступ к сайтам и страницам SharePoint в рамках своих рабочих процессов. Это обеспечивает автоматизированное управление документами, обмен знаниями и создание рабочих пространств без ручного вмешательства. Агенты могут создавать новые страницы проектов, загружать или извлекать файлы и динамически организовывать ресурсы на основе входных данных рабочего процесса. Подключив Sim к SharePoint, вы интегрируете структурированное сотрудничество и управление контентом в свои автоматизированные процессы — предоставляя своим агентам возможность координировать командную работу, выделять ключевую информацию и поддерживать единый источник достоверности во всей вашей организации.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте SharePoint в рабочий процесс. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
+
+Интегрируйте SharePoint в рабочий процесс. Читайте/создавайте страницы, перечисляйте сайты и работайте со списками (чтение, создание, обновление элементов). Требуется OAuth.
+
 
 
 
 ## Действия
 
+
 ### `sharepoint_create_page`
 
-Создание нового page in a SharePoint site
 
-#### Вход
+Создать новую страницу на сайте SharePoint
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `pageName` | string | Да | The name of the page to create. Example: My-New-Page.aspx or Report-2024.aspx |
-| `pageTitle` | string | Нет | The title of the page \(defaults to page name if not provided\) |
-| `pageContent` | string | Нет | The content of the page |
 
-#### Выход
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
 
-| Parameter | Type | Description |
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
+
+| `pageName` | строка | Да | Имя страницы для создания. Пример: My-New-Page.aspx или Report-2024.aspx |
+
+| `pageTitle` | строка | Нет | Заголовок страницы (если не указан, используется имя страницы) |
+
+| `pageContent` | строка | Нет | Содержимое страницы |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `page` | object | Created SharePoint page information |
-|   ↳ `id` | string | The unique ID of the created page |
-|   ↳ `name` | string | The name of the created page |
-|   ↳ `title` | string | The title of the created page |
-|   ↳ `webUrl` | string | The URL to access the page |
-|   ↳ `pageLayout` | string | The layout type of the page |
-|   ↳ `createdDateTime` | string | When the page was created |
-|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+
+| `page` | объект | Информация о созданной странице SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID созданной страницы |
+
+|   ↳ `name` | строка | Имя созданной страницы |
+
+|   ↳ `title` | строка | Заголовок созданной страницы |
+
+|   ↳ `webUrl` | строка | URL для доступа к странице |
+
+|   ↳ `pageLayout` | строка | Тип макета страницы |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания страницы |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
 
 ### `sharepoint_read_page`
 
-Read a specific page from a SharePoint site
 
-#### Вход
+Прочитать конкретную страницу на сайте SharePoint
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `pageId` | string | Нет | The ID of the page to read. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
-| `pageName` | string | Нет | The name of the page to read \(alternative to pageId\). Example: Home.aspx or About-Us.aspx |
-| `maxPages` | number | Нет | Maximum number of pages to return when listing all pages \(по умолчанию: 10, max: 50\) |
-| `nextPageUrl` | string | Нет | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
-#### Выход
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
 
-| Parameter | Type | Description |
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
+
+| `pageId` | строка | Нет | ID страницы для чтения. Пример: GUID, такой как 12345678-1234-1234-1234-123456789012 |
+
+| `pageName` | строка | Нет | Имя страницы для чтения (альтернатива pageId). Пример: Home.aspx или About-Us.aspx |
+
+| `maxPages` | число | Нет | Максимальное количество страниц, возвращаемых при перечислении всех страниц (по умолчанию: 10, максимум: 50) |
+
+| `nextPageUrl` | строка | Нет | Полный URL @odata.nextLink для предыдущего ответа Microsoft Graph |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `page` | object | Information about the SharePoint page |
-|   ↳ `id` | string | The unique ID of the page |
-|   ↳ `name` | string | The name of the page |
-|   ↳ `title` | string | The title of the page |
-|   ↳ `webUrl` | string | The URL to access the page |
-|   ↳ `pageLayout` | string | The layout type of the page |
-|   ↳ `description` | string | The description of the page |
-|   ↳ `createdDateTime` | string | When the page was created |
-|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
-| `pages` | array | Получение списка of SharePoint pages |
-|   ↳ `page` | object | page output from the tool |
-|     ↳ `id` | string | The unique ID of the page |
-|     ↳ `name` | string | The name of the page |
-|     ↳ `title` | string | The title of the page |
-|     ↳ `webUrl` | string | The URL to access the page |
-|     ↳ `pageLayout` | string | The layout type of the page |
-|     ↳ `description` | string | The description of the page |
-|     ↳ `createdDateTime` | string | When the page was created |
-|     ↳ `lastModifiedDateTime` | string | When the page was last modified |
-|   ↳ `content` | object | content output from the tool |
-|     ↳ `content` | string | Extracted text content from the page |
-|     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
-| `content` | object | Content of the SharePoint page |
-|   ↳ `content` | string | Extracted text content from the page |
-|   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
-| `totalPages` | number | Total number of pages found |
-| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
+
+| `page` | объект | Информация о странице SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID страницы |
+
+|   ↳ `name` | строка | Имя страницы |
+
+|   ↳ `title` | строка | Заголовок страницы |
+
+|   ↳ `webUrl` | строка | URL для доступа к странице |
+
+|   ↳ `pageLayout` | строка | Тип макета страницы |
+
+|   ↳ `description` | строка | Описание страницы |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания страницы |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+| `pages` | массив | Список страниц SharePoint |
+
+|   ↳ `page` | объект | выходные данные объекта page |
+
+|     ↳ `id` | строка | Уникальный ID страницы |
+
+|     ↳ `name` | строка | Имя страницы |
+
+|     ↳ `title` | строка | Заголовок страницы |
+
+|     ↳ `webUrl` | строка | URL для доступа к странице |
+
+|     ↳ `pageLayout` | строка | Тип макета страницы |
+
+|     ↳ `description` | строка | Описание страницы |
+
+|     ↳ `createdDateTime` | строка | Дата и время создания страницы |
+
+|     ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+|   ↳ `content` | объект | Содержимое объекта page |
+
+|     ↳ `content` | строка | Извлеченный текстовый контент страницы |
+
+|     ↳ `canvasLayout` | объект | Сырая структура макета SharePoint |
+
+| `content` | объект | Содержимое страницы SharePoint |
+
+|   ↳ `content` | строка | Извлеченный текстовый контент страницы |
+
+|   ↳ `canvasLayout` | объект | Сырая структура макета SharePoint |
+
+| `totalPages` | число | Общее количество страниц, найденных |
+
+| `nextPageUrl` | строка | Полный URL @odata.nextLink для следующей страницы результатов |
+
 
 ### `sharepoint_list_sites`
 
-Получение списка details of all SharePoint sites
 
-#### Вход
+Перечислить детали всех сайтов SharePoint
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `groupId` | string | Нет | The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
-| `nextPageUrl` | string | Нет | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
-#### Выход
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
 
-| Parameter | Type | Description |
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
+
+| `groupId` | строка | Нет | ID группы для доступа к сайту команды |
+
+| `nextPageUrl` | строка | Нет | Полный URL @odata.nextLink для предыдущего ответа Microsoft Graph |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `site` | object | Information about the current SharePoint site |
-|   ↳ `id` | string | The unique ID of the site |
-|   ↳ `name` | string | The name of the site |
-|   ↳ `displayName` | string | The display name of the site |
-|   ↳ `webUrl` | string | The URL to access the site |
-|   ↳ `description` | string | The description of the site |
-|   ↳ `createdDateTime` | string | When the site was created |
-|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
-|   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
-|   ↳ `root` | object | root output from the tool |
-|     ↳ `serverRelativeUrl` | string | Server relative URL |
-|   ↳ `siteCollection` | object | siteCollection output from the tool |
-|     ↳ `hostname` | string | Site collection hostname |
-| `sites` | array | Получение списка of all accessible SharePoint sites |
-|   ↳ `id` | string | The unique ID of the site |
-|   ↳ `name` | string | The name of the site |
-|   ↳ `displayName` | string | The display name of the site |
-|   ↳ `webUrl` | string | The URL to access the site |
-|   ↳ `description` | string | The description of the site |
-|   ↳ `createdDateTime` | string | When the site was created |
-|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
-| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
+
+| `site` | объект | Информация о текущем сайте SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID сайта |
+
+|   ↳ `name` | строка | Имя сайта |
+
+|   ↳ `displayName` | строка | Отображаемое имя сайта |
+
+|   ↳ `webUrl` | строка | URL для доступа к сайту |
+
+|   ↳ `description` | строка | Описание сайта |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания сайта |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+|   ↳ `isPersonalSite` | boolean | Флаг, указывающий, является ли это персональным сайтом |
+
+|   ↳ `root` | объект | root output from the tool |
+
+|     ↳ `serverRelativeUrl` | строка | URL сайта |
+
+|   ↳ `siteCollection` | объект | siteCollection output from the tool |
+
+|     ↳ `hostname` | строка | Имя хоста сайта |
+
+| `sites` | массив | Список всех доступных сайтов SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID сайта |
+
+|   ↳ `name` | строка | Имя сайта |
+
+|   ↳ `displayName` | строка | Отображаемое имя сайта |
+
+|   ↳ `webUrl` | строка | URL для доступа к сайту |
+
+|   ↳ `description` | строка | Описание сайта |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания сайта |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+| `nextPageUrl` | строка | Полный URL @odata.nextLink для следующей страницы результатов |
+
 
 ### `sharepoint_create_list`
 
-Создание нового list in a SharePoint site
 
-#### Вход
+Создать новый список на сайте SharePoint
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `listDisplayName` | string | Да | Display name of the list to create. Example: Project Tasks or Customer Contacts |
-| `listDescription` | string | Нет | Description of the list |
-| `listTemplate` | string | Нет | Получение списка template name (например, 'genericList'\) |
-| `pageContent` | json | Нет | Optional JSON of columns. Either a top-level array of column definitions or an object with \{ columns: \[...\] \}. |
 
-#### Выход
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
 
-| Parameter | Type | Description |
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
+
+| `listDisplayName` | строка | Да | Отображаемое имя списка для создания. Пример: Project Tasks или Customer Contacts |
+
+| `listDescription` | строка | Нет | Описание списка |
+
+| `listTemplate` | строка | Нет | Имя шаблона списка (например, 'genericList') |
+
+| `pageContent` | json | Нет | Необязательный JSON столбцов. Это может быть массив верхнего уровня определений столбцов или объект с \{ columns: \[...\] \}. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `list` | object | Created SharePoint list information |
-|   ↳ `id` | string | The unique ID of the list |
-|   ↳ `displayName` | string | The display name of the list |
-|   ↳ `name` | string | The internal name of the list |
-|   ↳ `webUrl` | string | The web URL of the list |
-|   ↳ `createdDateTime` | string | When the list was created |
-|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
-|   ↳ `list` | object | Получение списка properties (например, template\) |
+
+| `list` | объект | Информация о созданном списке SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID списка |
+
+|   ↳ `displayName` | строка | Отображаемое имя списка |
+
+|   ↳ `name` | строка | Внутреннее имя списка |
+
+|   ↳ `webUrl` | строка | URL для доступа к списку |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания списка |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+|   ↳ `list` | объект | Свойства списка (например, шаблон) |
+
 
 ### `sharepoint_get_list`
 
-Получение metadata (and optionally columns/items) for a SharePoint list
 
-#### Вход
+Получить метаданные (и, возможно, столбцы/элементы) для списка SharePoint
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `listId` | string | Нет | The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
-| `includeColumns` | boolean | Нет | Whether to include column definitions when retrieving a specific list |
-| `includeItems` | boolean | Нет | Whether to include list items when retrieving a specific list |
-| `nextPageUrl` | string | Нет | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
-#### Выход
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
 
-| Parameter | Type | Description |
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
+
+| `listId` | строка | Нет | ID списка для получения. Пример: b!abc123def456 или GUID, такой как 12345678-1234-1234-1234-123456789012 |
+
+| `includeColumns` | boolean | Нет | Включить определения столбцов при получении конкретного списка |
+
+| `includeItems` | boolean | Нет | Включить элементы списка при получении конкретного списка |
+
+| `nextPageUrl` | строка | Нет | Полный URL @odata.nextLink для предыдущего ответа Microsoft Graph |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `list` | object | Information about the SharePoint list |
-|   ↳ `id` | string | The unique ID of the list |
-|   ↳ `displayName` | string | The display name of the list |
-|   ↳ `name` | string | The internal name of the list |
-|   ↳ `webUrl` | string | The web URL of the list |
-|   ↳ `createdDateTime` | string | When the list was created |
-|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
-|   ↳ `list` | object | Получение списка properties (например, template\) |
-|   ↳ `columns` | array | Получение списка column definitions |
-| `lists` | array | All lists in the site when no listId/title provided |
-| `items` | array | Получение списка items with expanded fields when reading list items |
-|   ↳ `id` | string | Item ID |
-|   ↳ `fields` | object | Field values for the item |
-| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
-### `sharepoint_update_list`
+| `list` | объект | Информация о списке SharePoint |
 
-Update the properties (fields) on a SharePoint list item
+|   ↳ `id` | строка | Уникальный ID списка |
 
-#### Вход
+|   ↳ `displayName` | строка | Отображаемое имя списка |
 
-| Параметр | Тип | Обязательный | Описание |
+|   ↳ `name` | строка | Внутреннее имя списка |
+
+|   ↳ `webUrl` | строка | URL для доступа к списку |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания списка |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+|   ↳ `list` | объект | Свойства списка (например, шаблон) |
+
+|   ↳ `columns` | массив | Список определений столбцов |
+
+| `lists` | массив | Все доступные списки в сайте, если не указан listId/title |
+
+| `items` | массив | Элементы списка с расширенными полями при чтении элементов списка |
+
+|   ↳ `id` | строка | ID элемента |
+
+|   ↳ `fields` | объект | Значения полей для элемента |
+
+| `content` | объект | Содержимое объекта page |
+
+
+|   ↳ `content` | строка | Извлеченный текстовый контент страницы |
+
+
+|   ↳ `canvasLayout` | объект | Сырая структура макета SharePoint |
+
+
+| `totalPages` | число | Общее количество страниц, найденных |
+
+
+| `nextPageUrl` | строка | Полный URL @odata.nextLink для следующей страницы результатов |
+
 | --------- | ---- | -------- | ----------- |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `listId` | string | Да | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
-| `itemId` | string | Да | The ID of the list item to update. Example: 1, 42, or 123 |
-| `listItemFields` | json | Да | Field values to update on the list item |
 
-#### Выход
+### `sharepoint_list_sites`
 
-| Parameter | Type | Description |
+Перечислить детали всех сайтов SharePoint
+
+#### Входные данные
+
+| Параметр | Тип | Обязательно | Описание |
+
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
+
+
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
+
+
+| `groupId` | строка | Нет | ID группы для доступа к сайту команды |
+
 | --------- | ---- | ----------- |
-| `item` | object | Updated SharePoint list item |
-|   ↳ `id` | string | Item ID |
-|   ↳ `fields` | object | Updated field values |
 
-### `sharepoint_add_list_items`
+| `nextPageUrl` | строка | Нет | Полный URL @odata.nextLink для предыдущего ответа Microsoft Graph |
 
-Add a new item to a SharePoint list
+#### Выходные данные
 
-#### Вход
+| Параметр | Тип | Описание |
 
-| Параметр | Тип | Обязательный | Описание |
+
+| `site` | объект | Информация о текущем сайте SharePoint |
+
+
+|   ↳ `id` | строка | Уникальный ID сайта |
+
+
+|   ↳ `name` | строка | Имя сайта |
+
+
+|   ↳ `displayName` | строка | Отображаемое имя сайта |
+
 | --------- | ---- | -------- | ----------- |
-| `siteSelector` | string | Нет | Select the SharePoint site |
-| `siteId` | string | Нет | The ID of the SharePoint site \(internal use\) |
-| `listId` | string | Да | The ID of the list to add the item to. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
-| `listItemFields` | json | Да | Field values for the new list item |
 
-#### Выход
+|   ↳ `webUrl` | строка | URL для доступа к сайту |
 
-| Parameter | Type | Description |
+|   ↳ `description` | строка | Описание сайта |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания сайта |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+
+|   ↳ `isPersonalSite` | boolean | Флаг, указывающий, является ли это персональным сайтом |
+
+
+|   ↳ `root` | объект | root output from the tool |
+
 | --------- | ---- | ----------- |
-| `item` | object | Created SharePoint list item |
-|   ↳ `id` | string | Item ID |
-|   ↳ `fields` | object | Field values for the new item |
 
-### `sharepoint_upload_file`
+|     ↳ `serverRelativeUrl` | строка | URL сайта |
 
-Upload files to a SharePoint document library
+|   ↳ `siteCollection` | объект | siteCollection output from the tool |
 
-#### Вход
+|     ↳ `hostname` | строка | Имя хоста сайта |
 
-| Параметр | Тип | Обязательный | Описание |
+
+| `sites` | массив | Список всех доступных сайтов SharePoint |
+
+
+|   ↳ `id` | строка | Уникальный ID сайта |
+
+
+|   ↳ `name` | строка | Имя сайта |
+
+
+|   ↳ `displayName` | строка | Отображаемое имя сайта |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Нет | The ID of the SharePoint site |
-| `driveId` | string | Нет | The ID of the document library \(drive\). If not provided, uses по умолчанию drive. Example: b!abc123def456 |
-| `folderPath` | string | Нет | Optional folder path within the document library. Example: /Documents/Subfolder or /Shared Documents/Reports |
-| `fileName` | string | Нет | Optional: override the uploaded file name. Example: report-2024.pdf |
-| `files` | file[] | Да | Files to upload to SharePoint |
 
-#### Выход
+|   ↳ `webUrl` | строка | URL для доступа к сайту |
 
-| Parameter | Type | Description |
+|   ↳ `description` | строка | Описание сайта |
+
+|   ↳ `createdDateTime` | строка | Дата и время создания сайта |
+
+|   ↳ `lastModifiedDateTime` | строка | Дата и время последнего изменения |
+
+| `nextPageUrl` | строка | Полный URL @odata.nextLink для следующей страницы результатов |
+
+
+### `sharepoint_create_list`
+
+
+Создать новый список на сайте SharePoint
+
 | --------- | ---- | ----------- |
-| `uploadedFiles` | array | Array of uploaded file objects |
-|   ↳ `id` | string | The unique ID of the uploaded file |
-|   ↳ `name` | string | The name of the uploaded file |
-|   ↳ `webUrl` | string | The URL to access the file |
-|   ↳ `size` | number | The size of the file in bytes |
-|   ↳ `createdDateTime` | string | When the file was created |
-|   ↳ `lastModifiedDateTime` | string | When the file was last modified |
-| `fileCount` | number | Number of files uploaded |
-| `skippedFiles` | array | Files that were skipped before upload |
-|   ↳ `name` | string | File name |
-|   ↳ `size` | number | File size in bytes |
-|   ↳ `limit` | number | Upload size limit in bytes |
-|   ↳ `reason` | string | Reason the file was skipped |
-| `skippedCount` | number | Number of files skipped |
+
+#### Входные данные
+
+| Параметр | Тип | Обязательно | Описание |
+
+| `siteId` | строка | Нет | ID сайта SharePoint (внутреннее использование) |
+
+| `siteSelector` | строка | Нет | Выбрать сайт SharePoint |
+
+| `listDisplayName` | строка | Да | Отображаемое имя списка для создания. Пример: Project Tasks или Customer Contacts |
+
+| `listDescription` | строка | Нет | Описание списка |
+
+| `listTemplate` | строка | Нет | Имя шаблона списка (например, 'genericList') |
+
+| `pageContent` | json | Нет | Необязательный JSON столбцов. Это может быть массив верхнего уровня определений столбцов или объект с \{ columns: \[...\] \}. |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `list` | объект | Информация о созданном списке SharePoint |
+
+|   ↳ `id` | строка | Уникальный ID списка |
+
+|   ↳ `displayName` | строка | Отображаемое имя списка |
+
+|   ↳ `name` | строка
+
 | `errors` | array | Per-file upload errors |
+
 |   ↳ `name` | string | File name |
+
 |   ↳ `error` | string | Error message |
+
 |   ↳ `status` | number | HTTP status from Microsoft Graph |
+
 
 

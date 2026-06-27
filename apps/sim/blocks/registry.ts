@@ -331,6 +331,7 @@ import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
 import type {
+import { YandexMusicBlock, YandexMusicBlockMeta } from '@/blocks/blocks/yandex_music'
   BlockCategory,
   BlockConfig,
   BlockMeta,
@@ -420,6 +421,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   file_v4: FileV4Block,
   file_v5: FileV5Block,
   findymail: FindymailBlock,
+  yandex_music: YandexMusicBlock,
   zerobounce: ZeroBounceBlock,
   neverbounce: NeverBounceBlock,
   millionverifier: MillionVerifierBlock,
@@ -885,6 +887,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   wordpress: WordPressBlockMeta,
   workday: WorkdayBlockMeta,
   x: XBlockMeta,
+  yandex_music: YandexMusicBlockMeta,
   youtube: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,

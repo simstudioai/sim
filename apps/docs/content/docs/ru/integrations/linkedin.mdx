@@ -1,6 +1,6 @@
 ---
-title: LinkedIn
-description: Публикация постов и управление присутствием в LinkedIn
+title: ЛиндеИн
+description: Share posts and manage your LinkedIn presence
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,73 +10,120 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0072B1"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[LinkedIn](https://www.linkedin.com) is the world’s largest professional networking platform, empowering users to build their careers, connect with their network, and share professional content. LinkedIn is widely used by professionals across industries for personal branding, recruiting, job search, and business development.
 
-With LinkedIn, you can easily share posts to your personal feed to engage with your network, and access information about your profile to highlight your professional achievements. Automated integration with Sim allows you to leverage LinkedIn functionality programmatically—enabling agents and workflows to post updates, report on your professional presence, and keep your feed active without manual effort.
+[LinkedIn](https://www.linkedin.com) — крупнейшая в мире платформа профессионального нетворкинга, которая позволяет пользователям строить карьеру, общаться со своей сетью и делиться профессиональным контентом. LinkedIn широко используется профессионалами из различных отраслей для личного брендинга, найма персонала, поиска работы и развития бизнеса.
 
-Key LinkedIn features available through this integration include:
 
-- **Share Posts:** Automatically publish professional updates, articles, or announcements to your LinkedIn personal feed.
-- **Profile Information:** Retrieve detailed information about your LinkedIn profile to monitor or use in downstream tasks within your workflows.
+С помощью LinkedIn вы можете легко публиковать сообщения в своем личном профиле, чтобы взаимодействовать со своей сетью, а также получать информацию о своем профиле, чтобы выделить свои профессиональные достижения. Автоматическая интеграция с Sim позволяет использовать функциональность LinkedIn программно — что позволяет агентам и рабочим процессам публиковать обновления, отслеживать ваше присутствие в сети и поддерживать активность вашего профиля без ручного вмешательства.
 
-These capabilities make it easy to keep your LinkedIn network engaged and to extend your professional reach efficiently as part of your AI or workflow automation strategy.
+
+Ключевые функции LinkedIn, доступные через эту интеграцию:
+
+
+- **Публикация сообщений:** Автоматическая публикация профессиональных обновлений, статей или объявлений в вашем личном профиле LinkedIn.
+
+- **Информация о профиле:** Получение подробной информации о вашем профиле LinkedIn для мониторинга или использования в последующих задачах внутри ваших рабочих процессов.
+
+
+Эти возможности позволяют легко поддерживать активность вашей сети LinkedIn и эффективно расширять ваш профессиональный охват в рамках вашей стратегии искусственного интеллекта или автоматизации рабочих процессов.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.
+
+Интегрируйте LinkedIn в рабочие процессы. Публикуйте сообщения в своем личном профиле и получайте информацию о вашем профиле LinkedIn.
+
 
 
 
 ## Действия
 
+
 ### `linkedin_share_post`
 
-Share a post to your personal LinkedIn feed
 
-#### Входные параметры
+Опубликуйте сообщение в своем личном профиле LinkedIn
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Да | The text content of your LinkedIn post |
-| `visibility` | string | Нет | Who can see this post: "PUBLIC" or "CONNECTIONS" \(default: "PUBLIC"\) |
-| `request` | string | Нет | No description |
-| `output` | string | Нет | No description |
-| `output` | string | Нет | No description |
-| `specificContent` | string | Нет | No description |
-| `visibility` | string | Нет | No description |
-| `headers` | string | Нет | No description |
-| `output` | string | Нет | No description |
-| `output` | string | Нет | No description |
-| `output` | string | Нет | No description |
 
-#### Выходные параметры
+| `text` | строка | Да | Содержание сообщения для LinkedIn |
+
+| `visibility` | строка | Нет | Кто может видеть это сообщение: "PUBLIC" или "CONNECTIONS" (по умолчанию: "PUBLIC") |
+
+| `request` | строка | Нет | Описание |
+
+| `output` | строка | Нет | Описание |
+
+| `specificContent` | строка | Нет | Описание |
+
+| `visibility` | строка | Нет | Описание |
+
+| `headers` | строка | Нет | Описание |
+
+| `output` | строка | Нет | Описание |
+
+| `output` | строка | Нет | Описание |
+
+| `output` | строка | Нет | Описание |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | логическое значение | Статус успешности операции |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `postId` | string | Created post ID |
-| `profile` | json | LinkedIn profile information |
-| `error` | string | Error message if operation failed |
+
+| `postId` | строка | ID созданного сообщения |
+
+| `profile` | json | Информация о профиле LinkedIn |
+
+| `error` | строка | Сообщение об ошибке, если операция не удалась |
 
 ### `linkedin_get_profile`
 
-Retrieve your LinkedIn profile information
 
-#### Входные параметры
+Получите информацию о своем профиле LinkedIn
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+#### Выходные данные
+
 | --------- | ---- | -------- | ----------- |
 
-#### Выходные параметры
 
 | Параметр | Тип | Описание |
+
+
+| `success` | логическое значение | Статус успешности операции |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `postId` | string | Created post ID |
-| `profile` | json | LinkedIn profile information |
+
+| `postId` | строка | ID созданного сообщения |
+
+| `profile` | json | Информация о профиле LinkedIn |
+
+| `error` | строка | Сообщение об ошибке, если операция не удалась |
+
 | `error` | string | Error message if operation failed |
+
 
 

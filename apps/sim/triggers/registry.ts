@@ -397,6 +397,7 @@ import {
   zendeskWebhookTrigger,
 } from '@/triggers/zendesk'
 import {
+import { yandex_musicWebhookTrigger } from '@/triggers/yandex_music'
   zoomMeetingEndedTrigger,
   zoomMeetingStartedTrigger,
   zoomParticipantJoinedTrigger,
@@ -695,6 +696,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   instantly_lead_wrong_person: instantlyLeadWrongPersonTrigger,
   instantly_lead_no_show: instantlyLeadNoShowTrigger,
   instantly_supersearch_enrichment_completed: instantlySupersearchEnrichmentCompletedTrigger,
+  yandex_music_webhook: yandex_musicWebhookTrigger,
   zoom_meeting_started: zoomMeetingStartedTrigger,
   zendesk_ticket_created: zendeskTicketCreatedTrigger,
   zendesk_ticket_status_changed: zendeskTicketStatusChangedTrigger,

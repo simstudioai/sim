@@ -10,168 +10,301 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Tavily](https://www.tavily.com/) is an AI-powered search API designed specifically for LLM applications. It provides reliable, real-time information retrieval capabilities with features optimized for AI use cases, including semantic search, content extraction, and structured data retrieval.
 
-With Tavily, you can:
-
-- **Perform contextual searches**: Получение relevant results based on semantic understanding rather than just keyword matching
-- **Extract structured content**: Pull specific information from web pages in a clean, usable format
-- **Access real-time information**: Получение up-to-date data from across the web
-- **Process multiple URLs simultaneously**: Extract content from several web pages in a single request
-- **Receive AI-optimized results**: Получение search results specifically formatted for consumption by AI systems
-
-In Sim, the Tavily integration enables your agents to search the web and extract information as part of their workflows. This allows for sophisticated automation scenarios that require up-to-date information from the internet. Your agents can formulate search queries, retrieve relevant results, and extract content from specific web pages to inform their decision-making processes. This integration bridges the gap between your workflow automation and the vast knowledge available on the web, enabling your agents to access real-time information without manual intervention. By connecting Sim with Tavily, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users.
-{/* MANUAL-CONTENT-END */}
-
-
+===
 ## Инструкции по использованию
 
-Интегрируйте Tavily в рабочий процесс. Can search the web and extract content from specific URLs. Requires Ключ API.
-
+Интегрируйте Tavily в рабочий процесс. Может искать веб-страницы и извлекать контент с конкретных URL-адресов. Требуется API ключ.
 
 
 ## Действия
 
+
 ### `tavily_search`
 
-Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.
+Выполняйте AI-powered поиски в интернете, используя API поиска Tavily. Возвращает структурированные результаты с заголовками, URL-адресами, фрагментами и необязательным исходным содержимым, оптимизированные для релевантности и точности.
 
 #### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `query` | строка | Да | Поисковый запрос для выполнения (например, "последние научные статьи по ИИ 2024") |
+
+
+| `max_results` | число | Нет | Максимальное количество результатов (1-20, например, 5) |
+
+| `topic` | строка | Нет | Категория: general, news или finance (например, "news") |
+
+
+
+| `search_depth` | строка | Нет | Область поиска: basic (1 кредит) или advanced (2 кредита) (например, "advanced") |
+
+
+| `include_answer` | строка | Нет | LLM-сгенерированный ответ: true/basic для быстрого ответа или advanced для подробного (например, "advanced") |
+
+
+
+
+| `include_raw_content` | строка | Нет | Развёрнутый HTML контент: true/markdown или text формат (например, "markdown") |
+
+
+| `include_images` | булево | Нет | Включать результаты поиска изображений |
+
+
+| `include_image_descriptions` | булево | Нет | Добавить описательный текст для изображений |
+
+
+| `include_favicon` | булево | Нет | Включать URL-адреса favicon |
+
+
+| `chunks_per_source` | число | Нет | Максимальное количество соответствующих фрагментов из источника (1-3, по умолчанию: 3) |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Да | The search query to execute (например, "latest AI research papers 2024"\) |
-| `max_results` | number | Нет | Maximum number of results \(1-20, e.g., 5\) |
-| `topic` | string | Нет | Category type: general, news, or finance (например, "news"\) |
-| `search_depth` | string | Нет | Search scope: basic \(1 credit\) or advanced \(2 credits\) (например, "advanced"\) |
-| `include_answer` | string | Нет | LLM-generated response: true/basic for quick answer or advanced for detailed (например, "advanced"\) |
-| `include_raw_content` | string | Нет | Parsed HTML content: true/markdown or text format (например, "markdown"\) |
-| `include_images` | boolean | Нет | Include image search results |
-| `include_image_descriptions` | boolean | Нет | Add descriptive text for images |
-| `include_favicon` | boolean | Нет | Include favicon URLs |
-| `chunks_per_source` | number | Нет | Maximum number of relevant chunks per source \(1-3, по умолчанию: 3\) |
-| `time_range` | string | Нет | Filter by recency: day/d, week/w, month/m, year/y |
-| `start_date` | string | Нет | Earliest publication date \(YYYY-MM-DD format\) |
-| `end_date` | string | Нет | Latest publication date \(YYYY-MM-DD format\) |
-| `include_domains` | string | Нет | Comma-separated list of domains to whitelist (например, "github.com,stackoverflow.com"\) |
-| `exclude_domains` | string | Нет | Comma-separated list of domains to blacklist (например, "pinterest.com,reddit.com"\) |
-| `country` | string | Нет | Boost results from specified country \(general topic only\) |
-| `auto_parameters` | boolean | Нет | Automatic parameter configuration based on query intent |
-| `apiKey` | string | Да | Tavily Ключ API |
+
+| `time_range` | строка | Нет | Фильтр по времени: day/d, week/w, month/m, year/y |
+
+| `start_date` | строка | Нет | Самая ранняя дата публикации (формат YYYY-MM-DD) |
+
+| `end_date` | строка | Нет | Последняя дата публикации (формат YYYY-MM-DD) |
+
+| `include_domains` | строка | Нет | Список доменов для разрешения, разделенных запятыми (например, "github.com,stackoverflow.com") |
+
+| `exclude_domains` | строка | Нет | Список доменов для блокировки, разделенных запятыми (например, "pinterest.com,reddit.com") |
+
+| `country` | строка | Нет | Увеличить результаты из указанной страны (только для общей темы) |
+
+| `auto_parameters` | булево | Нет | Автоматическая конфигурация параметров на основе намерения запроса |
+
+| `apiKey` | строка | Да | API ключ Tavily |
 
 #### Выход
 
-| Parameter | Type | Description |
+| Параметр | Тип | Описание |
+
+| `query` | строка | Поисковый запрос, который был выполнен |
+
+| `results` | массив | Ранжированные результаты поиска с заголовками, URL-адресами, фрагментами и необязательными метаданными |
+
+|   ↳ `title` | строка | Заголовок результата |
+
+|   ↳ `url` | строка | URL-адрес результата |
+
+|   ↳ `content` | строка | Краткое описание или содержимое фрагмента |
+
+|   ↳ `score` | число | Оценка релевантности |
+
+|   ↳ `raw_content` | строка | Полный развёрнутый HTML-контент (если запрошено) |
+
+|   ↳ `favicon` | строка | URL-адрес favicon для домена |
+
+
+| `answer` | строка | LLM-сгенерированный ответ на запрос (если запрошено) |
+
+
+| `images` | массив | Изображения, связанные с запросом (если запрошено) |
+
 | --------- | ---- | ----------- |
-| `query` | string | The search query that was executed |
-| `results` | array | Ranked search results with titles, URLs, content snippets, and optional metadata |
-|   ↳ `title` | string | Result title |
-|   ↳ `url` | string | Result URL |
-|   ↳ `content` | string | Brief description or content snippet |
-|   ↳ `score` | number | Relevance score |
-|   ↳ `raw_content` | string | Full parsed HTML content \(if requested\) |
-|   ↳ `favicon` | string | Favicon URL for the domain |
-| `answer` | string | LLM-generated answer to the query \(if requested\) |
-| `images` | array | Query-related images \(if requested\) |
-|   ↳ `url` | string | Image URL |
-|   ↳ `description` | string | Image description |
-| `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
-| `response_time` | number | Time taken for the search request in seconds |
+
+|   ↳ `url` | строка | URL изображения |
+
+|   ↳ `description` | строка | Описание изображения |
+
+| `auto_parameters` | объект | Автоматически выбранные параметры на основе намерения запроса (если включено) |
+
+| `response_time` | число | Время, затраченное на поисковый запрос в секундах |
 
 ### `tavily_extract`
 
-Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.
+Извлекайте исходный контент из нескольких веб-страниц одновременно, используя API извлечения Tavily. Поддерживает базовые и расширенные глубины извлечения с подробным отчётом об ошибках для не удавшихся URL-адресов.
 
 #### Вход
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `urls` | string | Да | URL or array of URLs to extract content from |
-| `extract_depth` | string | Нет | The depth of extraction \(basic=1 credit/5 URLs, advanced=2 credits/5 URLs\) |
-| `format` | string | Нет | Output format: markdown or text \(по умолчанию: markdown\) |
-| `include_images` | boolean | Нет | Incorporate images in extraction output |
-| `include_favicon` | boolean | Нет | Add favicon URL for each result |
-| `apiKey` | string | Да | Tavily Ключ API |
+| Параметр | Тип | Требуется | Описание |
+
+| `urls` | строка | Да | URL или массив URL-адресов для извлечения контента |
+
+| `extract_depth` | строка | Нет | Глубина извлечения: basic (1 кредит/5 URL) или advanced (2 кредита/5 URL) |
+
+| `format` | строка | Нет | Формат вывода: markdown или text (по умолчанию: markdown) |
+
+| `include_images` | булево | Нет | Включать изображения в выход извлечения |
+
+| `include_favicon` | булево | Нет | Добавить URL favicon для каждого результата |
+
+| `apiKey` | строка | Да | API ключ Tavily |
+
 
 #### Выход
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `results` | array | Successfully extracted content from URLs |
-|   ↳ `url` | string | The source URL |
-|   ↳ `raw_content` | string | Full extracted content from the page |
-|   ↳ `images` | array | Image URLs \(when include_images is true\) |
-|   ↳ `favicon` | string | Favicon URL for the result |
-| `failed_results` | array | URLs that failed to extract content |
-|   ↳ `url` | string | The URL that failed extraction |
-|   ↳ `error` | string | Error message describing why extraction failed |
-| `response_time` | number | Time taken for the extraction request in seconds |
+
+| Параметр | Тип | Описание |
+
+
+| `results` | массив | Успешно извлечённый контент из URL-адресов |
+
+
+|   ↳ `url` | строка | Источник URL |
+
+| --------- | ---- | -------- | ----------- |
+
+|   ↳ `raw_content` | строка | Полный извлечённый контент со страницы |
+
+|   ↳ `images` | массив | URL изображений (если включено) |
+
+|   ↳ `favicon` | строка | URL favicon для результата |
+
+| `failed_results` | массив | URL-адреса, которые не удалось извлечь контент |
+
+|   ↳ `url` | строка | URL-адрес, который не удалось извлечь |
+
+|   ↳ `error` | строка | Сообщение об ошибке, описывающее причину неудачи извлечения |
+
+
+| `response_time` | число | Время, затраченное на запрос извлечения в секундах |
+
 
 ### `tavily_crawl`
 
-Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling.
+| --------- | ---- | ----------- |
+
+Систематически сканируйте и извлекайте контент с веб-сайтов, используя API сканирования Tavily. Поддерживает контроль глубины, фильтрацию путей, ограничения доменов и естественные инструкции для целенаправленного сканирования.
 
 #### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `url` | строка | Да | URL-адрес, с которого нужно начать сканирование |
+
+| `instructions` | строка | Нет | Естественные инструкции для поведения сканера (стоимость 2 кредита за 10 страниц) |
+
+| `max_depth` | число | Нет | Насколько далеко от базового URL-адреса нужно исследовать (1-5, по умолчанию: 1) |
+
+| `max_breadth` | число | Нет | Количество ссылок для следования на каждом уровне (≥1, по умолчанию: 20) |
+
+| `limit` | число | Нет | Общее количество ссылок для обработки (≥1, по умолчанию: 50) |
+
+| `select_paths` | строка | Нет | Разделенные запятыми регулярные выражения для включения конкретных путей URL (например, /docs/.*) |
+
+
+| `select_domains` | строка | Нет | Разделенные запятыми регулярные выражения для ограничения сканирования определенных доменов |
+
+
+| `exclude_paths` | строка | Нет | Разделенные запятыми регулярные выражения для исключения конкретных путей URL |
+
+
+| `exclude_domains` | строка | Нет | Разделенные запятыми регулярные выражения для исключения доменов |
+
+
+| `allow_external` | булево | Нет | Включать ссылки на внешние домены в результаты (по умолчанию: true) |
+
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Да | The root URL to begin the crawl |
-| `instructions` | string | Нет | Natural language directions for the crawler \(costs 2 credits per 10 pages\) |
-| `max_depth` | number | Нет | How far from base URL to explore \(1-5, по умолчанию: 1\) |
-| `max_breadth` | number | Нет | Links followed per page level \(≥1, по умолчанию: 20\) |
-| `limit` | number | Нет | Total links processed before stopping \(≥1, по умолчанию: 50\) |
-| `select_paths` | string | Нет | Comma-separated regex patterns to include specific URL paths (например, /docs/.*\) |
-| `select_domains` | string | Нет | Comma-separated regex patterns to restrict crawling to certain domains |
-| `exclude_paths` | string | Нет | Comma-separated regex patterns to skip specific URL paths |
-| `exclude_domains` | string | Нет | Comma-separated regex patterns to block certain domains |
-| `allow_external` | boolean | Нет | Include external domain links in results \(по умолчанию: true\) |
-| `include_images` | boolean | Нет | Incorporate images in crawl output |
-| `extract_depth` | string | Нет | Extraction depth: basic \(1 credit/5 pages\) or advanced \(2 credits/5 pages\) |
-| `format` | string | Нет | Output format: markdown or text \(по умолчанию: markdown\) |
-| `include_favicon` | boolean | Нет | Add favicon URL for each result |
-| `apiKey` | string | Да | Tavily Ключ API |
+
+| `include_images` | булево | Нет | Включать изображения в выход сканирования |
+
+| `extract_depth` | строка | Нет | Глубина извлечения: basic (1 кредит/5 страниц) или advanced (2 кредита/5 страниц) |
+
+| `format` | строка | Нет | Формат вывода: markdown или text (по умолчанию: markdown) |
+
+| `include_favicon` | булево | Нет | Добавить URL favicon для каждого результата |
+
+| `apiKey` | строка | Да | API ключ Tavily |
 
 #### Выход
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `base_url` | string | The base URL that was crawled |
-| `results` | array | Array of crawled pages with extracted content |
-|   ↳ `url` | string | The crawled page URL |
-|   ↳ `raw_content` | string | Full extracted page content |
-|   ↳ `favicon` | string | Favicon URL for the result |
-| `response_time` | number | Time taken for the crawl request in seconds |
-| `request_id` | string | Уникальный идентификатор for support reference |
+| Параметр | Тип | Описание |
+
+| `base_url` | строка | Базовый URL, который был сканирован |
+
+| `results` | массив | Массив обнаруженных URL-адресов во время сканирования |
+
+|   ↳ `url` | строка | Обнаруженный URL-адрес |
+
+| `response_time` | число | Время, затраченное на запрос сканирования в секундах |
+
+| `request_id` | строка | Уникальный идентификатор для ссылки на поддержку |
 
 ### `tavily_map`
 
-Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.
+Обнаруживайте и визуализируйте структуру веб-сайта с помощью API карты Tavily. Создает карту всех доступных URL-адресов из базового URL с контролем глубины, фильтрацией путей и ограничениями доменов.
 
 #### Вход
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `url` | string | Да | The root URL to begin mapping |
-| `instructions` | string | Нет | Natural language guidance for mapping behavior \(costs 2 credits per 10 pages\) |
-| `max_depth` | number | Нет | How far from base URL to explore \(1-5, по умолчанию: 1\) |
-| `max_breadth` | number | Нет | Links to follow per level \(по умолчанию: 20\) |
-| `limit` | number | Нет | Total links to process \(по умолчанию: 50\) |
-| `select_paths` | string | Нет | Comma-separated regex patterns for URL path filtering (например, /docs/.*\) |
-| `select_domains` | string | Нет | Comma-separated regex patterns to restrict mapping to specific domains |
-| `exclude_paths` | string | Нет | Comma-separated regex patterns to exclude specific URL paths |
-| `exclude_domains` | string | Нет | Comma-separated regex patterns to exclude domains |
-| `allow_external` | boolean | Нет | Include external domain links in results \(по умолчанию: true\) |
-| `apiKey` | string | Да | Tavily Ключ API |
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `url` | строка | Да | Базовый URL для начала построения карты |
+
+| --------- | ---- | ----------- |
+
+| `instructions` | строка | Нет | Естественные инструкции для поведения картографирования (стоимость 2 кредита за 10 страниц) |
+
+| `max_depth` | число | Нет | Насколько далеко от базового URL-адреса нужно исследовать (1-5, по умолчанию: 1) |
+
+| `max_breadth` | число | Нет | Количество ссылок для следования на каждом уровне (по умолчанию: 20) |
+
+| `limit` | число | Нет | Общее количество ссылок для обработки (по умолчанию: 50) |
+
+| `select_paths` | строка | Нет | Разделенные запятыми регулярные выражения для фильтрации путей URL (например, /docs/.*) |
+
+| `select_domains` | строка | Нет | Разделенные запятыми регулярные выражения для ограничения построения карты на определенные домены |
+
+| `exclude_paths` | строка | Нет | Разделенные запятыми регулярные выражения для исключения определенных путей URL |
+
+
+| `exclude_domains` | строка | Нет | Разделенные запятыми регулярные выражения для исключения доменов |
+
+
+| `allow_external` | булево | Нет | Включать ссылки на внешние домены в результаты (по умолчанию: true) |
+
+
+| `apiKey` | строка | Да | API ключ Tavily |
+
 
 #### Выход
 
+| --------- | ---- | -------- | ----------- |
+
+| Параметр | Тип | Описание |
+
+| `base_url` | строка | Базовый URL, который был построен |
+
+| `results` | массив | Массив обнаруженных URL-адресов во время построения карты |
+===
+
+| `max_breadth` | number | No | Links to follow per level \(default: 20\) |
+
+| `limit` | number | No | Total links to process \(default: 50\) |
+
+| `select_paths` | string | No | Comma-separated regex patterns for URL path filtering \(e.g., /docs/.*\) |
+
+| `select_domains` | string | No | Comma-separated regex patterns to restrict mapping to specific domains |
+
+| `exclude_paths` | string | No | Comma-separated regex patterns to exclude specific URL paths |
+
+| `exclude_domains` | string | No | Comma-separated regex patterns to exclude domains |
+
+| `allow_external` | boolean | No | Include external domain links in results \(default: true\) |
+
+| `apiKey` | string | Yes | Tavily API Key |
+
+
+#### Output
+
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `base_url` | string | The base URL that was mapped |
+
 | `results` | array | Array of discovered URLs during mapping |
+
 |   ↳ `url` | string | Discovered URL |
+
 | `response_time` | number | Time taken for the map request in seconds |
-| `request_id` | string | Уникальный идентификатор for support reference |
+
+| `request_id` | string | Unique identifier for support reference |
+
 
 

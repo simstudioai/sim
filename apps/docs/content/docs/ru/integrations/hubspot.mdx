@@ -1,6 +1,6 @@
 ---
 title: HubSpot
-description: Взаимодействие с HubSpot CRM или запуск рабочих процессов по событиям HubSpot
+description: Взаимодействуйте с системой CRM HubSpot или запускайте рабочие процессы из событий HubSpot.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,1806 +10,3288 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FF7A59"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [HubSpot](https://www.hubspot.com) is a comprehensive CRM platform that provides a full suite of marketing, sales, and customer service tools to help businesses grow. With powerful automation capabilities and an extensive API, HubSpot serves businesses of all sizes across industries.
+
 
 With the HubSpot integration in Sim, you can:
 
+
 - **Manage contacts**: List, get, create, update, and search contacts in your CRM
+
 - **Manage companies**: List, get, create, update, and search company records
+
 - **Track deals**: List deals in your sales pipeline
+
 - **Access users**: Retrieve user information from your HubSpot account
+
 
 In Sim, the HubSpot integration enables your agents to interact with your CRM data as part of automated workflows. Agents can qualify leads, enrich contact records, track deals, and synchronize data across your tech stack—enabling intelligent sales and marketing automation.
 
+
 New to the integration? Follow the [HubSpot setup guide](/integrations/hubspot-setup) to install it, connect your account, and configure your first workflow.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
+
+## Usage Instructions
+
 
 Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.
 
 
 
-## Действия
+
+## Actions
+
 
 ### `hubspot_get_users`
 
+
 Retrieve all users from HubSpot account
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Number of results to return \(default: 10, max: 100\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot user property names to return \(e.g., "hs_email,hs_given_name,hs_family_name"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Number of results to return \(default: 10, max: 100\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot user property names to return \(e.g., "hs_email,hs_given_name,hs_family_name"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `users` | array | Array of HubSpot CRM records |
+
 |   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+
 |   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+
 |   ↳ `archived` | boolean | Whether the record is archived |
+
 |   ↳ `properties` | object | Record properties |
+
 |   ↳ `associations` | object | Associated records |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `totalItems` | number | Total number of users returned |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_contacts`
 
+
 Retrieve all contacts from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `contacts` | array | Array of HubSpot contact records |
+
 |   ↳ `email` | string | Contact email address |
+
 |   ↳ `firstname` | string | Contact first name |
+
 |   ↳ `lastname` | string | Contact last name |
+
 |   ↳ `phone` | string | Contact phone number |
+
 |   ↳ `mobilephone` | string | Contact mobile phone number |
+
 |   ↳ `company` | string | Associated company name |
+
 |   ↳ `website` | string | Contact website URL |
+
 |   ↳ `jobtitle` | string | Contact job title |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+
 |   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `fax` | string | Fax number |
+
 |   ↳ `hs_timezone` | string | Contact timezone |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_contact`
 
+
 Retrieve a single contact by ID or email from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Да | The HubSpot contact ID \(numeric string\) or email address to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
 
-#### Выходные параметры
+| `contactId` | string | Yes | The HubSpot contact ID \(numeric string\) or email address to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `contact` | object | HubSpot contact record |
+
 |   ↳ `email` | string | Contact email address |
+
 |   ↳ `firstname` | string | Contact first name |
+
 |   ↳ `lastname` | string | Contact last name |
+
 |   ↳ `phone` | string | Contact phone number |
+
 |   ↳ `mobilephone` | string | Contact mobile phone number |
+
 |   ↳ `company` | string | Associated company name |
+
 |   ↳ `website` | string | Contact website URL |
+
 |   ↳ `jobtitle` | string | Contact job title |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+
 |   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `fax` | string | Fax number |
+
 |   ↳ `hs_timezone` | string | Contact timezone |
+
 | `contactId` | string | The retrieved contact ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_contact`
 
+
 Create a new contact in HubSpot. Requires at least one of: email, firstname, or lastname
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Contact properties as JSON object. Must include at least one of: email, firstname, or lastname \(e.g., \{"email": "john@example.com", "firstname": "John", "lastname": "Doe"\}\) |
-| `associations` | array | Нет | Array of associations to create with the contact as JSON. Each object should have "to.id" \(company/deal ID\) and "types" array with "associationCategory" and "associationTypeId" |
 
-#### Выходные параметры
+| `properties` | object | Yes | Contact properties as JSON object. Must include at least one of: email, firstname, or lastname \(e.g., \{"email": "john@example.com", "firstname": "John", "lastname": "Doe"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the contact as JSON. Each object should have "to.id" \(company/deal ID\) and "types" array with "associationCategory" and "associationTypeId" |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `contact` | object | HubSpot contact record |
+
 |   ↳ `email` | string | Contact email address |
+
 |   ↳ `firstname` | string | Contact first name |
+
 |   ↳ `lastname` | string | Contact last name |
+
 |   ↳ `phone` | string | Contact phone number |
+
 |   ↳ `mobilephone` | string | Contact mobile phone number |
+
 |   ↳ `company` | string | Associated company name |
+
 |   ↳ `website` | string | Contact website URL |
+
 |   ↳ `jobtitle` | string | Contact job title |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+
 |   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `fax` | string | Fax number |
+
 |   ↳ `hs_timezone` | string | Contact timezone |
+
 | `contactId` | string | The created contact ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_contact`
 
+
 Update an existing contact in HubSpot by ID or email
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Да | The HubSpot contact ID \(numeric string\) or email of the contact to update |
-| `idProperty` | string | Нет | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
-| `properties` | object | Да | Contact properties to update as JSON object \(e.g., \{"firstname": "John", "phone": "+1234567890"\}\) |
 
-#### Выходные параметры
+| `contactId` | string | Yes | The HubSpot contact ID \(numeric string\) or email of the contact to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
+
+| `properties` | object | Yes | Contact properties to update as JSON object \(e.g., \{"firstname": "John", "phone": "+1234567890"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `contact` | object | HubSpot contact record |
+
 |   ↳ `email` | string | Contact email address |
+
 |   ↳ `firstname` | string | Contact first name |
+
 |   ↳ `lastname` | string | Contact last name |
+
 |   ↳ `phone` | string | Contact phone number |
+
 |   ↳ `mobilephone` | string | Contact mobile phone number |
+
 |   ↳ `company` | string | Associated company name |
+
 |   ↳ `website` | string | Contact website URL |
+
 |   ↳ `jobtitle` | string | Contact job title |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+
 |   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `fax` | string | Fax number |
+
 |   ↳ `hs_timezone` | string | Contact timezone |
+
 | `contactId` | string | The updated contact ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_contacts`
 
+
 Search for contacts in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against contact name, email, and other text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["email", "firstname", "lastname", "phone"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 100\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against contact name, email, and other text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["email", "firstname", "lastname", "phone"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 100\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `contacts` | array | Array of HubSpot contact records |
+
 |   ↳ `email` | string | Contact email address |
+
 |   ↳ `firstname` | string | Contact first name |
+
 |   ↳ `lastname` | string | Contact last name |
+
 |   ↳ `phone` | string | Contact phone number |
+
 |   ↳ `mobilephone` | string | Contact mobile phone number |
+
 |   ↳ `company` | string | Associated company name |
+
 |   ↳ `website` | string | Contact website URL |
+
 |   ↳ `jobtitle` | string | Contact job title |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+
 |   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `fax` | string | Fax number |
+
 |   ↳ `hs_timezone` | string | Contact timezone |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching contacts |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_companies`
 
+
 Retrieve all companies from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `companies` | array | Array of HubSpot company records |
+
 |   ↳ `name` | string | Company name |
+
 |   ↳ `domain` | string | Company website domain \(unique identifier\) |
+
 |   ↳ `description` | string | Company description |
+
 |   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+
 |   ↳ `phone` | string | Company phone number |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `numberofemployees` | string | Total number of employees |
+
 |   ↳ `annualrevenue` | string | Annual revenue estimate |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+
 |   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+
 |   ↳ `website` | string | Company website URL |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_company`
 
+
 Retrieve a single company by ID or domain from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `companyId` | string | Да | The HubSpot company ID \(numeric string\) or domain to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
 
-#### Выходные параметры
+| `companyId` | string | Yes | The HubSpot company ID \(numeric string\) or domain to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `company` | object | HubSpot company record |
+
 |   ↳ `name` | string | Company name |
+
 |   ↳ `domain` | string | Company website domain \(unique identifier\) |
+
 |   ↳ `description` | string | Company description |
+
 |   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+
 |   ↳ `phone` | string | Company phone number |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `numberofemployees` | string | Total number of employees |
+
 |   ↳ `annualrevenue` | string | Annual revenue estimate |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+
 |   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+
 |   ↳ `website` | string | Company website URL |
+
 | `companyId` | string | The retrieved company ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_company`
 
+
 Create a new company in HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Company properties as JSON object \(e.g., \{"name": "Acme Inc", "domain": "acme.com", "industry": "Technology"\}\) |
-| `associations` | array | Нет | Array of associations to create with the company as JSON \(each with "to.id" and "types" containing "associationCategory" and "associationTypeId"\) |
 
-#### Выходные параметры
+| `properties` | object | Yes | Company properties as JSON object \(e.g., \{"name": "Acme Inc", "domain": "acme.com", "industry": "Technology"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the company as JSON \(each with "to.id" and "types" containing "associationCategory" and "associationTypeId"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `company` | object | HubSpot company record |
+
 |   ↳ `name` | string | Company name |
+
 |   ↳ `domain` | string | Company website domain \(unique identifier\) |
+
 |   ↳ `description` | string | Company description |
+
 |   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+
 |   ↳ `phone` | string | Company phone number |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `numberofemployees` | string | Total number of employees |
+
 |   ↳ `annualrevenue` | string | Annual revenue estimate |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+
 |   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+
 |   ↳ `website` | string | Company website URL |
+
 | `companyId` | string | The created company ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_company`
 
+
 Update an existing company in HubSpot by ID or domain
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `companyId` | string | Да | The HubSpot company ID \(numeric string\) or domain of the company to update |
-| `idProperty` | string | Нет | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
-| `properties` | object | Да | Company properties to update as JSON object \(e.g., \{"name": "New Name", "industry": "Finance"\}\) |
 
-#### Выходные параметры
+| `companyId` | string | Yes | The HubSpot company ID \(numeric string\) or domain of the company to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
+
+| `properties` | object | Yes | Company properties to update as JSON object \(e.g., \{"name": "New Name", "industry": "Finance"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `company` | object | HubSpot company record |
+
 |   ↳ `name` | string | Company name |
+
 |   ↳ `domain` | string | Company website domain \(unique identifier\) |
+
 |   ↳ `description` | string | Company description |
+
 |   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+
 |   ↳ `phone` | string | Company phone number |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `numberofemployees` | string | Total number of employees |
+
 |   ↳ `annualrevenue` | string | Annual revenue estimate |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+
 |   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+
 |   ↳ `website` | string | Company website URL |
+
 | `companyId` | string | The updated company ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_companies`
 
+
 Search for companies in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against company name, domain, and other text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["name", "domain", "industry"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 100\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against company name, domain, and other text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["name", "domain", "industry"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 100\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `companies` | array | Array of HubSpot company records |
+
 |   ↳ `name` | string | Company name |
+
 |   ↳ `domain` | string | Company website domain \(unique identifier\) |
+
 |   ↳ `description` | string | Company description |
+
 |   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+
 |   ↳ `phone` | string | Company phone number |
+
 |   ↳ `city` | string | City |
+
 |   ↳ `state` | string | State/Region |
+
 |   ↳ `zip` | string | Postal/ZIP code |
+
 |   ↳ `country` | string | Country |
+
 |   ↳ `address` | string | Street address |
+
 |   ↳ `numberofemployees` | string | Total number of employees |
+
 |   ↳ `annualrevenue` | string | Annual revenue estimate |
+
 |   ↳ `lifecyclestage` | string | Lifecycle stage |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+
 |   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+
 |   ↳ `website` | string | Company website URL |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching companies |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_deals`
 
+
 Retrieve all deals from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `deals` | array | Array of HubSpot deal records |
+
 |   ↳ `dealname` | string | Deal name |
+
 |   ↳ `amount` | string | Deal amount |
+
 |   ↳ `dealstage` | string | Current deal stage |
+
 |   ↳ `pipeline` | string | Pipeline the deal is in |
+
 |   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+
 |   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+
 |   ↳ `description` | string | Deal description |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_deal`
 
+
 Retrieve a single deal by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `dealId` | string | Да | The HubSpot deal ID to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `dealId` | string | Yes | The HubSpot deal ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `deal` | object | HubSpot deal record |
+
 |   ↳ `dealname` | string | Deal name |
+
 |   ↳ `amount` | string | Deal amount |
+
 |   ↳ `dealstage` | string | Current deal stage |
+
 |   ↳ `pipeline` | string | Pipeline the deal is in |
+
 |   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+
 |   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+
 |   ↳ `description` | string | Deal description |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts |
+
 | `dealId` | string | The retrieved deal ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_deal`
 
+
 Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Deal properties as JSON object. Must include dealname \(e.g., \{"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"\}\) |
-| `associations` | array | Нет | Array of associations to create with the deal as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
-#### Выходные параметры
+| `properties` | object | Yes | Deal properties as JSON object. Must include dealname \(e.g., \{"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the deal as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `deal` | object | HubSpot deal record |
+
 |   ↳ `dealname` | string | Deal name |
+
 |   ↳ `amount` | string | Deal amount |
+
 |   ↳ `dealstage` | string | Current deal stage |
+
 |   ↳ `pipeline` | string | Pipeline the deal is in |
+
 |   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+
 |   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+
 |   ↳ `description` | string | Deal description |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts |
+
 | `dealId` | string | The created deal ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_deal`
 
+
 Update an existing deal in HubSpot by ID
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `dealId` | string | Да | The HubSpot deal ID to update |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | object | Да | Deal properties to update as JSON object \(e.g., \{"amount": "10000", "dealstage": "closedwon"\}\) |
 
-#### Выходные параметры
+| `dealId` | string | Yes | The HubSpot deal ID to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | object | Yes | Deal properties to update as JSON object \(e.g., \{"amount": "10000", "dealstage": "closedwon"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `deal` | object | HubSpot deal record |
+
 |   ↳ `dealname` | string | Deal name |
+
 |   ↳ `amount` | string | Deal amount |
+
 |   ↳ `dealstage` | string | Current deal stage |
+
 |   ↳ `pipeline` | string | Pipeline the deal is in |
+
 |   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+
 |   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+
 |   ↳ `description` | string | Deal description |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts |
+
 | `dealId` | string | The updated deal ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_deals`
 
+
 Search for deals in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against deal name and other text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["dealname", "amount", "dealstage"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 200\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against deal name and other text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["dealname", "amount", "dealstage"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 200\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `deals` | array | Array of HubSpot deal records |
+
 |   ↳ `dealname` | string | Deal name |
+
 |   ↳ `amount` | string | Deal amount |
+
 |   ↳ `dealstage` | string | Current deal stage |
+
 |   ↳ `pipeline` | string | Pipeline the deal is in |
+
 |   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+
 |   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+
 |   ↳ `description` | string | Deal description |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 |   ↳ `num_associated_contacts` | string | Number of associated contacts |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching deals |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_tickets`
 
+
 Retrieve all tickets from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tickets` | array | Array of HubSpot ticket records |
+
 |   ↳ `subject` | string | Ticket subject/name |
+
 |   ↳ `content` | string | Ticket content/description |
+
 |   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+
 |   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+
 |   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+
 |   ↳ `hs_ticket_category` | string | Ticket category |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_ticket`
 
+
 Retrieve a single ticket by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `ticketId` | string | Да | The HubSpot ticket ID to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `ticketId` | string | Yes | The HubSpot ticket ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `ticket` | object | HubSpot ticket record |
+
 |   ↳ `subject` | string | Ticket subject/name |
+
 |   ↳ `content` | string | Ticket content/description |
+
 |   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+
 |   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+
 |   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+
 |   ↳ `hs_ticket_category` | string | Ticket category |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `ticketId` | string | The retrieved ticket ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_ticket`
 
+
 Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage properties
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Ticket properties as JSON object. Must include subject and hs_pipeline_stage \(e.g., \{"subject": "Support request", "hs_pipeline_stage": "1", "hs_ticket_priority": "HIGH"\}\) |
-| `associations` | array | Нет | Array of associations to create with the ticket as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
-#### Выходные параметры
+| `properties` | object | Yes | Ticket properties as JSON object. Must include subject and hs_pipeline_stage \(e.g., \{"subject": "Support request", "hs_pipeline_stage": "1", "hs_ticket_priority": "HIGH"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the ticket as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `ticket` | object | HubSpot ticket record |
+
 |   ↳ `subject` | string | Ticket subject/name |
+
 |   ↳ `content` | string | Ticket content/description |
+
 |   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+
 |   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+
 |   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+
 |   ↳ `hs_ticket_category` | string | Ticket category |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `ticketId` | string | The created ticket ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_ticket`
 
+
 Update an existing ticket in HubSpot by ID
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `ticketId` | string | Да | The HubSpot ticket ID to update |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | object | Да | Ticket properties to update as JSON object \(e.g., \{"subject": "Updated subject", "hs_ticket_priority": "HIGH"\}\) |
 
-#### Выходные параметры
+| `ticketId` | string | Yes | The HubSpot ticket ID to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | object | Yes | Ticket properties to update as JSON object \(e.g., \{"subject": "Updated subject", "hs_ticket_priority": "HIGH"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `ticket` | object | HubSpot ticket record |
+
 |   ↳ `subject` | string | Ticket subject/name |
+
 |   ↳ `content` | string | Ticket content/description |
+
 |   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+
 |   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+
 |   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+
 |   ↳ `hs_ticket_category` | string | Ticket category |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `ticketId` | string | The updated ticket ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_tickets`
 
+
 Search for tickets in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against ticket subject and other text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["subject", "content", "hs_ticket_priority"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 200\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against ticket subject and other text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["subject", "content", "hs_ticket_priority"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 200\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tickets` | array | Array of HubSpot ticket records |
+
 |   ↳ `subject` | string | Ticket subject/name |
+
 |   ↳ `content` | string | Ticket content/description |
+
 |   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+
 |   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+
 |   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+
 |   ↳ `hs_ticket_category` | string | Ticket category |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching tickets |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_notes`
 
+
 Retrieve all notes from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_note_body,hs_timestamp,hubspot_owner_id"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_note_body,hs_timestamp,hubspot_owner_id"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `notes` | array | Array of HubSpot note records |
+
 |   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+
 |   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_note`
 
+
 Retrieve a single note by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `noteId` | string | Да | The HubSpot note ID to retrieve |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_note_body,hs_timestamp,hubspot_owner_id"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
 
-#### Выходные параметры
+| `noteId` | string | Yes | The HubSpot note ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_note_body,hs_timestamp,hubspot_owner_id"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `note` | object | HubSpot note record |
+
 |   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+
 |   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `noteId` | string | The retrieved note ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_note`
 
+
 Log a note in HubSpot and optionally associate it with contacts, companies, or deals. Requires hs_timestamp and hs_note_body properties
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Note properties as JSON object. Must include "hs_timestamp" \(ISO 8601 activity time\) and "hs_note_body" \(the note text\). e.g., \{"hs_timestamp": "2026-06-13T00:00:00Z", "hs_note_body": "Followed up via phone"\} |
-| `associations` | array | Нет | Array of associations as JSON. Each object has "to.id" \(record ID\) and "types" array with "associationCategory" \("HUBSPOT_DEFINED"\) and "associationTypeId" \(202 = note→contact, 190 = note→company, 214 = note→deal\) |
 
-#### Выходные параметры
+| `properties` | object | Yes | Note properties as JSON object. Must include "hs_timestamp" \(ISO 8601 activity time\) and "hs_note_body" \(the note text\). e.g., \{"hs_timestamp": "2026-06-13T00:00:00Z", "hs_note_body": "Followed up via phone"\} |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations as JSON. Each object has "to.id" \(record ID\) and "types" array with "associationCategory" \("HUBSPOT_DEFINED"\) and "associationTypeId" \(202 = note→contact, 190 = note→company, 214 = note→deal\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `note` | object | HubSpot note record |
+
 |   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+
 |   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `noteId` | string | The created note ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_notes`
 
+
 Search for notes in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against note text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["hs_note_body", "hs_timestamp", "hubspot_owner_id"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 100\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against note text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["hs_note_body", "hs_timestamp", "hubspot_owner_id"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 100\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `notes` | array | Array of HubSpot note records |
+
 |   ↳ `hs_note_body` | string | Note text/body \(supports rich text/HTML\) |
+
 |   ↳ `hs_timestamp` | string | Note activity time \(ISO 8601\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_attachment_ids` | string | Semicolon-separated IDs of files attached to the note |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Note creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching notes |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_emails`
 
+
 Retrieve all email engagements from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_email_subject,hs_email_text,hs_timestamp"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_email_subject,hs_email_text,hs_timestamp"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `emails` | array | Array of HubSpot email engagement records |
+
 |   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+
 |   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+
 |   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+
 |   ↳ `hs_email_subject` | string | Email subject line |
+
 |   ↳ `hs_email_text` | string | Plain-text email body |
+
 |   ↳ `hs_email_html` | string | HTML email body |
+
 |   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+
 |   ↳ `hs_email_from_email` | string | Sender email address |
+
 |   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_email`
 
+
 Retrieve a single email engagement by ID from HubSpot (content requires the sales-email-read scope)
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `emailId` | string | Да | The HubSpot email engagement ID to retrieve |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_email_subject,hs_email_text,hs_timestamp"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
 
-#### Выходные параметры
+| `emailId` | string | Yes | The HubSpot email engagement ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_email_subject,hs_email_text,hs_timestamp"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies,deals"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `email` | object | HubSpot email engagement record |
+
 |   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+
 |   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+
 |   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+
 |   ↳ `hs_email_subject` | string | Email subject line |
+
 |   ↳ `hs_email_text` | string | Plain-text email body |
+
 |   ↳ `hs_email_html` | string | HTML email body |
+
 |   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+
 |   ↳ `hs_email_from_email` | string | Sender email address |
+
 |   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `emailId` | string | The retrieved email engagement ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_email`
 
+
 Log an email engagement in HubSpot and optionally associate it with contacts. Requires the hs_timestamp property
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Email properties as JSON object. Must include "hs_timestamp" \(ISO 8601\). Common fields: "hs_email_direction" \(EMAIL, INCOMING_EMAIL, FORWARDED_EMAIL\), "hs_email_status" \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\), "hs_email_subject", "hs_email_text", "hs_email_html", "hs_email_headers" \(JSON string\) |
-| `associations` | array | Нет | Array of associations as JSON. Each object has "to.id" \(record ID\) and "types" array with "associationCategory" \("HUBSPOT_DEFINED"\) and "associationTypeId" \(198 = email→contact\) |
 
-#### Выходные параметры
+| `properties` | object | Yes | Email properties as JSON object. Must include "hs_timestamp" \(ISO 8601\). Common fields: "hs_email_direction" \(EMAIL, INCOMING_EMAIL, FORWARDED_EMAIL\), "hs_email_status" \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\), "hs_email_subject", "hs_email_text", "hs_email_html", "hs_email_headers" \(JSON string\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations as JSON. Each object has "to.id" \(record ID\) and "types" array with "associationCategory" \("HUBSPOT_DEFINED"\) and "associationTypeId" \(198 = email→contact\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `email` | object | HubSpot email engagement record |
+
 |   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+
 |   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+
 |   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+
 |   ↳ `hs_email_subject` | string | Email subject line |
+
 |   ↳ `hs_email_text` | string | Plain-text email body |
+
 |   ↳ `hs_email_html` | string | HTML email body |
+
 |   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+
 |   ↳ `hs_email_from_email` | string | Sender email address |
+
 |   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `emailId` | string | The created email engagement ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_search_emails`
 
+
 Search for email engagements in HubSpot using filters, sorting, and queries
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | Нет | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
-| `sorts` | array | Нет | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | Нет | Search query string to match against email text fields |
-| `properties` | array | Нет | Array of HubSpot property names to return \(e.g., \["hs_email_subject", "hs_email_text", "hs_timestamp"\]\) |
-| `limit` | number | Нет | Maximum number of results to return \(max 100\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 
-| Параметр | Тип | Описание |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+
+| `query` | string | No | Search query string to match against email text fields |
+
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["hs_email_subject", "hs_email_text", "hs_timestamp"\]\) |
+
+| `limit` | number | No | Maximum number of results to return \(max 100\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `emails` | array | Array of HubSpot email engagement records |
+
 |   ↳ `hs_timestamp` | string | Email activity time \(ISO 8601\) |
+
 |   ↳ `hs_email_direction` | string | Direction \(EMAIL = outgoing, INCOMING_EMAIL, FORWARDED_EMAIL\) |
+
 |   ↳ `hs_email_status` | string | Send status \(SENT, SENDING, SCHEDULED, FAILED, BOUNCED\) |
+
 |   ↳ `hs_email_subject` | string | Email subject line |
+
 |   ↳ `hs_email_text` | string | Plain-text email body |
+
 |   ↳ `hs_email_html` | string | HTML email body |
+
 |   ↳ `hs_email_headers` | string | JSON-encoded from/to/cc/bcc headers |
+
 |   ↳ `hs_email_from_email` | string | Sender email address |
+
 |   ↳ `hs_email_to_email` | string | Recipient email address\(es\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Email creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `total` | number | Total number of matching emails |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_properties`
 
+
 Read property definitions and their enumeration (picklist) options for a HubSpot object type, e.g. the values for lifecyclestage or hs_lead_status on contacts
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `objectType` | string | Да | Object type to read properties for \(e.g., "contacts", "companies", "deals", "tickets", "line_items", "quotes"\) |
-| `propertyName` | string | Нет | Internal name of a single property to retrieve \(e.g., "hs_lead_status"\). Omit to return all properties for the object type |
-| `archived` | boolean | Нет | Whether to return only archived properties \(default false\) |
 
-#### Выходные параметры
+| `objectType` | string | Yes | Object type to read properties for \(e.g., "contacts", "companies", "deals", "tickets", "line_items", "quotes"\) |
 
-| Параметр | Тип | Описание |
+| `propertyName` | string | No | Internal name of a single property to retrieve \(e.g., "hs_lead_status"\). Omit to return all properties for the object type |
+
+| `archived` | boolean | No | Whether to return only archived properties \(default false\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `properties` | array | Array of HubSpot property definitions |
+
 |   ↳ `label` | string | Human-readable option label |
+
 |   ↳ `value` | string | Internal value used when setting the property |
+
 |   ↳ `displayOrder` | number | Display order \(-1 sorts last\) |
+
 |   ↳ `hidden` | boolean | Whether the option is hidden in the HubSpot UI |
+
 |   ↳ `description` | string | Option description |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of property definitions returned |
+
 |   ↳ `objectType` | string | Object type the properties belong to |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_associations`
 
+
 List records of one object type associated with a given record, e.g. all emails or notes logged on a contact
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `objectType` | string | Да | Source object type \(e.g., "contacts", "companies", "deals"\) |
-| `objectId` | string | Да | ID of the source record |
-| `toObjectType` | string | Да | Target object type to list associations to \(e.g., "emails", "notes", "deals"\) |
-| `limit` | string | Нет | Maximum number of associated records per page \(default 500\) |
-| `after` | string | Нет | Pagination cursor for next page \(from previous response\) |
 
-#### Выходные параметры
+| `objectType` | string | Yes | Source object type \(e.g., "contacts", "companies", "deals"\) |
 
-| Параметр | Тип | Описание |
+| `objectId` | string | Yes | ID of the source record |
+
+| `toObjectType` | string | Yes | Target object type to list associations to \(e.g., "emails", "notes", "deals"\) |
+
+| `limit` | string | No | Maximum number of associated records per page \(default 500\) |
+
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | Array of associated records |
+
 |   ↳ `toObjectId` | string | ID of the associated \(target\) record |
+
 |   ↳ `associationTypes` | array | Association types linking the two records |
+
 |     ↳ `category` | string | Association category \(HUBSPOT_DEFINED, USER_DEFINED, INTEGRATOR_DEFINED\) |
+
 |     ↳ `typeId` | number | Association type ID |
+
 |     ↳ `label` | string | Association label |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_association`
 
+
 Associate two HubSpot records. Creates the default (unlabeled) association unless an association type ID is provided
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `objectType` | string | Да | Source object type \(e.g., "emails", "notes", "contacts"\) |
-| `objectId` | string | Да | ID of the source record |
-| `toObjectType` | string | Да | Target object type to associate to \(e.g., "contacts", "companies", "deals"\) |
-| `toObjectId` | string | Да | ID of the target record |
-| `associationCategory` | string | Нет | Association category for a labeled association \(HUBSPOT_DEFINED, USER_DEFINED, INTEGRATOR_DEFINED\). Defaults to HUBSPOT_DEFINED when an association type ID is provided |
-| `associationTypeId` | number | Нет | Specific association type ID for a labeled association. Omit to create the default association for the object pair |
 
-#### Выходные параметры
+| `objectType` | string | Yes | Source object type \(e.g., "emails", "notes", "contacts"\) |
 
-| Параметр | Тип | Описание |
+| `objectId` | string | Yes | ID of the source record |
+
+| `toObjectType` | string | Yes | Target object type to associate to \(e.g., "contacts", "companies", "deals"\) |
+
+| `toObjectId` | string | Yes | ID of the target record |
+
+| `associationCategory` | string | No | Association category for a labeled association \(HUBSPOT_DEFINED, USER_DEFINED, INTEGRATOR_DEFINED\). Defaults to HUBSPOT_DEFINED when an association type ID is provided |
+
+| `associationTypeId` | number | No | Specific association type ID for a labeled association. Omit to create the default association for the object pair |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `fromObjectId` | string | ID of the source record |
+
 | `toObjectId` | string | ID of the associated target record |
+
 | `labels` | array | Association labels \(empty for default associations\) |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_line_items`
 
+
 Retrieve all line items from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `lineItems` | array | Array of HubSpot line item records |
+
 |   ↳ `name` | string | Line item name |
+
 |   ↳ `description` | string | Full description of the product |
+
 |   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+
 |   ↳ `quantity` | string | Number of units included |
+
 |   ↳ `price` | string | Unit price |
+
 |   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+
 |   ↳ `hs_line_item_currency_code` | string | Currency code |
+
 |   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+
 |   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+
 |   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_line_item`
 
+
 Retrieve a single line item by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `lineItemId` | string | Да | The HubSpot line item ID to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
 
-#### Выходные параметры
+| `lineItemId` | string | Yes | The HubSpot line item ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `lineItem` | object | HubSpot line item record |
+
 |   ↳ `name` | string | Line item name |
+
 |   ↳ `description` | string | Full description of the product |
+
 |   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+
 |   ↳ `quantity` | string | Number of units included |
+
 |   ↳ `price` | string | Unit price |
+
 |   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+
 |   ↳ `hs_line_item_currency_code` | string | Currency code |
+
 |   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+
 |   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+
 |   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `lineItemId` | string | The retrieved line item ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_line_item`
 
+
 Create a new line item in HubSpot. Requires at least a name property
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Line item properties as JSON object \(e.g., \{"name": "Product A", "quantity": "2", "price": "50.00", "hs_sku": "SKU-001"\}\) |
-| `associations` | array | Нет | Array of associations to create with the line item as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
-#### Выходные параметры
+| `properties` | object | Yes | Line item properties as JSON object \(e.g., \{"name": "Product A", "quantity": "2", "price": "50.00", "hs_sku": "SKU-001"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the line item as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `lineItem` | object | HubSpot line item record |
+
 |   ↳ `name` | string | Line item name |
+
 |   ↳ `description` | string | Full description of the product |
+
 |   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+
 |   ↳ `quantity` | string | Number of units included |
+
 |   ↳ `price` | string | Unit price |
+
 |   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+
 |   ↳ `hs_line_item_currency_code` | string | Currency code |
+
 |   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+
 |   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+
 |   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `lineItemId` | string | The created line item ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_line_item`
 
+
 Update an existing line item in HubSpot by ID
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `lineItemId` | string | Да | The HubSpot line item ID to update |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | object | Да | Line item properties to update as JSON object \(e.g., \{"quantity": "5", "price": "25.00"\}\) |
 
-#### Выходные параметры
+| `lineItemId` | string | Yes | The HubSpot line item ID to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | object | Yes | Line item properties to update as JSON object \(e.g., \{"quantity": "5", "price": "25.00"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `lineItem` | object | HubSpot line item record |
+
 |   ↳ `name` | string | Line item name |
+
 |   ↳ `description` | string | Full description of the product |
+
 |   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+
 |   ↳ `quantity` | string | Number of units included |
+
 |   ↳ `price` | string | Unit price |
+
 |   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+
 |   ↳ `hs_line_item_currency_code` | string | Currency code |
+
 |   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+
 |   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+
 |   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `lineItemId` | string | The updated line item ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_quotes`
 
+
 Retrieve all quotes from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `quotes` | array | Array of HubSpot quote records |
+
 |   ↳ `hs_title` | string | Quote name/title |
+
 |   ↳ `hs_expiration_date` | string | Expiration date |
+
 |   ↳ `hs_status` | string | Quote status |
+
 |   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_quote`
 
+
 Retrieve a single quote by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `quoteId` | string | Да | The HubSpot quote ID to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
 
-#### Выходные параметры
+| `quoteId` | string | Yes | The HubSpot quote ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `quote` | object | HubSpot quote record |
+
 |   ↳ `hs_title` | string | Quote name/title |
+
 |   ↳ `hs_expiration_date` | string | Expiration date |
+
 |   ↳ `hs_status` | string | Quote status |
+
 |   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `quoteId` | string | The retrieved quote ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_appointments`
 
+
 Retrieve all appointments from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_appointment_name,hs_appointment_start"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_appointment_name,hs_appointment_start"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `appointments` | array | Array of HubSpot appointment records |
+
 |   ↳ `hs_appointment_name` | string | Appointment title/name |
+
 |   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_appointment`
 
+
 Retrieve a single appointment by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `appointmentId` | string | Да | The HubSpot appointment ID to retrieve |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return \(e.g., "hs_appointment_name,hs_appointment_start"\) |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
-#### Выходные параметры
+| `appointmentId` | string | Yes | The HubSpot appointment ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_appointment_name,hs_appointment_start"\) |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `appointment` | object | HubSpot appointment record |
+
 |   ↳ `hs_appointment_name` | string | Appointment title/name |
+
 |   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `appointmentId` | string | The retrieved appointment ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_appointment`
 
+
 Create a new appointment in HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Да | Appointment properties as JSON object \(e.g., \{"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"\}\) |
-| `associations` | array | Нет | Array of associations to create with the appointment as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
 
-#### Выходные параметры
+| `properties` | object | Yes | Appointment properties as JSON object \(e.g., \{"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"\}\) |
 
-| Параметр | Тип | Описание |
+| `associations` | array | No | Array of associations to create with the appointment as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `appointment` | object | HubSpot appointment record |
+
 |   ↳ `hs_appointment_name` | string | Appointment title/name |
+
 |   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `appointmentId` | string | The created appointment ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_update_appointment`
 
+
 Update an existing appointment in HubSpot by ID
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `appointmentId` | string | Да | The HubSpot appointment ID to update |
-| `idProperty` | string | Нет | Property to use as unique identifier. If not specified, uses record ID |
-| `properties` | object | Да | Appointment properties to update as JSON object \(e.g., \{"hs_appointment_name": "Updated Call", "hs_appointment_start": "2024-01-15T10:00:00Z"\}\) |
 
-#### Выходные параметры
+| `appointmentId` | string | Yes | The HubSpot appointment ID to update |
 
-| Параметр | Тип | Описание |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+
+| `properties` | object | Yes | Appointment properties to update as JSON object \(e.g., \{"hs_appointment_name": "Updated Call", "hs_appointment_start": "2024-01-15T10:00:00Z"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `appointment` | object | HubSpot appointment record |
+
 |   ↳ `hs_appointment_name` | string | Appointment title/name |
+
 |   ↳ `hs_appointment_start` | string | Start time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_end` | string | End time \(ISO 8601\) |
+
 |   ↳ `hs_appointment_status` | string | Appointment status \(e.g., SCHEDULED\) |
+
 |   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+
 |   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+
 |   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+
 | `appointmentId` | string | The updated appointment ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_carts`
 
+
 Retrieve all carts from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `properties` | string | No | Comma-separated list of HubSpot property names to return |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `carts` | array | Array of HubSpot CRM records |
+
 |   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+
 |   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+
 |   ↳ `archived` | boolean | Whether the record is archived |
+
 |   ↳ `properties` | object | Record properties |
+
 |   ↳ `associations` | object | Associated records |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_cart`
 
+
 Retrieve a single cart by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `cartId` | string | Да | The HubSpot cart ID to retrieve |
-| `properties` | string | Нет | Comma-separated list of HubSpot property names to return |
-| `associations` | string | Нет | Comma-separated list of object types to retrieve associated IDs for |
 
-#### Выходные параметры
+| `cartId` | string | Yes | The HubSpot cart ID to retrieve |
 
-| Параметр | Тип | Описание |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return |
+
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `cart` | object | HubSpot CRM record |
+
 |   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+
 |   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+
 |   ↳ `archived` | boolean | Whether the record is archived |
+
 |   ↳ `properties` | object | Record properties |
+
 |   ↳ `associations` | object | Associated records |
+
 | `cartId` | string | The retrieved cart ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_owners`
 
+
 Retrieve all owners from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 100\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
-| `email` | string | Нет | Filter owners by email address |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+| `email` | string | No | Filter owners by email address |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `owners` | array | Array of HubSpot owner objects |
+
 |   ↳ `id` | string | Owner ID |
+
 |   ↳ `email` | string | Owner email address |
+
 |   ↳ `firstName` | string | Owner first name |
+
 |   ↳ `lastName` | string | Owner last name |
+
 |   ↳ `userId` | number | Associated user ID |
+
 |   ↳ `teams` | array | Teams the owner belongs to |
+
 |     ↳ `id` | string | Team ID |
+
 |     ↳ `name` | string | Team name |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 |   ↳ `archived` | boolean | Whether the owner is archived |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_marketing_events`
 
+
 Retrieve all marketing events from HubSpot account with pagination support
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | Нет | Maximum number of results per page \(max 100, default 10\) |
-| `after` | string | Нет | Pagination cursor for next page of results \(from previous response\) |
 
-#### Выходные параметры
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 
-| Параметр | Тип | Описание |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `events` | array | Array of HubSpot marketing event objects |
+
 |   ↳ `objectId` | string | Unique event ID \(HubSpot internal\) |
+
 |   ↳ `eventName` | string | Event name |
+
 |   ↳ `eventType` | string | Event type |
+
 |   ↳ `eventStatus` | string | Event status |
+
 |   ↳ `eventDescription` | string | Event description |
+
 |   ↳ `eventUrl` | string | Event URL |
+
 |   ↳ `eventOrganizer` | string | Event organizer |
+
 |   ↳ `startDateTime` | string | Start date/time \(ISO 8601\) |
+
 |   ↳ `endDateTime` | string | End date/time \(ISO 8601\) |
+
 |   ↳ `eventCancelled` | boolean | Whether event is cancelled |
+
 |   ↳ `eventCompleted` | boolean | Whether event is completed |
+
 |   ↳ `registrants` | number | Number of registrants |
+
 |   ↳ `attendees` | number | Number of attendees |
+
 |   ↳ `cancellations` | number | Number of cancellations |
+
 |   ↳ `noShows` | number | Number of no-shows |
+
 |   ↳ `externalEventId` | string | External event ID |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_marketing_event`
 
+
 Retrieve a single marketing event by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `eventId` | string | Да | The HubSpot marketing event objectId to retrieve |
 
-#### Выходные параметры
+| `eventId` | string | Yes | The HubSpot marketing event objectId to retrieve |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `event` | object | HubSpot marketing event |
+
 |   ↳ `objectId` | string | Unique event ID \(HubSpot internal\) |
+
 |   ↳ `eventName` | string | Event name |
+
 |   ↳ `eventType` | string | Event type |
+
 |   ↳ `eventStatus` | string | Event status |
+
 |   ↳ `eventDescription` | string | Event description |
+
 |   ↳ `eventUrl` | string | Event URL |
+
 |   ↳ `eventOrganizer` | string | Event organizer |
+
 |   ↳ `startDateTime` | string | Start date/time \(ISO 8601\) |
+
 |   ↳ `endDateTime` | string | End date/time \(ISO 8601\) |
+
 |   ↳ `eventCancelled` | boolean | Whether event is cancelled |
+
 |   ↳ `eventCompleted` | boolean | Whether event is completed |
+
 |   ↳ `registrants` | number | Number of registrants |
+
 |   ↳ `attendees` | number | Number of attendees |
+
 |   ↳ `cancellations` | number | Number of cancellations |
+
 |   ↳ `noShows` | number | Number of no-shows |
+
 |   ↳ `externalEventId` | string | External event ID |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 | `eventId` | string | The retrieved marketing event ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_list_lists`
 
+
 Search and retrieve lists from HubSpot account
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Нет | Search query to filter lists by name. Leave empty to return all lists. |
-| `count` | string | Нет | Maximum number of results to return \(default 20, max 500\) |
-| `offset` | string | Нет | Pagination offset for next page of results \(use the offset value from previous response\) |
 
-#### Выходные параметры
+| `query` | string | No | Search query to filter lists by name. Leave empty to return all lists. |
 
-| Параметр | Тип | Описание |
+| `count` | string | No | Maximum number of results to return \(default 20, max 500\) |
+
+| `offset` | string | No | Pagination offset for next page of results \(use the offset value from previous response\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `lists` | array | Array of HubSpot list objects |
+
 |   ↳ `listId` | string | List ID |
+
 |   ↳ `name` | string | List name |
+
 |   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+
 |   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+
 |   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+
 |   ↳ `listVersion` | number | List version number |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 | `paging` | object | Pagination information for fetching more results |
+
 |   ↳ `after` | string | Cursor for next page of results |
+
 |   ↳ `link` | string | Link to next page |
+
 | `metadata` | object | Response metadata |
+
 |   ↳ `totalReturned` | number | Number of records returned in this response |
+
 |   ↳ `hasMore` | boolean | Whether more records are available |
+
 |   ↳ `total` | number | Total number of lists matching the query |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_get_list`
 
+
 Retrieve a single list by ID from HubSpot
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `listId` | string | Да | The HubSpot list ID to retrieve |
 
-#### Выходные параметры
+| `listId` | string | Yes | The HubSpot list ID to retrieve |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `list` | object | HubSpot list |
+
 |   ↳ `listId` | string | List ID |
+
 |   ↳ `name` | string | List name |
+
 |   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+
 |   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+
 |   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+
 |   ↳ `listVersion` | number | List version number |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 | `listId` | string | The retrieved list ID |
+
 | `success` | boolean | Operation success status |
+
 
 ### `hubspot_create_list`
 
+
 Create a new list in HubSpot. Specify the object type and processing type (MANUAL or DYNAMIC)
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Да | Name of the list |
-| `objectTypeId` | string | Да | Object type ID \(e.g., "0-1" for contacts, "0-2" for companies\) |
-| `processingType` | string | Да | Processing type: "MANUAL" for static lists or "DYNAMIC" for active lists |
 
-#### Выходные параметры
+| `name` | string | Yes | Name of the list |
 
-| Параметр | Тип | Описание |
+| `objectTypeId` | string | Yes | Object type ID \(e.g., "0-1" for contacts, "0-2" for companies\) |
+
+| `processingType` | string | Yes | Processing type: "MANUAL" for static lists or "DYNAMIC" for active lists |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `list` | object | HubSpot list |
+
 |   ↳ `listId` | string | List ID |
+
 |   ↳ `name` | string | List name |
+
 |   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+
 |   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+
 |   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+
 |   ↳ `listVersion` | number | List version number |
+
 |   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+
 |   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+
 | `listId` | string | The created list ID |
+
 | `success` | boolean | Operation success status |
+
 
 
 
 ## Triggers
 
+
 A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
 
+
 ### HubSpot CRM Trigger
+
 
 Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list
 
+
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `triggerCredentials` | string | Да | Connect a HubSpot account so Sim can poll your CRM on your behalf. |
-| `objectType` | string | Да | What you want to watch. |
-| `customObjectTypeId` | string | Нет | HubSpot custom object type ID \(e.g.  |
-| `listId` | string | Нет | The HubSpot list to watch for new members. |
-| `eventType` | string | Нет | Created fires once per new record. Updated fires on any modification. Property Changed fires only when the chosen property changes value. |
-| `targetPropertyName` | string | Нет | Fires only when this specific property changes value on a record. |
-| `properties` | string | Нет | Properties to include on each record. Leave empty to use sensible defaults. Sim always includes the timestamps it needs internally. |
-| `pipelineId` | string | Нет | Restrict to a single pipeline. |
-| `stageId` | string | Нет | Restrict to a single stage within the selected pipeline. |
-| `ownerId` | string | Нет | Restrict to records owned by a specific HubSpot user. |
-| `filters` | string | Нет | JSON array of HubSpot search filters, AND-combined. Each item: \{ |
-| `maxRecordsPerPoll` | string | Нет | Soft cap on records emitted per poll \(default 50, max 1000\). Excess rolls over to the next poll. |
 
-#### Выходные параметры
+| `triggerCredentials` | string | Yes | Connect a HubSpot account so Sim can poll your CRM on your behalf. |
 
-| Параметр | Тип | Описание |
+| `objectType` | string | Yes | What you want to watch. |
+
+| `customObjectTypeId` | string | No | HubSpot custom object type ID \(e.g.  |
+
+| `listId` | string | No | The HubSpot list to watch for new members. |
+
+| `eventType` | string | No | Created fires once per new record. Updated fires on any modification. Property Changed fires only when the chosen property changes value. |
+
+| `targetPropertyName` | string | No | Fires only when this specific property changes value on a record. |
+
+| `properties` | string | No | Properties to include on each record. Leave empty to use sensible defaults. Sim always includes the timestamps it needs internally. |
+
+| `pipelineId` | string | No | Restrict to a single pipeline. |
+
+| `stageId` | string | No | Restrict to a single stage within the selected pipeline. |
+
+| `ownerId` | string | No | Restrict to records owned by a specific HubSpot user. |
+
+| `filters` | string | No | JSON array of HubSpot search filters, AND-combined. Each item: \{ |
+
+| `maxRecordsPerPoll` | string | No | Soft cap on records emitted per poll \(default 50, max 1000\). Excess rolls over to the next poll. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `objectType` | string | HubSpot object type \(contact, company, deal, ticket, custom object id, or list_membership\) |
+
 | `eventType` | string | Event type \(created, updated, property_changed, or joined\) |
+
 | `objectId` | string | HubSpot ID of the affected record \(or contact id for list memberships\) |
+
 | `occurredAt` | string | ISO timestamp of when the change happened in HubSpot |
+
 | `properties` | json | HubSpot properties on the record as a key-value object \(property internal name → value\). Default keys per object type \(override via "Properties to Fetch"\): Contact → firstname, lastname, email, phone, company, lifecyclestage, hs_lead_status, hubspot_owner_id, createdate, lastmodifieddate. Company → name, domain, industry, lifecyclestage, hubspot_owner_id, createdate, hs_lastmodifieddate. Deal → dealname, amount, dealstage, pipeline, closedate, hubspot_owner_id, createdate, hs_lastmodifieddate. Ticket → subject, content, hs_pipeline, hs_pipeline_stage, hs_ticket_priority, hubspot_owner_id, createdate, hs_lastmodifieddate. Custom and user-requested properties appear keyed by their HubSpot internal name. |
+
 | `createdAt` | string | ISO timestamp when the record was created in HubSpot |
+
 | `updatedAt` | string | ISO timestamp when the record was last updated in HubSpot |
+
 | `archived` | boolean | Whether the record is archived |
+
 | `propertyName` | string | Name of the property that changed \(property_changed events only\) |
+
 | `propertyValue` | string | New value of the changed property \(property_changed events only\) |
+
 | `previousValue` | string | Previous value before the change \(property_changed events only\) |
+
 | `listId` | string | HubSpot list ID \(list_membership events only\) |
+
 | `timestamp` | string | ISO timestamp when Sim emitted the event |
+
 

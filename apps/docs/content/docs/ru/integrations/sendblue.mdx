@@ -1,6 +1,6 @@
 ---
-title: Sendblue
-description: Отправка и получение iMessage и SMS
+title: SendBlue
+description: Send and receive iMessage and SMS
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,270 +10,482 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#008BFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-## Manual Description
+## Руководство пользователя
 
-Sendblue connects your agents to iMessage and SMS through your own dedicated phone number. Use it to text one person or a group, attach images and other media, check whether a number can receive iMessage before you send, show a typing indicator, and look up the delivery status of any message.
-
-Authentication uses a Sendblue **Ключ API ID** and **API Secret Key**, sent as the `sb-api-key-id` and `sb-api-secret-key` headers. You can find both in your [Sendblue dashboard](https://dashboard.sendblue.com). Every message is sent from one of your registered Sendblue lines, supplied as the **From Number** in E.164 format (for example `+15551234567`).
-
-**Operations**
-
-- **Send Message** — send an iMessage or SMS to a single recipient. Provide message text, a media URL, or both, and optionally apply an iMessage expressive style (celebration, fireworks, lasers, confetti, and more).
-- **Send Group Message** — send to multiple recipients at once. Pass one recipient per line; reuse the returned `group_id` to keep replying in the same thread.
-- **Evaluate Service** — check whether a number is reachable on iMessage or only SMS, so you can branch before sending.
-- **Send Typing Indicator** — show a recipient that a reply is being composed (one-to-one chats only).
-- **Получение Message** — retrieve a single message and its current status by message handle.
-
-**Triggers**
-
-- **Message Received** — fires on every inbound message. Configure it as the **Receive** webhook in your Sendblue dashboard.
-- **Message Status Updated** — fires when an outbound message changes state (`SENT`, `DELIVERED`, `ERROR`). Configure it as the **Outbound** webhook, or pass its URL per message as `status_callback`.
-
-Each trigger generates its own webhook URL — paste the matching URL into the corresponding field in your Sendblue dashboard.
-{/* MANUAL-CONTENT-END */}
-
-
-## Инструкции по использованию
-
-Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.
-
+Отправляйте iMessage и SMS отдельным лицам или группам, проверяйте поддержку iMessage для номера, отображайте индикаторы печати и отслеживайте статус сообщений с помощью Sendblue. Создавайте автоматизированные рабочие процессы на основе входящих сообщений и обновлений статуса доставки.
 
 
 ## Действия
 
+
 ### `sendblue_send_message`
 
-Send an iMessage or SMS to a single recipient via Sendblue.
 
-#### Вход
+Отправьте iMessage или SMS отдельному получателю через Sendblue.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `number` | строка | Да | Номер телефона получателя в формате E.164 (например, +19998887777) |
+
+| `from_number` | строка | Да | Один из зарегистрированных номеров Sendblue для отправки, в формате E.164 (например, +18887776666) |
+
+| `content` | строка | Нет | Содержимое сообщения. Должно быть предоставлено либо содержимое, либо URL медиафайла. |
+
+
+| `media_url` | строка | Нет | URL файла для отправки. Должно быть предоставлено либо содержимое, либо URL медиафайла. |
+
+
+| `send_style` | строка | Нет | Стиль iMessage (например, celebration, fireworks, lasers, confetti, balloons, invisible, slam) |
+
+| `status_callback` | строка | Нет | Webhook URL для отправки обновлений статуса сообщений Sendblue. |
+
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+
+
+| `status` | строка | Статус сообщения: QUEUED, SENT, DELIVERED или ERROR |
+
+
+| `message_handle` | строка | Уникальный идентификатор для отслеживания сообщения |
+
+
+
+
+| `account_email` | строка | Email учетной записи, отправившей сообщение |
+
+
+| `content` | строка | Содержимое сообщения |
+
+
+| `is_outbound` | логический | True, если это исходящее сообщение |
+
+
+| `from_number` | строка | Номер отправки |
+
+
+| `number` | строка | Номер получателя |
+
 | --------- | ---- | -------- | ----------- |
-| `number` | string | Да | Recipient phone number in E.164 format (например, +19998887777\) |
-| `from_number` | string | Да | One of your registered Sendblue phone numbers to send from, in E.164 format (например, +18887776666\) |
-| `content` | string | Нет | Message text content. Either content or media_url must be provided. |
-| `media_url` | string | Нет | URL of a media file to send. Either content or media_url must be provided. |
-| `send_style` | string | Нет | iMessage expressive style (например, celebration, fireworks, lasers, confetti, balloons, invisible, slam\). |
-| `status_callback` | string | Нет | Webhook URL that Sendblue will POST message status updates to. |
 
-#### Выход
+| `media_url` | строка | URL прикрепленного медиафайла |
 
-| Parameter | Type | Description |
+| `send_style` | строка | Примененный стиль iMessage |
+
+| `seat_id` | строка | UUID сессии, отправившей сообщение |
+
+| `sender_email` | строка | Email пользователя, отправившего сообщение |
+
+| `error_code` | число | Числовой код ошибки, если сообщение не удалось отправить |
+
+| `error_message` | строка | Сообщение об ошибке, если сообщение не удалось отправить |
+
+
+| `date_created` | строка | Дата и время создания сообщения |
+
+
+| `date_updated` | строка | Дата и время последнего обновления сообщения |
+
 | --------- | ---- | ----------- |
-| `status` | string | Message status: QUEUED, SENT, DELIVERED, or ERROR |
-| `message_handle` | string | Уникальный идентификатор for tracking the message |
-| `account_email` | string | Email of the account that sent the message |
-| `content` | string | Message content |
-| `is_outbound` | boolean | Whether this is an outbound message |
-| `from_number` | string | Sending phone number |
-| `number` | string | Recipient phone number |
-| `media_url` | string | URL of attached media |
-| `send_style` | string | iMessage expressive style applied |
-| `seat_id` | string | UUID of the seat that sent the message |
-| `sender_email` | string | Email of the seat \(user\) that sent the message |
-| `error_code` | number | Numeric error code if the message failed |
-| `error_message` | string | Сообщение об ошибке, если the message failed |
-| `date_created` | string | When the message was created |
-| `date_updated` | string | When the message was last updated |
 
 ### `sendblue_send_group_message`
 
-Send an iMessage or SMS to a group of recipients via Sendblue.
+Отправьте iMessage или SMS группе получателей через Sendblue.
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `numbers` | массив | Да | Номера телефонов получателей в формате E.164 (например, ["+19998887777", "+13334445555"]) |
+
+| `from_number` | строка | Да | Один из зарегистрированных номеров Sendblue для отправки, в формате E.164 (например, +18887776666) |
+
+| `content` | строка | Нет | Содержимое сообщения. Должно быть предоставлено либо содержимое, либо URL медиафайла. |
+
+| `media_url` | строка | Нет | URL файла для отправки. Должно быть предоставлено либо содержимое, либо URL медиафайла. |
+
+| `send_style` | строка | Нет | Стиль iMessage (например, celebration, fireworks, lasers, confetti, balloons, invisible, slam) |
+
+| `group_id` | строка | Нет | Уникальный идентификатор существующей группы для отправки. Оставьте пустым, чтобы создать новую группу. |
+
+| `status_callback` | строка | Нет | Webhook URL для отправки обновлений статуса сообщений Sendblue. |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `status` | строка | Статус сообщения: QUEUED, SENT, DELIVERED или ERROR |
+
+| `message_handle` | строка | Уникальный идентификатор для отслеживания сообщения |
+
+
+| `group_id` | строка | Идентификатор группы, в которую отправлено сообщение |
+
+
+| `participants` | массив | Номера телефонов участников группы |
+
+
+| `account_email` | строка | Email учетной записи, отправившей сообщение |
+
+
+| `content` | строка | Содержимое сообщения |
+
 | --------- | ---- | -------- | ----------- |
-| `numbers` | array | Да | Recipient phone numbers in E.164 format (например, \["+19998887777", "+13334445555"\]\) |
-| `from_number` | string | Да | One of your registered Sendblue phone numbers to send from, in E.164 format (например, +18887776666\) |
-| `content` | string | Нет | Message text content. Either content or media_url must be provided. |
-| `media_url` | string | Нет | URL of a media file to send. Either content or media_url must be provided. |
-| `send_style` | string | Нет | iMessage expressive style (например, celebration, fireworks, lasers, confetti, balloons, invisible, slam\). |
-| `group_id` | string | Нет | Уникальный идентификатор of an existing group to send to. Omit to start a new group. |
-| `status_callback` | string | Нет | Webhook URL that Sendblue will POST message status updates to. |
 
-#### Выход
+| `is_outbound` | логический | True, если это исходящее сообщение |
 
-| Parameter | Type | Description |
+| `from_number` | строка | Номер отправки |
+
+| `number` | строка | Номер получателя |
+
+| `media_url` | строка | URL прикрепленного медиафайла |
+
+| `send_style` | строка | Примененный стиль iMessage |
+
+| `seat_id` | строка | UUID сессии, отправившей сообщение |
+
+| `sender_email` | строка | Email пользователя, отправившего сообщение |
+
+
+| `error_code` | число | Числовой код ошибки, если сообщение не удалось отправить |
+
+
+| `error_message` | строка | Сообщение об ошибке, если сообщение не удалось отправить |
+
 | --------- | ---- | ----------- |
-| `status` | string | Message status: QUEUED, SENT, DELIVERED, or ERROR |
-| `message_handle` | string | Уникальный идентификатор for tracking the message |
-| `group_id` | string | Identifier of the group the message was sent to |
-| `participants` | array | Phone numbers participating in the group |
-| `account_email` | string | Email of the account that sent the message |
-| `content` | string | Message content |
-| `is_outbound` | boolean | Whether this is an outbound message |
-| `from_number` | string | Sending phone number |
-| `number` | string | Recipient phone number |
-| `media_url` | string | URL of attached media |
-| `send_style` | string | iMessage expressive style applied |
-| `seat_id` | string | UUID of the seat that sent the message |
-| `sender_email` | string | Email of the seat \(user\) that sent the message |
-| `error_code` | number | Numeric error code if the message failed |
-| `error_message` | string | Сообщение об ошибке, если the message failed |
-| `date_created` | string | When the message was created |
-| `date_updated` | string | When the message was last updated |
+
+| `date_created` | строка | Дата и время создания сообщения |
+
+| `date_updated` | строка | Дата и время последнего обновления сообщения |
 
 ### `sendblue_evaluate_service`
 
-Check whether a phone number can receive iMessage or only SMS.
+Проверьте, может ли номер принимать iMessage или только SMS.
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `number` | string | Да | Phone number to evaluate, in E.164 format (например, +19998887777\) |
+| Параметр | Тип | Требуется | Описание |
 
-#### Выход
+| `number` | строка | Да | Номер телефона для проверки, в формате E.164 (например, +19998887777) |
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `number` | string | The evaluated phone number in E.164 format |
-| `service` | string | The service the number supports: iMessage or SMS |
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `number` | строка | Проверенный номер телефона в формате E.164 |
+
+| `service` | строка | Сервис, который поддерживает номер: iMessage или SMS |
 
 ### `sendblue_send_typing_indicator`
 
-Display a typing indicator to a recipient (not supported in group chats).
+Отобразите индикатор печати для получателя (не поддерживается в групповых чатах).
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `number` | строка | Да | Номер телефона получателя в формате E.164 (например, +19998887777) |
+
+| `from_number` | строка | Нет | Ваш номер Sendblue для отправки, в формате E.164. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `status` | строка | Статус доставки индикатора печати (например, QUEUED) |
+
+
+| `status_code` | число | Числовой код статуса, возвращаемый Sendblue |
+
 | --------- | ---- | -------- | ----------- |
-| `number` | string | Да | Recipient's phone number in E.164 format (например, +19998887777\) |
-| `from_number` | string | Нет | Your Sendblue line number to send from, in E.164 format. |
 
-#### Выход
+| `number` | строка | Номер телефона получателя |
 
-| Parameter | Type | Description |
+
+| `error_message` | строка | Детальная информация об ошибке, null при успехе |
+
+
+| `error_reason` | строка | Дополнительный контекст ошибки, null при отсутствии |
+
 | --------- | ---- | ----------- |
-| `status` | string | Delivery status of the typing indicator (например, QUEUED\) |
-| `status_code` | number | Numeric status code returned by Sendblue |
-| `number` | string | The recipient phone number |
-| `error_message` | string | Error details, null on success |
 
-### `sendblue_get_message`
+| `error_detail` | строка | Подробная информация об ошибке, null при отсутствии |
 
-Получение a single message and its current status by message handle/ID.
+| `date_sent` | строка | Дата и время создания сообщения |
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `message_id` | string | Да | The message handle/ID returned when the message was sent. |
-
-#### Выход
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `status` | string | Current message status |
-| `message_handle` | string | Unique message identifier |
-| `account_email` | string | Email of the account |
-| `content` | string | Message content |
-| `is_outbound` | boolean | Указывает,  message is outbound |
-| `from_number` | string | Sending phone number |
-| `number` | string | Recipient phone number |
-| `to_number` | string | Destination phone number |
-| `media_url` | string | URL of attached media |
-| `message_type` | string | Message category: message or group |
-| `service` | string | Messaging service: iMessage, SMS, or RCS |
-| `group_id` | string | Group identifier \(empty for non-group\) |
-| `group_display_name` | string | Group chat name |
-| `participants` | array | Participant phone numbers |
-| `send_style` | string | Expressive style applied |
-| `was_downgraded` | boolean | True if the recipient lacks iMessage support |
-| `opted_out` | boolean | True if the recipient has opted out |
-| `plan` | string | Account plan type |
-| `sendblue_number` | string | Sendblue phone number used |
-| `seat_id` | string | Seat UUID |
-| `sender_email` | string | Email of the sending seat |
-| `error_code` | number | Numeric error code if failed |
-| `error_message` | string | Сообщение об ошибке, если failed |
-| `error_reason` | string | Additional error context |
-| `error_detail` | string | Detailed error information |
-| `date_sent` | string | ISO 8601 creation timestamp |
-| `date_updated` | string | ISO 8601 last-update timestamp |
-
+| `date_updated` | строка | Дата и время последнего обновления сообщения |
 
 
 ## Триггеры
 
-**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+
+Триггер — это блок, который запускает рабочий процесс при возникновении события в этом сервисе.
+
 
 ### Sendblue Message Received
 
+| --------- | ---- | -------- | ----------- |
+
+Запускается каждый раз, когда поступает входящее iMessage или SMS в Sendblue
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `account_email` | строка | Email учетной записи Sendblue |
+
+| --------- | ---- | ----------- |
+
+| `content` | строка | Содержимое сообщения |
+
+| `media_url` | строка | CDN-ссылка на прикрепленный медиафайл, если есть |
+
+| `is_outbound` | логический | True для исходящих сообщений, false для входящих |
+
+| `status` | строка | Статус сообщения (например, RECEIVED, QUEUED, SENT, DELIVERED, ERROR) |
+
+
+| `error_code` | число | Числовой код ошибки, если сообщение не удалось отправить |
+
+
+| `error_message` | строка | Описание ошибки, если сообщение не удалось отправить |
+
+
+| `error_reason` | строка | Дополнительный контекст ошибки, если нет |
+
+
+| `error_detail` | строка | Подробная информация об ошибке, если нет |
+
+| --------- | ---- | -------- | ----------- |
+
+| `message_handle` | строка | Уникальный идентификатор сообщения (используйте для дедупликации) |
+
+
+| `date_sent` | строка | Дата и время создания сообщения |
+
+
+| `date_updated` | строка | Дата и время последнего обновления сообщения |
+
+| --------- | ---- | ----------- |
+
+| `from_number` | строка | Номер отправки в формате E.164 |
+
+| `number` | строка | Номер получателя в формате E.164 |
+
+| `to_number` | строка | Номер назначения в формате E.164 |
+
+| `was_downgraded` | логический | True, если номер не поддерживает iMessage |
+
+| `plan` | строка | Тип плана учетной записи |
+
+| `message_type` | строка | Категория сообщения (например, message, group) |
+
+| `group_id` | строка | Идентификатор группы, если это групповое сообщение, иначе пустая строка |
+
+| `participants` | массив | Номера телефонов участников группы |
+
+| `send_style` | строка | Примененный стиль iMessage |
+
+| `opted_out` | логический | True, если получатель отключился от получения сообщений |
+
+| `sendblue_number` | строка | Номер Sendblue, используемый для отправки |
+
+| `service` | строка | Сервис (iMessage или SMS) |
+
+| `group_display_name` | строка | Имя группового чата, если это групповое сообщение, иначе null |
+
+| `sender_email` | строка | Email пользователя, отправившего сообщение |
+
+| `seat_id` | строка | UUID сессии, отправившей сообщение, если есть |
+
+| `raw` | строка | Полный JSON-объект webhook от Sendblue |
+---
+
+| `opted_out` | boolean | True if the recipient has opted out |
+
+| `plan` | string | Account plan type |
+
+| `sendblue_number` | string | Sendblue phone number used |
+
+| `seat_id` | string | Seat UUID |
+
+| `sender_email` | string | Email of the sending seat |
+
+| `error_code` | number | Numeric error code if failed |
+
+| `error_message` | string | Error message if failed |
+
+| `error_reason` | string | Additional error context |
+
+| `error_detail` | string | Detailed error information |
+
+| `date_sent` | string | ISO 8601 creation timestamp |
+
+| `date_updated` | string | ISO 8601 last-update timestamp |
+
+
+
+
+## Triggers
+
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+
+### Sendblue Message Received
+
+
 Trigger when an inbound iMessage or SMS is received in Sendblue
 
-#### Выход
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account_email` | string | Email of the Sendblue account |
+
 | `content` | string | Message text content |
+
 | `media_url` | string | CDN link to attached media, if any |
+
 | `is_outbound` | boolean | True for outbound messages, false for inbound |
-| `status` | string | Message status (например, RECEIVED, QUEUED, SENT, DELIVERED, ERROR\) |
+
+| `status` | string | Message status \(e.g., RECEIVED, QUEUED, SENT, DELIVERED, ERROR\) |
+
 | `error_code` | number | Error identifier, null if none |
+
 | `error_message` | string | Descriptive error text, null if none |
+
 | `error_reason` | string | Additional error context, null if none |
+
 | `error_detail` | string | Detailed error information, null if none |
+
 | `message_handle` | string | Sendblue message identifier \(use to deduplicate\) |
+
 | `date_sent` | string | ISO 8601 creation timestamp |
+
 | `date_updated` | string | ISO 8601 last-update timestamp |
+
 | `from_number` | string | E.164 sender phone number |
+
 | `number` | string | E.164 recipient/counterparty phone number |
+
 | `to_number` | string | E.164 destination phone number |
+
 | `was_downgraded` | boolean | True if the recipient lacks iMessage support |
+
 | `plan` | string | Account plan type |
-| `message_type` | string | Message category (например, message, group\) |
+
+| `message_type` | string | Message category \(e.g., message, group\) |
+
 | `group_id` | string | Group identifier, empty for non-group messages |
+
 | `participants` | array | Participant phone numbers for group messages |
+
 | `send_style` | string | Expressive style if applied |
+
 | `opted_out` | boolean | True if the recipient has opted out |
+
 | `sendblue_number` | string | Sendblue phone number used |
+
 | `service` | string | Messaging service \(iMessage or SMS\) |
+
 | `group_display_name` | string | Group chat name, null for non-group messages |
+
 | `sender_email` | string | Email of the user who sent the message |
+
 | `seat_id` | string | Seat UUID, null if absent |
+
 | `raw` | string | Complete raw webhook payload from Sendblue as a JSON string |
+
 
 
 ---
 
+
 ### Sendblue Message Status Updated
+
 
 Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue
 
-#### Выход
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account_email` | string | Email of the Sendblue account |
+
 | `content` | string | Message text content |
+
 | `media_url` | string | CDN link to attached media, if any |
+
 | `is_outbound` | boolean | True for outbound messages, false for inbound |
-| `status` | string | Message status (например, RECEIVED, QUEUED, SENT, DELIVERED, ERROR\) |
+
+| `status` | string | Message status \(e.g., RECEIVED, QUEUED, SENT, DELIVERED, ERROR\) |
+
 | `error_code` | number | Error identifier, null if none |
+
 | `error_message` | string | Descriptive error text, null if none |
+
 | `error_reason` | string | Additional error context, null if none |
+
 | `error_detail` | string | Detailed error information, null if none |
+
 | `message_handle` | string | Sendblue message identifier \(use to deduplicate\) |
+
 | `date_sent` | string | ISO 8601 creation timestamp |
+
 | `date_updated` | string | ISO 8601 last-update timestamp |
+
 | `from_number` | string | E.164 sender phone number |
+
 | `number` | string | E.164 recipient/counterparty phone number |
+
 | `to_number` | string | E.164 destination phone number |
+
 | `was_downgraded` | boolean | True if the recipient lacks iMessage support |
+
 | `plan` | string | Account plan type |
-| `message_type` | string | Message category (например, message, group\) |
+
+| `message_type` | string | Message category \(e.g., message, group\) |
+
 | `group_id` | string | Group identifier, empty for non-group messages |
+
 | `participants` | array | Participant phone numbers for group messages |
+
 | `send_style` | string | Expressive style if applied |
+
 | `opted_out` | boolean | True if the recipient has opted out |
+
 | `sendblue_number` | string | Sendblue phone number used |
+
 | `service` | string | Messaging service \(iMessage or SMS\) |
+
 | `group_display_name` | string | Group chat name, null for non-group messages |
+
 | `sender_email` | string | Email of the user who sent the message |
+
 | `seat_id` | string | Seat UUID, null if absent |
+
 | `raw` | string | Complete raw webhook payload from Sendblue as a JSON string |
+
 

@@ -1,6 +1,6 @@
 ---
 title: AWS AppConfig
-description: Управление и получение конфигурации с помощью AWS AppConfig
+description: Manage and retrieve configuration with AWS AppConfig
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,684 +10,1206 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[AWS AppConfig](https://docs.aws.amazon.com/appconfig/) — это возможность AWS Systems Manager, которая позволяет создавать, управлять и развёртывать конфигурацию приложений и флаги функций независимо от вашего кода. Вы организуете конфигурацию в приложения, окружения и профили конфигурации, храните версионные данные конфигурации и разворачиваете их постепенно с помощью стратегий развёртывания, которые могут отслеживать и автоматически откатывать при ошибках.
 
-С помощью интеграции AppConfig вы можете:
 
-- **Получать конфигурацию**: Извлекать последнюю развёрнутую конфигурацию для приложения, окружения и профиля во время выполнения, используя плоскость данных AppConfig для управления флагами функций и динамическими настройками в ваших рабочих процессах
-- **Управлять приложениями**: Просматривать существующие приложения или создавать новые для группировки связанной конфигурации
-- **Управлять окружениями**: Просматривать или создавать окружения \(такие как `development`, `staging` и `production`\), в которые разворачивается конфигурация
-- **Управлять профилями конфигурации**: Просматривать или создавать профили, описывающие, где хранится конфигурация — размещённая в AppConfig, SSM или S3 — и является ли она свободной формой или профилем флагов функций
-- **Версионировать размещённую конфигурацию**: Создавать новую версию размещённой конфигурации из JSON, YAML или текстового документа или читать содержимое конкретной версии
-- **Выполнять развёртывания**: Запускать развёртывание версии конфигурации в окружение с выбранной стратегией развёртывания, проверять статус и историю развёртывания, а также останавливать выполняющееся развёртывание
 
-В Sim интеграция AppConfig позволяет вашим агентам читать актуальную конфигурацию для ветвления поведения, публиковать новые версии конфигурации и оркестрировать безопасные, постепенные развёртывания. Это естественно сочетается с CloudWatch для мониторинга состояния развёртывания и Slack для шлюзов утверждения и оповещений о развёртывании, обеспечивая сквозную автоматизацию конфигурации и флагов функций.
+[AWS AppConfig](https://docs.aws.amazon.com/appconfig/) is a capability of AWS Systems Manager that lets you create, manage, and deploy application configuration and feature flags independently of your code. You organize configuration into applications, environments, and configuration profiles, store versioned configuration data, and roll it out gradually with deployment strategies that can monitor and automatically roll back on errors.
 
-Аутентификация использует AWS access key ID и secret access key. Связанный принципал IAM должен иметь соответствующие разрешения `appconfig:*` \(например, `appconfig:GetLatestConfiguration` и `appconfig:StartConfigurationSession` для получения и `appconfig:StartDeployment` для развёртываний\).
+
+With the AppConfig integration, you can:
+
+
+- **Get Configuration**: Retrieve the latest deployed configuration for an application, environment, and profile at runtime, using the AppConfig Data plane to drive feature flags and dynamic settings in your workflows
+
+- **Manage Applications**: List existing applications or create a new one to group related configuration
+
+- **Manage Environments**: List or create the environments (such as `development`, `staging`, and `production`) that configuration is deployed to
+
+- **Manage Configuration Profiles**: List or create the profiles that describe where configuration is stored — AppConfig-hosted, SSM, or S3 — and whether it is freeform or a feature-flag profile
+
+- **Version Hosted Configuration**: Create a new hosted configuration version from a JSON, YAML, or text document, or read back a specific version's content
+
+- **Run Deployments**: Start a deployment of a configuration version to an environment with a chosen deployment strategy, inspect deployment status and history, and stop an in-progress deployment
+
+
+In Sim, the AppConfig integration lets your agents read live configuration to branch behavior, publish new configuration versions, and orchestrate safe, gradual rollouts. This pairs naturally with CloudWatch for monitoring deployment health and Slack for approval gates and rollout alerts, enabling end-to-end configuration and feature-flag automation.
+
+
+Authentication uses an AWS access key ID and secret access key. The associated IAM principal needs the relevant `appconfig:*` permissions (for example `appconfig:GetLatestConfiguration` and `appconfig:StartConfigurationSession` for retrieval, and `appconfig:StartDeployment` for rollouts).
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Usage Instructions
 
-Интегрируйте AWS AppConfig в рабочие процессы. Управляйте приложениями, окружениями и профилями конфигурации, создавайте и читайте версии размещённой конфигурации, выполняйте и проверяйте развёртывания, а также получайте последнюю развёрнутую конфигурацию во время выполнения. Требуется AWS access key и secret access key.
+
+Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.
+
 
 
 
 ## Actions
 
+
 ### `appconfig_get_configuration`
 
-Получить последнюю развёрнутую конфигурацию для приложения, окружения и профиля AppConfig
+
+Retrieve the latest deployed configuration for an AppConfig application, environment, and profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID или имя приложения для получения конфигурации |
-| `environmentId` | string | Yes | ID или имя окружения для получения конфигурации |
-| `configurationProfileId` | string | Yes | ID или имя профиля конфигурации для получения |
+
+| `applicationId` | string | Yes | The application ID or name to retrieve configuration for |
+
+| `environmentId` | string | Yes | The environment ID or name to retrieve configuration for |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID or name to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `configuration` | string | Содержимое развёрнутой конфигурации |
-| `contentType` | string | Тип содержимого конфигурации |
-| `versionLabel` | string | Метка полученной версии конфигурации |
+
+| `configuration` | string | The deployed configuration content |
+
+| `contentType` | string | Content type of the configuration |
+
+| `versionLabel` | string | Label of the retrieved configuration version |
+
 
 ### `appconfig_list_applications`
 
-Показать приложения в AWS AppConfig
+
+List applications in AWS AppConfig
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `maxResults` | number | No | Максимальное количество возвращаемых приложений \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `maxResults` | number | No | Maximum number of applications to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `applications` | array | Список приложений AppConfig |
-|   ↳ `id` | string | ID приложения |
-|   ↳ `name` | string | Имя приложения |
-|   ↳ `description` | string | Описание приложения |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых приложений |
+
+| `applications` | array | List of AppConfig applications |
+
+|   ↳ `id` | string | Application ID |
+
+|   ↳ `name` | string | Application name |
+
+|   ↳ `description` | string | Application description |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of applications returned |
+
 
 ### `appconfig_create_application`
 
-Создать приложение в AWS AppConfig
+
+Create an application in AWS AppConfig
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `name` | string | Yes | Имя создаваемого приложения |
-| `description` | string | No | Описание приложения |
+
+| `name` | string | Yes | Name of the application to create |
+
+| `description` | string | No | Description of the application |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `id` | string | ID созданного приложения |
-| `name` | string | Имя созданного приложения |
-| `description` | string | Описание созданного приложения |
+
+| `message` | string | Operation status message |
+
+| `id` | string | ID of the created application |
+
+| `name` | string | Name of the created application |
+
+| `description` | string | Description of the created application |
+
 
 ### `appconfig_get_application`
 
-Получить сведения об одном приложении AWS AppConfig
+
+Get details about a single AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения для получения |
+
+| `applicationId` | string | Yes | The application ID to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `id` | string | ID приложения |
-| `name` | string | Имя приложения |
-| `description` | string | Описание приложения |
+
+| `id` | string | Application ID |
+
+| `name` | string | Application name |
+
+| `description` | string | Application description |
+
 
 ### `appconfig_update_application`
 
-Обновить имя или описание приложения AWS AppConfig
+
+Update the name or description of an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения для обновления |
-| `name` | string | No | Новое имя приложения |
-| `description` | string | No | Новое описание приложения |
+
+| `applicationId` | string | Yes | The application ID to update |
+
+| `name` | string | No | New name for the application |
+
+| `description` | string | No | New description for the application |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `id` | string | ID обновлённого приложения |
-| `name` | string | Имя обновлённого приложения |
-| `description` | string | Описание обновлённого приложения |
+
+| `message` | string | Operation status message |
+
+| `id` | string | ID of the updated application |
+
+| `name` | string | Name of the updated application |
+
+| `description` | string | Description of the updated application |
+
 
 ### `appconfig_delete_application`
 
-Удалить приложение AWS AppConfig
+
+Delete an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения для удаления |
+
+| `applicationId` | string | Yes | The application ID to delete |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `id` | string | ID удалённого приложения |
+
+| `message` | string | Operation status message |
+
+| `id` | string | ID of the deleted application |
+
 
 ### `appconfig_list_environments`
 
-Показать окружения для приложения AWS AppConfig
+
+List environments for an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежат окружения |
-| `maxResults` | number | No | Максимальное количество возвращаемых окружений \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `applicationId` | string | Yes | The application ID that owns the environments |
+
+| `maxResults` | number | No | Maximum number of environments to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `environments` | array | Список окружений AppConfig |
-|   ↳ `applicationId` | string | ID приложения-владельца |
-|   ↳ `id` | string | ID окружения |
-|   ↳ `name` | string | Имя окружения |
-|   ↳ `description` | string | Описание окружения |
-|   ↳ `state` | string | Состояние окружения |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых окружений |
+
+| `environments` | array | List of AppConfig environments |
+
+|   ↳ `applicationId` | string | Owning application ID |
+
+|   ↳ `id` | string | Environment ID |
+
+|   ↳ `name` | string | Environment name |
+
+|   ↳ `description` | string | Environment description |
+
+|   ↳ `state` | string | Environment state |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of environments returned |
+
 
 ### `appconfig_create_environment`
 
-Создать окружение для приложения AWS AppConfig
+
+Create an environment for an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, в котором создать окружение |
-| `name` | string | Yes | Имя создаваемого окружения |
-| `description` | string | No | Описание окружения |
+
+| `applicationId` | string | Yes | The application ID to create the environment in |
+
+| `name` | string | Yes | Name of the environment to create |
+
+| `description` | string | No | Description of the environment |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID созданного окружения |
-| `name` | string | Имя созданного окружения |
-| `state` | string | Состояние созданного окружения |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the created environment |
+
+| `name` | string | Name of the created environment |
+
+| `state` | string | State of the created environment |
+
 
 ### `appconfig_get_environment`
 
-Получить сведения об одном окружении AWS AppConfig
+
+Get details about a single AWS AppConfig environment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит окружение |
-| `environmentId` | string | Yes | ID окружения для получения |
+
+| `applicationId` | string | Yes | The application ID that owns the environment |
+
+| `environmentId` | string | Yes | The environment ID to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID окружения |
-| `name` | string | Имя окружения |
-| `description` | string | Описание окружения |
-| `state` | string | Состояние окружения |
-| `monitors` | array | Алармы CloudWatch, отслеживающие это окружение |
-|   ↳ `alarmArn` | string | ARN аларма CloudWatch |
-|   ↳ `alarmRoleArn` | string | ARN роли IAM для аларма |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | Environment ID |
+
+| `name` | string | Environment name |
+
+| `description` | string | Environment description |
+
+| `state` | string | Environment state |
+
+| `monitors` | array | CloudWatch alarms monitoring this environment |
+
+|   ↳ `alarmArn` | string | CloudWatch alarm ARN |
+
+|   ↳ `alarmRoleArn` | string | IAM role ARN for the alarm |
+
 
 ### `appconfig_update_environment`
 
-Обновить имя или описание окружения AWS AppConfig
+
+Update the name or description of an AWS AppConfig environment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит окружение |
-| `environmentId` | string | Yes | ID окружения для обновления |
-| `name` | string | No | Новое имя окружения |
-| `description` | string | No | Новое описание окружения |
+
+| `applicationId` | string | Yes | The application ID that owns the environment |
+
+| `environmentId` | string | Yes | The environment ID to update |
+
+| `name` | string | No | New name for the environment |
+
+| `description` | string | No | New description for the environment |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID обновлённого окружения |
-| `name` | string | Имя обновлённого окружения |
-| `state` | string | Состояние обновлённого окружения |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the updated environment |
+
+| `name` | string | Name of the updated environment |
+
+| `state` | string | State of the updated environment |
+
 
 ### `appconfig_delete_environment`
 
-Удалить окружение AWS AppConfig
+
+Delete an AWS AppConfig environment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит окружение |
-| `environmentId` | string | Yes | ID окружения для удаления |
+
+| `applicationId` | string | Yes | The application ID that owns the environment |
+
+| `environmentId` | string | Yes | The environment ID to delete |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID удалённого окружения |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the deleted environment |
+
 
 ### `appconfig_list_configuration_profiles`
 
-Показать профили конфигурации для приложения AWS AppConfig
+
+List configuration profiles for an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежат профили конфигурации |
-| `maxResults` | number | No | Максимальное количество возвращаемых профилей \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profiles |
+
+| `maxResults` | number | No | Maximum number of configuration profiles to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `configurationProfiles` | array | Список профилей конфигурации AppConfig |
-|   ↳ `applicationId` | string | ID приложения-владельца |
-|   ↳ `id` | string | ID профиля конфигурации |
-|   ↳ `name` | string | Имя профиля конфигурации |
-|   ↳ `locationUri` | string | URI расположения конфигурации |
-|   ↳ `type` | string | Тип профиля \(например, AWS.Freeform\) |
-|   ↳ `validatorTypes` | array | Настроенные типы валидаторов |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых профилей конфигурации |
+
+| `configurationProfiles` | array | List of AppConfig configuration profiles |
+
+|   ↳ `applicationId` | string | Owning application ID |
+
+|   ↳ `id` | string | Configuration profile ID |
+
+|   ↳ `name` | string | Configuration profile name |
+
+|   ↳ `locationUri` | string | Location URI of the config |
+
+|   ↳ `type` | string | Profile type \(e.g., AWS.Freeform\) |
+
+|   ↳ `validatorTypes` | array | Validator types configured |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of configuration profiles returned |
+
 
 ### `appconfig_create_configuration_profile`
 
-Создать профиль конфигурации в приложении AWS AppConfig
+
+Create a configuration profile in an AWS AppConfig application
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, в котором создать профиль конфигурации |
-| `name` | string | Yes | Имя профиля конфигурации |
-| `locationUri` | string | Yes | Где хранится конфигурация. Используйте "hosted" для размещённых в AppConfig конфигураций или URI SSM/S3 |
-| `description` | string | No | Описание профиля конфигурации |
-| `retrievalRoleArn` | string | No | ARN роли IAM для получения конфигурации \(обязателен для неразмещённых URI\) |
-| `type` | string | No | Тип профиля: AWS.Freeform \(по умолчанию\) или AWS.AppConfig.FeatureFlags |
+
+| `applicationId` | string | Yes | The application ID to create the configuration profile in |
+
+| `name` | string | Yes | Name of the configuration profile |
+
+| `locationUri` | string | Yes | Where the configuration is stored. Use "hosted" for AppConfig-hosted configurations, or an SSM/S3 URI |
+
+| `description` | string | No | Description of the configuration profile |
+
+| `retrievalRoleArn` | string | No | ARN of an IAM role to retrieve the configuration \(required for non-hosted URIs\) |
+
+| `type` | string | No | Profile type: AWS.Freeform \(default\) or AWS.AppConfig.FeatureFlags |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID созданного профиля конфигурации |
-| `name` | string | Имя созданного профиля конфигурации |
-| `locationUri` | string | URI расположения конфигурации |
-| `type` | string | Тип профиля |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the created configuration profile |
+
+| `name` | string | Name of the created configuration profile |
+
+| `locationUri` | string | Location URI of the config |
+
+| `type` | string | Profile type |
+
 
 ### `appconfig_get_configuration_profile`
 
-Получить сведения об одном профиле конфигурации AWS AppConfig
+
+Get details about a single AWS AppConfig configuration profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для получения |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID профиля конфигурации |
-| `name` | string | Имя профиля конфигурации |
-| `description` | string | Описание профиля |
-| `locationUri` | string | URI расположения конфигурации |
-| `retrievalRoleArn` | string | ARN роли IAM для получения |
-| `type` | string | Тип профиля \(например, AWS.Freeform\) |
-| `validators` | array | Валидаторы, настроенные в профиле |
-|   ↳ `type` | string | Тип валидатора \(JSON_SCHEMA или LAMBDA\) |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | Configuration profile ID |
+
+| `name` | string | Configuration profile name |
+
+| `description` | string | Profile description |
+
+| `locationUri` | string | Location URI of the config |
+
+| `retrievalRoleArn` | string | IAM retrieval role ARN |
+
+| `type` | string | Profile type \(e.g., AWS.Freeform\) |
+
+| `validators` | array | Validators configured on the profile |
+
+|   ↳ `type` | string | Validator type \(JSON_SCHEMA or LAMBDA\) |
+
 
 ### `appconfig_update_configuration_profile`
 
-Обновить имя, описание или роль получения профиля конфигурации AppConfig
+
+Update the name, description, or retrieval role of an AppConfig configuration profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для обновления |
-| `name` | string | No | Новое имя профиля конфигурации |
-| `description` | string | No | Новое описание профиля конфигурации |
-| `retrievalRoleArn` | string | No | Новый ARN роли IAM, используемой для получения конфигурации |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to update |
+
+| `name` | string | No | New name for the configuration profile |
+
+| `description` | string | No | New description for the configuration profile |
+
+| `retrievalRoleArn` | string | No | New ARN of the IAM role used to retrieve the configuration |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID обновлённого профиля конфигурации |
-| `name` | string | Имя обновлённого профиля конфигурации |
-| `description` | string | Описание профиля |
-| `type` | string | Тип профиля |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the updated configuration profile |
+
+| `name` | string | Name of the updated configuration profile |
+
+| `description` | string | Description of the profile |
+
+| `type` | string | Profile type |
+
 
 ### `appconfig_delete_configuration_profile`
 
-Удалить профиль конфигурации AWS AppConfig
+
+Delete an AWS AppConfig configuration profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для удаления |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to delete |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `id` | string | ID удалённого профиля конфигурации |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `id` | string | ID of the deleted configuration profile |
+
 
 ### `appconfig_create_hosted_configuration_version`
 
-Создать новую версию размещённой конфигурации для профиля конфигурации AppConfig
+
+Create a new hosted configuration version for an AppConfig configuration profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для добавления версии |
-| `content` | string | Yes | Содержимое конфигурации \(например, JSON или YAML документ\) |
-| `contentType` | string | Yes | Тип содержимого конфигурации \(например, application/json, text/plain\) |
-| `description` | string | No | Описание версии конфигурации |
-| `latestVersionNumber` | number | No | Номер последней версии, используется для оптимистичного контроля параллелизма |
-| `versionLabel` | string | No | Пользовательская метка для версии конфигурации |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to add the version to |
+
+| `content` | string | Yes | The configuration content \(e.g., a JSON or YAML document\) |
+
+| `contentType` | string | Yes | Content type of the configuration \(e.g., application/json, text/plain\) |
+
+| `description` | string | No | Description of the configuration version |
+
+| `latestVersionNumber` | number | No | The version number of the latest version, used for optimistic concurrency |
+
+| `versionLabel` | string | No | A user-defined label for the configuration version |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `configurationProfileId` | string | ID профиля конфигурации-владельца |
-| `versionNumber` | number | Номер созданной версии конфигурации |
-| `contentType` | string | Тип содержимого конфигурации |
-| `versionLabel` | string | Метка версии конфигурации |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `configurationProfileId` | string | Owning configuration profile ID |
+
+| `versionNumber` | number | Version number of the created configuration |
+
+| `contentType` | string | Content type of the configuration |
+
+| `versionLabel` | string | Label of the configuration version |
+
 
 ### `appconfig_get_hosted_configuration_version`
 
-Получить конкретную версию размещённой конфигурации из профиля AppConfig
+
+Retrieve a specific hosted configuration version from an AppConfig profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для чтения версии |
-| `versionNumber` | number | Yes | Номер версии для получения |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to read the version from |
+
+| `versionNumber` | number | Yes | The version number to retrieve |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `applicationId` | string | ID приложения-владельца |
-| `configurationProfileId` | string | ID профиля конфигурации-владельца |
-| `versionNumber` | number | Номер версии |
-| `description` | string | Описание версии |
-| `content` | string | Содержимое конфигурации |
-| `contentType` | string | Тип содержимого конфигурации |
-| `versionLabel` | string | Метка версии конфигурации |
+
+| `applicationId` | string | Owning application ID |
+
+| `configurationProfileId` | string | Owning configuration profile ID |
+
+| `versionNumber` | number | Version number |
+
+| `description` | string | Description of the version |
+
+| `content` | string | The configuration content |
+
+| `contentType` | string | Content type of the configuration |
+
+| `versionLabel` | string | Label of the configuration version |
+
 
 ### `appconfig_list_hosted_configuration_versions`
 
-Показать версии размещённой конфигурации для профиля конфигурации AWS AppConfig
+
+List hosted configuration versions for an AWS AppConfig configuration profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для показа версий |
-| `maxResults` | number | No | Максимальное количество возвращаемых версий \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to list versions for |
+
+| `maxResults` | number | No | Maximum number of versions to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `versions` | array | Список версий размещённой конфигурации |
-|   ↳ `applicationId` | string | ID приложения-владельца |
-|   ↳ `configurationProfileId` | string | ID профиля конфигурации-владельца |
-|   ↳ `versionNumber` | number | Номер версии |
-|   ↳ `description` | string | Описание версии |
-|   ↳ `contentType` | string | Тип содержимого конфигурации |
-|   ↳ `versionLabel` | string | Метка версии конфигурации |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых версий |
+
+| `versions` | array | List of hosted configuration versions |
+
+|   ↳ `applicationId` | string | Owning application ID |
+
+|   ↳ `configurationProfileId` | string | Owning configuration profile ID |
+
+|   ↳ `versionNumber` | number | Version number |
+
+|   ↳ `description` | string | Description of the version |
+
+|   ↳ `contentType` | string | Content type of the configuration |
+
+|   ↳ `versionLabel` | string | Label of the configuration version |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of versions returned |
+
 
 ### `appconfig_delete_hosted_configuration_version`
 
-Удалить конкретную версию размещённой конфигурации из профиля AppConfig
+
+Delete a specific hosted configuration version from an AppConfig profile
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения, которому принадлежит профиль конфигурации |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации, которому принадлежит версия |
-| `versionNumber` | number | Yes | Номер версии для удаления |
+
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID that owns the version |
+
+| `versionNumber` | number | Yes | The version number to delete |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `applicationId` | string | ID приложения-владельца |
-| `configurationProfileId` | string | ID профиля конфигурации-владельца |
-| `versionNumber` | number | Номер удалённой версии |
+
+| `message` | string | Operation status message |
+
+| `applicationId` | string | Owning application ID |
+
+| `configurationProfileId` | string | Owning configuration profile ID |
+
+| `versionNumber` | number | Version number that was deleted |
+
 
 ### `appconfig_list_deployment_strategies`
 
-Показать стратегии развёртывания, доступные в AWS AppConfig
+
+List deployment strategies available in AWS AppConfig
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `maxResults` | number | No | Максимальное количество возвращаемых стратегий \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `maxResults` | number | No | Maximum number of deployment strategies to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deploymentStrategies` | array | Список стратегий развёртывания AppConfig |
-|   ↳ `id` | string | ID стратегии развёртывания |
-|   ↳ `name` | string | Имя стратегии развёртывания |
-|   ↳ `description` | string | Описание стратегии |
-|   ↳ `deploymentDurationInMinutes` | number | Общая длительность развёртывания в минутах |
-|   ↳ `growthType` | string | Тип роста \(LINEAR или EXPONENTIAL\) |
-|   ↳ `growthFactor` | number | Процент фактора роста |
-|   ↳ `finalBakeTimeInMinutes` | number | Финальное время выдержки в минутах |
-|   ↳ `replicateTo` | string | Куда реплицируется стратегия |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых стратегий развёртывания |
+
+| `deploymentStrategies` | array | List of AppConfig deployment strategies |
+
+|   ↳ `id` | string | Deployment strategy ID |
+
+|   ↳ `name` | string | Deployment strategy name |
+
+|   ↳ `description` | string | Strategy description |
+
+|   ↳ `deploymentDurationInMinutes` | number | Total deployment duration in minutes |
+
+|   ↳ `growthType` | string | Growth type \(LINEAR or EXPONENTIAL\) |
+
+|   ↳ `growthFactor` | number | Growth factor percentage |
+
+|   ↳ `finalBakeTimeInMinutes` | number | Final bake time in minutes |
+
+|   ↳ `replicateTo` | string | Where the strategy is replicated |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of deployment strategies returned |
+
 
 ### `appconfig_start_deployment`
 
-Начать развёртывание версии конфигурации в окружение AWS AppConfig
+
+Start deploying a configuration version to an AWS AppConfig environment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения для развёртывания |
-| `environmentId` | string | Yes | ID окружения для развёртывания |
-| `deploymentStrategyId` | string | Yes | ID стратегии развёртывания |
-| `configurationProfileId` | string | Yes | ID профиля конфигурации для развёртывания |
-| `configurationVersion` | string | Yes | Версия конфигурации для развёртывания |
-| `description` | string | No | Описание развёртывания |
+
+| `applicationId` | string | Yes | The application ID to deploy in |
+
+| `environmentId` | string | Yes | The environment ID to deploy to |
+
+| `deploymentStrategyId` | string | Yes | The deployment strategy ID to use |
+
+| `configurationProfileId` | string | Yes | The configuration profile ID to deploy |
+
+| `configurationVersion` | string | Yes | The configuration version to deploy |
+
+| `description` | string | No | Description of the deployment |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `deploymentNumber` | number | Порядковый номер развёртывания |
-| `state` | string | Текущее состояние развёртывания |
-| `percentageComplete` | number | Процент завершения развёртывания |
+
+| `message` | string | Operation status message |
+
+| `deploymentNumber` | number | Sequence number of the deployment |
+
+| `state` | string | Current deployment state |
+
+| `percentageComplete` | number | Percentage of the deployment that has completed |
+
 
 ### `appconfig_get_deployment`
 
-Получить сведения о конкретном развёртывании AWS AppConfig
+
+Get details about a specific AWS AppConfig deployment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения развёртывания |
-| `environmentId` | string | Yes | ID окружения развёртывания |
-| `deploymentNumber` | number | Yes | Порядковый номер развёртывания |
+
+| `applicationId` | string | Yes | The application ID of the deployment |
+
+| `environmentId` | string | Yes | The environment ID of the deployment |
+
+| `deploymentNumber` | number | Yes | The sequence number of the deployment |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `applicationId` | string | ID приложения |
-| `environmentId` | string | ID окружения |
-| `deploymentStrategyId` | string | ID стратегии развёртывания |
-| `configurationProfileId` | string | ID профиля конфигурации |
-| `deploymentNumber` | number | Порядковый номер развёртывания |
-| `configurationName` | string | Имя конфигурации |
-| `configurationVersion` | string | Версия конфигурации |
-| `description` | string | Описание развёртывания |
-| `state` | string | Текущее состояние развёртывания |
-| `percentageComplete` | number | Процент завершения |
-| `startedAt` | string | Когда началось развёртывание |
-| `completedAt` | string | Когда завершилось развёртывание |
+
+| `applicationId` | string | Application ID |
+
+| `environmentId` | string | Environment ID |
+
+| `deploymentStrategyId` | string | Deployment strategy ID |
+
+| `configurationProfileId` | string | Configuration profile ID |
+
+| `deploymentNumber` | number | Deployment sequence number |
+
+| `configurationName` | string | Configuration name |
+
+| `configurationVersion` | string | Configuration version |
+
+| `description` | string | Deployment description |
+
+| `state` | string | Current deployment state |
+
+| `percentageComplete` | number | Percentage completed |
+
+| `startedAt` | string | When the deployment started |
+
+| `completedAt` | string | When the deployment completed |
+
 
 ### `appconfig_list_deployments`
 
-Показать развёртывания для окружения AWS AppConfig
+
+List deployments for an AWS AppConfig environment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения развёртываний |
-| `environmentId` | string | Yes | ID окружения развёртываний |
-| `maxResults` | number | No | Максимальное количество возвращаемых развёртываний \(1-50\) |
-| `nextToken` | string | No | Токен пагинации из предыдущего ответа |
+
+| `applicationId` | string | Yes | The application ID of the deployments |
+
+| `environmentId` | string | Yes | The environment ID of the deployments |
+
+| `maxResults` | number | No | Maximum number of deployments to return \(1-50\) |
+
+| `nextToken` | string | No | Pagination token from a previous response |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deployments` | array | Список развёртываний AppConfig |
-|   ↳ `deploymentNumber` | number | Порядковый номер развёртывания |
-|   ↳ `configurationName` | string | Имя конфигурации |
-|   ↳ `configurationVersion` | string | Версия конфигурации |
-|   ↳ `state` | string | Текущее состояние развёртывания |
-|   ↳ `percentageComplete` | number | Процент завершения |
-|   ↳ `startedAt` | string | Когда началось развёртывание |
-|   ↳ `completedAt` | string | Когда завершилось развёртывание |
-|   ↳ `versionLabel` | string | Метка версии конфигурации |
-| `nextToken` | string | Токен пагинации для следующей страницы |
-| `count` | number | Количество возвращённых развёртываний |
+
+| `deployments` | array | List of AppConfig deployments |
+
+|   ↳ `deploymentNumber` | number | Deployment sequence number |
+
+|   ↳ `configurationName` | string | Configuration name |
+
+|   ↳ `configurationVersion` | string | Configuration version |
+
+|   ↳ `state` | string | Current deployment state |
+
+|   ↳ `percentageComplete` | number | Percentage completed |
+
+|   ↳ `startedAt` | string | When the deployment started |
+
+|   ↳ `completedAt` | string | When the deployment completed |
+
+|   ↳ `versionLabel` | string | Configuration version label |
+
+| `nextToken` | string | Pagination token for the next page |
+
+| `count` | number | Number of deployments returned |
+
 
 ### `appconfig_stop_deployment`
 
-Остановить выполняющееся развёртывание AWS AppConfig
+
+Stop an in-progress AWS AppConfig deployment
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Yes | Регион AWS \(например, us-east-1\) |
+
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
 | `accessKeyId` | string | Yes | AWS access key ID |
+
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `applicationId` | string | Yes | ID приложения развёртывания |
-| `environmentId` | string | Yes | ID окружения развёртывания |
-| `deploymentNumber` | number | Yes | Порядковый номер развёртывания для остановки |
+
+| `applicationId` | string | Yes | The application ID of the deployment |
+
+| `environmentId` | string | Yes | The environment ID of the deployment |
+
+| `deploymentNumber` | number | Yes | The sequence number of the deployment to stop |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Сообщение о статусе операции |
-| `deploymentNumber` | number | Порядковый номер развёртывания |
-| `state` | string | Состояние развёртывания после остановки |
+
+| `message` | string | Operation status message |
+
+| `deploymentNumber` | number | Deployment sequence number |
+
+| `state` | string | Deployment state after stopping |
+
+
 

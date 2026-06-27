@@ -1,6 +1,6 @@
 ---
 title: Начало работы
-description: Создайте своего первого агента всего за 10 минут – это будет исследователь, использующий инструменты для веб-поиска и выдающий структурированные результаты.
+description: Создайте своего первого агента всего за 10 минут: исследователя, использующего инструменты веб-поиска и структурированный вывод данных.
 pageType: guide
 ---
 
@@ -11,7 +11,8 @@ import { Video } from '@/components/ui/video'
 import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-Создайте агента для сбора информации о людях всего за 10 минут. Он принимает имя через интерфейс чата, ищет информацию в интернете с помощью инструментов поиска на основе искусственного интеллекта и возвращает структурированный JSON с информацией о местоположении, профессии и образовании человека.
+Создайте агента для сбора информации о людях за 10 минут. Он принимает имя через интерфейс чата, ищет в интернете с помощью инструментов поиска на основе ИИ и возвращает структурированный JSON с информацией о местоположении, профессии и образовании человека.
+
 
 <Image
   src="/static/getting-started/started-1.png"
@@ -20,7 +21,10 @@ import { FAQ } from '@/components/ui/faq'
   height={500}
 />
 
+
 ## Инструкция
+
+
 <Steps>
   <Step title="Create a workflow and add an Agent">
     In the sidebar, click the **+** next to **Workflows** and name the new workflow "Getting Started". The **Start block** is already on the canvas — it's the entry point that receives your chat input.
@@ -78,7 +82,10 @@ import { FAQ } from '@/components/ui/faq'
   </Step>
 </Steps>
 
+
 ## Следующий
+
+
 <Cards>
   <Card title="Workflows" href="/workflows">
     The full model: blocks, connections, triggers, and how runs execute.
@@ -94,6 +101,7 @@ import { FAQ } from '@/components/ui/faq'
   </Card>
 </Cards>
 
+
 <FAQ items={[
   { question: "How long does the getting started tutorial take?", answer: "About 10 minutes. You will have a fully working workflow by the end." },
   { question: "Do I need API keys to follow this tutorial?", answer: "No. On hosted Sim, the model and the search tools run on Sim's hosted keys, included with your plan credits. You can bring your own provider keys if you prefer." },
@@ -102,3 +110,4 @@ import { FAQ } from '@/components/ui/faq'
   { question: "Can I import workflows from other tools?", answer: "Not directly. But you can describe what you want to Mothership in natural language and have it build the workflow for you, which is usually faster than manual recreation." },
   { question: "What if my workflow does not produce the expected output?", answer: "Test iteratively in the Chat panel and inspect each block's output from the dropdown to pinpoint where things go wrong. The Logs page records every run, block by block, with inputs, outputs, timing, and cost." },
 ]} />
+

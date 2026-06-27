@@ -1,6 +1,6 @@
 ---
 title: Similarweb
-description: Данные о трафике и аналитике веб-сайтов
+description: Website traffic and analytics data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,174 +10,306 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000922"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Similarweb](https://www.similarweb.com/) is a leading platform for web analytics that provides in-depth traffic and engagement data for millions of websites. Similarweb gives you insights into website visits, traffic sources, audience behavior, and competitive benchmarks.
 
-With Similarweb in Sim, your agents can:
+[Similarweb](https://www.similarweb.com/) – ведущая платформа для веб-аналитики, предоставляющая подробные данные о трафике и вовлеченности для миллионов сайтов. Similarweb предоставляет вам информацию о посещениях сайта, источниках трафика, поведении аудитории и конкурентных показателях.
 
-- **Analyze website traffic**: Получение key metrics such as monthly visits, average duration, bounce rates, and top countries.
-- **Understand audience engagement**: Gain insights into how users interact with websites, including pages per visit and engagement duration.
-- **Track rankings and performance**: Access global, country, and category ranks to benchmark sites against competitors.
-- **Discover traffic sources**: Break down traffic by channels like direct, search, social, referrals, and more.
 
-Use Sim's Similarweb integration to automate the monitoring of competitors, track your site’s performance, or surface actionable market research—all integrated directly в ваш рабочий процессs and automations. Empower your agents to access and utilize reliable web analytics data easily and programmatically.
+С помощью Sim вы можете:
+
+
+- **Анализировать трафик сайта**: Получать ключевые показатели, такие как количество посещений в месяц, средняя продолжительность сеанса, процент отказов и основные страны.
+
+- **Понимать вовлеченность аудитории**: Получать информацию о том, как пользователи взаимодействуют с сайтом, включая количество страниц за сеанс и продолжительность взаимодействия.
+
+- **Отслеживать рейтинги и производительность**: Иметь доступ к глобальным, национальным и категориальным рейтингам для сравнения сайтов с конкурентами.
+
+- **Выявлять источники трафика**: Разбивать трафик по каналам, таким как прямой, поиск, социальные сети, рефералы и другие.
+
+
+Используйте интеграцию Similarweb в Sim для автоматизации мониторинга конкурентов, отслеживания производительности вашего сайта или получения полезных маркетинговых исследований – все это интегрировано непосредственно в ваши рабочие процессы и автоматизацию. Наделите ваших агентов возможностью легко и программно получать доступ к надежным данным веб-аналитики.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.
+
+Получите комплексные данные об аналитике сайта, включая оценки трафика, метрики вовлеченности, рейтинги и источники трафика, используя API Similarweb.
+
 
 
 
 ## Действия
 
+
 ### `similarweb_website_overview`
 
-Получение comprehensive website analytics including traffic, rankings, engagement, and traffic sources
 
-#### Вход
+Получите комплексную аналитику сайта, включая трафик, рейтинги, вовлеченность и источники трафика
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | SimilarWeb Ключ API |
-| `domain` | string | Да | Website domain to analyze (например, "example.com" without www or protocol\) |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API SimilarWeb |
 
-| Parameter | Type | Description |
+| `domain` | строка | Да | Домен сайта для анализа (например, "example.com" без www или протокола) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `siteName` | string | Website name |
-| `description` | string | Website description |
-| `globalRank` | number | Global traffic rank |
-| `countryRank` | number | Country traffic rank |
-| `categoryRank` | number | Category traffic rank |
-| `category` | string | Website category |
-| `monthlyVisits` | number | Estimated monthly visits |
-| `engagementVisitDuration` | number | Average visit duration in seconds |
-| `engagementPagesPerVisit` | number | Average pages per visit |
-| `engagementBounceRate` | number | Bounce rate \(0-1\) |
-| `topCountries` | array | Top countries by traffic share |
-|   ↳ `country` | string | Country code |
-|   ↳ `share` | number | Traffic share \(0-1\) |
-| `trafficSources` | json | Traffic source breakdown |
-|   ↳ `direct` | number | Direct traffic share |
-|   ↳ `referrals` | number | Referral traffic share |
-|   ↳ `search` | number | Search traffic share |
-|   ↳ `social` | number | Social traffic share |
-|   ↳ `mail` | number | Email traffic share |
-|   ↳ `paidReferrals` | number | Paid referral traffic share |
+
+| `siteName` | строка | Название сайта |
+
+| `description` | строка | Описание сайта |
+
+| `globalRank` | число | Глобальный рейтинг трафика |
+
+| `countryRank` | число | Рейтинг трафика по стране |
+
+| `categoryRank` | число | Рейтинг трафика по категории |
+
+| `category` | строка | Категория сайта |
+
+| `monthlyVisits` | число | Оценка количества посещений в месяц |
+
+| `engagementVisitDuration` | число | Средняя продолжительность сеанса в секундах |
+
+| `engagementPagesPerVisit` | число | Среднее количество страниц за сеанс |
+
+| `engagementBounceRate` | число | Процент отказов (0-1) |
+
+| `topCountries` | массив | Страны с наибольшим долей трафика |
+
+|   ↳ `country` | строка | Код страны |
+
+|   ↳ `share` | число | Доля трафика (0-1) |
+
+| `trafficSources` | json | Разделение трафика по каналам |
+
+|   ↳ `direct` | число | Доля прямого трафика |
+
+|   ↳ `referrals` | число | Доля реферального трафика |
+
+|   ↳ `search` | число | Доля трафика из поисковых систем |
+
+|   ↳ `social` | число | Доля трафика из социальных сетей |
+
+|   ↳ `mail` | число | Доля трафика по электронной почте |
+
+|   ↳ `paidReferrals` | число | Доля платного реферального трафика |
+===
+
 
 ### `similarweb_traffic_visits`
 
-Получение total website visits over time (desktop and mobile combined)
 
-#### Вход
+Get total website visits over time (desktop and mobile combined)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | SimilarWeb Ключ API |
-| `domain` | string | Да | Website domain to analyze (например, "example.com" without www or protocol\) |
-| `country` | string | Да | 2-letter ISO country code (например, "us", "gb", "de"\) or "world" for worldwide data |
-| `granularity` | string | Да | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | Нет | Start date in YYYY-MM format (например, "2024-01"\) |
-| `endDate` | string | Нет | End date in YYYY-MM format (например, "2024-12"\) |
-| `mainDomainOnly` | boolean | Нет | Exclude subdomains from results |
 
-#### Выход
+| `apiKey` | string | Yes | SimilarWeb API key |
+
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `domain` | string | Analyzed domain |
+
 | `country` | string | Country filter applied |
+
 | `granularity` | string | Data granularity |
+
 | `lastUpdated` | string | Data last updated timestamp |
+
 | `visits` | array | Visit data over time |
+
 |   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+
 |   ↳ `visits` | number | Number of visits |
+
 
 ### `similarweb_bounce_rate`
 
-Получение website bounce rate over time (desktop and mobile combined)
 
-#### Вход
+Get website bounce rate over time (desktop and mobile combined)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | SimilarWeb Ключ API |
-| `domain` | string | Да | Website domain to analyze (например, "example.com" without www or protocol\) |
-| `country` | string | Да | 2-letter ISO country code (например, "us", "gb", "de"\) or "world" for worldwide data |
-| `granularity` | string | Да | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | Нет | Start date in YYYY-MM format (например, "2024-01"\) |
-| `endDate` | string | Нет | End date in YYYY-MM format (например, "2024-12"\) |
-| `mainDomainOnly` | boolean | Нет | Exclude subdomains from results |
 
-#### Выход
+| `apiKey` | string | Yes | SimilarWeb API key |
+
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `domain` | string | Analyzed domain |
+
 | `country` | string | Country filter applied |
+
 | `granularity` | string | Data granularity |
+
 | `lastUpdated` | string | Data last updated timestamp |
+
 | `bounceRate` | array | Bounce rate data over time |
+
 |   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+
 |   ↳ `bounceRate` | number | Bounce rate \(0-1\) |
+
 
 ### `similarweb_pages_per_visit`
 
-Получение average pages per visit over time (desktop and mobile combined)
 
-#### Вход
+Get average pages per visit over time (desktop and mobile combined)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | SimilarWeb Ключ API |
-| `domain` | string | Да | Website domain to analyze (например, "example.com" without www or protocol\) |
-| `country` | string | Да | 2-letter ISO country code (например, "us", "gb", "de"\) or "world" for worldwide data |
-| `granularity` | string | Да | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | Нет | Start date in YYYY-MM format (например, "2024-01"\) |
-| `endDate` | string | Нет | End date in YYYY-MM format (например, "2024-12"\) |
-| `mainDomainOnly` | boolean | Нет | Exclude subdomains from results |
 
-#### Выход
+| `apiKey` | string | Yes | SimilarWeb API key |
+
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `domain` | string | Analyzed domain |
+
 | `country` | string | Country filter applied |
+
 | `granularity` | string | Data granularity |
+
 | `lastUpdated` | string | Data last updated timestamp |
+
 | `pagesPerVisit` | array | Pages per visit data over time |
+
 |   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+
 |   ↳ `pagesPerVisit` | number | Average pages per visit |
+
 
 ### `similarweb_visit_duration`
 
-Получение average desktop visit duration over time (in seconds)
 
-#### Вход
+Get average desktop visit duration over time (in seconds)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | SimilarWeb Ключ API |
-| `domain` | string | Да | Website domain to analyze (например, "example.com" without www or protocol\) |
-| `country` | string | Да | 2-letter ISO country code (например, "us", "gb", "de"\) or "world" for worldwide data |
-| `granularity` | string | Да | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | Нет | Start date in YYYY-MM format (например, "2024-01"\) |
-| `endDate` | string | Нет | End date in YYYY-MM format (например, "2024-12"\) |
-| `mainDomainOnly` | boolean | Нет | Exclude subdomains from results |
 
-#### Выход
+| `apiKey` | string | Yes | SimilarWeb API key |
+
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
+
+| `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
+
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
+
+| `mainDomainOnly` | boolean | No | Exclude subdomains from results |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `domain` | string | Analyzed domain |
+
 | `country` | string | Country filter applied |
+
 | `granularity` | string | Data granularity |
+
 | `lastUpdated` | string | Data last updated timestamp |
+
 | `averageVisitDuration` | array | Desktop visit duration data over time |
+
 |   ↳ `date` | string | Date \(YYYY-MM-DD\) |
+
 |   ↳ `durationSeconds` | number | Average visit duration in seconds |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: Google Vault
-description: Поиск, экспорт и управление блокировками/экспортом для дел Vault
+description: Поиск, экспорт и управление "задержанными" или экспортированными материалами в рамках работы с Vault
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,173 +10,290 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E8F0FE"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Vault](https://workspace.google.com/products/vault/) is a core information governance and eDiscovery tool for organizations using Google Workspace. With Google Vault, you can retain, search, and export users' Google Workspace data (such as Gmail, Drive, Groups, and Meet) to support litigation, regulatory compliance, and internal investigations.
 
-Vault provides administrators and legal teams with powerful controls to manage the lifecycle of business communications. You can place data on legal hold, create matters to group eDiscovery activities, search message and file content across your organization, and export relevant data for review.
+Google Vault — это основной инструмент управления информацией и проведения электронных расследований (eDiscovery) для организаций, использующих Google Workspace. С помощью Google Vault вы можете сохранять, искать и экспортировать данные пользователей Google Workspace (например, Gmail, Drive, Groups и Meet), чтобы использовать их в судебных разбирательствах, соблюдении нормативных требований и внутренних расследованиях.
 
-Key features of Google Vault include:
 
-- **Search & Export**: Search across Gmail, Drive, Groups, and Meet for relevant data and export the results for analysis.
-- **Matters & Holds**: Create matters (cases) and apply legal holds to retain user data beyond standard retention policies.
-- **Retention Rules**: Define retention rules to keep or delete data after a set period to meet business and compliance needs.
-- **Audit & Review**: Monitor Vault activity and enforce compliance with organization-wide policies.
+Vault предоставляет администраторам и юридическим командам мощные средства для управления жизненным циклом деловой корреспонденции. Вы можете пометить данные под юридическую опеку, создавать дела для группировки действий по eDiscovery, искать содержимое сообщений и файлов в вашей организации и экспортировать соответствующие данные для проверки.
 
-In Sim, the Google Vault integration lets your AI agents programmatically manage Vault matters, exports, and holds. This enables automated workflows for legal discovery, compliance archiving, and data retention management in your organization. Agents can initiate new exports, list available holds, manage legal matters, and retrieve exported files directly through your automated processes, ensuring your compliance and information governance needs are met efficiently and securely.
+
+Основные возможности Google Vault включают:
+
+
+- **Поиск и экспорт**: Поиск в Gmail, Drive, Groups и Meet соответствующих данных и экспорт результатов для анализа.
+
+- **Дела и опека**: Создание дел (деловых случаев) и применение юридической опеки для сохранения данных пользователей за пределами стандартных политик хранения.
+
+- **Правила хранения**: Определение правил хранения, чтобы сохранять или удалять данные после определенного периода времени, чтобы соответствовать бизнесным и нормативным требованиям.
+
+- **Аудит и проверка**: Мониторинг активности Vault и обеспечение соблюдения политики организации.
+
+
+В Sim интеграция Google Vault позволяет вашим AI агентам программно управлять делами, экспортами и опекой в Vault. Это обеспечивает автоматизированные рабочие процессы для проведения юридических расследований, архивирования для соответствия требованиям и управления данными в вашей организации. Агенты могут инициировать новые экспорт, перечислить доступные объекты опеки, управлять деловыми делами и извлекать экспортированные файлы непосредственно через ваши автоматизированные процессы, обеспечивая эффективное и безопасное выполнение ваших требований по соблюдению нормативных требований и управлению информацией.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Connect Google Vault to create exports, list exports, and manage holds within matters.
+
+Подключите Google Vault для создания экпортов, перечисления экпортов и управления опекой в делах.
+
 
 
 
 ## Действия
 
+
 ### `google_vault_create_matters_export`
 
-Create an export in a matter
 
-#### Входные параметры
+Создайте экспорт в деле
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Да | The matter ID \(e.g., "12345678901234567890"\) |
-| `exportName` | string | Да | Name for the export \(avoid special characters\) |
-| `corpus` | string | Да | Data corpus to export \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
-| `accountEmails` | string | Нет | Comma-separated list of user emails to scope export \(e.g., "user1@example.com, user2@example.com"\) |
-| `orgUnitId` | string | Нет | Organization unit ID to scope export \(e.g., "id:03ph8a2z1enx5q0", alternative to emails\) |
-| `startTime` | string | Нет | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
-| `endTime` | string | Нет | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
-| `terms` | string | Нет | Search query terms to filter exported content \(e.g., "from:sender@example.com subject:invoice"\) |
 
-#### Выходные параметры
+| `matterId` | строка | Да | ID дела (например, "12345678901234567890") |
+
+| `exportName` | строка | Да | Имя для экспорта (избегайте специальных символов) |
+
+| `corpus` | строка | Да | Корпус данных для экспорта (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE) |
+
+| `accountEmails` | строка | Нет | Список адресов пользователей для ограничения области экспорта (например, "user1@example.com, user2@example.com") |
+
+| `orgUnitId` | строка | Нет | ID организационной единицы для ограничения области экспорта (например, "id:03ph8a2z1enx5q0", альтернатива адресам) |
+
+| `startTime` | строка | Нет | Начальное время для фильтрации по дате (формат ISO 8601, например, "2024-01-01T00:00:00Z") |
+
+| `endTime` | строка | Нет | Конечное время для фильтрации по дате (формат ISO 8601, например, "2024-12-31T23:59:59Z") |
+
+| `terms` | строка | Нет | Ключевые слова поиска для фильтрации содержимого экспорта (например, "from:sender@example.com subject:invoice") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `export` | json | Created export object |
+
+| `export` | json | Созданный объект экспорта |
+
 
 ### `google_vault_list_matters_export`
 
-List exports for a matter
 
-#### Входные параметры
+Перечислите экпорты для дела
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Да | The matter ID \(e.g., "12345678901234567890"\) |
-| `pageSize` | number | Нет | Number of exports to return per page |
-| `pageToken` | string | Нет | Token for pagination |
-| `exportId` | string | Нет | Optional export ID to fetch a specific export \(e.g., "exportId123456"\) |
 
-#### Выходные параметры
+| `matterId` | строка | Да | ID дела (например, "12345678901234567890") |
+
+| `pageSize` | число | Нет | Количество экспортов для возврата на странице |
+
+| `pageToken` | строка | Нет | Токен для постраничной навигации |
+
+| `exportId` | строка | Нет | Необязательный ID экспорта для получения конкретного экспорта (например, "exportId123456") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `exports` | json | Array of export objects |
-| `export` | json | Single export object \(when exportId is provided\) |
-| `nextPageToken` | string | Token for fetching next page of results |
+
+| `exports` | json | Массив объектов экспорта |
+
+| `export` | json | Один объект экспорта (при предоставлении exportId) |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов |
+
 
 ### `google_vault_download_export_file`
 
-Download a single file from a Google Vault export (GCS object)
 
-#### Входные параметры
+Загрузите файл из Google Vault экпорта (объект GCS)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Да | The matter ID \(e.g., "12345678901234567890"\) |
-| `bucketName` | string | Да | GCS bucket name from cloudStorageSink.files.bucketName |
-| `objectName` | string | Да | GCS object name from cloudStorageSink.files.objectName |
-| `fileName` | string | Нет | Optional filename override for the downloaded file |
 
-#### Выходные параметры
+| `matterId` | строка | Да | ID дела (например, "12345678901234567890") |
+
+| `bucketName` | строка | Да | Имя GCS-контейнера из cloudStorageSink.files.bucketName |
+
+| `objectName` | строка | Да | Имя объекта GCS из cloudStorageSink.files.objectName |
+
+| `fileName` | строка | Нет | Необязательное имя файла для загруженного файла |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `file` | file | Downloaded Vault export file stored in execution files |
+
+| `file` | файл | Загруженный файл экспорта Vault, хранящийся в файлах выполнения |
+
 
 ### `google_vault_create_matters_holds`
 
-Create a hold in a matter
 
-#### Входные параметры
+Создайте опеку в деле
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Да | The matter ID \(e.g., "12345678901234567890"\) |
-| `holdName` | string | Да | Name for the hold |
-| `corpus` | string | Да | Data corpus to hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
-| `accountEmails` | string | Нет | Comma-separated list of user emails to put on hold \(e.g., "user1@example.com, user2@example.com"\) |
-| `orgUnitId` | string | Нет | Organization unit ID to put on hold \(e.g., "id:03ph8a2z1enx5q0", alternative to accounts\) |
-| `terms` | string | Нет | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\) |
-| `startTime` | string | Нет | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\) |
-| `endTime` | string | Нет | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\) |
-| `includeSharedDrives` | boolean | Нет | Include files in shared drives \(for DRIVE corpus\) |
 
-#### Выходные параметры
+| `matterId` | строка | Да | ID дела (например, "12345678901234567890") |
+
+| `holdName` | строка | Да | Имя для опеки |
+
+| `corpus` | строка | Да | Корпус данных для опеки (MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE) |
+
+| `accountEmails` | строка | Нет | Список адресов пользователей для включения в опеку (например, "user1@example.com, user2@example.com") |
+
+| `orgUnitId` | строка | Нет | ID организационной единицы для включения в опеку (например, "id:03ph8a2z1enx5q0", альтернатива адресам) |
+
+| `terms` | строка | Нет | Ключевые слова поиска для фильтрации содержимого, находящегося под опекой (например, "from:sender@example.com subject:invoice", для корпусов MAIL и GROUPS) |
+
+| `startTime` | строка | Нет | Начальное время для фильтрации по дате (формат ISO 8601, например, "2024-01-01T00:00:00Z", для корпусов MAIL и GROUPS) |
+
+| `endTime` | строка | Нет | Конечное время для фильтрации по дате (формат ISO 8601, например, "2024-12-31T23:59:59Z", для корпусов MAIL и GROUPS) |
+
+| `includeSharedDrives` | логический | Нет | Включить файлы в общих дисках (для корпуса DRIVE) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `hold` | json | Created hold object |
+
+| `hold` | json | Созданный объект опеки |
+
 
 ### `google_vault_list_matters_holds`
 
-List holds for a matter
 
-#### Входные параметры
+Перечислите опеку в деле
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `matterId` | string | Да | The matter ID \(e.g., "12345678901234567890"\) |
-| `pageSize` | number | Нет | Number of holds to return per page |
-| `pageToken` | string | Нет | Token for pagination |
-| `holdId` | string | Нет | Optional hold ID to fetch a specific hold \(e.g., "holdId123456"\) |
 
-#### Выходные параметры
+| `matterId` | строка | Да | ID дела (например, "12345678901234567890") |
+
+| `pageSize` | число | Нет | Количество объектов опеки для возврата на странице |
+
+| `pageToken` | строка | Нет | Токен для постраничной навигации |
+
+| `holdId` | строка | Нет | Необязательный ID опеки для получения конкретной опеки (например, "holdId123456") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `holds` | json | Array of hold objects |
-| `hold` | json | Single hold object \(when holdId is provided\) |
-| `nextPageToken` | string | Token for fetching next page of results |
+
+| `holds` | json | Массив объектов опеки |
+
+| `hold` | json | Один объект опеки (при предоставлении holdId) |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов |
+
 
 ### `google_vault_create_matters`
 
-Create a new matter in Google Vault
 
-#### Входные параметры
+Создайте новое дело в Google Vault
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Да | Name for the new matter |
-| `description` | string | Нет | Optional description for the matter |
 
-#### Выходные параметры
+| `name` | строка | Да | Имя нового дела |
+
+| `description` | строка | Нет | Необязательное описание дела |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `matter` | json | Created matter object |
+
+| `matter` | json | Созданный объект дела |
+
 
 ### `google_vault_list_matters`
 
-List matters, or get a specific matter if matterId is provided
 
-#### Входные параметры
+Перечислите дела, или получите конкретное дело, если предоставлен matterId
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `pageSize` | number | Нет | Number of matters to return per page |
-| `pageToken` | string | Нет | Token for pagination |
-| `matterId` | string | Нет | Optional matter ID to fetch a specific matter \(e.g., "12345678901234567890"\) |
 
-#### Выходные параметры
+| `pageSize` | число | Нет | Количество дел для возврата на странице |
+
+| `pageToken` | строка | Нет | Токен для постраничной навигации |
+
+| `matterId` | строка | Нет | Необязательный ID дела (например, "12345678901234567890") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects |
-| `matter` | json | Single matter object \(when matterId is provided\) |
-| `nextPageToken` | string | Token for fetching next page of results |
+
+| `matters` | json | Массив объектов дел |
+
+| `matter` | json | Один объект дела (при предоставлении matterId) |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов |
+
 
 

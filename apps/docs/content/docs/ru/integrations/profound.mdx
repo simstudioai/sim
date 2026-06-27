@@ -1,6 +1,6 @@
 ---
-title: Profound
-description: Видимость AI и аналитика с Profound
+title: Глубокий
+description: Видимость и аналитика ИИ с помощью Profound
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,617 +10,1077 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [Profound](https://tryprofound.com/) is an AI visibility and analytics platform that helps brands understand how they appear across AI-powered search engines, chatbots, and assistants. It tracks mentions, citations, sentiment, bot traffic, and referral patterns across platforms like ChatGPT, Perplexity, Google AI Overviews, and more.
+
 
 With the Profound integration in Sim, you can:
 
+
 - **Monitor AI Visibility**: Track share of voice, visibility scores, and mention counts across AI platforms for your brand and competitors.
+
 - **Analyze Sentiment**: Measure how positively or negatively your brand is discussed in AI-generated responses.
+
 - **Track Citations**: See which URLs are being cited by AI models and your citation share relative to competitors.
+
 - **Monitor Bot Traffic**: Analyze AI crawler activity on your domain, including GPTBot, ClaudeBot, and other AI agents, with hourly granularity.
+
 - **Track Referral Traffic**: Monitor human visits arriving from AI platforms to your website.
+
 - **Explore Prompt Data**: Access raw prompt-answer pairs, query fanouts, and prompt volume trends across AI platforms.
-- **Optimize Content**: Получение AEO (Answer Engine Optimization) scores and actionable recommendations to improve how AI models reference your content.
-- **Manage Categories & Assets**: Получение списка and explore your tracked categories, assets (brands), topics, tags, personas, and regions.
+
+- **Optimize Content**: Get AEO (Answer Engine Optimization) scores and actionable recommendations to improve how AI models reference your content.
+
+- **Manage Categories & Assets**: List and explore your tracked categories, assets (brands), topics, tags, personas, and regions.
+
 
 These tools let your agents automate AI visibility monitoring, competitive intelligence, and content optimization workflows. To use the Profound integration, you'll need a Profound account with API access.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
+
+## Usage Instructions
+
 
 Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.
 
 
 
-## Действия
+
+## Actions
+
 
 ### `profound_list_categories`
 
-Получение списка organization categories in Profound
 
-#### Вход
+List all organization categories in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `categories` | json | Получение списка of organization categories |
+
+| `categories` | json | List of organization categories |
+
 |   ↳ `id` | string | Category ID |
+
 |   ↳ `name` | string | Category name |
+
 
 ### `profound_list_regions`
 
-Получение списка organization regions in Profound
 
-#### Вход
+List all organization regions in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `regions` | json | Получение списка of organization regions |
+
+| `regions` | json | List of organization regions |
+
 |   ↳ `id` | string | Region ID \(UUID\) |
+
 |   ↳ `name` | string | Region name |
+
 
 ### `profound_list_models`
 
-Получение списка AI models/platforms tracked in Profound
 
-#### Вход
+List all AI models/platforms tracked in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `models` | json | Получение списка of AI models/platforms |
+
+| `models` | json | List of AI models/platforms |
+
 |   ↳ `id` | string | Model ID \(UUID\) |
+
 |   ↳ `name` | string | Model/platform name |
+
 
 ### `profound_list_domains`
 
-Получение списка organization domains in Profound
 
-#### Вход
+List all organization domains in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `domains` | json | Получение списка of organization domains |
+
+| `domains` | json | List of organization domains |
+
 |   ↳ `id` | string | Domain ID \(UUID\) |
+
 |   ↳ `name` | string | Domain name |
+
 |   ↳ `createdAt` | string | When the domain was added |
+
 
 ### `profound_list_assets`
 
-Получение списка organization assets (companies/brands) across all categories in Profound
 
-#### Вход
+List all organization assets (companies/brands) across all categories in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `assets` | json | Получение списка of organization assets with category info |
+
+| `assets` | json | List of organization assets with category info |
+
 |   ↳ `id` | string | Asset ID |
+
 |   ↳ `name` | string | Asset/company name |
+
 |   ↳ `website` | string | Asset website URL |
+
 |   ↳ `alternateDomains` | json | Alternate domain names |
+
 |   ↳ `isOwned` | boolean | Whether this asset is owned by the organization |
+
 |   ↳ `createdAt` | string | When the asset was created |
+
 |   ↳ `logoUrl` | string | URL of the asset logo |
+
 |   ↳ `categoryId` | string | Category ID the asset belongs to |
+
 |   ↳ `categoryName` | string | Category name |
+
 
 ### `profound_list_personas`
 
-Получение списка organization personas across all categories in Profound
 
-#### Вход
+List all organization personas across all categories in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `personas` | json | Получение списка of organization personas with profile details |
+
+| `personas` | json | List of organization personas with profile details |
+
 |   ↳ `id` | string | Persona ID |
+
 |   ↳ `name` | string | Persona name |
+
 |   ↳ `categoryId` | string | Category ID |
+
 |   ↳ `categoryName` | string | Category name |
+
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
+
 
 ### `profound_category_topics`
 
-Получение списка topics for a specific category in Profound
 
-#### Вход
+List topics for a specific category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `topics` | json | Получение списка of topics in the category |
+
+| `topics` | json | List of topics in the category |
+
 |   ↳ `id` | string | Topic ID \(UUID\) |
+
 |   ↳ `name` | string | Topic name |
+
 
 ### `profound_category_tags`
 
-Получение списка tags for a specific category in Profound
 
-#### Вход
+List tags for a specific category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `tags` | json | Получение списка of tags in the category |
+
+| `tags` | json | List of tags in the category |
+
 |   ↳ `id` | string | Tag ID \(UUID\) |
+
 |   ↳ `name` | string | Tag name |
+
 
 ### `profound_category_prompts`
 
-Получение списка prompts for a specific category in Profound
 
-#### Вход
+List prompts for a specific category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 10000\) |
-| `cursor` | string | Нет | Pagination cursor from previous response |
-| `orderDir` | string | Нет | Sort direction: asc or desc \(по умолчанию desc\) |
-| `promptType` | string | Нет | Comma-separated prompt types to filter: visibility, sentiment |
-| `topicId` | string | Нет | Comma-separated topic IDs \(UUIDs\) to filter by |
-| `tagId` | string | Нет | Comma-separated tag IDs \(UUIDs\) to filter by |
-| `regionId` | string | Нет | Comma-separated region IDs \(UUIDs\) to filter by |
-| `platformId` | string | Нет | Comma-separated platform IDs \(UUIDs\) to filter by |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 10000\) |
+
+| `cursor` | string | No | Pagination cursor from previous response |
+
+| `orderDir` | string | No | Sort direction: asc or desc \(default desc\) |
+
+| `promptType` | string | No | Comma-separated prompt types to filter: visibility, sentiment |
+
+| `topicId` | string | No | Comma-separated topic IDs \(UUIDs\) to filter by |
+
+| `tagId` | string | No | Comma-separated tag IDs \(UUIDs\) to filter by |
+
+| `regionId` | string | No | Comma-separated region IDs \(UUIDs\) to filter by |
+
+| `platformId` | string | No | Comma-separated platform IDs \(UUIDs\) to filter by |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of prompts |
+
 | `nextCursor` | string | Cursor for next page of results |
-| `prompts` | json | Получение списка of prompts |
+
+| `prompts` | json | List of prompts |
+
 |   ↳ `id` | string | Prompt ID |
+
 |   ↳ `prompt` | string | Prompt text |
+
 |   ↳ `promptType` | string | Prompt type \(visibility or sentiment\) |
+
 |   ↳ `topicId` | string | Topic ID |
+
 |   ↳ `topicName` | string | Topic name |
+
 |   ↳ `tags` | json | Associated tags |
+
 |   ↳ `regions` | json | Associated regions |
+
 |   ↳ `platforms` | json | Associated platforms |
+
 |   ↳ `createdAt` | string | When the prompt was created |
+
 
 ### `profound_category_assets`
 
-Получение списка assets (companies/brands) for a specific category in Profound
 
-#### Вход
+List assets (companies/brands) for a specific category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `assets` | json | Получение списка of assets in the category |
+
+| `assets` | json | List of assets in the category |
+
 |   ↳ `id` | string | Asset ID |
+
 |   ↳ `name` | string | Asset/company name |
+
 |   ↳ `website` | string | Website URL |
+
 |   ↳ `alternateDomains` | json | Alternate domain names |
-|   ↳ `isOwned` | boolean | Указывает,  asset is owned by the organization |
+
+|   ↳ `isOwned` | boolean | Whether the asset is owned by the organization |
+
 |   ↳ `createdAt` | string | When the asset was created |
+
 |   ↳ `logoUrl` | string | URL of the asset logo |
+
 
 ### `profound_category_personas`
 
-Получение списка personas for a specific category in Profound
 
-#### Вход
+List personas for a specific category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `personas` | json | Получение списка of personas in the category |
+
+| `personas` | json | List of personas in the category |
+
 |   ↳ `id` | string | Persona ID |
+
 |   ↳ `name` | string | Persona name |
+
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
+
 
 ### `profound_visibility_report`
 
+
 Query AI visibility report for a category in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `metrics` | string | Да | Comma-separated metrics: share_of_voice, mentions_count, visibility_score, executions, average_position |
-| `dimensions` | string | Нет | Comma-separated dimensions: date, region, topic, model, asset_name, prompt, tag, persona |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `metrics` | string | Yes | Comma-separated metrics: share_of_voice, mentions_count, visibility_score, executions, average_position |
+
+| `dimensions` | string | No | Comma-separated dimensions: date, region, topic, model, asset_name, prompt, tag, persona |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_sentiment_report`
 
+
 Query sentiment report for a category in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `metrics` | string | Да | Comma-separated metrics: positive, negative, occurrences |
-| `dimensions` | string | Нет | Comma-separated dimensions: theme, date, region, topic, model, asset_name, tag, prompt, sentiment_type, persona |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `metrics` | string | Yes | Comma-separated metrics: positive, negative, occurrences |
+
+| `dimensions` | string | No | Comma-separated dimensions: theme, date, region, topic, model, asset_name, tag, prompt, sentiment_type, persona |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_citations_report`
 
+
 Query citations report for a category in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `metrics` | string | Да | Comma-separated metrics: count, citation_share |
-| `dimensions` | string | Нет | Comma-separated dimensions: hostname, path, date, region, topic, model, tag, prompt, url, root_domain, persona, citation_category |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"hostname","operator":"is","value":"example.com"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `metrics` | string | Yes | Comma-separated metrics: count, citation_share |
+
+| `dimensions` | string | No | Comma-separated dimensions: hostname, path, date, region, topic, model, tag, prompt, url, root_domain, persona, citation_category |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"hostname","operator":"is","value":"example.com"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_query_fanouts`
 
+
 Query fanout report showing how AI models expand prompts into sub-queries in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `metrics` | string | Да | Comma-separated metrics: fanouts_per_execution, total_fanouts, share |
-| `dimensions` | string | Нет | Comma-separated dimensions: prompt, query, model, region, date |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `metrics` | string | Yes | Comma-separated metrics: fanouts_per_execution, total_fanouts, share |
+
+| `dimensions` | string | No | Comma-separated dimensions: prompt, query, model, region, date |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_prompt_answers`
 
-Получение raw prompt answers data for a category in Profound
 
-#### Вход
+Get raw prompt answers data for a category in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `categoryId` | string | Да | Category ID \(UUID\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"prompt_type","operator":"is","value":"visibility"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"prompt_type","operator":"is","value":"visibility"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of answer rows |
+
 | `data` | json | Raw prompt answer data |
+
 |   ↳ `prompt` | string | The prompt text |
+
 |   ↳ `promptType` | string | Prompt type \(visibility or sentiment\) |
+
 |   ↳ `response` | string | AI model response text |
+
 |   ↳ `mentions` | json | Companies/assets mentioned in the response |
+
 |   ↳ `citations` | json | URLs cited in the response |
+
 |   ↳ `topic` | string | Topic name |
+
 |   ↳ `region` | string | Region name |
+
 |   ↳ `model` | string | AI model/platform name |
+
 |   ↳ `asset` | string | Asset name |
+
 |   ↳ `createdAt` | string | Timestamp when the answer was collected |
+
 
 ### `profound_bots_report`
 
+
 Query bot traffic report with hourly granularity for a domain in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `domain` | string | Да | Domain to query bot traffic for (например, example.com\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Нет | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
-| `metrics` | string | Да | Comma-separated metrics: count, citations, indexing, training, last_visit |
-| `dimensions` | string | Нет | Comma-separated dimensions: date, hour, path, bot_name, bot_provider, bot_type |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `domain` | string | Yes | Domain to query bot traffic for \(e.g. example.com\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+
+| `metrics` | string | Yes | Comma-separated metrics: count, citations, indexing, training, last_visit |
+
+| `dimensions` | string | No | Comma-separated dimensions: date, hour, path, bot_name, bot_provider, bot_type |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_referrals_report`
 
+
 Query human referral traffic report with hourly granularity for a domain in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `domain` | string | Да | Domain to query referral traffic for (например, example.com\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Нет | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
-| `metrics` | string | Да | Comma-separated metrics: visits, last_visit |
-| `dimensions` | string | Нет | Comma-separated dimensions: date, hour, path, referral_source, referral_type |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"referral_source","operator":"is","value":"openai"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `domain` | string | Yes | Domain to query referral traffic for \(e.g. example.com\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+
+| `metrics` | string | Yes | Comma-separated metrics: visits, last_visit |
+
+| `dimensions` | string | No | Comma-separated dimensions: date, hour, path, referral_source, referral_type |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"referral_source","operator":"is","value":"openai"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Report data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_raw_logs`
 
-Получение raw traffic logs with filters for a domain in Profound
 
-#### Вход
+Get raw traffic logs with filters for a domain in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `domain` | string | Да | Domain to query logs for (например, example.com\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Нет | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
-| `dimensions` | string | Нет | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"path","operator":"contains","value":"/blog"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `domain` | string | Yes | Domain to query logs for \(e.g. example.com\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+
+| `dimensions` | string | No | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"path","operator":"contains","value":"/blog"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of log entries |
+
 | `data` | json | Log data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values \(count\) |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_bot_logs`
 
-Получение identified bot visit logs with filters for a domain in Profound
 
-#### Вход
+Get identified bot visit logs with filters for a domain in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `domain` | string | Да | Domain to query bot logs for (например, example.com\) |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Нет | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
-| `dimensions` | string | Нет | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params, bot_name, bot_provider, bot_types |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `domain` | string | Yes | Domain to query bot logs for \(e.g. example.com\) |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+
+| `dimensions` | string | No | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params, bot_name, bot_provider, bot_types |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of bot log entries |
+
 | `data` | json | Bot log data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values \(count\) |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_list_optimizations`
 
-Получение списка content optimization entries for an asset in Profound
 
-#### Вход
+List content optimization entries for an asset in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `assetId` | string | Да | Asset ID \(UUID\) |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
-| `offset` | number | Нет | Offset for pagination \(по умолчанию 0\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `assetId` | string | Yes | Asset ID \(UUID\) |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+| `offset` | number | No | Offset for pagination \(default 0\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of optimization entries |
-| `optimizations` | json | Получение списка of content optimization entries |
+
+| `optimizations` | json | List of content optimization entries |
+
 |   ↳ `id` | string | Optimization ID \(UUID\) |
+
 |   ↳ `title` | string | Content title |
+
 |   ↳ `createdAt` | string | When the optimization was created |
+
 |   ↳ `extractedInput` | string | Extracted input text |
+
 |   ↳ `type` | string | Content type: file, text, or url |
+
 |   ↳ `status` | string | Optimization status |
+
 
 ### `profound_optimization_analysis`
 
-Получение detailed content optimization analysis for a specific content item in Profound
 
-#### Вход
+Get detailed content optimization analysis for a specific content item in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `assetId` | string | Да | Asset ID \(UUID\) |
-| `contentId` | string | Да | Content/optimization ID \(UUID\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `assetId` | string | Yes | Asset ID \(UUID\) |
+
+| `contentId` | string | Yes | Content/optimization ID \(UUID\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `content` | json | The analyzed content |
+
 |   ↳ `format` | string | Content format: markdown or html |
+
 |   ↳ `value` | string | Content text |
+
 | `aeoContentScore` | json | AEO content score with target zone |
+
 |   ↳ `value` | number | AEO score value |
+
 |   ↳ `targetZone` | json | Target zone range |
+
 |     ↳ `low` | number | Low end of target range |
+
 |     ↳ `high` | number | High end of target range |
+
 | `analysis` | json | Analysis breakdown by category |
+
 |   ↳ `breakdown` | json | Array of scoring breakdowns |
+
 |     ↳ `title` | string | Category title |
+
 |     ↳ `weight` | number | Category weight |
+
 |     ↳ `score` | number | Category score |
+
 | `recommendations` | json | Content optimization recommendations |
+
 |   ↳ `title` | string | Recommendation title |
+
 |   ↳ `status` | string | Status: done or pending |
+
 |   ↳ `impact` | json | Impact details with section and score |
+
 |   ↳ `suggestion` | json | Suggestion text and rationale |
+
 |     ↳ `text` | string | Suggestion text |
+
 |     ↳ `rationale` | string | Why this recommendation matters |
+
 
 ### `profound_prompt_volume`
 
+
 Query prompt volume data to understand search demand across AI platforms in Profound
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `startDate` | string | Да | Start date \(YYYY-MM-DD or ISO 8601\) |
-| `endDate` | string | Да | End date \(YYYY-MM-DD or ISO 8601\) |
-| `metrics` | string | Да | Comma-separated metrics: volume, change |
-| `dimensions` | string | Нет | Comma-separated dimensions: keyword, date, platform, country_code, matching_type, frequency |
-| `dateInterval` | string | Нет | Date interval: hour, day, week, month, year |
-| `filters` | string | Нет | JSON array of filter objects, e.g. \[\{"field":"keyword","operator":"contains","value":"best"\}\] |
-| `limit` | number | Нет | Maximum number of results \(по умолчанию 10000, max 50000\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+
+| `metrics` | string | Yes | Comma-separated metrics: volume, change |
+
+| `dimensions` | string | No | Comma-separated dimensions: keyword, date, platform, country_code, matching_type, frequency |
+
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"keyword","operator":"contains","value":"best"\}\] |
+
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `totalRows` | number | Total number of rows in the report |
+
 | `data` | json | Volume data rows with metrics and dimension values |
+
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
 
 ### `profound_citation_prompts`
 
-Получение prompts that cite a specific domain across AI platforms in Profound
 
-#### Вход
+Get prompts that cite a specific domain across AI platforms in Profound
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Profound Ключ API |
-| `inputDomain` | string | Да | Domain to look up citations for (например, ramp.com\) |
 
-#### Выход
+| `apiKey` | string | Yes | Profound API Key |
+
+| `inputDomain` | string | Yes | Domain to look up citations for \(e.g. ramp.com\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `data` | json | Citation prompt data for the queried domain |
+
 
 

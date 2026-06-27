@@ -1,6 +1,6 @@
 ---
-title: Zoom
-description: Создание и управление встречами и записями Zoom
+title: Зум
+description: Создавайте и управляйте встречами и записями в Zoom
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,549 +10,973 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2D8CFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
+
 [Zoom](https://zoom.us/) is a leading cloud-based communications platform for video meetings, webinars, and online collaboration. It allows users and organizations to easily schedule, host, and manage meetings, providing tools for screen sharing, chat, recordings, and more.
+
 
 With Zoom, you can:
 
+
 - **Schedule and manage meetings**: Create instant or scheduled meetings, including recurring events
+
 - **Configure meeting options**: Set meeting passwords, enable waiting rooms, and control participant video/audio
-- **Send invitations and share details**: Получение meeting invitations and information for easy sharing
-- **Получение and update meeting data**: Access meeting details, modify existing meetings, and manage settings programmatically
+
+- **Send invitations and share details**: Retrieve meeting invitations and information for easy sharing
+
+- **Get and update meeting data**: Access meeting details, modify existing meetings, and manage settings programmatically
+
 
 In Sim, the Zoom integration empowers your agents to automate scheduling and meeting management. Use tool actions to:
 
+
 - Programmatically create new meetings with custom settings
-- Получение списка meetings for a specific user (or yourself)
-- Получение details or invitations for any meeting
+
+- List all meetings for a specific user (or yourself)
+
+- Retrieve details or invitations for any meeting
+
 - Update or delete existing meetings directly from your automations
+
 
 To connect to Zoom, drop the Zoom block and click `Connect` to authenticate with your Zoom account. Once connected, you can use the Zoom tools to create, list, update, and delete Zoom meetings. At any given time, you can disconnect your Zoom account by clicking `Disconnect` in Settings > Integrations, and access to your Zoom account will be revoked immediatley.
 
+
 These capabilities let you streamline remote collaboration, automate recurring video sessions, and manage your organization's Zoom environment all as part of your workflows.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте Zoom into workflows. Create, list, update, and delete Zoom meetings. Получение meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.
+
+Интегрируйте Zoom в рабочие процессы. Создавайте, перечисляйте, обновляйте и удаляйте встречи Zoom. Получайте детали встреч, приглашения, записи и участников. Управляйте облачными записями программно.
+
 
 
 
 ## Действия
 
+
 ### `zoom_create_meeting`
 
-Создание нового Zoom meeting
 
-#### Вход
+Создание новой встречи Zoom
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | The user ID or email address (например, "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
-| `topic` | string | Да | Meeting topic (например, "Weekly Team Standup" or "Project Review"\) |
-| `type` | number | Нет | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
-| `startTime` | string | Нет | Meeting start time in ISO 8601 format (например, 2025-06-03T10:00:00Z\) |
-| `duration` | number | Нет | Meeting duration in minutes (например, 30, 60, 90\) |
-| `timezone` | string | Нет | Timezone for the meeting (например, America/Los_Angeles\) |
-| `password` | string | Нет | Meeting password |
-| `agenda` | string | Нет | Meeting agenda or description text |
-| `hostVideo` | boolean | Нет | Start with host video on |
-| `participantVideo` | boolean | Нет | Start with participant video on |
-| `joinBeforeHost` | boolean | Нет | Allow participants to join before host |
-| `muteUponEntry` | boolean | Нет | Mute participants upon entry |
-| `waitingRoom` | boolean | Нет | Enable waiting room |
-| `autoRecording` | string | Нет | Auto recording setting: local, cloud, or none |
 
-#### Выход
+| `userId` | строка | Да | ID пользователя или адрес электронной почты (например, "me", "user@example.com" или "AbcDefGHi"). Используйте "me" для аутентифицированного пользователя. |
 
-| Parameter | Type | Description |
+| `topic` | строка | Да | Тема встречи (например, "Еженедельный стенд-ап команды" или "Обзор проекта") |
+
+| `type` | число | Нет | Тип встречи: 1=немедленная, 2=назначенная, 3=повторяющаяся без фиксированного времени, 8=повторяющаяся с фиксированным временем |
+
+| `startTime` | строка | Нет | Время начала встречи в формате ISO 8601 (например, "2025-06-03T10:00:00Z") |
+
+| `duration` | число | Нет | Продолжительность встречи в минутах (например, 30, 60, 90) |
+
+| `timezone` | строка | Нет | Часовой пояс для встречи (например, "America/Los_Angeles") |
+
+| `password` | строка | Нет | Пароль встречи |
+
+| `agenda` | строка | Нет | Повестка дня или описание текста |
+
+| `hostVideo` | логическое значение | Нет | Начать с включенного видео хоста |
+
+| `participantVideo` | логическое значение | Нет | Начать с включенного видео участника |
+
+| `joinBeforeHost` | логическое значение | Нет | Разрешить участникам присоединиться до начала встречи |
+
+| `muteUponEntry` | логическое значение | Нет | Отключить звук участников при входе |
+
+| `waitingRoom` | логическое значение | Нет | Включить комнату ожидания |
+
+| `autoRecording` | строка | Нет | Настройка автоматической записи: local, cloud, или none |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `meeting` | object | The created meeting with all its properties |
-|   ↳ `id` | number | Meeting ID |
-|   ↳ `uuid` | string | Meeting UUID |
-|   ↳ `host_id` | string | Host user ID |
-|   ↳ `host_email` | string | Host email address |
-|   ↳ `topic` | string | Meeting topic |
-|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
-|   ↳ `status` | string | Meeting status (например, waiting, started\) |
-|   ↳ `start_time` | string | Start time in ISO 8601 format |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `timezone` | string | Timezone (например, America/Los_Angeles\) |
-|   ↳ `agenda` | string | Meeting agenda |
-|   ↳ `created_at` | string | Creation timestamp in ISO 8601 format |
-|   ↳ `start_url` | string | URL for host to start the meeting |
-|   ↳ `join_url` | string | URL for participants to join the meeting |
-|   ↳ `password` | string | Meeting password |
-|   ↳ `h323_password` | string | H.323/SIP room system password |
-|   ↳ `pstn_password` | string | PSTN password for phone dial-in |
-|   ↳ `encrypted_password` | string | Encrypted password for joining |
-|   ↳ `settings` | object | Meeting settings |
-|     ↳ `host_video` | boolean | Start with host video on |
-|     ↳ `participant_video` | boolean | Start with participant video on |
-|     ↳ `join_before_host` | boolean | Allow participants to join before host |
-|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
-|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
-|     ↳ `audio` | string | Audio options: both, telephony, or voip |
-|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
-|     ↳ `waiting_room` | boolean | Enable waiting room |
-|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
-|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
-|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
-|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
-|     ↳ `repeat_interval` | number | Interval between recurring meetings |
-|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
-|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
-|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
-|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
-|     ↳ `end_times` | number | Number of occurrences |
-|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
-|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
-|     ↳ `occurrence_id` | string | Occurrence ID |
-|     ↳ `start_time` | string | Start time in ISO 8601 format |
-|     ↳ `duration` | number | Duration in minutes |
-|     ↳ `status` | string | Occurrence status |
+
+| `meeting` | объект | Созданная встреча со всеми ее свойствами |
+
+|   ↳ `id` | число | ID встречи |
+
+|   ↳ `uuid` | строка | UUID встречи |
+
+|   ↳ `host_id` | строка | ID пользователя-хоста |
+
+|   ↳ `host_email` | строка | Электронная почта хоста |
+
+|   ↳ `topic` | строка | Тема встречи |
+
+|   ↳ `type` | число | Тип встречи: 1=немедленная, 2=назначенная, 3=повторяющаяся без фиксированного времени, 8=повторяющаяся с фиксированным временем |
+
+|   ↳ `status` | строка | Статус встречи (например, waiting, started) |
+
+|   ↳ `start_time` | строка | Время начала в формате ISO 8601 |
+
+|   ↳ `duration` | число | Продолжительность в минутах |
+
+|   ↳ `timezone` | строка | Часовой пояс (например, "America/Los_Angeles") |
+
+|   ↳ `agenda` | строка | Повестка дня |
+
+|   ↳ `created_at` | строка | Дата создания в формате ISO 8601 |
+
+|   ↳ `start_url` | строка | URL для начала встречи хостом |
+
+|   ↳ `join_url` | строка | URL для присоединения участников к встрече |
+
+|   ↳ `password` | строка | Пароль встречи |
+
+|   ↳ `h323_password` | строка | H.323/SIP пароль комнаты |
+
+|   ↳ `pstn_password` | строка | PSTN пароль для телефонного звонка |
+
+|   ↳ `encrypted_password` | строка | Зашифрованный пароль для входа |
+
+|   ↳ `settings` | объект | Настройки встречи |
+
+|     ↳ `host_video` | логическое значение | Начать с включенного видео хоста |
+
+|     ↳ `participant_video` | логическое значение | Начать с включенного видео участника |
+
+|     ↳ `join_before_host` | логическое значение | Разрешить участникам присоединиться до начала встречи |
+
+|     ↳ `mute_upon_entry` | логическое значение | Отключить звук участников при входе |
+
+|     ↳ `watermark` | логическое значение | Добавить водяной знак при просмотре общего экрана |
+
+|     ↳ `audio` | строка | Аудио опции: both, telephony, или voip |
+
+|     ↳ `auto_recording` | строка | Автоматическая запись: local, cloud, или none |
+
+|     ↳ `waiting_room` | логическое значение | Включить комнату ожидания |
+
+|     ↳ `meeting_authentication` | логическое значение | Требовать аутентификацию встречи |
+
+|     ↳ `approval_type` | число | Тип одобрения: 0=auto, 1=manual, 2=none |
+
+|   ↳ `recurrence` | объект | Настройки повтора для встреч с повторяющимся временем |
+
+|     ↳ `type` | число | Тип повтора: 1=ежедневно, 2=еженедельно, 3=ежемесячно |
+
+|     ↳ `repeat_interval` | число | Интервал между встречами |
+
+|     ↳ `weekly_days` | строка | Дни недели для еженедечного повтора (1-7, через запятую) |
+
+|     ↳ `monthly_day` | число | День месяца для ежемесячного повтора |
+
+|     ↳ `monthly_week` | число | Неделя месяца для ежемесячного повтора |
+
+|     ↳ `monthly_week_day` | число | День недели для ежемесячного повтора |
+
+|     ↳ `end_times` | число | Количество экземпляров |
+
+|     ↳ `end_date_time` | строка | Дата окончания в формате ISO 8601 |
+
+|   ↳ `occurrences` | массив | Встречи с повторяющимся временем |
+
+|     ↳ `occurrence_id` | строка | ID экземпляра |
+
+|     ↳ `start_time` | строка | Время начала в формате ISO 8601 |
+
+|     ↳ `duration` | число | Продолжительность в минутах |
+
+|     ↳ `status` | строка | Статус экземпляра |
+
 
 ### `zoom_list_meetings`
 
-Получение списка meetings for a Zoom user
 
-#### Вход
+Перечислить все встречи Zoom для пользователя
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | The user ID or email address (например, "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
-| `type` | string | Нет | Meeting type filter: scheduled, live, upcoming, upcoming_meetings, or previous_meetings |
-| `pageSize` | number | Нет | Number of records per page, 1-300 (например, 30, 50, 100\) |
-| `nextPageToken` | string | Нет | Token for pagination to get next page of results |
 
-#### Выход
+| `userId` | строка | Да | ID пользователя или адрес электронной почты (например, "me", "user@example.com" или "AbcDefGHi"). Используйте "me" для аутентифицированного пользователя. |
 
-| Parameter | Type | Description |
+| `type` | строка | Нет | Фильтр типа встречи: scheduled, live, upcoming, upcoming_meetings, или previous_meetings |
+
+| `pageSize` | число | Нет | Количество записей на странице, 1-300 (например, 30, 50, 100) |
+
+| `nextPageToken` | строка | Нет | Токен для получения следующей страницы результатов |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `meetings` | array | Получение списка of meetings |
-|   ↳ `id` | number | Meeting ID |
-|   ↳ `uuid` | string | Meeting UUID |
-|   ↳ `host_id` | string | Host user ID |
-|   ↳ `topic` | string | Meeting topic |
-|   ↳ `type` | number | Meeting type |
-|   ↳ `start_time` | string | Start time in ISO 8601 format |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `timezone` | string | Timezone |
-|   ↳ `agenda` | string | Meeting agenda |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `join_url` | string | URL for participants to join |
-| `pageInfo` | object | Pagination information |
-|   ↳ `pageCount` | number | Total number of pages |
-|   ↳ `pageNumber` | number | Current page number |
-|   ↳ `pageSize` | number | Number of records per page |
-|   ↳ `totalRecords` | number | Total number of records |
-|   ↳ `nextPageToken` | string | Token for next page of results |
+
+| `meetings` | массив | Список встреч |
+
+|   ↳ `id` | число | ID встречи |
+
+|   ↳ `uuid` | строка | UUID встречи |
+
+|   ↳ `host_id` | строка | ID пользователя-хоста |
+
+|   ↳ `host_email` | строка | Электронная почта хоста |
+
+|   ↳ `topic` | строка | Тема встречи |
+
+|   ↳ `type` | число | Тип встречи: 1=немедленная, 2=назначенная, 3=повторяющаяся без фиксированного времени, 8=повторяющаяся с фиксированным временем |
+
+|   ↳ `start_time` | строка | Время начала в формате ISO 8601 |
+
+|   ↳ `duration` | число | Продолжительность в минутах |
+
+|   ↳ `timezone` | строка | Часовой пояс (например, "America/Los_Angeles") |
+
+|   ↳ `agenda` | строка | Повестка дня |
+
+|   ↳ `created_at` | строка | Дата создания в формате ISO 8601 |
+
+|   ↳ `start_url` | строка | URL для начала встречи хостом |
+
+|   ↳ `join_url` | строка | URL для присоединения участников к встрече |
+
+|   ↳ `password` | строка | Пароль встречи |
+
+|   ↳ `h323_password` | строка | H.323/SIP пароль комнаты |
+
+|   ↳ `pstn_password` | строка | PSTN пароль для телефонного звонка |
+
+|   ↳ `encrypted_password` | строка | Зашифрованный пароль для входа |
+
+
+|   ↳ `settings` | объект | Настройки встречи |
+
+
+|     ↳ `host_video` | логическое значение | Начать с включенного видео хоста |
+
+
+|     ↳ `participant_video` | логическое значение | Начать с включенного видео участника |
+
+
+|     ↳ `join_before_host` | логическое значение | Разрешить участникам присоединиться до начала встречи |
+
+| --------- | ---- | -------- | ----------- |
+
+|     ↳ `mute_upon_entry` | логическое значение | Отключить звук участников при входе |
+
+|     ↳ `watermark` | логическое значение | Добавить водяной знак при просмотре общего экрана |
+
+|     ↳ `audio` | строка | Аудио опции: both, telephony, или voip |
+
+
+|     ↳ `auto_recording` | строка | Автоматическая запись: local, cloud, или none |
+
+
+|     ↳ `waiting_room` | логическое значение | Включить комнату ожидания |
+
+| --------- | ---- | ----------- |
+
+|     ↳ `meeting_authentication` | логическое значение | Требовать аутентификацию встречи |
+
+|     ↳ `approval_type` | число | Тип одобрения: 0=auto, 1=manual, 2=none |
+
+|   ↳ `recurrence` | объект | Настройки повтора для встреч с повторяющимся временем |
+
+|     ↳ `type` | число | Тип повтора: 1=ежедневно, 2=еженедельно, 3=ежемесячно |
+
+|     ↳ `repeat_interval` | число | Интервал между встречами |
+
+|     ↳ `weekly_days` | строка | Дни недели для еженедечного повтора (1-7, через запятую) |
+
+|     ↳ `monthly_day` | число | День месяца для ежемесячного повтора |
+
+|     ↳ `monthly_week` | число | Неделя месяца для ежемесячного повтора |
+
+|     ↳ `monthly_week_day` | число | День недели для ежемесячного повтора |
+
+|     ↳ `end_times` | число | Количество экземпляров |
+
+|     ↳ `end_date_time` | строка | Дата окончания в формате ISO 8601 |
+
+|   ↳ `occurrences` | массив | Встречи с повторяющимся временем |
+
+|     ↳ `occurrence_id` | строка | ID экземпляра |
+
+|     ↳ `start_time` | строка | Время начала в формате ISO 8601 |
+
+|     ↳ `duration` | число | Продолжительность в минутах |
+
+|     ↳ `status` | строка | Статус экземпляра |
+
+| `pageInfo` | объект | Информация о разметке |
+
+|   ↳ `pageCount` | число | Общее количество страниц |
+
+|   ↳ `pageNumber` | число | Текущий номер страницы |
+
+|   ↳ `pageSize` | число | Количество записей на странице |
+
+|   ↳ `totalRecords` | число | Общее количество записей |
+
+|   ↳ `nextPageToken` | строка | Токен для получения следующей страницы результатов |
 
 ### `zoom_get_meeting`
 
-Получение details of a specific Zoom meeting
+Получить детали встречи Zoom
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `meetingId` | строка | Да | ID встречи (например, "1234567890" или "85746065432") |
+
+| `occurrenceId` | строка | Нет | ID экземпляра для встреч с повторяющимся временем |
+
+| `showPreviousOccurrences` | логическое значение | Нет | Показать предыдущие экземпляры |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `meeting` | объект | Детали встречи |
+
+|   ↳ `id` | число | ID встречи |
+
+|   ↳ `uuid` | строка | UUID встречи |
+
+|   ↳ `host_id` | строка | ID пользователя-хоста |
+
+|   ↳ `host_email` | строка | Электронная почта хоста |
+
+|   ↳ `topic` | строка | Тема встречи |
+
+|   ↳ `type` | число | Тип встречи: 1=немедленная, 2=назначенная, 3=повторяющаяся без фиксированного времени, 8=повторяющаяся с фиксированным временем |
+
+|   ↳ `status` | строка | Статус встречи (например, waiting, started) |
+
+|   ↳ `start_time` | строка | Время начала в формате ISO 8601 |
+
+|   ↳ `duration` | число | Продолжительность в минутах |
+
+|   ↳ `timezone` | строка | Часовой пояс (например, "America/Los_Angeles") |
+
+|   ↳ `agenda` | строка | Повестка дня |
+
+|   ↳ `created_at` | строка | Дата создания в формате ISO 8601 |
+
+
+|   ↳ `start_url` | строка | URL для начала встречи хостом |
+
+
+|   ↳ `join_url` | строка | URL для присоединения участников к встрече |
+
+
+|   ↳ `password` | строка | Пароль встречи |
+
+
+|   ↳ `h323_password` | строка | H.323/SIP пароль комнаты |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID (например, "1234567890" or "85746065432"\) |
-| `occurrenceId` | string | Нет | Occurrence ID for recurring meetings |
-| `showPreviousOccurrences` | boolean | Нет | Show previous occurrences for recurring meetings |
 
-#### Выход
+|   ↳ `pstn_password` | строка | PSTN пароль для телефонного звонка |
+
+|   ↳ `encrypted_password` | строка | Зашифрованный пароль для входа |
+
+|   ↳ `settings` | объект | Настройки встречи |
+
+|     ↳ `host_video` | логическое значение | Начать с включенного видео хоста |
+
+|     ↳ `participant_video` | логическое значение | Начать с включенного видео участника |
+
+|     ↳ `join_before_host` | логическое значение | Разрешить участникам присоединиться до начала встречи |
+
+|     ↳ `mute_upon_entry` | логическое значение | Отключить звук участников при входе |
+
+|     ↳ `watermark` | логическое
+
+| `hostVideo` | boolean | No | Start with host video on |
+
+| `participantVideo` | boolean | No | Start with participant video on |
+
+| `joinBeforeHost` | boolean | No | Allow participants to join before host |
+
+| `muteUponEntry` | boolean | No | Mute participants upon entry |
+
+| `waitingRoom` | boolean | No | Enable waiting room |
+
+| `autoRecording` | string | No | Auto recording setting: local, cloud, or none |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `meeting` | object | The meeting details |
-|   ↳ `id` | number | Meeting ID |
-|   ↳ `uuid` | string | Meeting UUID |
-|   ↳ `host_id` | string | Host user ID |
-|   ↳ `host_email` | string | Host email address |
-|   ↳ `topic` | string | Meeting topic |
-|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
-|   ↳ `status` | string | Meeting status (например, waiting, started\) |
-|   ↳ `start_time` | string | Start time in ISO 8601 format |
-|   ↳ `duration` | number | Duration in minutes |
-|   ↳ `timezone` | string | Timezone (например, America/Los_Angeles\) |
-|   ↳ `agenda` | string | Meeting agenda |
-|   ↳ `created_at` | string | Creation timestamp in ISO 8601 format |
-|   ↳ `start_url` | string | URL for host to start the meeting |
-|   ↳ `join_url` | string | URL for participants to join the meeting |
-|   ↳ `password` | string | Meeting password |
-|   ↳ `h323_password` | string | H.323/SIP room system password |
-|   ↳ `pstn_password` | string | PSTN password for phone dial-in |
-|   ↳ `encrypted_password` | string | Encrypted password for joining |
-|   ↳ `settings` | object | Meeting settings |
-|     ↳ `host_video` | boolean | Start with host video on |
-|     ↳ `participant_video` | boolean | Start with participant video on |
-|     ↳ `join_before_host` | boolean | Allow participants to join before host |
-|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
-|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
-|     ↳ `audio` | string | Audio options: both, telephony, or voip |
-|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
-|     ↳ `waiting_room` | boolean | Enable waiting room |
-|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
-|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
-|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
-|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
-|     ↳ `repeat_interval` | number | Interval between recurring meetings |
-|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
-|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
-|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
-|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
-|     ↳ `end_times` | number | Number of occurrences |
-|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
-|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
-|     ↳ `occurrence_id` | string | Occurrence ID |
-|     ↳ `start_time` | string | Start time in ISO 8601 format |
-|     ↳ `duration` | number | Duration in minutes |
-|     ↳ `status` | string | Occurrence status |
 
-### `zoom_update_meeting`
+| `success` | boolean | Whether the meeting was updated successfully |
 
-Обновление existing Zoom meeting
-
-#### Вход
-
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID to update (например, "1234567890" or "85746065432"\) |
-| `topic` | string | Нет | Meeting topic (например, "Weekly Team Standup" or "Project Review"\) |
-| `type` | number | Нет | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
-| `startTime` | string | Нет | Meeting start time in ISO 8601 format (например, 2025-06-03T10:00:00Z\) |
-| `duration` | number | Нет | Meeting duration in minutes (например, 30, 60, 90\) |
-| `timezone` | string | Нет | Timezone for the meeting (например, America/Los_Angeles\) |
-| `password` | string | Нет | Meeting password |
-| `agenda` | string | Нет | Meeting agenda or description text |
-| `hostVideo` | boolean | Нет | Start with host video on |
-| `participantVideo` | boolean | Нет | Start with participant video on |
-| `joinBeforeHost` | boolean | Нет | Allow participants to join before host |
-| `muteUponEntry` | boolean | Нет | Mute participants upon entry |
-| `waitingRoom` | boolean | Нет | Enable waiting room |
-| `autoRecording` | string | Нет | Auto recording setting: local, cloud, or none |
-
-#### Выход
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  meeting was updated successfully |
 
 ### `zoom_delete_meeting`
 
+
 Delete or cancel a Zoom meeting
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID to delete (например, "1234567890" or "85746065432"\) |
-| `occurrenceId` | string | Нет | Occurrence ID for deleting a specific occurrence of a recurring meeting |
-| `scheduleForReminder` | boolean | Нет | Send cancellation reminder email to registrants |
-| `cancelMeetingReminder` | boolean | Нет | Send cancellation email to registrants and alternative hosts |
 
-#### Выход
+| `meetingId` | string | Yes | The meeting ID to delete \(e.g., "1234567890" or "85746065432"\) |
+
+| `occurrenceId` | string | No | Occurrence ID for deleting a specific occurrence of a recurring meeting |
+
+| `scheduleForReminder` | boolean | No | Send cancellation reminder email to registrants |
+
+| `cancelMeetingReminder` | boolean | No | Send cancellation email to registrants and alternative hosts |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  meeting was deleted successfully |
+
+| `success` | boolean | Whether the meeting was deleted successfully |
+
 
 ### `zoom_get_meeting_invitation`
 
-Получение the meeting invitation text for a Zoom meeting
 
-#### Вход
+Get the meeting invitation text for a Zoom meeting
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID (например, "1234567890" or "85746065432"\) |
 
-#### Выход
+| `meetingId` | string | Yes | The meeting ID \(e.g., "1234567890" or "85746065432"\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `invitation` | string | The meeting invitation text |
+
 
 ### `zoom_list_recordings`
 
-Получение списка cloud recordings for a Zoom user
 
-#### Вход
+List all cloud recordings for a Zoom user
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Да | The user ID or email address (например, "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
-| `from` | string | Нет | Start date in yyyy-mm-dd format \(within last 6 months\) |
-| `to` | string | Нет | End date in yyyy-mm-dd format |
-| `pageSize` | number | Нет | Number of records per page, 1-300 (например, 30, 50, 100\) |
-| `nextPageToken` | string | Нет | Token for pagination to get next page of results |
-| `trash` | boolean | Нет | Set to true to list recordings from trash |
 
-#### Выход
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
+
+| `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
+
+| `to` | string | No | End date in yyyy-mm-dd format |
+
+| `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
+
+| `nextPageToken` | string | No | Token for pagination to get next page of results |
+
+| `trash` | boolean | No | Set to true to list recordings from trash |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `recordings` | array | Получение списка of recordings |
+
+| `recordings` | array | List of recordings |
+
 |   ↳ `uuid` | string | Meeting UUID |
+
 |   ↳ `id` | number | Meeting ID |
+
 |   ↳ `account_id` | string | Account ID |
+
 |   ↳ `host_id` | string | Host user ID |
+
 |   ↳ `topic` | string | Meeting topic |
+
 |   ↳ `type` | number | Meeting type |
+
 |   ↳ `start_time` | string | Meeting start time |
+
 |   ↳ `duration` | number | Meeting duration in minutes |
+
 |   ↳ `total_size` | number | Total size of all recordings in bytes |
+
 |   ↳ `recording_count` | number | Number of recording files |
+
 |   ↳ `share_url` | string | URL to share recordings |
-|   ↳ `recording_files` | array | Получение списка of recording files |
+
+|   ↳ `recording_files` | array | List of recording files |
+
 |     ↳ `id` | string | Recording file ID |
+
 |     ↳ `meeting_id` | string | Meeting ID associated with the recording |
+
 |     ↳ `recording_start` | string | Start time of the recording |
+
 |     ↳ `recording_end` | string | End time of the recording |
+
 |     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
+
 |     ↳ `file_extension` | string | File extension |
+
 |     ↳ `file_size` | number | File size in bytes |
+
 |     ↳ `play_url` | string | URL to play the recording |
+
 |     ↳ `download_url` | string | URL to download the recording |
+
 |     ↳ `status` | string | Recording status |
+
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
+
 | `pageInfo` | object | Pagination information |
+
 |   ↳ `from` | string | Start date of query range |
+
 |   ↳ `to` | string | End date of query range |
+
 |   ↳ `pageSize` | number | Number of records per page |
+
 |   ↳ `totalRecords` | number | Total number of records |
+
 |   ↳ `nextPageToken` | string | Token for next page of results |
+
 
 ### `zoom_get_meeting_recordings`
 
-Получение all recordings for a specific Zoom meeting
 
-#### Вход
+Get all recordings for a specific Zoom meeting
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID or meeting UUID (например, "1234567890" or "4444AAABBBccccc12345=="\) |
-| `includeFolderItems` | boolean | Нет | Include items within a folder |
-| `ttl` | number | Нет | Time to live for download URLs in seconds \(max 604800\) |
-| `downloadFiles` | boolean | Нет | Download recording files into file outputs |
 
-#### Выход
+| `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
+
+| `includeFolderItems` | boolean | No | Include items within a folder |
+
+| `ttl` | number | No | Time to live for download URLs in seconds \(max 604800\) |
+
+| `downloadFiles` | boolean | No | Download recording files into file outputs |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `recording` | object | The meeting recording with all files |
+
 |   ↳ `uuid` | string | Meeting UUID |
+
 |   ↳ `id` | number | Meeting ID |
+
 |   ↳ `account_id` | string | Account ID |
+
 |   ↳ `host_id` | string | Host user ID |
+
 |   ↳ `topic` | string | Meeting topic |
+
 |   ↳ `type` | number | Meeting type |
+
 |   ↳ `start_time` | string | Meeting start time |
+
 |   ↳ `duration` | number | Meeting duration in minutes |
+
 |   ↳ `total_size` | number | Total size of all recordings in bytes |
+
 |   ↳ `recording_count` | number | Number of recording files |
+
 |   ↳ `share_url` | string | URL to share recordings |
-|   ↳ `recording_files` | array | Получение списка of recording files |
+
+|   ↳ `recording_files` | array | List of recording files |
+
 |     ↳ `id` | string | Recording file ID |
+
 |     ↳ `meeting_id` | string | Meeting ID associated with the recording |
+
 |     ↳ `recording_start` | string | Start time of the recording |
+
 |     ↳ `recording_end` | string | End time of the recording |
+
 |     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
+
 |     ↳ `file_extension` | string | File extension |
+
 |     ↳ `file_size` | number | File size in bytes |
+
 |     ↳ `play_url` | string | URL to play the recording |
+
 |     ↳ `download_url` | string | URL to download the recording |
+
 |     ↳ `status` | string | Recording status |
+
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
+
 | `files` | file[] | Downloaded recording files |
+
 
 ### `zoom_delete_recording`
 
+
 Delete cloud recordings for a Zoom meeting
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The meeting ID or meeting UUID (например, "1234567890" or "4444AAABBBccccc12345=="\) |
-| `recordingId` | string | Нет | Specific recording file ID to delete. If not provided, deletes all recordings. |
-| `action` | string | Нет | Удалениеction: "trash" \(move to trash\) or "delete" \(permanently delete\) |
 
-#### Выход
+| `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
+
+| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings. |
+
+| `action` | string | No | Delete action: "trash" \(move to trash\) or "delete" \(permanently delete\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  recording was deleted successfully |
+
+| `success` | boolean | Whether the recording was deleted successfully |
+
 
 ### `zoom_list_past_participants`
 
-Получение списка participants from a past Zoom meeting
 
-#### Вход
+List participants from a past Zoom meeting
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Да | The past meeting ID or UUID (например, "1234567890" or "4444AAABBBccccc12345=="\) |
-| `pageSize` | number | Нет | Number of records per page, 1-300 (например, 30, 50, 100\) |
-| `nextPageToken` | string | Нет | Token for pagination to get next page of results |
 
-#### Выход
+| `meetingId` | string | Yes | The past meeting ID or UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
+
+| `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
+
+| `nextPageToken` | string | No | Token for pagination to get next page of results |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `participants` | array | Получение списка of meeting participants |
+
+| `participants` | array | List of meeting participants |
+
 |   ↳ `id` | string | Participant unique identifier |
+
 |   ↳ `user_id` | string | User ID if registered Zoom user |
+
 |   ↳ `name` | string | Participant display name |
+
 |   ↳ `user_email` | string | Participant email address |
+
 |   ↳ `join_time` | string | Time when participant joined \(ISO 8601\) |
+
 |   ↳ `leave_time` | string | Time when participant left \(ISO 8601\) |
+
 |   ↳ `duration` | number | Duration in seconds participant was in meeting |
+
 |   ↳ `attentiveness_score` | string | Attentiveness score \(deprecated\) |
+
 |   ↳ `failover` | boolean | Whether participant failed over to another data center |
+
 |   ↳ `status` | string | Participant status |
+
 | `pageInfo` | object | Pagination information |
+
 |   ↳ `pageSize` | number | Number of records per page |
+
 |   ↳ `totalRecords` | number | Total number of records |
+
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
 
 
-## Триггеры
 
-**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+## Triggers
+
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 ### Zoom Meeting Ended
 
-Запуск рабочего процесса when a Zoom meeting ends
 
-#### Конфигурация
+Trigger workflow when a Zoom meeting ends
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `event` | string | The webhook event type (например, meeting.started\) |
+
+| `event` | string | The webhook event type \(e.g., meeting.started\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | object | payload output from the tool |
+
 |   ↳ `account_id` | string | Zoom account ID |
+
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 
 
+
 ---
+
 
 ### Zoom Meeting Started
 
-Запуск рабочего процесса when a Zoom meeting starts
 
-#### Конфигурация
+Trigger workflow when a Zoom meeting starts
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `event` | string | The webhook event type (например, meeting.started\) |
+
+| `event` | string | The webhook event type \(e.g., meeting.started\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | object | payload output from the tool |
+
 |   ↳ `account_id` | string | Zoom account ID |
+
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 
 
+
 ---
+
 
 ### Zoom Participant Joined
 
-Запуск рабочего процесса when a participant joins a Zoom meeting
 
-#### Конфигурация
+Trigger workflow when a participant joins a Zoom meeting
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `event` | string | The webhook event type (например, meeting.participant_joined\) |
+
+| `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | object | payload output from the tool |
+
 |   ↳ `account_id` | string | Zoom account ID |
+
 |   ↳ `object` | object | Meeting and participant details |
 
 
+
 ---
+
 
 ### Zoom Participant Left
 
-Запуск рабочего процесса when a participant leaves a Zoom meeting
 
-#### Конфигурация
+Trigger workflow when a participant leaves a Zoom meeting
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `event` | string | The webhook event type (например, meeting.participant_joined\) |
+
+| `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | object | payload output from the tool |
+
 |   ↳ `account_id` | string | Zoom account ID |
+
 |   ↳ `object` | object | Meeting and participant details |
 
 
+
 ---
+
 
 ### Zoom Recording Completed
 
-Запуск рабочего процесса when a Zoom cloud recording is completed
 
-#### Конфигурация
+Trigger workflow when a Zoom cloud recording is completed
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `event` | string | The webhook event type \(recording.completed\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | object | payload output from the tool |
+
 |   ↳ `account_id` | string | Zoom account ID |
+
 |   ↳ `object` | object | Cloud recording details \(aligns with Zoom cloud recording objects\) |
+
 
 
 ---
 
+
 ### Zoom Webhook (All Events)
 
-Запуск рабочего процесса on any Zoom webhook event
 
-#### Конфигурация
+Trigger workflow on any Zoom webhook event
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `secretToken` | string | Да | Found in your Zoom app |
 
-#### Выход
+| `secretToken` | string | Yes | Found in your Zoom app |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `event` | string | The webhook event type (например, meeting.started, recording.completed\) |
+
+| `event` | string | The webhook event type \(e.g., meeting.started, recording.completed\) |
+
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
+
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
+
 

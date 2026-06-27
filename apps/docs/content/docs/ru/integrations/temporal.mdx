@@ -1,6 +1,6 @@
 ---
-title: Temporal
-description: Запуск, сигнализация, запрос и управление выполнениями рабочих процессов Temporal
+title: Временной
+description: Начните, отправьте сигнал, запросите и управляйте выполнением рабочих процессов в Temporal
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,533 +10,933 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#141414"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [Temporal](https://temporal.io/) is an open-source durable execution platform that lets teams write workflows as code that survive crashes, retries, and outages. A Temporal cluster tracks every workflow execution's state and event history, so long-running business processes — order fulfillment, payment pipelines, infrastructure provisioning, human-in-the-loop approvals — run reliably for minutes or months at a time.
 
-With the Temporal integration in Sim, your agents can drive those durable workflows directly. Connect to any Temporal cluster that exposes the server's HTTP API (enabled by по умолчанию on the frontend's HTTP port, 7243, in modern Temporal servers) and:
+
+With the Temporal integration in Sim, your agents can drive those durable workflows directly. Connect to any Temporal cluster that exposes the server's HTTP API (enabled by default on the frontend's HTTP port, 7243, in modern Temporal servers) and:
+
 
 - **Run workflows**: start executions with JSON input, use signal-with-start for exactly-once delivery, and set ID reuse policies, cron schedules, timeouts, memo fields, and search attributes.
+
 - **Communicate with running workflows**: send signals, invoke update handlers and wait for their results, and run queries against live workflow state.
+
 - **Observe executions**: describe a single execution (status, timing, pending activities), list and count executions with Temporal's visibility query language, and fetch full event histories — including just the close event to read a workflow's outcome.
+
 - **Operate the fleet**: cancel or terminate runaway executions, reset a workflow to a previous point in its history, and manage schedules — list, describe, pause, unpause, trigger, and delete them.
 
-Workflow inputs and results are encoded with Temporal's standard `json/plain` payload converter, so the integration interoperates with workers written in any Temporal SDK. If your server has authentication enabled, provide an Ключ API and Sim sends it as a Bearer token on every request.
+
+Workflow inputs and results are encoded with Temporal's standard `json/plain` payload converter, so the integration interoperates with workers written in any Temporal SDK. If your server has authentication enabled, provide an API key and Sim sends it as a Bearer token on every request.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. Ключ API only required for servers with authentication enabled.
-
+## Usage Instructions
 
 
-## Действия
+Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.
+
+
+
+
+## Actions
+
 
 ### `temporal_start_workflow`
 
+
 Start a new workflow execution on a Temporal cluster.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Unique workflow ID for the new execution (например, order-1234\) |
-| `workflowType` | string | Да | Registered workflow type name to run (например, OrderWorkflow\) |
-| `taskQueue` | string | Да | Task queue the workflow worker polls (например, orders\) |
-| `input` | string | Нет | Workflow input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
-| `workflowIdReusePolicy` | string | Нет | Policy for reusing a closed workflow ID: WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE, WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY, WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE, or WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING |
-| `workflowIdConflictPolicy` | string | Нет | Policy when a workflow with the same ID is already running: WORKFLOW_ID_CONFLICT_POLICY_FAIL, WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING, or WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING |
-| `cronSchedule` | string | Нет | Cron schedule for recurring executions (например, "0 12 * * *"\) |
-| `executionTimeoutSeconds` | number | Нет | Total workflow execution timeout in seconds, including retries and continue-as-new |
-| `runTimeoutSeconds` | number | Нет | Timeout for a single workflow run in seconds |
-| `memo` | string | Нет | JSON object of memo fields to attach to the execution |
-| `searchAttributes` | string | Нет | JSON object of search attribute values to index the execution with |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Unique workflow ID for the new execution \(e.g., order-1234\) |
+
+| `workflowType` | string | Yes | Registered workflow type name to run \(e.g., OrderWorkflow\) |
+
+| `taskQueue` | string | Yes | Task queue the workflow worker polls \(e.g., orders\) |
+
+| `input` | string | No | Workflow input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+| `workflowIdReusePolicy` | string | No | Policy for reusing a closed workflow ID: WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE, WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY, WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE, or WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING |
+
+| `workflowIdConflictPolicy` | string | No | Policy when a workflow with the same ID is already running: WORKFLOW_ID_CONFLICT_POLICY_FAIL, WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING, or WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING |
+
+| `cronSchedule` | string | No | Cron schedule for recurring executions \(e.g., "0 12 * * *"\) |
+
+| `executionTimeoutSeconds` | number | No | Total workflow execution timeout in seconds, including retries and continue-as-new |
+
+| `runTimeoutSeconds` | number | No | Timeout for a single workflow run in seconds |
+
+| `memo` | string | No | JSON object of memo fields to attach to the execution |
+
+| `searchAttributes` | string | No | JSON object of search attribute values to index the execution with |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the execution |
+
 | `runId` | string | Run ID of the started workflow execution |
+
 | `started` | boolean | Whether a new execution was started \(false when an existing execution was reused\) |
+
 
 ### `temporal_signal_workflow`
 
+
 Send a signal to a running Temporal workflow execution.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to signal |
-| `runId` | string | Нет | Run ID of a specific run to signal \(defaults to the latest run\) |
-| `signalName` | string | Да | Name of the signal handler to invoke (например, approve-order\) |
-| `signalInput` | string | Нет | Signal input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to signal |
+
+| `runId` | string | No | Run ID of a specific run to signal \(defaults to the latest run\) |
+
+| `signalName` | string | Yes | Name of the signal handler to invoke \(e.g., approve-order\) |
+
+| `signalInput` | string | No | Signal input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the signaled execution |
+
 | `signalName` | string | Name of the signal that was sent |
+
 
 ### `temporal_signal_with_start`
 
+
 Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID to signal, or to start and signal (например, order-1234\) |
-| `workflowType` | string | Да | Registered workflow type name to start if the workflow is not running |
-| `taskQueue` | string | Да | Task queue the workflow worker polls (например, orders\) |
-| `signalName` | string | Да | Name of the signal handler to invoke (например, approve-order\) |
-| `input` | string | Нет | Workflow start input as JSON, used only when a new execution is started. A top-level array is passed as the argument list; any other value is passed as a single argument |
-| `signalInput` | string | Нет | Signal input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
-| `workflowIdReusePolicy` | string | Нет | Policy for reusing a closed workflow ID: WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE, WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY, WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE, or WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING |
-| `workflowIdConflictPolicy` | string | Нет | Policy when a workflow with the same ID is already running \(defaults to using the existing run\): WORKFLOW_ID_CONFLICT_POLICY_FAIL, WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING, or WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING |
-| `cronSchedule` | string | Нет | Cron schedule for recurring executions (например, "0 12 * * *"\) |
-| `executionTimeoutSeconds` | number | Нет | Total workflow execution timeout in seconds, including retries and continue-as-new |
-| `runTimeoutSeconds` | number | Нет | Timeout for a single workflow run in seconds |
-| `memo` | string | Нет | JSON object of memo fields to attach to the execution |
-| `searchAttributes` | string | Нет | JSON object of search attribute values to index the execution with |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID to signal, or to start and signal \(e.g., order-1234\) |
+
+| `workflowType` | string | Yes | Registered workflow type name to start if the workflow is not running |
+
+| `taskQueue` | string | Yes | Task queue the workflow worker polls \(e.g., orders\) |
+
+| `signalName` | string | Yes | Name of the signal handler to invoke \(e.g., approve-order\) |
+
+| `input` | string | No | Workflow start input as JSON, used only when a new execution is started. A top-level array is passed as the argument list; any other value is passed as a single argument |
+
+| `signalInput` | string | No | Signal input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+| `workflowIdReusePolicy` | string | No | Policy for reusing a closed workflow ID: WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE, WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY, WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE, or WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING |
+
+| `workflowIdConflictPolicy` | string | No | Policy when a workflow with the same ID is already running \(defaults to using the existing run\): WORKFLOW_ID_CONFLICT_POLICY_FAIL, WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING, or WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING |
+
+| `cronSchedule` | string | No | Cron schedule for recurring executions \(e.g., "0 12 * * *"\) |
+
+| `executionTimeoutSeconds` | number | No | Total workflow execution timeout in seconds, including retries and continue-as-new |
+
+| `runTimeoutSeconds` | number | No | Timeout for a single workflow run in seconds |
+
+| `memo` | string | No | JSON object of memo fields to attach to the execution |
+
+| `searchAttributes` | string | No | JSON object of search attribute values to index the execution with |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the signaled execution |
+
 | `runId` | string | Run ID of the signaled \(or newly started\) execution |
+
 | `started` | boolean | Whether this call started a new execution \(false when only signaled\) |
+
 
 ### `temporal_query_workflow`
 
+
 Run a synchronous query against the state of a Temporal workflow execution and return the result.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to query |
-| `runId` | string | Нет | Run ID of a specific run to query \(defaults to the latest run\) |
-| `queryType` | string | Да | Name of the query handler to invoke (например, getStatus\) |
-| `queryArgs` | string | Нет | Query arguments as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to query |
+
+| `runId` | string | No | Run ID of a specific run to query \(defaults to the latest run\) |
+
+| `queryType` | string | Yes | Name of the query handler to invoke \(e.g., getStatus\) |
+
+| `queryArgs` | string | No | Query arguments as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the queried execution |
+
 | `queryType` | string | Name of the query that was run |
+
 | `result` | json | Decoded query result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
+
 
 ### `temporal_update_workflow`
 
+
 Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to update |
-| `runId` | string | Нет | Run ID of a specific run to update \(defaults to the latest run\) |
-| `updateName` | string | Да | Name of the update handler to invoke (например, addItem\) |
-| `updateArgs` | string | Нет | Update arguments as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to update |
+
+| `runId` | string | No | Run ID of a specific run to update \(defaults to the latest run\) |
+
+| `updateName` | string | Yes | Name of the update handler to invoke \(e.g., addItem\) |
+
+| `updateArgs` | string | No | Update arguments as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the updated execution |
+
 | `updateName` | string | Name of the update that was invoked |
+
 | `result` | json | Decoded update result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
+
 
 ### `temporal_describe_workflow`
 
-Получение the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities.
 
-#### Вход
+Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to describe |
-| `runId` | string | Нет | Run ID of a specific run to describe \(defaults to the latest run\) |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to describe |
+
+| `runId` | string | No | Run ID of a specific run to describe \(defaults to the latest run\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the execution |
+
 | `runId` | string | Run ID of the execution |
+
 | `workflowType` | string | Workflow type name |
+
 | `status` | string | Execution status \(RUNNING, COMPLETED, FAILED, CANCELED, TERMINATED, CONTINUED_AS_NEW, or TIMED_OUT\) |
+
 | `startTime` | string | Start time of the execution \(RFC 3339\) |
+
 | `closeTime` | string | Close time of the execution \(RFC 3339\), null while running |
+
 | `executionTime` | string | Effective execution start time \(RFC 3339\), e.g. the first cron run time |
-| `historyLength` | number | Number of events в рабочем процессе history |
+
+| `historyLength` | number | Number of events in the workflow history |
+
 | `taskQueue` | string | Task queue of the execution |
+
 | `memo` | json | Decoded memo fields attached to the execution |
+
 | `searchAttributes` | json | Decoded search attribute values |
+
 | `pendingActivities` | array | Activities currently pending on the execution |
+
 |   ↳ `activityId` | string | Activity ID |
+
 |   ↳ `activityType` | string | Activity type name |
+
 |   ↳ `state` | string | Pending state \(SCHEDULED, STARTED, CANCEL_REQUESTED, PAUSED, or PAUSE_REQUESTED\) |
+
 |   ↳ `attempt` | number | Current attempt number |
+
 |   ↳ `lastFailureMessage` | string | Message of the most recent failure, if the activity is retrying |
+
 
 ### `temporal_list_workflows`
 
-Получение списка workflow executions in a Temporal namespace, optionally filtered with a visibility query.
 
-#### Вход
+List workflow executions in a Temporal namespace, optionally filtered with a visibility query.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `query` | string | Нет | Visibility list filter, e.g. WorkflowType = "OrderWorkflow" AND ExecutionStatus = "Running" \(empty lists all executions\) |
-| `pageSize` | number | Нет | Maximum number of executions to return per page |
-| `nextPageToken` | string | Нет | Page token from a previous response, for pagination |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `query` | string | No | Visibility list filter, e.g. WorkflowType = "OrderWorkflow" AND ExecutionStatus = "Running" \(empty lists all executions\) |
+
+| `pageSize` | number | No | Maximum number of executions to return per page |
+
+| `nextPageToken` | string | No | Page token from a previous response, for pagination |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `executions` | array | Workflow executions matching the query |
+
 |   ↳ `workflowId` | string | Workflow ID of the execution |
+
 |   ↳ `runId` | string | Run ID of the execution |
+
 |   ↳ `workflowType` | string | Workflow type name |
+
 |   ↳ `status` | string | Execution status \(RUNNING, COMPLETED, FAILED, CANCELED, TERMINATED, CONTINUED_AS_NEW, or TIMED_OUT\) |
+
 |   ↳ `startTime` | string | Start time of the execution \(RFC 3339\) |
+
 |   ↳ `closeTime` | string | Close time of the execution \(RFC 3339\), null while running |
+
 |   ↳ `executionTime` | string | Effective execution start time \(RFC 3339\) |
-|   ↳ `historyLength` | number | Number of events в рабочем процессе history |
+
+|   ↳ `historyLength` | number | Number of events in the workflow history |
+
 |   ↳ `taskQueue` | string | Task queue of the execution |
+
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
+
 
 ### `temporal_count_workflows`
 
+
 Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `query` | string | Нет | Visibility count filter, e.g. ExecutionStatus = "Running" or ... GROUP BY ExecutionStatus \(empty counts all executions\) |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `query` | string | No | Visibility count filter, e.g. ExecutionStatus = "Running" or ... GROUP BY ExecutionStatus \(empty counts all executions\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `count` | number | Number of workflow executions matching the query |
+
 | `groups` | array | Per-group counts when the query uses GROUP BY \(empty otherwise\) |
+
 |   ↳ `values` | json | Decoded values of the GROUP BY fields |
+
 |   ↳ `count` | number | Number of executions in the group |
+
 
 ### `temporal_get_workflow_history`
 
+
 Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution |
-| `runId` | string | Нет | Run ID of a specific run \(defaults to the latest run\) |
-| `maximumPageSize` | number | Нет | Maximum number of history events to return per page |
-| `nextPageToken` | string | Нет | Page token from a previous response, for pagination |
-| `historyEventFilterType` | string | Нет | Event filter: HISTORY_EVENT_FILTER_TYPE_ALL_EVENT \(default\) or HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT to return only the final close event |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution |
+
+| `runId` | string | No | Run ID of a specific run \(defaults to the latest run\) |
+
+| `maximumPageSize` | number | No | Maximum number of history events to return per page |
+
+| `nextPageToken` | string | No | Page token from a previous response, for pagination |
+
+| `historyEventFilterType` | string | No | Event filter: HISTORY_EVENT_FILTER_TYPE_ALL_EVENT \(default\) or HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT to return only the final close event |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `events` | array | History events of the workflow execution, in order |
+
 |   ↳ `eventId` | number | Sequential ID of the event |
+
 |   ↳ `eventTime` | string | Time the event was recorded \(RFC 3339\) |
-|   ↳ `eventType` | string | Event type (например, WORKFLOW_EXECUTION_STARTED, ACTIVITY_TASK_COMPLETED\) |
+
+|   ↳ `eventType` | string | Event type \(e.g., WORKFLOW_EXECUTION_STARTED, ACTIVITY_TASK_COMPLETED\) |
+
 |   ↳ `attributes` | json | The event's type-specific attributes \(payload data is base64-encoded\) |
+
 | `nextPageToken` | string | Token for the next page of events, null when no more pages exist |
+
 
 ### `temporal_cancel_workflow`
 
+
 Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to cancel |
-| `runId` | string | Нет | Run ID of a specific run to cancel \(defaults to the latest run\) |
-| `reason` | string | Нет | Reason for the cancellation, recorded в рабочем процессе history |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to cancel |
+
+| `runId` | string | No | Run ID of a specific run to cancel \(defaults to the latest run\) |
+
+| `reason` | string | No | Reason for the cancellation, recorded in the workflow history |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the execution whose cancellation was requested |
+
 
 ### `temporal_terminate_workflow`
 
+
 Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to terminate |
-| `runId` | string | Нет | Run ID of a specific run to terminate \(defaults to the latest run\) |
-| `reason` | string | Нет | Reason for the termination, recorded в рабочем процессе history |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to terminate |
+
+| `runId` | string | No | Run ID of a specific run to terminate \(defaults to the latest run\) |
+
+| `reason` | string | No | Reason for the termination, recorded in the workflow history |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the terminated execution |
+
 
 ### `temporal_reset_workflow`
 
+
 Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `workflowId` | string | Да | Workflow ID of the execution to reset |
-| `runId` | string | Нет | Run ID of a specific run to reset \(defaults to the latest run\) |
-| `workflowTaskFinishEventId` | number | Да | Event ID of the workflow task finish event to reset to — a WORKFLOW_TASK_COMPLETED, WORKFLOW_TASK_TIMED_OUT, WORKFLOW_TASK_FAILED, or WORKFLOW_TASK_STARTED event \(find it with Получение Workflow History\) |
-| `reason` | string | Нет | Reason for the reset, recorded в рабочем процессе history |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `workflowId` | string | Yes | Workflow ID of the execution to reset |
+
+| `runId` | string | No | Run ID of a specific run to reset \(defaults to the latest run\) |
+
+| `workflowTaskFinishEventId` | number | Yes | Event ID of the workflow task finish event to reset to — a WORKFLOW_TASK_COMPLETED, WORKFLOW_TASK_TIMED_OUT, WORKFLOW_TASK_FAILED, or WORKFLOW_TASK_STARTED event \(find it with Get Workflow History\) |
+
+| `reason` | string | No | Reason for the reset, recorded in the workflow history |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `workflowId` | string | Workflow ID of the reset execution |
+
 | `runId` | string | Run ID of the new run created by the reset |
+
 
 ### `temporal_describe_task_queue`
 
-Получение списка the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers.
 
-#### Вход
+List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `taskQueue` | string | Да | Name of the task queue to describe (например, orders\) |
-| `taskQueueType` | string | Нет | Type of pollers to list: TASK_QUEUE_TYPE_WORKFLOW \(default\) or TASK_QUEUE_TYPE_ACTIVITY |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `taskQueue` | string | Yes | Name of the task queue to describe \(e.g., orders\) |
+
+| `taskQueueType` | string | No | Type of pollers to list: TASK_QUEUE_TYPE_WORKFLOW \(default\) or TASK_QUEUE_TYPE_ACTIVITY |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `taskQueue` | string | Name of the described task queue |
+
 | `pollers` | array | Workers currently polling the task queue \(empty when no workers are running\) |
+
 |   ↳ `identity` | string | Identity of the polling worker |
+
 |   ↳ `lastAccessTime` | string | Last time the worker polled the queue \(RFC 3339\) |
+
 |   ↳ `ratePerSecond` | number | Poller rate per second |
+
 
 ### `temporal_create_schedule`
 
+
 Create a Temporal schedule that starts a workflow on a cron or interval cadence.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | Unique ID for the new schedule (например, nightly-report\) |
-| `workflowId` | string | Да | Workflow ID for started workflows \(the schedule appends the run time to keep IDs unique\) |
-| `workflowType` | string | Да | Registered workflow type name the schedule starts (например, ReportWorkflow\) |
-| `taskQueue` | string | Да | Task queue the workflow worker polls (например, reports\) |
-| `input` | string | Нет | Workflow input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
-| `cronExpressions` | string | Нет | Cron expressions defining when the schedule fires, comma- or newline-separated for multiple (например, "0 12 * * *"\). At least one of cronExpressions or intervalSeconds is required |
-| `intervalSeconds` | number | Нет | Fixed interval between actions in seconds. At least one of cronExpressions or intervalSeconds is required |
-| `timezone` | string | Нет | IANA time zone for cron evaluation (например, America/New_York; defaults to UTC\) |
-| `overlapPolicy` | string | Нет | Policy when an action would overlap a still-running one \(defaults to skip\): SCHEDULE_OVERLAP_POLICY_SKIP, SCHEDULE_OVERLAP_POLICY_BUFFER_ONE, SCHEDULE_OVERLAP_POLICY_BUFFER_ALL, SCHEDULE_OVERLAP_POLICY_CANCEL_OTHER, SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER, or SCHEDULE_OVERLAP_POLICY_ALLOW_ALL |
-| `notes` | string | Нет | Human-readable notes stored on the schedule |
-| `paused` | boolean | Нет | Create the schedule in a paused state \(defaults to active\) |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | Unique ID for the new schedule \(e.g., nightly-report\) |
+
+| `workflowId` | string | Yes | Workflow ID for started workflows \(the schedule appends the run time to keep IDs unique\) |
+
+| `workflowType` | string | Yes | Registered workflow type name the schedule starts \(e.g., ReportWorkflow\) |
+
+| `taskQueue` | string | Yes | Task queue the workflow worker polls \(e.g., reports\) |
+
+| `input` | string | No | Workflow input as JSON. A top-level array is passed as the argument list \(one argument per element\); any other value is passed as a single argument |
+
+| `cronExpressions` | string | No | Cron expressions defining when the schedule fires, comma- or newline-separated for multiple \(e.g., "0 12 * * *"\). At least one of cronExpressions or intervalSeconds is required |
+
+| `intervalSeconds` | number | No | Fixed interval between actions in seconds. At least one of cronExpressions or intervalSeconds is required |
+
+| `timezone` | string | No | IANA time zone for cron evaluation \(e.g., America/New_York; defaults to UTC\) |
+
+| `overlapPolicy` | string | No | Policy when an action would overlap a still-running one \(defaults to skip\): SCHEDULE_OVERLAP_POLICY_SKIP, SCHEDULE_OVERLAP_POLICY_BUFFER_ONE, SCHEDULE_OVERLAP_POLICY_BUFFER_ALL, SCHEDULE_OVERLAP_POLICY_CANCEL_OTHER, SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER, or SCHEDULE_OVERLAP_POLICY_ALLOW_ALL |
+
+| `notes` | string | No | Human-readable notes stored on the schedule |
+
+| `paused` | boolean | No | Create the schedule in a paused state \(defaults to active\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | ID of the created schedule |
+
 
 ### `temporal_list_schedules`
 
-Получение списка schedules in a Temporal namespace.
 
-#### Вход
+List schedules in a Temporal namespace.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `query` | string | Нет | Visibility filter over schedules, e.g. TemporalSchedulePaused = false \(empty lists all schedules\) |
-| `maximumPageSize` | number | Нет | Maximum number of schedules to return per page |
-| `nextPageToken` | string | Нет | Page token from a previous response, for pagination |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `query` | string | No | Visibility filter over schedules, e.g. TemporalSchedulePaused = false \(empty lists all schedules\) |
+
+| `maximumPageSize` | number | No | Maximum number of schedules to return per page |
+
+| `nextPageToken` | string | No | Page token from a previous response, for pagination |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `schedules` | array | Schedules in the namespace |
+
 |   ↳ `scheduleId` | string | Schedule ID |
+
 |   ↳ `workflowType` | string | Workflow type the schedule starts |
-|   ↳ `paused` | boolean | Указывает,  schedule is paused |
+
+|   ↳ `paused` | boolean | Whether the schedule is paused |
+
 |   ↳ `notes` | string | Human-readable notes on the schedule |
+
 |   ↳ `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
+
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
+
 
 ### `temporal_describe_schedule`
 
-Получение the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times.
 
-#### Вход
+Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | ID of the schedule to describe |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | ID of the schedule to describe |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | Schedule ID |
-| `paused` | boolean | Указывает,  schedule is paused |
+
+| `paused` | boolean | Whether the schedule is paused |
+
 | `notes` | string | Human-readable notes on the schedule |
+
 | `workflowType` | string | Workflow type the schedule starts |
+
 | `taskQueue` | string | Task queue used for started workflows |
+
 | `workflowId` | string | Workflow ID template for started workflows |
+
 | `spec` | json | Schedule spec \(calendars, intervals, cron strings, jitter, time zone\) |
+
 | `recentActions` | array | Most recent actions taken by the schedule |
+
 |   ↳ `scheduleTime` | string | Nominal scheduled time \(RFC 3339\) |
+
 |   ↳ `actualTime` | string | Actual time the action ran \(RFC 3339\) |
+
 |   ↳ `workflowId` | string | Workflow ID of the started execution |
+
 |   ↳ `runId` | string | Run ID of the started execution |
+
 | `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
+
 
 ### `temporal_pause_schedule`
 
+
 Pause a Temporal schedule so it stops taking actions until unpaused.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | ID of the schedule to pause |
-| `reason` | string | Нет | Reason recorded in the schedule's notes |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | ID of the schedule to pause |
+
+| `reason` | string | No | Reason recorded in the schedule's notes |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | ID of the paused schedule |
+
 
 ### `temporal_unpause_schedule`
 
+
 Unpause a Temporal schedule so it resumes taking actions.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | ID of the schedule to unpause |
-| `reason` | string | Нет | Reason recorded in the schedule's notes |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | ID of the schedule to unpause |
+
+| `reason` | string | No | Reason recorded in the schedule's notes |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | ID of the unpaused schedule |
+
 
 ### `temporal_trigger_schedule`
 
+
 Trigger an immediate action of a Temporal schedule, outside its normal spec.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | ID of the schedule to trigger |
-| `overlapPolicy` | string | Нет | Overlap policy for the triggered action \(defaults to the schedule's policy\): SCHEDULE_OVERLAP_POLICY_SKIP, SCHEDULE_OVERLAP_POLICY_BUFFER_ONE, SCHEDULE_OVERLAP_POLICY_BUFFER_ALL, SCHEDULE_OVERLAP_POLICY_CANCEL_OTHER, SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER, or SCHEDULE_OVERLAP_POLICY_ALLOW_ALL |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | ID of the schedule to trigger |
+
+| `overlapPolicy` | string | No | Overlap policy for the triggered action \(defaults to the schedule's policy\): SCHEDULE_OVERLAP_POLICY_SKIP, SCHEDULE_OVERLAP_POLICY_BUFFER_ONE, SCHEDULE_OVERLAP_POLICY_BUFFER_ALL, SCHEDULE_OVERLAP_POLICY_CANCEL_OTHER, SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER, or SCHEDULE_OVERLAP_POLICY_ALLOW_ALL |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | ID of the triggered schedule |
+
 
 ### `temporal_delete_schedule`
 
-Удаление Temporal schedule. Workflows already started by the schedule keep running.
 
-#### Вход
+Delete a Temporal schedule. Workflows already started by the schedule keep running.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `serverUrl` | string | Да | Base URL of the Temporal server's HTTP API (например, http://localhost:7243\) |
-| `namespace` | string | Да | Temporal namespace (например, default\) |
-| `apiKey` | string | Нет | Ключ API sent as a Bearer token \(leave blank for servers without auth\) |
-| `scheduleId` | string | Да | ID of the schedule to delete |
 
-#### Выход
+| `serverUrl` | string | Yes | Base URL of the Temporal server's HTTP API \(e.g., http://localhost:7243\) |
+
+| `namespace` | string | Yes | Temporal namespace \(e.g., default\) |
+
+| `apiKey` | string | No | API key sent as a Bearer token \(leave blank for servers without auth\) |
+
+| `scheduleId` | string | Yes | ID of the schedule to delete |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `scheduleId` | string | ID of the deleted schedule |
+
 
 

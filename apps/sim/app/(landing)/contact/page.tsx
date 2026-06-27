@@ -53,12 +53,9 @@ function ContactPageContent() {
         {t('contactdesc')}
       </p>
 
-        <div className='dark mt-14'>
-          <ContactForm />
-        </div>
+      <div className='dark mt-14'>
+        <ContactForm />
       </div>
-
-      {isHosted && <Footer hideCTA />}
-    </main>
+    </>
   )
 }

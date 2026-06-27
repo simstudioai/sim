@@ -1,6 +1,6 @@
 ---
 title: MySQL
-description: Подключение к базе данных MySQL
+description: Подключиться к базе данных MySQL
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,159 +10,274 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-## Инструкции по использованию
 
-Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.
+## Использование
+
+
+Интегрируйте MySQL в рабочий процесс. Можно выполнять запросы, вставлять, обновлять, удалять и выполнять исходные SQL-запросы.
+
 
 
 
 ## Действия
 
+
 ### `mysql_query`
 
-Execute SELECT query on MySQL database
 
-#### Входные параметры
+Выполнить SELECT запрос на базе данных MySQL
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `query` | string | Да | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE active = 1\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `query` | строка | Да | SQL SELECT запрос для выполнения (например, SELECT * FROM users WHERE active = 1) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `rows` | array | Array of rows returned from the query |
-| `rowCount` | number | Number of rows returned |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив строк, возвращенных запросом |
+
+| `rowCount` | число | Количество возвращенных строк |
+
 
 ### `mysql_insert`
 
-Insert new record into MySQL database
 
-#### Входные параметры
+Вставить новую запись в базу данных MySQL
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `table` | string | Да | Table name to insert into \(e.g., users, orders\) |
-| `data` | object | Да | Data to insert as key-value pairs |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `table` | строка | Да | Имя таблицы для вставки (например, users, orders) |
+
+| `data` | объект | Да | Данные для вставки в виде пар ключ-значение |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `rows` | array | Array of inserted rows |
-| `rowCount` | number | Number of rows inserted |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив вставленных строк |
+
+| `rowCount` | число | Количество вставленных строк |
+
 
 ### `mysql_update`
 
-Update existing records in MySQL database
 
-#### Входные параметры
+Обновить существующие записи в базе данных MySQL
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `table` | string | Да | Table name to update \(e.g., users, orders\) |
-| `data` | object | Да | Data to update as key-value pairs |
-| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `table` | строка | Да | Имя таблицы для обновления (например, users, orders) |
+
+| `data` | объект | Да | Данные для обновления в виде пар ключ-значение |
+
+| `where` | строка | Да | Условие WHERE (без ключевого слова WHERE) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `rows` | array | Array of updated rows |
-| `rowCount` | number | Number of rows updated |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив обновленных строк |
+
+| `rowCount` | число | Количество обновленных строк |
+
 
 ### `mysql_delete`
 
-Delete records from MySQL database
 
-#### Входные параметры
+Удалить записи из базы данных MySQL
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `table` | string | Да | Table name to delete from \(e.g., users, orders\) |
-| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `table` | строка | Да | Имя таблицы для удаления (например, users, orders) |
+
+| `where` | строка | Да | Условие WHERE (без ключевого слова WHERE) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `rows` | array | Array of deleted rows |
-| `rowCount` | number | Number of rows deleted |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив удаленных строк |
+
+| `rowCount` | число | Количество удаленных строк |
+
 
 ### `mysql_execute`
 
-Execute raw SQL query on MySQL database
 
-#### Входные параметры
+Выполнить исходный SQL-запрос на базе данных MySQL
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `query` | string | Да | Raw SQL query to execute \(e.g., CREATE TABLE users \(id INT PRIMARY KEY, name VARCHAR\(255\)\)\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `query` | строка | Да | Исходный SQL-запрос для выполнения (например, CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255))) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `rows` | array | Array of rows returned from the query |
-| `rowCount` | number | Number of rows affected |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив строк, возвращенных запросом |
+
+| `rowCount` | число | Количество затронутых строк |
+
 
 ### `mysql_introspect`
 
-Introspect MySQL database schema to retrieve table structures, columns, and relationships
 
-#### Входные параметры
+Инспектировать схему базы данных MySQL для получения структуры таблиц, столбцов и связей
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MySQL server hostname or IP address |
-| `port` | number | Да | MySQL server port \(default: 3306\) |
-| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Да | Database username |
-| `password` | string | Да | Database password |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MySQL |
+
+| `port` | число | Да | Порт сервера MySQL (по умолчанию: 3306) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, my_database) |
+
+| `username` | строка | Да | Имя пользователя базы данных |
+
+| `password` | строка | Да | Пароль базы данных |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `tables` | array | Array of table schemas with columns, keys, and indexes |
-| `databases` | array | List of available databases on the server |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `tables` | массив | Массив схем таблиц с столбцами, ключами и индексами |
+
+| `databases` | массив | Список доступных баз данных на сервере |
+
 
 

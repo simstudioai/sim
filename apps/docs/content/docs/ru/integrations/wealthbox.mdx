@@ -1,6 +1,6 @@
 ---
 title: Wealthbox
-description: Взаимодействие с Wealthbox
+description: Взаимодействуйте с Wealthbox
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,173 +10,297 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Wealthbox](https://www.wealthbox.com/) is a comprehensive CRM platform designed specifically for financial advisors and wealth management professionals. It provides a centralized system for managing client relationships, tracking interactions, and organizing business workflows in the financial services industry.
 
-With Wealthbox, you can:
+[Wealthbox](https://www.wealthbox.com/) – это комплексная CRM-платформа, разработанная специально для финансовых консультантов и специалистов по управлению активами. Она предоставляет централизованную систему для управления взаимоотношениями с клиентами, отслеживания взаимодействий и организации бизнес-процессов в финансовой сфере.
 
-- **Manage client relationships**: Store detailed contact information, background data, and relationship histories for all your clients
-- **Track interactions**: Create and maintain notes about meetings, calls, and other client touchpoints
-- **Organize tasks**: Schedule and manage follow-up activities, deadlines, and important action items
-- **Document workflows**: Keep comprehensive records of client communications and business processes
-- **Access client data**: Получение information quickly with organized contact management and search capabilities
-- **Automate follow-ups**: Set reminders and schedule tasks to ensure consistent client engagement
 
-In Sim, the Wealthbox integration enables your agents to seamlessly interact with your CRM data through OAuth authentication. This allows for powerful automation scenarios such as automatically creating client notes from meeting transcripts, updating contact information, scheduling follow-up tasks, and retrieving client details for personalized communications. Your agents can read existing notes, contacts, and tasks to understand client history, while also creating new entries to maintain up-to-date records. This integration bridges the gap between your AI workflows and your client relationship management, enabling automated data entry, intelligent client insights, and streamlined administrative processes that free up time for more valuable client-facing activities.
+С помощью Wealthbox вы можете:
+
+
+- **Управлять взаимоотношениями с клиентами**: Хранить подробную контактную информацию, данные о бэкграунде и историю взаимоотношений для всех ваших клиентов.
+
+- **Отслеживать взаимодействия**: Создавать и вести записи о встречах, звонках и других взаимодействиях с клиентами.
+
+- **Организовывать задачи**: Планировать и управлять задачами, сроками выполнения и важными действиями.
+
+- **Документировать процессы**: Вести подробные записи коммуникаций с клиентами и бизнес-процессов.
+
+- **Получать доступ к данным клиентов**: Быстро получать информацию благодаря организованному управлению контактами и функциям поиска.
+
+- **Автоматизировать напоминания**: Устанавливать напоминания и планировать задачи, чтобы обеспечить постоянное взаимодействие с клиентами.
+
+
+В Sim Wealthbox обеспечивает бесшовное взаимодействие ваших агентов с данными CRM через аутентификацию OAuth. Это позволяет реализовать мощные сценарии автоматизации, такие как автоматическое создание заметок о встречах на основе транскриптов, обновление контактной информации, планирование задач и получение подробной информации о клиентах для персонализированного общения. Ваши агенты могут читать существующие заметки, контакты и задачи, чтобы понять историю клиента, а также создавать новые записи для поддержания актуальной информации. Эта интеграция устраняет разрыв между вашими AI-процессами и управлением взаимоотношениями с клиентами, обеспечивая автоматизированный ввод данных, интеллектуальные сведения о клиентах и оптимизированные административные процессы, которые освобождают время для более важных задач взаимодействия с клиентами.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте Wealthbox в рабочий процесс. Can read and write notes, read and write contacts, and read and write tasks.
+
+Интегрируйте Wealthbox в рабочий процесс. Возможность чтения и записи заметок, контактов и задач.
+
 
 
 
 ## Действия
 
+
 ### `wealthbox_read_note`
 
-Read content from a Wealthbox note
 
-#### Вход
+Чтение содержимого заметки из Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `noteId` | string | Нет | The ID of the note to read (например, "11111"\) |
 
-#### Выход
+| `noteId` | строка | Нет | ID заметки (например, "11111") |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Note data and metadata |
-|   ↳ `content` | string | Formatted note information |
-|   ↳ `note` | object | Raw note data from Wealthbox |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the note |
-|     ↳ `noteId` | string | ID of the note |
-|     ↳ `itemType` | string | Type of item \(note\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные заметки |
+
+|   ↳ `content` | строка | Отформатированная информация в заметке |
+
+|   ↳ `note` | объект | Сырые данные заметки из Wealthbox |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID заметки |
+
+|     ↳ `noteId` | строка | ID заметки |
+
+|     ↳ `itemType` | строка | Тип элемента (заметка) |
+
 
 ### `wealthbox_write_note`
 
-Create or update a Wealthbox note
 
-#### Вход
+Создание или обновление заметки в Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `content` | string | Да | The main body of the note |
-| `contactId` | string | Нет | ID of contact to link to this note (например, "12345"\) |
 
-#### Выход
+| `content` | строка | Да | Основной текст заметки |
 
-| Parameter | Type | Description |
+| `contactId` | строка | Нет | ID контакта для привязки к заметке (например, "12345") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Created or updated note data and metadata |
-|   ↳ `note` | object | Raw note data from Wealthbox |
-|   ↳ `success` | boolean | Operation success indicator |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the created/updated note |
-|     ↳ `noteId` | string | ID of the created/updated note |
-|     ↳ `itemType` | string | Type of item \(note\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные созданной/обновленной заметки |
+
+|   ↳ `note` | объект | Сырые данные заметки из Wealthbox |
+
+|   ↳ `success` | булево | Индикатор успеха операции |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID созданной/обновленной заметки |
+
+|     ↳ `noteId` | строка | ID созданной/обновленной заметки |
+
+|     ↳ `itemType` | строка | Тип элемента (заметка) |
+
 
 ### `wealthbox_read_contact`
 
-Read content from a Wealthbox contact
 
-#### Вход
+Чтение содержимого контакта из Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Нет | The ID of the contact to read (например, "12345"\) |
 
-#### Выход
+| `contactId` | строка | Нет | ID контакта (например, "12345") |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Contact data and metadata |
-|   ↳ `content` | string | Formatted contact information |
-|   ↳ `contact` | object | Raw contact data from Wealthbox |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the contact |
-|     ↳ `contactId` | string | ID of the contact |
-|     ↳ `itemType` | string | Type of item \(contact\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные контакта |
+
+|   ↳ `content` | строка | Отформатированная информация о контакте |
+
+|   ↳ `contact` | объект | Сырые данные контакта из Wealthbox |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID контакта |
+
+|     ↳ `contactId` | строка | ID контакта |
+
+|     ↳ `itemType` | строка | Тип элемента (контакт) |
+
 
 ### `wealthbox_write_contact`
 
-Создание нового Wealthbox contact
 
-#### Вход
+Создание нового контакта в Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `firstName` | string | Да | The first name of the contact |
-| `lastName` | string | Да | The last name of the contact |
-| `emailAddress` | string | Нет | The email address of the contact |
-| `backgroundInformation` | string | Нет | Background information about the contact |
 
-#### Выход
+| `firstName` | строка | Да | Имя клиента |
 
-| Parameter | Type | Description |
+| `lastName` | строка | Да | Фамилия клиента |
+
+| `emailAddress` | строка | Нет | Email клиента |
+
+| `backgroundInformation` | строка | Нет | Информация о клиенте |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Created or updated contact data and metadata |
-|   ↳ `contact` | object | Raw contact data from Wealthbox |
-|   ↳ `success` | boolean | Operation success indicator |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the created/updated contact |
-|     ↳ `contactId` | string | ID of the created/updated contact |
-|     ↳ `itemType` | string | Type of item \(contact\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные созданного/обновленного контакта |
+
+|   ↳ `contact` | объект | Сырые данные контакта из Wealthbox |
+
+|   ↳ `success` | булево | Индикатор успеха операции |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID созданного/обновленного контакта |
+
+|     ↳ `contactId` | строка | ID созданного/обновленного контакта |
+
+|     ↳ `itemType` | строка | Тип элемента (контакт) |
+
 
 ### `wealthbox_read_task`
 
-Read content from a Wealthbox task
 
-#### Вход
+Чтение содержимого задачи из Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `taskId` | string | Нет | The ID of the task to read (например, "67890"\) |
 
-#### Выход
+| `taskId` | строка | Нет | ID задачи (например, "67890") |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Task data and metadata |
-|   ↳ `content` | string | Formatted task information |
-|   ↳ `task` | object | Raw task data from Wealthbox |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the task |
-|     ↳ `taskId` | string | ID of the task |
-|     ↳ `itemType` | string | Type of item \(task\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные задачи |
+
+|   ↳ `content` | строка | Отформатированная информация о задаче |
+
+|   ↳ `task` | объект | Сырые данные задачи из Wealthbox |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID задачи |
+
+|     ↳ `taskId` | строка | ID задачи |
+
+|     ↳ `itemType` | строка | Тип элемента (задача) |
+
 
 ### `wealthbox_write_task`
 
-Create or update a Wealthbox task
 
-#### Вход
+Создание или обновление задачи в Wealthbox
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `title` | string | Да | The name/title of the task |
-| `dueDate` | string | Да | The due date and time of the task \(format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400"\) |
-| `contactId` | string | Нет | ID of contact to link to this task (например, "12345"\) |
-| `description` | string | Нет | Description or notes about the task |
 
-#### Выход
+| `title` | строка | Да | Название задачи |
 
-| Parameter | Type | Description |
+| `dueDate` | строка | Да | Дата и время выполнения задачи (формат: "YYYY-MM-DD HH:MM AM/PM -HHMM", например, "2015-05-24 11:00 AM -0400") |
+
+| `contactId` | строка | Нет | ID контакта для привязки к задаче (например, "12345") |
+
+| `description` | строка | Нет | Описание или заметки о задаче |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation статус успешности |
-| `output` | object | Created or updated task data and metadata |
-|   ↳ `task` | object | Raw task data from Wealthbox |
-|   ↳ `success` | boolean | Operation success indicator |
-|   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the created/updated task |
-|     ↳ `taskId` | string | ID of the created/updated task |
-|     ↳ `itemType` | string | Type of item \(task\) |
+
+| `success` | булево | Статус успешности операции |
+
+| `output` | объект | Данные и метаданные созданной/обновленной задачи |
+
+|   ↳ `task` | объект | Сырые данные задачи из Wealthbox |
+
+|   ↳ `success` | булево | Индикатор успеха операции |
+
+|   ↳ `metadata` | объект | Метаданные операции |
+
+|     ↳ `itemId` | строка | ID созданной/обновленной задачи |
+
+|     ↳ `taskId` | строка | ID созданной/обновленной задачи |
+
+|     ↳ `itemType` | строка | Тип элемента (задача) |
+
 
 

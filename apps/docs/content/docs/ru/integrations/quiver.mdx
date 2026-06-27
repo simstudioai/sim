@@ -1,6 +1,6 @@
 ---
-title: Quiver
-description: Генерация и векторизация SVG
+title: Колчано
+description: Generate and vectorize SVGs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,123 +10,215 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[QuiverAI](https://quiver.ai/) is an AI-powered SVG generation platform that creates high-quality, scalable vector graphics from text descriptions or by vectorizing raster images. It produces clean, resolution-independent SVGs that are ideal for icons, illustrations, logos, and UI elements.
 
-With Quiver, you can:
+[QuiverAI](https://quiver.ai/) — это платформа на базе ИИ для генерации SVG, которая создает высококачественные векторные изображения из текстовых описаний или преобразует растровые изображения в векторный формат. Она генерирует чистые SVG-изображения с независимым разрешением, идеально подходящие для иконок, иллюстраций, логотипов и элементов пользовательского интерфейса.
 
-- **Generate SVGs from text prompts**: Describe the vector graphic you need and get production-ready SVG output
-- **Vectorize raster images**: Convert PNG, JPG, and other raster images into clean SVG vector format
-- **Provide reference images**: Upload up to 4 reference images to guide the style and composition of generated SVGs
-- **Control generation parameters**: Adjust temperature, number of outputs, and token limits to fine-tune results
-- **Получение списка available models**: Query available QuiverAI models to discover supported operations and capabilities
-- **Получение clean SVG markup**: Receive raw SVG content alongside downloadable files for easy embedding
 
-In Sim, the Quiver integration enables your workflows to generate and vectorize graphics on demand. This is useful for creating dynamic illustrations, converting raster assets to scalable vectors, generating icons for applications, producing visual assets for content pipelines, or building design automation workflows. The generated SVGs are returned as files that can be passed to downstream blocks for further processing, storage, or delivery.
+С помощью Quiver вы можете:
+
+
+- **Генерировать SVG из текстовых запросов**: Опишите векторное изображение, которое вам нужно, и получите готовый к использованию SVG-файл.
+
+- **Преобразовывать растровые изображения в SVG**: Преобразуйте PNG-, JPG- и другие растровые изображения в чистый векторный формат SVG.
+
+- **Использовать референсные изображения**: Загрузите до 4 референсных изображений, чтобы направить стиль и композицию генерируемых SVG.
+
+- **Контролировать параметры генерации**: Настраивайте температуру, количество результатов и лимиты токенов для более точной настройки результатов.
+
+- **Просматривать доступные модели**: Запрашивайте доступные модели QuiverAI, чтобы узнать о поддерживаемых операциях и возможностях.
+
+- **Получать чистый SVG-код**: Получайте исходный SVG-контент вместе с загружаемыми файлами для простого внедрения.
+
+
+В Sim интеграция Quiver позволяет вашим рабочим процессам генерировать и преобразовывать изображения по запросу. Это полезно для создания динамических иллюстраций, преобразования растровых ресурсов в масштабируемые векторы, генерации иконок для приложений, создания визуальных активов для контентных пайплайнов или построения автоматизированных рабочих процессов дизайна. Сгенерированные SVG-файлы возвращаются как файлы, которые можно передавать в последующие блоки для дальнейшей обработки, хранения или доставки.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.
+
+Генерируйте SVG-изображения из текстовых запросов или преобразуйте растровые изображения в SVG с помощью QuiverAI. Поддерживаются референсные изображения, инструкции по стилю и несколько вариантов генерации.
+
 
 
 
 ## Действия
 
+
 ### `quiver_text_to_svg`
 
-Generate SVG images from text prompts using QuiverAI
 
-#### Вход
+Генерируйте SVG-изображения из текстовых запросов с использованием QuiverAI
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | QuiverAI Ключ API |
-| `prompt` | string | Да | A text description of the desired SVG |
-| `model` | string | Да | The model to use for SVG generation (например, "arrow-preview"\) |
-| `instructions` | string | Нет | Style or formatting guidance for the SVG output |
-| `references` | file | Нет | Reference images to guide SVG generation \(up to 4\) |
-| `n` | number | Нет | Number of SVGs to generate \(1-16, по умолчанию 1\) |
-| `temperature` | number | Нет | Sampling temperature \(0-2, по умолчанию 1\) |
-| `top_p` | number | Нет | Nucleus sampling probability \(0-1, по умолчанию 1\) |
-| `max_output_tokens` | number | Нет | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | Нет | Token penalty for prior output \(-2 to 2, по умолчанию 0\) |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API QuiverAI |
 
-| Parameter | Type | Description |
+| `prompt` | строка | Да | Текстовое описание желаемого SVG |
+
+| `model` | строка | Да | Модель для генерации SVG (например, "arrow-preview") |
+
+| `instructions` | строка | Нет | Инструкции по стилю или форматированию для выходного SVG |
+
+| `references` | файл | Нет | Референсные изображения для руководства в процессе генерации SVG (до 4) |
+
+| `n` | число | Нет | Количество генерируемых SVG (1-16, по умолчанию 1) |
+
+| `temperature` | число | Нет | Температура выборки (0-2, по умолчанию 1) |
+
+| `top_p` | число | Нет | Вероятность выборки ядра (0-1, по умолчанию 1) |
+
+| `max_output_tokens` | число | Нет | Максимальное количество выходных токенов (1-131072) |
+
+| `presence_penalty` | число | Нет | Штраф за токены для предыдущего вывода (-2 до 2, по умолчанию 0) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  SVG generation succeeded |
-| `output` | object | Generated SVG output |
-|   ↳ `file` | file | First generated SVG file |
-|   ↳ `files` | json | All generated SVG files \(when n &gt; 1\) |
-|   ↳ `svgContent` | string | Raw SVG markup content of the first result |
-|   ↳ `id` | string | Generation request ID |
-|   ↳ `usage` | json | Token usage statistics |
-|     ↳ `totalTokens` | number | Total tokens used |
-|     ↳ `inputTokens` | number | Input tokens used |
-|     ↳ `outputTokens` | number | Output tokens used |
+
+| `success` | булево | Успешно ли выполнена генерация SVG |
+
+| `output` | объект | Сгенерированный выход SVG |
+
+|   ↳ `file` | файл | Первый сгенерированный SVG-файл |
+
+|   ↳ `files` | json | Все сгенерированные SVG-файлы (если n > 1) |
+
+|   ↳ `svgContent` | строка | Исходный SVG-код первого результата |
+
+|   ↳ `id` | строка | ID запроса генерации |
+
+|   ↳ `usage` | json | Статистика использования токенов |
+
+|     ↳ `totalTokens` | число | Общее количество использованных токенов |
+
+|     ↳ `inputTokens` | число | Количество использованных входных токенов |
+
+|     ↳ `outputTokens` | число | Количество использованных выходных токенов |
+
 
 ### `quiver_image_to_svg`
 
-Convert raster images into vector SVG format using QuiverAI
 
-#### Вход
+Преобразуйте растровые изображения в векторный формат SVG с помощью QuiverAI
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | QuiverAI Ключ API |
-| `model` | string | Да | The model to use for vectorization (например, "arrow-preview"\) |
-| `image` | file | Да | The raster image to vectorize into SVG |
-| `temperature` | number | Нет | Sampling temperature \(0-2, по умолчанию 1\) |
-| `top_p` | number | Нет | Nucleus sampling probability \(0-1, по умолчанию 1\) |
-| `max_output_tokens` | number | Нет | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | Нет | Token penalty for prior output \(-2 to 2, по умолчанию 0\) |
-| `auto_crop` | boolean | Нет | Automatically crop the image before vectorizing |
-| `target_size` | number | Нет | Square resize target in pixels \(128-4096\) |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API QuiverAI |
 
-| Parameter | Type | Description |
+| `model` | строка | Да | Модель для векторизации (например, "arrow-preview") |
+
+| `image` | файл | Да | Растровое изображение для векторизации в SVG |
+
+| `temperature` | число | Нет | Температура выборки (0-2, по умолчанию 1) |
+
+| `top_p` | число | Нет | Вероятность выборки ядра (0-1, по умолчанию 1) |
+
+| `max_output_tokens` | число | Нет | Максимальное количество выходных токенов (1-131072) |
+
+| `presence_penalty` | число | Нет | Штраф за токены для предыдущего вывода (-2 до 2, по умолчанию 0) |
+
+| `auto_crop` | булево | Нет | Автоматически обрезать изображение перед векторизацией |
+
+| `target_size` | число | Нет | Целевой размер в пикселях для изменения размера (128-4096) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  vectorization succeeded |
-| `output` | object | Vectorized SVG output |
-|   ↳ `file` | file | Generated SVG file |
-|   ↳ `svgContent` | string | Raw SVG markup content |
-|   ↳ `id` | string | Vectorization request ID |
-|   ↳ `usage` | json | Token usage statistics |
-|     ↳ `totalTokens` | number | Total tokens used |
-|     ↳ `inputTokens` | number | Input tokens used |
-|     ↳ `outputTokens` | number | Output tokens used |
+
+| `success` | булево | Успешно ли выполнена векторизация |
+
+| `output` | объект | Векторизированный SVG-выход |
+
+|   ↳ `file` | файл | Сгенерированный SVG-файл |
+
+|   ↳ `svgContent` | строка | Исходный SVG-код |
+
+|   ↳ `id` | строка | ID запроса векторизации |
+
+|   ↳ `usage` | json | Статистика использования токенов |
+
+|     ↳ `totalTokens` | число | Общее количество использованных токенов |
+
+|     ↳ `inputTokens` | число | Количество использованных входных токенов |
+
+|     ↳ `outputTokens` | число | Количество использованных выходных токенов |
+
 
 ### `quiver_list_models`
 
-Получение списка available QuiverAI models
 
-#### Вход
+Перечислите все доступные модели QuiverAI
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | QuiverAI Ключ API |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API QuiverAI |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  request succeeded |
-| `output` | object | Available models |
-|   ↳ `models` | json | Получение списка of available QuiverAI models |
-|     ↳ `id` | string | Model identifier |
-|     ↳ `name` | string | Human-readable model name |
-|     ↳ `description` | string | Model capabilities summary |
-|     ↳ `created` | number | Unix timestamp of creation |
-|     ↳ `ownedBy` | string | Organization that owns the model |
-|     ↳ `inputModalities` | json | Supported input types \(text, image, svg\) |
-|     ↳ `outputModalities` | json | Supported output types \(text, image, svg\) |
-|     ↳ `contextLength` | number | Maximum context window |
-|     ↳ `maxOutputLength` | number | Maximum generation length |
-|     ↳ `supportedOperations` | json | Available operations \(svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions\) |
-|     ↳ `supportedSamplingParameters` | json | Supported sampling parameters \(temperature, top_p, top_k, repetition_penalty, presence_penalty, stop\) |
+
+| `success` | булево | Успешно ли выполнен запрос |
+
+| `output` | объект | Доступные модели |
+
+|   ↳ `models` | json | Список доступных моделей QuiverAI |
+
+|     ↳ `id` | строка | Идентификатор модели |
+
+|     ↳ `name` | строка | Человекочитаемое имя модели |
+
+|     ↳ `description` | строка | Краткое описание возможностей модели |
+
+|     ↳ `created` | число | Unix-timestamp создания |
+
+|     ↳ `ownedBy` | строка | Организация, владеющая моделью |
+
+|     ↳ `inputModalities` | json | Поддерживаемые типы входных данных (text, image, svg) |
+
+|     ↳ `outputModalities` | json | Поддерживаемые типы выходных данных (text, image, svg) |
+
+|     ↳ `contextLength` | число | Максимальный размер контекстного окна |
+
+|     ↳ `maxOutputLength` | число | Максимальная длина генерации |
+
+|     ↳ `supportedOperations` | json | Поддерживаемые операции (svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions) |
+
+|     ↳ `supportedSamplingParameters` | json | Поддерживаемые параметры выборки (temperature, top_p, top_k, repetition_penalty, presence_penalty, stop) |
+
 
 

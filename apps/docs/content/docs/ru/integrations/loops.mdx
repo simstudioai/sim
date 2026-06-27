@@ -1,6 +1,6 @@
 ---
 title: Loops
-description: Управление контактами и отправка писем с Loops
+description: Управляйте контактами и отправляйте электронные письма с помощью Loops
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,264 +10,454 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FAFAF9"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Loops](https://loops.so/) is an email platform built for modern SaaS companies, offering transactional emails, marketing campaigns, and event-driven automations through a clean API. This integration connects Loops directly into Sim workflows.
 
-With Loops in Sim, you can:
+[Loops](https://loops.so/) — это платформа для отправки электронных писем, разработанная специально для современных SaaS-компаний. Она предоставляет возможность создавать транзакционные письма, запускать маркетинговые кампании и автоматизировать процессы на основе событий с помощью простого API. Эта интеграция напрямую подключает Loops к рабочим процессам Sim.
 
-- **Manage contacts**: Create, update, find, and delete contacts in your Loops audience
-- **Send transactional emails**: Trigger templated transactional emails with dynamic data variables
-- **Fire events**: Send events to Loops to trigger automated email sequences and workflows
-- **Manage subscriptions**: Control mailing list subscriptions and contact properties programmatically
-- **Enrich contact data**: Attach custom properties, user groups, and mailing list memberships to contacts
 
-In Sim, the Loops integration enables your agents to manage email operations as part of their workflows. Supported operations include:
+С использованием Loops в Sim вы можете:
 
-- **Create Contact**: Add a new contact to your Loops audience with email, name, and custom properties.
-- **Update Contact**: Update an existing contact or create one if no match exists (upsert behavior).
-- **Find Contact**: Look up a contact by email address or userId.
-- **Delete Contact**: Remove a contact from your audience.
-- **Send Transactional Email**: Send a templated transactional email to a recipient with dynamic data variables.
-- **Send Event**: Trigger a Loops event to start automated email sequences for a contact.
 
-Configure the Loops block with your API key from the Loops dashboard (Settings > API), select an operation, and provide the required parameters. Your agents can then manage contacts and send emails as part of any workflow.
+- **Управлять контактами**: Создавать, изменять, искать и удалять контакты в вашей базе данных Loops.
+
+- **Отправлять транзакционные письма**: Запускать шаблоны для отправки транзакционных писем с динамическими переменными.
+
+- **Запускать события**: Отправлять события в Loops для запуска автоматических последовательностей и рабочих процессов.
+
+- **Управлять подписками**: Контролировать подписки на рассылки и свойства контактов программно.
+
+- **Расширять данные о контактах**: Добавлять пользовательские поля, группы пользователей и членство в списках рассылок для контактов.
+
+
+В Sim интеграция с Loops позволяет вашим агентам управлять операциями с электронной почтой как частью их рабочих процессов. Поддерживаемые операции включают:
+
+
+- **Создание контакта**: Добавление нового контакта в вашу базу данных Loops, указав адрес электронной почты, имя и другие пользовательские свойства.
+
+- **Обновление контакта**: Изменение существующего контакта или создание нового, если соответствующий контакт не найден (операция "upsert").
+
+- **Поиск контакта**: Поиск контакта по адресу электронной почты или идентификатору пользователя.
+
+- **Удаление контакта**: Удаление контакта из вашей базы данных.
+
+- **Отправка транзакционного письма**: Отправка шаблона транзакционного письма получателю с использованием динамических переменных.
+
+- **Запуск события**: Запуск события в Loops для запуска автоматической последовательности писем для конкретного контакта.
+
+
+Настройте блок Loops, используя ваш API ключ из панели управления Loops (Settings > API), выберите нужную операцию и предоставьте необходимые параметры. Ваши агенты смогут затем управлять контактами и отправлять письма как часть любого рабочего процесса.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.
+
+Интегрируйте Loops в рабочий процесс. Создавайте и управляйте контактами, отправляйте транзакционные письма и запускайте автоматизацию на основе событий.
+
 
 
 
 ## Действия
 
+
 ### `loops_create_contact`
 
-Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.
 
-#### Входные параметры
+Создайте нового контакта в вашей базе данных Loops, указав адрес электронной почты и необязательные свойства, такие как имя, группа пользователей и подписки на рассылки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Да | The email address for the new contact |
-| `firstName` | string | Нет | The contact first name |
-| `lastName` | string | Нет | The contact last name |
-| `source` | string | Нет | Custom source value replacing the default "API" |
-| `subscribed` | boolean | Нет | Whether the contact receives campaign emails \(defaults to true\) |
-| `userGroup` | string | Нет | Group to segment the contact into \(one group per contact\) |
-| `userId` | string | Нет | Unique user identifier from your application |
-| `mailingLists` | json | Нет | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
-| `customProperties` | json | Нет | Custom contact properties as key-value pairs \(string, number, boolean, or date values\) |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Да | Адрес электронной почты нового контакта |
+
+| `firstName` | string | Нет | Имя контакта |
+
+| `lastName` | string | Нет | Фамилия контакта |
+
+| `source` | string | Нет | Пользовательское значение источника, заменяющее значение по умолчанию "API" |
+
+| `subscribed` | boolean | Нет | Флаг, указывающий, получает ли контакт рассылки (по умолчанию: true) |
+
+| `userGroup` | string | Нет | Группа для сегментации контакта (одна группа на контакт) |
+
+| `userId` | string | Нет | Уникальный идентификатор пользователя в вашей системе |
+
+| `mailingLists` | json | Нет | Список идентификаторов рассылок, сопоставленных с булевыми значениями (true для подписки, false для отписки) |
+
+| `customProperties` | json | Нет | Пользовательские свойства контакта в формате ключ-значение (значения могут быть строками, числами, логическими значениями или датами) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the contact was created successfully |
-| `id` | string | The Loops-assigned ID of the created contact |
+
+| `success` | boolean | Успешно ли создан контакт |
+
+| `id` | string | ID контакта, присвоенный Loops |
+
 
 ### `loops_update_contact`
 
-Update an existing contact in Loops by email or userId. Creates a new contact if no match is found (upsert). Can update name, subscription status, user group, mailing lists, and custom properties.
 
-#### Входные параметры
+Обновите существующего контакта в Loops по адресу электронной почты или идентификатору пользователя. Создает новый контакт, если соответствующий не найден (операция "upsert"). Можно обновить имя, статус подписки, группу пользователей, списки рассылки и пользовательские свойства.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Нет | The contact email address \(at least one of email or userId is required\) |
-| `userId` | string | Нет | The contact userId \(at least one of email or userId is required\) |
-| `firstName` | string | Нет | The contact first name |
-| `lastName` | string | Нет | The contact last name |
-| `source` | string | Нет | Custom source value replacing the default "API" |
-| `subscribed` | boolean | Нет | Whether the contact receives campaign emails \(sending true re-subscribes unsubscribed contacts\) |
-| `userGroup` | string | Нет | Group to segment the contact into \(one group per contact\) |
-| `mailingLists` | json | Нет | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
-| `customProperties` | json | Нет | Custom contact properties as key-value pairs \(send null to reset a property\) |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Нет | Адрес электронной почты контакта (один из email или userId должен быть указан) |
+
+| `userId` | string | Нет | ID пользователя контакта (один из email или userId должен быть указан) |
+
+| `firstName` | string | Нет | Имя контакта |
+
+| `lastName` | string | Нет | Фамилия контакта |
+
+| `source` | string | Нет | Пользовательское значение источника, заменяющее значение по умолчанию "API" |
+
+| `subscribed` | boolean | Нет | Флаг, указывающий, получает ли контакт рассылки (отправка true переподписывает контакт на рассылку) |
+
+| `userGroup` | string | Нет | Группа для сегментации контакта (одна группа на контакт) |
+
+| `mailingLists` | json | Нет | Список идентификаторов рассылок, сопоставленных с булевыми значениями (true для подписки, false для отписки) |
+
+| `customProperties` | json | Нет | Пользовательские свойства контакта в формате ключ-значение (отправка null сбрасывает свойство) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the contact was updated successfully |
-| `id` | string | The Loops-assigned ID of the updated or created contact |
+
+| `success` | boolean | Успешно ли обновлен контакт |
+
+| `id` | string | ID контакта, присвоенный Loops или созданный новый |
+
 
 ### `loops_find_contact`
 
-Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.
 
-#### Входные параметры
+Найдите контакт в Loops по адресу электронной почты или идентификатору пользователя. Возвращает массив контактов с их всеми свойствами, включая имя, статус подписки, группу пользователей и списки рассылок.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Нет | The contact email address to search for \(at least one of email or userId is required\) |
-| `userId` | string | Нет | The contact userId to search for \(at least one of email or userId is required\) |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Нет | Адрес электронной почты контакта, по которому нужно выполнить поиск (один из email или userId должен быть указан) |
+
+| `userId` | string | Нет | ID пользователя контакта, по которому нужно выполнить поиск (один из email или userId должен быть указан) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `contacts` | array | Array of matching contact objects \(empty array if no match found\) |
-|   ↳ `id` | string | Loops-assigned contact ID |
-|   ↳ `email` | string | Contact email address |
-|   ↳ `firstName` | string | Contact first name |
-|   ↳ `lastName` | string | Contact last name |
-|   ↳ `source` | string | Source the contact was created from |
-|   ↳ `subscribed` | boolean | Whether the contact receives campaign emails |
-|   ↳ `userGroup` | string | Contact user group |
-|   ↳ `userId` | string | External user identifier |
-|   ↳ `mailingLists` | object | Mailing list IDs mapped to subscription status |
-|   ↳ `optInStatus` | string | Double opt-in status: pending, accepted, rejected, or null |
+
+| `contacts` | array | Массив объектов контактов (пустой массив, если не найдено совпадений) |
+
+|   ↳ `id` | string | ID контакта в Loops |
+
+|   ↳ `email` | string | Адрес электронной почты контакта |
+
+|   ↳ `firstName` | string | Имя контакта |
+
+|   ↳ `lastName` | string | Фамилия контакта |
+
+|   ↳ `source` | string | Источник, из которого был создан контакт |
+
+|   ↳ `subscribed` | boolean | Флаг, указывающий, получает ли контакт рассылки |
+
+|   ↳ `userGroup` | string | Группа пользователей контакта |
+
+|   ↳ `userId` | string | Внешний идентификатор пользователя |
+
+|   ↳ `mailingLists` | object | Список идентификаторов рассылок, сопоставленных с булевыми значениями (подписка или отписка) |
+
+|   ↳ `optInStatus` | string | Статус подписки: pending, accepted, rejected, или null |
+
 
 ### `loops_delete_contact`
 
-Delete a contact from Loops by email address or userId. At least one identifier must be provided.
 
-#### Входные параметры
+Удалите контакт из Loops по адресу электронной почты или идентификатору пользователя. Обязательно укажите хотя бы один идентификатор.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Нет | The email address of the contact to delete \(at least one of email or userId is required\) |
-| `userId` | string | Нет | The userId of the contact to delete \(at least one of email or userId is required\) |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Нет | Адрес электронной почты контакта, который нужно удалить (один из email или userId должен быть указан) |
+
+| `userId` | string | Нет | ID пользователя контакта, который нужно удалить (один из email или userId должен быть указан) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the contact was deleted successfully |
-| `message` | string | Status message from the API |
+
+| `success` | boolean | Успешно ли удален контакт |
+
+| `message` | string | Сообщение об успехе или ошибке |
+
 
 ### `loops_send_transactional_email`
 
-Send a transactional email to a recipient using a Loops template. Supports dynamic data variables for personalization and optionally adds the recipient to your audience.
 
-#### Входные параметры
+Отправьте транзакционное письмо получателю, используя шаблон Loops. Поддерживает динамические переменные для персонализации и опционально добавляет получателя в вашу базу данных.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Да | The email address of the recipient |
-| `transactionalId` | string | Да | The ID of the transactional email template to send |
-| `dataVariables` | json | Нет | Template data variables as key-value pairs \(string or number values\) |
-| `addToAudience` | boolean | Нет | Whether to create the recipient as a contact if they do not already exist \(default: false\) |
-| `attachments` | json | Нет | Array of file attachments. Each object must have filename \(string\), contentType \(MIME type string\), and data \(base64-encoded string\). |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Да | Адрес электронной почты получателя |
+
+| `transactionalId` | string | Да | ID транзакционного письма, которое нужно отправить |
+
+| `dataVariables` | json | Нет | Переменные шаблона в формате ключ-значение (значения могут быть строками или числами) |
+
+| `addToAudience` | boolean | Нет | Добавить получателя в базу данных, если его там нет (по умолчанию: false) |
+
+| `attachments` | json | Нет | Массив файлов с прикреплением. Каждый объект должен содержать filename (string), contentType (тип MIME string) и data (base64-encoded string). |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the transactional email was sent successfully |
+
+| `success` | boolean | Успешно ли отправлено транзакционное письмо |
+
 
 ### `loops_send_event`
 
-Send an event to Loops to trigger automated email sequences for a contact. Identify the contact by email or userId and include optional event properties and mailing list changes.
 
-#### Входные параметры
+Отправьте событие в Loops для запуска автоматических последовательностей писем для контакта. Определите контакт по адресу электронной почты или идентификатору пользователя и включите необязательные свойства события и изменения подписки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `email` | string | Нет | The email address of the contact \(at least one of email or userId is required\) |
-| `userId` | string | Нет | The userId of the contact \(at least one of email or userId is required\) |
-| `eventName` | string | Да | The name of the event to trigger |
-| `eventProperties` | json | Нет | Event data as key-value pairs \(string, number, boolean, or date values\) |
-| `mailingLists` | json | Нет | Mailing list IDs mapped to boolean values \(true to subscribe, false to unsubscribe\) |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `email` | string | Нет | Адрес электронной почты контакта (один из email или userId должен быть указан) |
+
+| `userId` | string | Нет | ID пользователя контакта (один из email или userId должен быть указан) |
+
+| `eventName` | string | Да | Название события, которое нужно запустить |
+
+| `eventProperties` | json | Нет | Данные события в формате ключ-значение (значения могут быть строками, числами, логическими значениями или датами) |
+
+| `mailingLists` | json | Нет | Список идентификаторов рассылок, сопоставленных с булевыми значениями (подписка или отписка) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the event was sent successfully |
+
+| `success` | boolean | Успешно ли отправлено событие |
+
 
 ### `loops_list_mailing_lists`
 
-Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.
 
-#### Входные параметры
+Получите список всех рассылок в вашей базе данных Loops. Возвращает каждую рассылку с ее ID, именем, описанием и статусом (публичная или приватная).
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `mailingLists` | array | Array of mailing list objects |
-|   ↳ `id` | string | The mailing list ID |
-|   ↳ `name` | string | The mailing list name |
-|   ↳ `description` | string | The mailing list description \(null if not set\) |
-|   ↳ `isPublic` | boolean | Whether the list is public or private |
+
+| `mailingLists` | array | Массив объектов рассылок |
+
+|   ↳ `id` | string | ID рассылки |
+
+|   ↳ `name` | string | Название рассылки |
+
+|   ↳ `description` | string | Описание рассылки (null, если не указано) |
+
+|   ↳ `isPublic` | boolean | Флаг, указывающий, является ли рассылка публичной или приватной |
+
 
 ### `loops_list_transactional_emails`
 
-Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, last updated timestamp, and data variables.
 
-#### Входные параметры
+Получите список опубликованных шаблонов транзакционных писем в вашей базе данных Loops. Возвращает каждый шаблон с его ID, именем, последним обновлением и переменными шаблона.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `perPage` | string | Нет | Number of results per page \(10-50, default: 20\) |
-| `cursor` | string | Нет | Pagination cursor from a previous response to fetch the next page |
 
-#### Выходные параметры
+| `apiKey` | string | Да | API ключ Loops для аутентификации |
+
+| `perPage` | string | Нет | Количество результатов на странице (10-50, по умолчанию: 20) |
+
+| `cursor` | string | Нет | Курсор для следующей страницы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `transactionalEmails` | array | Array of published transactional email templates |
-|   ↳ `id` | string | The transactional email template ID |
-|   ↳ `name` | string | The template name |
-|   ↳ `lastUpdated` | string | Last updated timestamp |
-|   ↳ `dataVariables` | array | Template data variable names |
-| `pagination` | object | Pagination information |
-|   ↳ `totalResults` | number | Total number of results |
-|   ↳ `returnedResults` | number | Number of results returned |
-|   ↳ `perPage` | number | Results per page |
-|   ↳ `totalPages` | number | Total number of pages |
-|   ↳ `nextCursor` | string | Cursor for next page \(null if no more pages\) |
-|   ↳ `nextPage` | string | URL for next page \(null if no more pages\) |
+
+| `transactionalEmails` | array | Массив объектов шаблонов транзакционных писем |
+
+|   ↳ `id` | string | ID шаблона транзакционного письма |
+
+|   ↳ `name` | string | Название шаблона |
+
+|   ↳ `lastUpdated` | string | Дата последнего обновления |
+
+|   ↳ `dataVariables` | array | Список имен переменных шаблона |
+
+| `pagination` | object | Информация о навигации |
+
+|   ↳ `totalResults` | number | Общее количество результатов |
+
+|   ↳ `returnedResults` | number | Количество возвращенных результатов |
+
+|   ↳ `perPage` | number | Результаты на странице |
+
+|   ↳ `totalPages` | number | Общее количество страниц |
+
+|   ↳ `nextCursor` | string | Курсор для следующей страницы (null, если нет) |
+
+|   ↳ `nextPage` | string | URL для следующей страницы (null, если нет) |
+===
+
 
 ### `loops_create_contact_property`
 
+
 Create a new custom contact property in your Loops account. The property name must be in camelCase format.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `name` | string | Да | The property name in camelCase format \(e.g., "favoriteColor"\) |
-| `type` | string | Да | The property data type \(e.g., "string", "number", "boolean", "date"\) |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Loops API key for authentication |
 
-| Параметр | Тип | Описание |
+| `name` | string | Yes | The property name in camelCase format \(e.g., "favoriteColor"\) |
+
+| `type` | string | Yes | The property data type \(e.g., "string", "number", "boolean", "date"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `success` | boolean | Whether the contact property was created successfully |
+
 
 ### `loops_list_contact_properties`
 
+
 Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Loops API key for authentication |
-| `list` | string | Нет | Filter type: "all" for all properties \(default\) or "custom" for custom properties only |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Loops API key for authentication |
 
-| Параметр | Тип | Описание |
+| `list` | string | No | Filter type: "all" for all properties \(default\) or "custom" for custom properties only |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `properties` | array | Array of contact property objects |
+
 |   ↳ `key` | string | The property key \(camelCase identifier\) |
+
 |   ↳ `label` | string | The property display label |
+
 |   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
+
 
 

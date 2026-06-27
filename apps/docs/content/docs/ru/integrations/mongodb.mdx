@@ -1,6 +1,6 @@
 ---
 title: MongoDB
-description: Подключение к базе данных MongoDB
+description: Подключиться к базе данных MongoDB
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,190 +10,331 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-The [MongoDB](https://www.mongodb.com/) tool enables you to connect to a MongoDB database and perform a wide range of document-oriented operations directly within your agentic workflows. With flexible configuration and secure connection management, you can easily interact with and manipulate your data.
 
-With the MongoDB tool, you can:
+Инструмент [MongoDB](https://www.mongodb.com/) позволяет подключаться к базе данных MongoDB и выполнять широкий спектр операций с документами непосредственно в ваших рабочих процессах агентов. Благодаря гибкой конфигурации и безопасному управлению подключениями, вы можете легко взаимодействовать и манипулировать своими данными.
 
-- **Find documents**: Query collections and retrieve documents with the `mongodb_query` operation using rich query filters.
-- **Insert documents**: Add one or multiple documents to a collection using the `mongodb_insert` operation.
-- **Update documents**: Modify existing documents with the `mongodb_update` operation by specifying filter criteria and the update actions.
-- **Delete documents**: Remove documents from a collection using the `mongodb_delete` operation, specifying filters and deletion options.
-- **Aggregate data**: Run complex aggregation pipelines with the `mongodb_execute` operation to transform and analyze your data.
 
-The MongoDB tool is ideal for workflows where your agents need to manage or analyze structured, document-based data. Whether it's processing user-generated content, managing app data, or powering analytics, the MongoDB tool streamlines your data access and manipulation in a secure, programmatic way.
+С помощью инструмента MongoDB вы можете:
+
+
+- **Находить документы**: Запрашивать коллекции и извлекать документы с использованием операции `mongodb_query` и богатых фильтров запросов.
+
+- **Вставлять документы**: Добавлять один или несколько документов в коллекцию, используя операцию `mongodb_insert`.
+
+- **Обновлять документы**: Изменять существующие документы с помощью операции `mongodb_update`, указывая критерии фильтра и действия обновления.
+
+- **Удалять документы**: Удалять документы из коллекции, используя операцию `mongodb_delete`, указывая фильтры и опции удаления.
+
+- **Агрегировать данные**: Запускать сложные конвейеры агрегации с помощью операции `mongodb_execute` для преобразования и анализа ваших данных.
+
+
+Инструмент MongoDB идеально подходит для рабочих процессов, где вашим агентам необходимо управлять или анализировать структурированные данные на основе документов. Независимо от того, нужно ли обрабатывать пользовательский контент, управлять данными приложений или проводить анализ, инструмент MongoDB упрощает доступ к данным и их манипулирование безопасным и программным способом.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.
+
+Интегрируйте MongoDB в рабочий процесс. Можно находить, добавлять, обновлять, удалять и агрегировать данные.
+
 
 
 
 ## Действия
 
+
 ### `mongodb_query`
 
-Execute find operation on MongoDB collection
 
-#### Входные параметры
+Выполнить операцию поиска в коллекции MongoDB
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Да | Database name to connect to \(e.g., "mydb"\) |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `collection` | string | Да | Collection name to query |
-| `query` | string | Нет | MongoDB query filter as JSON string |
-| `limit` | number | Нет | Maximum number of documents to return |
-| `sort` | string | Нет | Sort criteria as JSON string |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, "mydb") |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `collection` | строка | Да | Имя коллекции для запроса |
+
+| `query` | строка | Нет | Фильтр MongoDB в виде JSON-строки |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых документов |
+
+| `sort` | строка | Нет | Критерии сортировки в виде JSON-строки |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `documents` | array | Array of documents returned from the query |
-| `documentCount` | number | Number of documents returned |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `documents` | массив | Массив документов, возвращенных запросом |
+
+| `documentCount` | число | Количество возвращенных документов |
+
 
 ### `mongodb_insert`
 
-Insert documents into MongoDB collection
 
-#### Входные параметры
+Вставлять документы в коллекцию MongoDB
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Да | Database name to connect to \(e.g., "mydb"\) |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `collection` | string | Да | Collection name to insert into |
-| `documents` | array | Да | Array of documents to insert |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, "mydb") |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `collection` | строка | Да | Имя коллекции для вставки |
+
+| `documents` | массив | Да | Массив документов для вставки |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `documentCount` | number | Number of documents inserted |
-| `insertedId` | string | ID of inserted document \(single insert\) |
-| `insertedIds` | array | Array of inserted document IDs \(multiple insert\) |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `documentCount` | число | Количество вставленных документов |
+
+| `insertedId` | строка | ID вставленного документа (для одной вставки) |
+
+| `insertedIds` | массив | Массив ID вставленных документов (для нескольких вставок) |
+
 
 ### `mongodb_update`
 
-Update documents in MongoDB collection
 
-#### Входные параметры
+Обновлять документы в коллекции MongoDB
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Да | Database name to connect to \(e.g., "mydb"\) |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `collection` | string | Да | Collection name to update |
-| `filter` | string | Да | Filter criteria as JSON string |
-| `update` | string | Да | Update operations as JSON string |
-| `upsert` | boolean | Нет | Create document if not found |
-| `multi` | boolean | Нет | Update multiple documents |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, "mydb") |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `collection` | строка | Да | Имя коллекции для обновления |
+
+| `filter` | строка | Да | Критерии фильтра в виде JSON-строки |
+
+| `update` | строка | Да | Операции обновления в виде JSON-строки |
+
+| `upsert` | логическое значение | Нет | Создать документ, если не найдено |
+
+| `multi` | логическое значение | Нет | Обновить несколько документов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `matchedCount` | number | Number of documents matched by filter |
-| `modifiedCount` | number | Number of documents modified |
-| `documentCount` | number | Total number of documents affected |
-| `insertedId` | string | ID of inserted document \(if upsert\) |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `matchedCount` | число | Количество документов, соответствующих фильтру |
+
+| `modifiedCount` | число | Количество измененных документов |
+
+| `documentCount` | число | Общее количество затронутых документов |
+
+| `insertedId` | строка | ID вставленного документа (если upsert) |
+
 
 ### `mongodb_delete`
 
-Delete documents from MongoDB collection
 
-#### Входные параметры
+Удалять документы из коллекции MongoDB
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Да | Database name to connect to \(e.g., "mydb"\) |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `collection` | string | Да | Collection name to delete from |
-| `filter` | string | Да | Filter criteria as JSON string |
-| `multi` | boolean | Нет | Delete multiple documents |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, "mydb") |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `collection` | строка | Да | Имя коллекции для удаления |
+
+| `filter` | строка | Да | Критерии фильтра в виде JSON-строки |
+
+| `multi` | логическое значение | Нет | Удалить несколько документов |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `deletedCount` | number | Number of documents deleted |
-| `documentCount` | number | Total number of documents affected |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `deletedCount` | число | Количество удаленных документов |
+
+| `documentCount` | число | Общее количество затронутых документов |
+
 
 ### `mongodb_execute`
 
-Execute MongoDB aggregation pipeline
 
-#### Входные параметры
+Выполнить конвейер агрегации MongoDB
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Да | Database name to connect to \(e.g., "mydb"\) |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
-| `collection` | string | Да | Collection name to execute pipeline on |
-| `pipeline` | string | Да | Aggregation pipeline as JSON string |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Да | Имя базы данных для подключения (например, "mydb") |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+| `collection` | строка | Да | Имя коллекции для выполнения конвейера |
+
+| `pipeline` | строка | Да | Конвейер агрегации в виде JSON-строки |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `documents` | array | Array of documents returned from aggregation |
-| `documentCount` | number | Number of documents returned |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `documents` | массив | Массив документов, возвращенных конвейером |
+
+| `documentCount` | число | Количество документов, возвращенных конвейером |
+
 
 ### `mongodb_introspect`
 
-Introspect MongoDB database to list databases, collections, and indexes
 
-#### Входные параметры
+Инспектировать базу данных MongoDB для получения списка баз данных, коллекций и индексов
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Да | MongoDB server hostname or IP address |
-| `port` | number | Да | MongoDB server port \(default: 27017\) |
-| `database` | string | Нет | Database name to introspect \(e.g., "mydb"\). If not provided, lists all databases |
-| `username` | string | Нет | MongoDB username |
-| `password` | string | Нет | MongoDB password |
-| `authSource` | string | Нет | Authentication database |
-| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
 
-#### Выходные параметры
+| `host` | строка | Да | Хост или IP-адрес сервера MongoDB |
+
+| `port` | число | Да | Порт сервера MongoDB (по умолчанию: 27017) |
+
+| `database` | строка | Нет | Имя базы данных для инспектирования (например, "mydb"). Если не указано, будут перечислены все базы данных |
+
+| `username` | строка | Нет | Имя пользователя MongoDB |
+
+| `password` | строка | Нет | Пароль MongoDB |
+
+| `authSource` | строка | Нет | База данных аутентификации |
+
+| `ssl` | строка | Нет | Режим SSL-соединения (disabled, required, preferred) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Operation status message |
-| `databases` | array | Array of database names |
-| `collections` | array | Array of collection info with name, type, document count, and indexes |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `databases` | массив | Массив имен баз данных |
+
+| `collections` | массив | Массив информации о коллекциях с именем, типом, количеством документов и индексами |
+
 
 

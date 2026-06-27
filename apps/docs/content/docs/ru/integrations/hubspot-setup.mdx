@@ -1,31 +1,43 @@
 ---
-title: HubSpot setup guide
-description: Установка, настройка, использование и отключение интеграции Sim с HubSpot.
+title: Руководство по настройке HubSpot
+description: Установите, настройте, используйте и отключите интеграцию Sim с HubSpot.
 pageType: guide
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 
-Sim connects your HubSpot CRM to AI workflows. Once connected, your workflows can:
+Sim связывает ваш CRM HubSpot с рабочими процессами ИИ. После подключения ваши рабочие процессы могут:
 
-- **Read and write CRM records** — create, look up, search, and update contacts, companies, deals, and tickets from any workflow.
-- **React to CRM changes** — start a workflow when a contact, company, deal, or ticket is created or updated in HubSpot.
-- **Combine HubSpot with AI steps** — enrich a new contact with an [Agent block](/workflows/blocks/agent), route deals with a [Condition](/workflows/blocks/condition), or sync records into [Tables](/tables).
 
-This guide covers installing the integration, connecting a HubSpot account, configuring it in a workflow, and disconnecting or uninstalling it.
+- Читать и записывать записи в CRM — создавать, искать, просматривать и обновлять контакты, компании, сделки и заявки из любого рабочего процесса.
 
-## Before you begin
+- Реагировать на изменения в CRM — запускать рабочий процесс при создании или обновлении контакта, компании, сделки или заявки в HubSpot.
 
-You need:
+- Объединять HubSpot с шагами ИИ — обогащать новый контакт блоком [Agent](/workflows/blocks/agent), маршрутизировать сделки с помощью [Condition](/workflows/blocks/condition) или синхронизировать записи в [Tables](/tables).
 
-- A [Sim](https://sim.ai) account and a workspace where you have **Write** or **Admin** permission.
-- A HubSpot account. To grant the requested scopes, your HubSpot user needs permission to install apps (typically a super admin).
 
-## Install the app and connect HubSpot
+Этот гайд описывает установку интеграции, подключение к HubSpot, настройку в рабочем процессе и отключение.
 
-1. Log in to Sim, open your workspace, and click **Integrations** in the sidebar.
-2. Search for **HubSpot** and open it.
+
+## Перед началом
+
+
+Вам потребуется:
+
+
+- Аккаунт Sim ([https://sim.ai](https://sim.ai)) и рабочий стол, где у вас есть права **Write** или **Admin**.
+
+- Аккаунт HubSpot. Чтобы предоставить необходимые разрешения, пользователь HubSpot должен иметь право устанавливать приложения (обычно супер-админ).
+
+
+## Установите приложение и подключите HubSpot
+
+
+1. Войдите в Sim, откройте свой рабочий стол и нажмите **Integrations** на боковой панели.
+
+2. Найдите **HubSpot** и откройте его.
+
 
 <Image
   src="/static/integrations/hubspot/integrations-page.png"
@@ -34,7 +46,9 @@ You need:
   height={664}
 />
 
-3. The HubSpot page lists its skills and templates. Click **+ Add to Sim** in the top right.
+
+3. Страница HubSpot перечисляет его возможности и шаблоны. Нажмите **+ Add to Sim** в правом верхнем углу.
+
 
 <Image
   src="/static/integrations/hubspot/hubspot-page-add-to-sim.png"
@@ -43,7 +57,9 @@ You need:
   height={550}
 />
 
-4. In the **Connect HubSpot** dialog, enter a **Display name** for the connection (for example "Sales HubSpot"), review the permissions requested, and click **Connect**.
+
+4. В диалоговом окне **Connect HubSpot** введите **Display name** для подключения (например, "Sales HubSpot"), просмотрите запрошенные разрешения и нажмите **Connect**.
+
 
 <Image
   src="/static/integrations/hubspot/connect-hubspot-modal.png"
@@ -52,7 +68,9 @@ You need:
   height={708}
 />
 
-5. You are redirected to HubSpot. Sign in, then choose the HubSpot account you want to connect.
+
+5. Вас перенаправят в HubSpot. Войдите, затем выберите аккаунт HubSpot, который хотите подключить.
+
 
 <Image
   src="/static/integrations/hubspot/hubspot-oauth-signin.png"
@@ -61,69 +79,107 @@ You need:
   height={494}
 />
 
-6. Review the requested scopes on HubSpot's approval screen and click **Connect app**.
+
+6. Просмотрите запрошенные разрешения на экране одобрения HubSpot и нажмите **Connect app**.
+
 
 {/* VISUAL: screenshot of the HubSpot scope approval screen for the Sim app. */}
 
-7. You are returned to Sim. The connection appears under **Connected** on the Integrations page.
 
-You can connect more than one HubSpot account — for example, separate sales and support portals — and choose per workflow which one to use.
+7. Вас вернет в Sim. Подключение появится на странице **Connected** в разделе Integrations.
 
-## Configure the app in a workflow
 
-The fastest start is from the HubSpot page itself: its **skills** (like *upsert-contact*, *create-deal-for-account*, or *triage-support-ticket*) and **templates** add ready-made HubSpot capabilities to your workspace with one click.
+Вы можете подключить несколько аккаунтов HubSpot — например, отдельные порталы для продаж и поддержки — и выбирать для каждого рабочего процесса, какой из них использовать.
 
-For your own workflows, the integration runs through the **HubSpot block**.
 
-1. Open a workflow in the editor and add a **HubSpot** block.
-2. In the block's **Account** field, select the HubSpot connection you created.
-3. Pick an **Operation** — for example *Create Contact*, *Search Deals*, *Update Ticket*, or *List Companies*.
-4. Fill in the operation's fields. Reference outputs from earlier blocks with [connection tags](/workflows/connections), like `<agent.content>` or `<start.input>`.
+## Настройте приложение в рабочем процессе
+
+
+Самый простой способ начать — непосредственно на странице HubSpot: его **skills** (например, *upsert-contact*, *create-deal-for-account* или *triage-support-ticket*) и **templates** добавляют готовые возможности HubSpot в ваш рабочий стол одним кликом.
+
+
+Для собственных рабочих процессов интеграция работает через блок **HubSpot**.
+
+
+1. Откройте рабочий процесс в редакторе и добавьте блок **HubSpot**.
+
+2. В поле **Account** блока выберите созданное подключение к HubSpot.
+
+3. Выберите **Operation** — например, *Create Contact*, *Search Deals*, *Update Ticket* или *List Companies*.
+
+4. Заполните поля операции. Используйте теги для ссылок на предыдущие блоки [connection tags](/workflows/connections), такие как `<agent.content>` или `<start.input>`.
+
 
 {/* VISUAL: screenshot of a HubSpot block configured with an account and the Create Contact operation. */}
 
-The full list of operations, with every input and output, is on the [HubSpot integration reference](/integrations/hubspot).
 
-### Start workflows from HubSpot events
+Полный список операций, со всеми входными и выходными данными, можно найти в [HubSpot integration reference](/integrations/hubspot).
 
-The HubSpot block can also act as a trigger. Toggle **Use as Trigger**, select the connection, and choose which events to watch — contacts, companies, deals, or tickets, created or updated. Sim polls HubSpot for changes and runs the workflow once per changed record, with the record's fields available to downstream blocks.
 
-Triggers run against your workflow's active [deployment](/workflows/deployment), so deploy the workflow to activate them.
+### Запускайте рабочие процессы из событий HubSpot
 
-## Use the app
 
-Once configured, the integration runs automatically:
+Блок HubSpot также может выступать в качестве триггера. Включите **Use as Trigger**, выберите подключение и укажите, какие события нужно отслеживать — контакты, компании, сделки или заявки, созданные или обновленные. Sim периодически опрашивает HubSpot на предмет изменений и запускает рабочий процесс один раз для каждой измененной записи, с возможностью доступа к полям записи в последующие блоки.
 
-- **Workflow actions** run whenever the workflow runs — manually from the editor, on a schedule, from an API call, or from a chat.
-- **Triggers** run on their own: when a watched record changes in HubSpot, the workflow starts with that record as input.
 
-Every run is recorded in [Logs](/logs-debugging), block by block, so you can verify exactly what was read from or written to HubSpot.
+Триггеры работают от вашего активного [deployment](/workflows/deployment), поэтому необходимо активировать их.
 
-## Disconnect HubSpot from Sim
+
+## Используйте приложение
+
+
+После настройки интеграция работает автоматически:
+
+
+- **Workflow actions** запускаются при запуске рабочего процесса — вручную из редактора, по расписанию, через API или через чат.
+
+- **Triggers** запускаются самостоятельно: когда в HubSpot изменяется отслеживаемая запись, рабочий процесс запускается с этой записью в качестве входных данных.
+
+
+Каждый запуск записывается в [Logs](/logs-debugging), по блокам, чтобы вы могли точно проверить, что было прочитано из или записано в HubSpot.
+
+
+## Отключите HubSpot от Sim
+
 
 <Callout type="warn">
 When you disconnect, workflows that use this HubSpot connection will fail at the HubSpot block on their next run, and HubSpot triggers using it stop firing. Data already written to HubSpot or stored in Sim is not affected.
 </Callout>
 
-1. In Sim, click **Integrations** in the sidebar.
-2. Under **Connected**, open your HubSpot connection.
-3. Click **Disconnect**, and confirm.
 
-Disconnecting deletes the stored OAuth tokens. To use HubSpot again later, reconnect and update your workflows to use the new connection.
+1. В Sim нажмите **Integrations** на боковой панели.
 
-## Uninstall the app from HubSpot
+2. На странице **Connected** откройте ваше подключение к HubSpot.
 
-You can also remove Sim from the HubSpot side, which revokes its access entirely:
+3. Нажмите **Disconnect**, и подтвердите.
 
-1. In HubSpot, go to **Settings → Integrations → Connected apps**.
-2. Find **Sim** and choose **Uninstall**.
 
-See HubSpot's guide to [connecting and uninstalling apps](https://knowledge.hubspot.com/integrations/connect-apps-to-hubspot) for details. Uninstalling revokes Sim's tokens, so connected workflows fail at the HubSpot block until you reinstall and reconnect. Your HubSpot data itself is not changed or deleted.
+Отключение удаляет сохраненные OAuth-токены. Чтобы снова использовать HubSpot, подключитесь и обновите свои рабочие процессы, чтобы они использовали новое подключение.
 
-## Troubleshooting
 
-- **A HubSpot block fails with an authorization error.** The connection may have been disconnected or its token revoked. Open **Integrations** in the sidebar, check the connection, and reconnect it.
-- **A trigger isn't firing.** Confirm the workflow is deployed, and check [Logs](/logs-debugging) for recent runs.
-- **You manage multiple portals.** Connect each HubSpot account separately and pick the right connection per block.
+## Удалите приложение из HubSpot
 
-Need help? Contact [help@sim.ai](mailto:help@sim.ai).
+
+Вы также можете удалить Sim из HubSpot, что полностью отменяет его доступ:
+
+
+1. В HubSpot перейдите в **Settings → Integrations → Connected apps**.
+
+2. Найдите **Sim** и выберите **Uninstall**.
+
+
+Подробности можно найти в руководстве HubSpot [connecting and uninstalling apps](https://knowledge.hubspot.com/integrations/connect-apps-to-hubspot). Удаление отменяет токены Sim, поэтому подключенные рабочие процессы перестают работать в блоке HubSpot до тех пор, пока вы не переподключитесь и не обновите их. Ваши данные в HubSpot не изменяются или удаляются.
+
+
+## Устранение неполадок
+
+
+- **Блок HubSpot выдает ошибку авторизации.** Возможно, подключение было отключено или его токен отозван. Откройте **Integrations** на боковой панели, проверьте подключение и переподключите его.
+
+- **Триггер не срабатывает.** Убедитесь, что рабочий процесс запущен, и проверьте [Logs](/logs-debugging) на предмет последних запусков.
+
+- **У вас несколько порталов.** Подключите каждый аккаунт HubSpot отдельно и выберите правильное подключение для каждого блока.
+
+
+Нужна помощь? Свяжитесь с [help@sim.ai](mailto:help@sim.ai).
+

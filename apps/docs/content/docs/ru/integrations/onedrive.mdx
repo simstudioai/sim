@@ -1,6 +1,6 @@
 ---
 title: OneDrive
-description: Создание, загрузка, скачивание, просмотр и удаление файлов
+description: Создание, загрузка, скачивание, просмотр списка и удаление файлов
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,127 +10,211 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[OneDrive](https://onedrive.live.com) is Microsoft’s cloud storage and file synchronization service that allows users to securely store, access, and share files across devices. Integrated deeply into the Microsoft 365 ecosystem, OneDrive supports seamless collaboration, version control, and real-time access to content across teams and organizations.
+[OneDrive](https://onedrive.live.com) — это облачное хранилище и служба синхронизации файлов от Microsoft, которая позволяет пользователям безопасно хранить, получать доступ к и обмениваться файлами на различных устройствах. OneDrive глубоко интегрирован в экосистему Microsoft 365, обеспечивая бесшовное сотрудничество, контроль версий и доступ к контенту в режиме реального времени для команд и организаций.
 
-Learn how to integrate the OneDrive tool in Sim to automatically pull, manage, and organize your cloud files within your workflows. This tutorial walks you through connecting OneDrive, setting up file access, and using stored content to power automation. Ideal for syncing essential documents and media with your agents in real time.
+Узнайте, как интегрировать инструмент OneDrive в Sim для автоматического извлечения, управления и организации ваших облачных файлов в рабочих процессах. Этот учебник проведет вас через подключение к OneDrive, настройку доступа к файлам и использование сохраненного контента для автоматизации. Идеально подходит для синхронизации важных документов и медиа с вашими агентами в режиме реального времени.
 
-With OneDrive, you can:
 
-- **Store files securely in the cloud**: Upload and access documents, images, and other files from any device
-- **Organize your content**: Create structured folders and manage file versions with ease
-- **Collaborate in real time**: Share files, edit them simultaneously with others, and track changes
-- **Access across devices**: Use OneDrive from desktop, mobile, and web platforms
-- **Integrate with Microsoft 365**: Work seamlessly with Word, Excel, PowerPoint, and Teams
-- **Control permissions**: Share files and folders with custom access settings and expiration controls
+С помощью OneDrive вы можете:
 
-In Sim, the OneDrive integration enables your agents to directly interact with your cloud storage. Agents can upload new files to specific folders, retrieve and read existing files, and list folder contents to dynamically organize and access information. This integration allows your agents to incorporate file operations into intelligent workflows — automating document intake, content analysis, and structured storage management. By connecting Sim with OneDrive, you empower your agents to manage and use cloud documents programmatically, eliminating manual steps and enhancing automation with secure, real-time file access.
+
+- Безопасно хранить файлы в облаке: загружать и получать доступ к документам, изображениям и другим файлам с любого устройства
+
+
+- Организовать свой контент: создавать структурированные папки и легко управлять версиями файлов
+
+- Сотрудничать в режиме реального времени: делиться файлами, одновременно редактировать их с другими и отслеживать изменения
+
+- Доступ из разных устройств: использовать OneDrive на настольных компьютерах, мобильных устройствах и веб-платформах
+
+- Интегрироваться с Microsoft 365: беспрепятственно работать с Word, Excel, PowerPoint и Teams
+
+- Контролировать разрешения: делиться файлами и папками с пользовательскими настройками доступа и контролем истечения срока действия
+
+В Sim интеграция OneDrive позволяет вашим агентам напрямую взаимодействовать с вашим облачным хранилищем. Агенты могут загружать новые файлы в определенные папки, получать доступ к существующим файлам и просматривать содержимое папок для динамической организации и доступа к информации. Эта интеграция позволяет вашим агентам включать операции с файлами в интеллектуальные рабочие процессы — автоматизировать прием документов, анализ контента и управление структурированным хранением. Подключив Sim к OneDrive, вы предоставляете своим агентам возможность программно управлять и использовать облачные документы, устраняя ручные шаги и повышая эффективность благодаря безопасным операциям с файлами в режиме реального времени.
+
+
 {/* MANUAL-CONTENT-END */}
-
 
 ## Инструкции по использованию
 
-Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.
 
+
+Интегрируйте OneDrive в рабочий процесс. Можно создавать текстовые и файлы Excel, загружать файлы, скачивать файлы, просматривать содержимое файлов и удалять файлы или папки.
 
 
 ## Действия
 
+
+
+
 ### `onedrive_upload`
 
-Upload a file to OneDrive
 
-#### Входные параметры
+Загрузить файл в OneDrive
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `fileName` | строка | Да | Имя файла для загрузки (например, "report.pdf", "data.xlsx") |
+
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | Да | The name of the file to upload \(e.g., "report.pdf", "data.xlsx"\) |
-| `file` | file | Нет | The file to upload \(binary\) |
-| `content` | string | Нет | The text content to upload \(if no file is provided\) |
-| `mimeType` | string | Нет | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
-| `folderSelector` | string | Нет | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | Нет | Manually entered folder ID \(advanced mode\) |
 
-#### Выходные параметры
+| `file` | файл | Нет | Файл для загрузки (бинарный) |
+
+| `content` | строка | Нет | Текстовый контент для загрузки (если файл не предоставлен) |
+
+| `mimeType` | строка | Нет | MIME-тип файла для создания (например, text/plain для .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet для .xlsx) |
+
+| `folderSelector` | строка | Нет | ID папки для загрузки файла (например, "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M") |
+
+| `manualFolderId` | строка | Нет | Ручной ID папки (расширенный режим) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли загружен файл |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the file was uploaded successfully |
-| `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
+
+| `file` | объект | Объект файла, загруженного с метаданными, включая id, имя, webViewLink, webContentLink и временные метки |
 
 ### `onedrive_create_folder`
 
-Create a new folder in OneDrive
 
-#### Входные параметры
+Создать новую папку в OneDrive
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `folderName` | строка | Да | Имя папки для создания (например, "My Documents", "Project Files") |
+
 | --------- | ---- | -------- | ----------- |
-| `folderName` | string | Да | Name of the folder to create \(e.g., "My Documents", "Project Files"\) |
-| `folderSelector` | string | Нет | Parent folder ID to create the folder in \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | Нет | Manually entered parent folder ID \(advanced mode\) |
 
-#### Выходные параметры
+| `folderSelector` | строка | Нет | ID родительской папки для создания папки (например, "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M") |
+
+| `manualFolderId` | строка | Нет | Ручной ID родительской папки (расширенный режим) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли создана папка |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the folder was created successfully |
-| `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
+
+| `file` | объект | Объект новой папки с метаданными, включая id, имя, webViewLink и временные метки |
 
 ### `onedrive_download`
 
-Download a file from OneDrive
 
-#### Входные параметры
+Скачать файл из OneDrive
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `fileId` | строка | Да | ID файла для скачивания (например, "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M") |
+
 | --------- | ---- | -------- | ----------- |
-| `fileId` | string | Да | The ID of the file to download \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `fileName` | string | Нет | Optional filename override \(e.g., "report.pdf", "data.xlsx"\) |
 
-#### Выходные параметры
+| `fileName` | строка | Нет | Необязательное имя файла для перезаписи (например, "report.pdf", "data.xlsx") |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `file` | файл | Скачанный файл, сохраненный в исполняемых файлах |
+
 | --------- | ---- | ----------- |
-| `file` | file | Downloaded file stored in execution files |
 
 ### `onedrive_list`
 
-List files and folders in OneDrive
 
-#### Входные параметры
+Просмотреть файлы и папки в OneDrive
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `folderSelector` | строка | Нет | ID папки для просмотра файлов (например, "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M") |
+
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | Нет | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
-| `manualFolderId` | string | Нет | The manually entered folder ID \(advanced mode\) |
-| `query` | string | Нет | Filter files by name prefix \(e.g., "report", "invoice_2024"\) |
-| `pageSize` | number | Нет | Maximum number of files to return \(e.g., 10, 50, 100\) |
 
-#### Выходные параметры
+| `manualFolderId` | строка | Нет | Ручной ID папки (расширенный режим) |
+
+| `query` | строка | Нет | Фильтровать файлы по префиксу имени (например, "report", "invoice_2024") |
+
+| `pageSize` | число | Нет | Максимальное количество файлов для возврата (например, 10, 50, 100) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли перечислены файлы |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether files were listed successfully |
-| `files` | array | Array of file and folder objects with metadata |
-| `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
+
+| `files` | массив | Массив объектов файлов и папок с метаданными |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов (необязательно) |
 
 ### `onedrive_delete`
 
-Delete a file or folder from OneDrive
 
-#### Входные параметры
+Удалить файл или папку из OneDrive
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `fileId` | строка | Да | ID файла или папки для удаления (например, "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M") |
+
 | --------- | ---- | -------- | ----------- |
-| `fileId` | string | Да | The ID of the file or folder to delete \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 
-#### Выходные параметры
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли удален файл |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the file was deleted successfully |
-| `deleted` | boolean | Confirmation that the file was deleted |
+
+| `deleted` | булево | Подтверждение, что файл был удален |
+
+| `fileId` | строка | ID удаленного файла |
+
 | `fileId` | string | The ID of the deleted file |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: S3
-description: Загрузка, скачивание, список и управление файлами S3
+description: Загрузка, скачивание, просмотр и управление файлами в S3
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,149 +10,255 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon S3](https://aws.amazon.com/s3/) is a highly scalable, secure, and durable cloud storage service provided by Amazon Web Services. It's designed to store and retrieve any amount of data from anywhere on the web, making it one of the most widely used cloud storage solutions for businesses of all sizes.
 
-With Amazon S3, you can:
+Amazon S3 — это высокомасштабируемый, безопасный и надежный облачный сервис хранения данных, предоставляемый Amazon Web Services. Он предназначен для хранения и извлечения любого объема данных откуда угодно в интернете, что делает его одним из наиболее широко используемых решений для хранения данных в облаке для предприятий всех размеров.
 
-- **Store unlimited data**: Upload files of any size and type with virtually unlimited storage capacity
-- **Access from anywhere**: Получение your files from anywhere in the world with low-latency access
-- **Ensure data durability**: Benefit from 99.999999999% (11 9's) durability with automatic data replication
-- **Control access**: Manage permissions and access controls with fine-grained security policies
-- **Scale automatically**: Handle varying workloads without manual intervention or capacity planning
-- **Интегрируйте seamlessly**: Connect with other AWS services and third-party applications easily
-- **Optimize costs**: Choose from multiple storage classes to optimize costs based on access patterns
 
-In Sim, the S3 integration enables your agents to retrieve and access files stored in your Amazon S3 buckets using secure presigned URLs. This allows for powerful automation scenarios such as processing documents, analyzing stored data, retrieving configuration files, and accessing media content as part of your workflows. Your agents can securely fetch files from S3 without exposing your AWS credentials, making it easy to incorporate cloud-stored assets into your automation processes. This integration bridges the gap between your cloud storage and AI workflows, enabling seamless access to your stored data while maintaining security best practices through AWS's robust authentication mechanisms.
+С помощью Amazon S3 вы можете:
+
+
+- Хранить неограниченный объем данных: загружать файлы любого размера и типа с практически неограниченной емкостью хранилища
+
+- Получать доступ к данным откуда угодно: извлекать свои файлы из любой точки мира с низкой задержкой доступа
+
+- Обеспечивать сохранность данных: пользоваться 99,99999999% (11 нулей) надежностью благодаря автоматической репликации данных
+
+- Контролировать доступ: управлять разрешениями и политиками безопасности с высокой степенью детализации
+
+- Автоматически масштабироваться: обрабатывать меняющиеся нагрузки без ручного вмешательства или планирования ресурсов
+
+- Бесшовно интегрироваться: легко подключаться к другим сервисам AWS и сторонним приложениям
+
+- Оптимизировать затраты: выбирать из нескольких классов хранения для оптимизации затрат в зависимости от шаблонов доступа
+
+
+В Sim, интеграция с S3 позволяет вашим агентам получать доступ к файлам, хранящимся в ваших бакетах Amazon S3, используя безопасные URL-адреса с предварительным доступом. Это обеспечивает мощные сценарии автоматизации, такие как обработка документов, анализ хранимых данных, получение конфигурационных файлов и доступ к мультимедийному контенту в рамках ваших рабочих процессов. Ваши агенты могут безопасно получать файлы из S3 без раскрытия ваших учетных данных AWS, что упрощает интеграцию облачных ресурсов в ваши процессы автоматизации. Эта интеграция устраняет разрыв между вашим облачным хранилищем и AI-рабочими процессами, обеспечивая беспрепятственный доступ к хранимым данным при одновременном соблюдении лучших практик безопасности благодаря надежным механизмам аутентификации AWS.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Интегрируйте S3 в рабочий процесс. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.
+## Инструкция по использованию
+
+
+Интегрируйте S3 в рабочий процесс. Загружайте файлы, скачивайте объекты, перечисляйте содержимое бакета, удаляйте объекты и копируйте объекты между бакетами. Требуются ключи доступа AWS (accessKeyId) и секретный ключ (secretAccessKey).
+
 
 
 
 ## Действия
 
+
 ### `s3_put_object`
 
-Upload a file to an AWS S3 bucket
 
-#### Вход
+Загружает файл в AWS S3 bucket
+
+
+#### Входные параметры
+
 
 | Параметр | Тип | Обязательный | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Да | Your AWS Access Key ID |
-| `secretAccessKey` | string | Да | Your AWS Secret Access Key |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `bucketName` | string | Да | S3 bucket name (например, my-bucket\) |
-| `objectKey` | string | Да | Object key/path in S3 (например, folder/filename.ext\) |
-| `file` | file | Нет | File to upload |
-| `content` | string | Нет | Text content to upload \(alternative to file\) |
-| `contentType` | string | Нет | Content-Type header \(auto-detected from file if not provided\) |
-| `acl` | string | Нет | Access control list (например, private, public-read\) |
 
-#### Выход
+| `accessKeyId` | string | Да | Ваш идентификатор ключа доступа AWS |
 
-| Parameter | Type | Description |
+| `secretAccessKey` | string | Да | Ваш секретный ключ доступа |
+
+| `region` | string | Да | Регион AWS (например, us-east-1) |
+
+| `bucketName` | string | Да | Имя S3 bucket (например, my-bucket) |
+
+| `objectKey` | string | Да | Ключ объекта/путь в S3 (например, folder/filename.ext) |
+
+| `file` | file | Нет | Файл для загрузки |
+
+| `content` | string | Нет | Текстовый контент для загрузки (альтернатива файлу) |
+
+| `contentType` | string | Нет | Заголовок Content-Type (автоматически определяется из файла, если не указан) |
+
+| `acl` | string | Нет | Список контроля доступа (например, private, public-read) |
+
+
+#### Выходные параметры
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `url` | string | URL of the uploaded S3 object |
-| `uri` | string | S3 URI of the uploaded object \(s3://bucket/key\) |
-| `metadata` | object | Upload metadata including ETag and location |
+
+| `url` | string | URL загруженного объекта S3 |
+
+| `uri` | string | URI S3 для загруженного объекта (s3://bucket/key) |
+
+| `metadata` | object | Метаданные загрузки, включая ETag и местоположение |
+
 
 ### `s3_get_object`
 
-Получение an object from an AWS S3 bucket
 
-#### Вход
+Получает объект из AWS S3 bucket
+
+
+#### Входные параметры
+
 
 | Параметр | Тип | Обязательный | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Да | Your AWS Access Key ID |
-| `secretAccessKey` | string | Да | Your AWS Secret Access Key |
-| `region` | string | Нет | Optional region override when URL does not include region (например, us-east-1, eu-west-1\) |
-| `s3Uri` | string | Да | S3 Object URL (например, https://bucket.s3.region.amazonaws.com/path/to/file\) |
 
-#### Выход
+| `accessKeyId` | string | Да | Ваш идентификатор ключа доступа AWS |
 
-| Parameter | Type | Description |
+| `secretAccessKey` | string | Да | Ваш секретный ключ доступа |
+
+| `region` | string | Нет | Необязательное переопределение региона, когда URL не содержит регион (например, us-east-1, eu-west-1) |
+
+| `s3Uri` | string | Да | URL объекта S3 (например, https://bucket.s3.region.amazonaws.com/path/to/file) |
+
+
+#### Выходные параметры
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `url` | string | Pre-signed URL for downloading the S3 object |
-| `file` | file | Downloaded file stored in execution files |
-| `metadata` | object | File metadata including type, size, name, and last modified date |
+
+| `url` | string | Префиксный URL для скачивания объекта S3 |
+
+| `file` | file | Загруженный файл, сохраненный в файлах выполнения |
+
+| `metadata` | object | Метаданные файла, включая тип, размер, имя и дату последнего изменения |
+
 
 ### `s3_list_objects`
 
-Получение списка objects in an AWS S3 bucket
 
-#### Вход
+Перечисляет объекты в AWS S3 bucket
+
+
+#### Входные параметры
+
 
 | Параметр | Тип | Обязательный | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Да | Your AWS Access Key ID |
-| `secretAccessKey` | string | Да | Your AWS Secret Access Key |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `bucketName` | string | Да | S3 bucket name (например, my-bucket\) |
-| `prefix` | string | Нет | Prefix to filter objects (например, folder/, images/2024/\) |
-| `maxKeys` | number | Нет | Maximum number of objects to return \(по умолчанию: 1000\) |
-| `continuationToken` | string | Нет | Token for pagination from previous list response |
 
-#### Выход
+| `accessKeyId` | string | Да | Ваш идентификатор ключа доступа AWS |
 
-| Parameter | Type | Description |
+| `secretAccessKey` | string | Да | Ваш секретный ключ доступа |
+
+| `region` | string | Да | Регион AWS (например, us-east-1) |
+
+| `bucketName` | string | Да | Имя S3 bucket (например, my-bucket) |
+
+| `prefix` | string | Нет | Префикс для фильтрации объектов (например, folder/, images/2024/) |
+
+| `maxKeys` | number | Нет | Максимальное количество возвращаемых объектов (по умолчанию: 1000) |
+
+| `continuationToken` | string | Нет | Токен для постраничной загрузки из предыдущего ответа списка |
+
+
+#### Выходные параметры
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `objects` | array | Получение списка of S3 objects |
-|   ↳ `key` | string | Object key |
-|   ↳ `size` | number | Object size in bytes |
-|   ↳ `lastModified` | string | Last modified timestamp |
-|   ↳ `etag` | string | Entity tag |
-| `metadata` | object | Listing metadata including pagination info |
+
+| `objects` | array | Список объектов S3 |
+
+|   ↳ `key` | string | Ключ объекта |
+
+|   ↳ `size` | number | Размер объекта в байтах |
+
+|   ↳ `lastModified` | string | Дата последнего изменения |
+
+|   ↳ `etag` | string | Тег сущности |
+
+| `metadata` | object | Метаданные списка, включая информацию о постраничной загрузке |
+
 
 ### `s3_delete_object`
 
-Удалениеn object from an AWS S3 bucket
 
-#### Вход
+Удаляет объект из AWS S3 bucket
+
+
+#### Входные параметры
+
 
 | Параметр | Тип | Обязательный | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Да | Your AWS Access Key ID |
-| `secretAccessKey` | string | Да | Your AWS Secret Access Key |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `bucketName` | string | Да | S3 bucket name (например, my-bucket\) |
-| `objectKey` | string | Да | Object key/path to delete (например, folder/file.txt\) |
 
-#### Выход
+| `accessKeyId` | string | Да | Ваш идентификатор ключа доступа AWS |
 
-| Parameter | Type | Description |
+| `secretAccessKey` | string | Да | Ваш секретный ключ доступа |
+
+| `region` | string | Да | Регион AWS (например, us-east-1) |
+
+| `bucketName` | string | Да | Имя S3 bucket (например, my-bucket) |
+
+| `objectKey` | string | Да | Ключ объекта/путь для удаления (например, folder/file.txt) |
+
+
+#### Выходные параметры
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  object was successfully deleted |
-| `metadata` | object | Deletion metadata |
+
+| `deleted` | boolean | Успешно ли удален объект |
+
+| `metadata` | object | Метаданные удаления |
+
 
 ### `s3_copy_object`
 
-Copy an object within or between AWS S3 buckets
 
-#### Вход
+Копирует объект внутри или между AWS S3 бакетами
+
+
+#### Входные параметры
+
 
 | Параметр | Тип | Обязательный | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Да | Your AWS Access Key ID |
-| `secretAccessKey` | string | Да | Your AWS Secret Access Key |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `sourceBucket` | string | Да | Source bucket name (например, my-bucket\) |
-| `sourceKey` | string | Да | Source object key/path (например, folder/file.txt\) |
-| `destinationBucket` | string | Да | Destination bucket name (например, my-other-bucket\) |
-| `destinationKey` | string | Да | Destination object key/path (например, backup/file.txt\) |
-| `acl` | string | Нет | Access control list for the copied object (например, private, public-read\) |
 
-#### Выход
+| `accessKeyId` | string | Да | Ваш идентификатор ключа доступа AWS |
 
-| Parameter | Type | Description |
+| `secretAccessKey` | string | Да | Ваш секретный ключ доступа |
+
+| `region` | string | Да | Регион AWS (например, us-east-1) |
+
+| `sourceBucket` | string | Да | Имя исходного bucket (например, my-bucket) |
+
+| `sourceKey` | string | Да | Ключ исходного объекта/путь (например, folder/file.txt) |
+
+| `destinationBucket` | string | Да | Имя целевого bucket (например, my-other-bucket) |
+
+| `destinationKey` | string | Да | Ключ целевого объекта/путь (например, backup/file.txt) |
+
+| `acl` | string | Нет | Список контроля доступа для скопированного объекта (например, private, public-read) |
+
+
+#### Выходные параметры
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `url` | string | URL of the copied S3 object |
-| `uri` | string | S3 URI of the copied object \(s3://bucket/key\) |
-| `metadata` | object | Copy operation metadata |
+
+| `url` | string | URL скопированного объекта S3 |
+
+| `uri` | string | URI S3 для скопированного объекта (s3://bucket/key) |
+
+| `metadata` | object | Метаданные операции копирования |
+
 
 

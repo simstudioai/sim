@@ -1,6 +1,6 @@
 ---
 title: Google Books
-description: Поиск и получение информации о книгах
+description: Search and retrieve book information
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,101 +10,182 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Books](https://books.google.com) — это комплексный сервис Google для поиска и получения метаданных книг, предоставляющий доступ к миллионам книг от издателей, библиотек и оцифрованных коллекций по всему миру.
+Google Books (https://books.google.com) is Google's comprehensive book discovery and metadata service, providing access to millions of books from publishers, libraries, and digitized collections worldwide.
 
-С интеграцией Google Books в Sim вы можете:
+With the Google Books integration in Sim, you can:
 
-- **Искать книги**: находить издания по названию, автору, ISBN или ключевым словам во всём каталоге Google Books
-- **Получать сведения об издании**: получать подробные метаданные для конкретной книги, включая название, авторов, описание, рейтинги и информацию о публикации
 
-В Sim интеграция Google Books позволяет вашим агентам искать книги и получать сведения об изданиях в рамках автоматизированных рабочих процессов. Это открывает такие сценарии использования, как исследование контента, составление списков для чтения, обогащение библиографических данных и сбор знаний из опубликованных работ.
+- **Search for books**: Find volumes by title, author, ISBN, or keyword across the entire Google Books catalog
+
+
+- **Retrieve volume details**: Get detailed metadata for a specific book including title, authors, description, ratings, and publication details
+
+In Sim, the Google Books integration allows your agents to search for books and retrieve volume details as part of automated workflows. This enables use cases such as content research, reading list curation, bibliographic data enrichment, and knowledge gathering from published works.
+
+
 {/* MANUAL-CONTENT-END */}
-
 
 ## Инструкции по использованию
 
-Поиск книг с помощью Google Books API. Находите издания по названию, автору, ISBN или ключевым словам, а также получайте подробную информацию о конкретных книгах, включая описания, рейтинги и сведения о публикации.
 
+
+Поиск книг с использованием Google Books API. Поиск по названию, автору, ISBN или ключевым словам и получение подробной информации о конкретных книгах, включая описания, рейтинги и сведения об издании.
 
 
 ## Действия
 
+
+
+
 ### `google_books_volume_search`
 
-Поиск книг с помощью Google Books API
 
-#### Входные параметры
+Поиск книг с использованием Google Books API
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Google Books |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Ключ API Google Books |
-| `query` | string | Да | Поисковый запрос. Поддерживаются специальные ключевые слова: intitle:, inauthor:, inpublisher:, subject:, isbn: |
-| `filter` | string | Нет | Фильтрация результатов по доступности \(partial, full, free-ebooks, paid-ebooks, ebooks\) |
-| `printType` | string | Нет | Ограничение по типу издания \(all, books, magazines\) |
-| `orderBy` | string | Нет | Порядок сортировки \(relevance, newest\) |
-| `startIndex` | number | Нет | Индекс первого возвращаемого результата \(для пагинации\) |
-| `maxResults` | number | Нет | Максимальное количество возвращаемых результатов \(1-40\) |
-| `langRestrict` | string | Нет | Ограничение результатов определённым языком \(код ISO 639-1\) |
-| `pricing` | per_request | Нет | Нет описания |
-| `rateLimit` | string | Нет | Нет описания |
 
-#### Выходные параметры
+| `query` | строка | Да | Поисковый запрос. Поддерживает специальные ключевые слова: intitle:, inauthor:, inpublisher:, subject:, isbn: |
+
+| `filter` | строка | Нет | Фильтрация результатов по доступности (полная, частичная, бесплатные электронные книги, платные электронные книги, электронные книги) |
+
+| `printType` | строка | Нет | Ограничение по типу печати (все, книги, журналы) |
+
+| `orderBy` | строка | Нет | Порядок сортировки (релевантность, новинка) |
+
+| `startIndex` | число | Нет | Индекс первого результата для возврата (для постраничной навигации) |
+
+| `maxResults` | число | Нет | Максимальное количество результатов для возврата (1-40) |
+
+| `langRestrict` | строка | Нет | Ограничение результатов определенным языком (код ISO 639-1) |
+
+| `pricing` | per_request | Нет | Нет описания |
+
+| `rateLimit` | строка | Нет | Нет описания |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `totalItems` | число | Общее количество соответствующих результатов |
+
 | --------- | ---- | ----------- |
-| `totalItems` | number | Общее количество совпадающих результатов |
-| `volumes` | array | Список найденных изданий |
-|   ↳ `id` | string | Идентификатор издания |
-|   ↳ `title` | string | Название книги |
-|   ↳ `subtitle` | string | Подзаголовок книги |
-|   ↳ `authors` | array | Список авторов |
-|   ↳ `publisher` | string | Название издателя |
-|   ↳ `publishedDate` | string | Дата публикации |
-|   ↳ `description` | string | Описание книги |
-|   ↳ `pageCount` | number | Количество страниц |
-|   ↳ `categories` | array | Категории книги |
-|   ↳ `averageRating` | number | Средний рейтинг \(1-5\) |
-|   ↳ `ratingsCount` | number | Количество оценок |
-|   ↳ `language` | string | Код языка |
-|   ↳ `previewLink` | string | Ссылка на предпросмотр в Google Books |
-|   ↳ `infoLink` | string | Ссылка на страницу с информацией |
-|   ↳ `thumbnailUrl` | string | URL миниатюры обложки книги |
-|   ↳ `isbn10` | string | Идентификатор ISBN-10 |
-|   ↳ `isbn13` | string | Идентификатор ISBN-13 |
+
+| `volumes` | массив | Список соответствующих объемов |
+
+|   ↳ `id` | строка | ID объема |
+
+|   ↳ `title` | строка | Название книги |
+
+|   ↳ `subtitle` | строка | Подзаголовок книги |
+
+|   ↳ `authors` | массив | Список авторов |
+
+|   ↳ `publisher` | строка | Название издателя |
+
+|   ↳ `publishedDate` | строка | Дата публикации |
+
+|   ↳ `description` | строка | Описание книги |
+
+|   ↳ `pageCount` | число | Количество страниц |
+
+|   ↳ `categories` | массив | Категории книги |
+
+|   ↳ `averageRating` | число | Средний рейтинг (1-5) |
+
+|   ↳ `ratingsCount` | число | Количество рейтингов |
+
+|   ↳ `language` | строка | Код языка |
+
+|   ↳ `previewLink` | строка | Ссылка на предварительный просмотр в Google Books |
+
+|   ↳ `infoLink` | строка | Ссылка на страницу информации |
+
+|   ↳ `thumbnailUrl` | строка | URL миниатюры обложки книги |
+
+|   ↳ `isbn10` | строка | Идентификатор ISBN-10 |
+
+|   ↳ `isbn13` | строка | Идентификатор ISBN-13 |
 
 ### `google_books_volume_details`
 
-Получение подробной информации о конкретном издании книги
 
-#### Входные параметры
+Получение подробной информации о конкретном объеме книги
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Google Books |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Ключ API Google Books |
-| `volumeId` | string | Да | Идентификатор издания для получения |
-| `projection` | string | Нет | Уровень проекции \(full, lite\) |
-| `pricing` | per_request | Нет | Нет описания |
-| `rateLimit` | string | Нет | Нет описания |
 
-#### Выходные параметры
+| `volumeId` | строка | Да | ID объема для получения |
+
+| `projection` | строка | Нет | Уровень проекции (полный, lite) |
+
+| `pricing` | per_request | Нет | Нет описания |
+
+| `rateLimit` | строка | Нет | Нет описания |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `id` | строка | ID объема |
+
 | --------- | ---- | ----------- |
-| `id` | string | Идентификатор издания |
-| `title` | string | Название книги |
-| `subtitle` | string | Подзаголовок книги |
-| `authors` | array | Список авторов |
-| `publisher` | string | Название издателя |
-| `publishedDate` | string | Дата публикации |
-| `description` | string | Описание книги |
-| `pageCount` | number | Количество страниц |
-| `categories` | array | Категории книги |
-| `averageRating` | number | Средний рейтинг \(1-5\) |
-| `ratingsCount` | number | Количество оценок |
-| `language` | string | Код языка |
-| `previewLink` | string | Ссылка на предпросмотр в Google Books |
-| `infoLink` | string | Ссылка на страницу с информацией |
-| `thumbnailUrl` | string | URL миниатюры обложки книги |
-| `isbn10` | string | Идентификатор ISBN-10 |
-| `isbn13` | string | Идентификатор ISBN-13 |
+
+| `title` | строка | Название книги |
+
+| `subtitle` | строка | Подзаголовок книги |
+
+| `authors` | массив | Список авторов |
+
+| `publisher` | строка | Название издателя |
+
+| `publishedDate` | строка | Дата публикации |
+
+| `description` | строка | Описание книги |
+
+| `pageCount` | число | Количество страниц |
+
+| `categories` | массив | Категории книги |
+
+| `averageRating` | число | Средний рейтинг (1-5) |
+
+| `ratingsCount` | число | Количество рейтингов |
+
+| `language` | строка | Код языка |
+
+| `previewLink` | строка | Ссылка на предварительный просмотр в Google Books |
+
+| `infoLink` | строка | Ссылка на страницу информации |
+
+| `thumbnailUrl` | строка | URL миниатюры обложки книги |
+
+| `isbn10` | строка | Идентификатор ISBN-10 |
+
+| `isbn13` | строка | Идентификатор ISBN-13 |
+
+| `isbn13` | string | ISBN-13 identifier |
+
+
+

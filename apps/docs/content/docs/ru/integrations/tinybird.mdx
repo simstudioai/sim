@@ -1,6 +1,6 @@
 ---
 title: Tinybird
-description: Отправка событий, запрос данных и управление источниками данных с Tinybird
+description: Отправляйте события, запрашивайте данные и управляйте источниками данных с помощью Tinybird
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,177 +10,305 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2EF598"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
 Supercharge your real-time data pipelines and analytics with [Tinybird](https://tinybird.co) – the fast, scalable platform for ingesting, querying, and building APIs on large volumes of event data. Tinybird enables developers and data engineers to collect, transform, and expose data instantly, making it easy to power dashboards, applications, and automation with fresh insights.
 
 With the Tinybird integration, you can:
 
+
 - **Stream events at scale:** Ingest millions of JSON events per second reliably, using HTTP-based APIs with NDJSON or JSON.
+
+
 - **Query data with low latency:** Run complex SQL-based analytics and aggregation queries in real time, ideal for dashboards, alerting, and reports.
+
 - **Expose data via instant APIs:** Build and publish API endpoints for your queries directly from the Tinybird UI or via their API.
+
 - **Automate workflows:** Use Tinybird’s APIs in your automations to fetch, transform, and sync data across your stack.
-- **Monitor and debug:** Получение insights into pipeline performance, query latencies, and ingestion health with real-time monitoring.
+
+- **Monitor and debug:** Get insights into pipeline performance, query latencies, and ingestion health with real-time monitoring.
+
 - **Secure access:** Leverage fine-grained authentication and resource scoping with personal or workspace API tokens.
 
 Tinybird empowers engineering, analytics, and product teams to deliver lightning-fast, always-up-to-date data products with minimal operational overhead. Go from raw event data to production-ready endpoints in minutes.
 
-Connect Tinybird to your workflows today to accelerate data-driven features, automation, and analytics!
-{/* MANUAL-CONTENT-END */}
 
+Connect Tinybird to your workflows today to accelerate data-driven features, automation, and analytics!
+
+
+{/* MANUAL-CONTENT-END */}
 
 ## Инструкции по использованию
 
-Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.
 
+
+Взаимодействуйте с Tinybird: потоком JSON или NDJSON событий через API Events, выполнение SQL запросов через Query API, вызов опубликованных Pipe API Endpoints по имени с динамическими параметрами и управление Data Sources путем добавления данных из URL, удаления или фильтрации строк на основе условия.
 
 
 ## Действия
 
+
+
+
 ### `tinybird_events`
 
-Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.
 
-#### Вход
+Отправка событий в Tinybird Data Source через Events API. Поддерживает форматы JSON и NDJSON с необязательной компрессией gzip.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co или https://api.us-east.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co or https://api.us-east.tinybird.co\) |
-| `datasource` | string | Да | Name of the Tinybird Data Source to send events to. Example: "events_raw", "user_analytics" |
-| `data` | string | Да | Data to send as NDJSON \(newline-delimited JSON\) or JSON string. Each event should be a valid JSON object. Example NDJSON: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
-| `wait` | boolean | Нет | Wait for database acknowledgment before responding. Enables safer retries but introduces latency. Defaults to false. |
-| `format` | string | Нет | Format of the events data: "ndjson" \(default\) or "json" |
-| `compression` | string | Нет | Compression format: "none" \(default\) or "gzip" |
-| `token` | string | Да | Tinybird API Token with DATASOURCE:APPEND or DATASOURCE:CREATE scope |
 
-#### Выход
+| `datasource` | строка | Да | Имя Tinybird Data Source для отправки событий. Пример: "events_raw", "user_analytics" |
 
-| Parameter | Type | Description |
+| `data` | строка | Да | Данные для отправки в формате NDJSON (разделители новой строки JSON) или строка JSON. Каждый объект события должен быть допустимым JSON объектом. Пример NDJSON: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
+
+| `wait` | булево | Нет | Ожидание подтверждения базы данных перед ответом. Позволяет более безопасным повторным попыткам, но увеличивает задержку. По умолчанию false. |
+
+| `format` | строка | Нет | Формат данных событий: "ndjson" (по умолчанию) или "json" |
+
+| `compression` | строка | Нет | Формат сжатия: "none" (по умолчанию) или "gzip" |
+
+| `token` | строка | Да | Tinybird API Token со scope DATASOURCE:APPEND или DATASOURCE:CREATE |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `successful_rows` | число | Количество успешно занесенных строк |
+
 | --------- | ---- | ----------- |
-| `successful_rows` | number | Number of rows successfully ingested |
-| `quarantined_rows` | number | Number of rows quarantined \(failed validation\) |
+
+| `quarantined_rows` | число | Количество строк, помещенных в карантин (недействительные) |
 
 ### `tinybird_query`
 
-Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
 
-#### Вход
+Выполнение SQL запросов к Tinybird Pipes и Data Sources с использованием Query API.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co\) |
-| `query` | string | Да | SQL query to execute. Specify your desired output format (например, FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. Example: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
-| `pipeline` | string | Нет | Optional pipe name. When provided, enables SELECT * FROM _ syntax. Example: "my_pipe", "analytics_pipe" |
-| `token` | string | Да | Tinybird API Token with PIPE:READ scope |
 
-#### Выход
+| `query` | строка | Да | SQL запрос для выполнения. Укажите желаемый формат вывода (например, FORMAT JSON, FORMAT CSV, FORMAT TSV). Формат JSON предоставляет структурированные данные, а другие форматы возвращают сырой текст. Пример: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
 
-| Parameter | Type | Description |
+| `pipeline` | строка | Нет | Необязательное имя pipe. При предоставлении позволяет использовать синтаксис SELECT * FROM _ . Пример: "my_pipe", "analytics_pipe" |
+
+| `token` | строка | Да | Tinybird API Token со scope PIPE:READ |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `data` | json | Данные результата запроса. Для FORMAT JSON: массив объектов. Для других форматов (CSV, TSV и т.д.): сырая текстовая строка. |
+
 | --------- | ---- | ----------- |
-| `data` | json | Query result data. For FORMAT JSON: array of objects. For other formats \(CSV, TSV, etc.\): raw text string. |
-| `meta` | array | Column metadata for the result set \(only available with FORMAT JSON\) |
-|   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Column data type |
-| `rows` | number | Number of rows returned \(only available with FORMAT JSON\) |
-| `rows_before_limit_at_least` | number | Minimum number of rows there would be without a LIMIT clause \(only available with FORMAT JSON\) |
-| `statistics` | json | Query execution statistics - elapsed time, rows read, bytes read \(only available with FORMAT JSON\) |
+
+| `meta` | массив | Метаданные столбцов для результата набора данных |
+
+|   ↳ `name` | строка | Имя столбца |
+
+|   ↳ `type` | строка | Тип данных столбца |
+
+| `rows` | число | Количество строк, возвращенных (только при FORMAT JSON) |
+
+| `rows_before_limit_at_least` | число | Минимальное количество строк, которое было бы возвращено без LIMIT clause (только при FORMAT JSON) |
+
+| `statistics` | json | Статистика выполнения запроса - время выполнения, количество прочитанных строк, количество прочитанных байт (только при FORMAT JSON) |
 
 ### `tinybird_query_pipe`
 
-Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters and receiving structured JSON results.
 
-#### Вход
+Вызов опубликованного Tinybird Pipe API Endpoint по имени, передача динамических параметров и получение структурированных данных в формате JSON.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co\) |
-| `pipe` | string | Да | Name of the published Pipe API Endpoint to call. Example: "top_pages" |
-| `parameters` | json | Нет | Dynamic Pipe parameters as a JSON object, sent as query-string arguments. Example: \{"start_date": "2024-01-01", "limit": 10\} |
-| `q` | string | Нет | Optional SQL to run on top of the Pipe result. Use "_" to reference the Pipe. Example: "SELECT count\(\) FROM _" |
-| `token` | string | Да | Tinybird API Token with PIPE:READ scope |
 
-#### Выход
+| `pipe` | строка | Да | Имя опубликованного Pipe API Endpoint для вызова. Пример: "top_pages" |
 
-| Parameter | Type | Description |
+| `parameters` | json | Нет | Динамические параметры Pipe в виде JSON объекта, отправляются как аргументы query-string. Пример: \{"start_date": "2024-01-01", "limit": 10\} |
+
+| `q` | строка | Нет | Необязательный SQL для выполнения на основе результата Pipe. Используйте "_" для ссылки на Pipe. Пример: "SELECT count\(\) FROM _" |
+
+| `token` | строка | Да | Tinybird API Token со scope PIPE:READ |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `data` | json | Результат Pipe в виде массива объектов строк |
+
 | --------- | ---- | ----------- |
-| `data` | json | Pipe result data as an array of row objects |
-| `meta` | array | Column metadata for the result set |
-|   ↳ `name` | string | Column name |
-|   ↳ `type` | string | Column data type |
-| `rows` | number | Number of rows returned |
-| `rows_before_limit_at_least` | number | Minimum number of rows there would be without a LIMIT clause |
-| `statistics` | json | Query execution statistics - elapsed time, rows read, bytes read |
-|   ↳ `elapsed` | number | Query execution time in seconds |
-|   ↳ `rows_read` | number | Number of rows processed |
-|   ↳ `bytes_read` | number | Number of bytes processed |
+
+| `meta` | массив | Метаданные столбцов для результата набора данных |
+
+|   ↳ `name` | строка | Имя столбца |
+
+|   ↳ `type` | строка | Тип данных столбца |
+
+| `rows` | число | Количество возвращенных строк |
+
+| `rows_before_limit_at_least` | число | Минимальное количество строк, которое было бы возвращено без LIMIT clause |
+
+| `statistics` | json | Статистика выполнения запроса - elapsed time, rows read, bytes read |
+
+|   ↳ `elapsed` | число | Время выполнения запроса в секундах |
+
+|   ↳ `rows_read` | число | Количество обработанных строк |
+
+|   ↳ `bytes_read` | число | Количество прочитанных байт |
 
 ### `tinybird_append_datasource`
 
-Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parquet).
 
-#### Вход
+Добавление данных в Tinybird Data Source из удаленного файла (CSV, NDJSON, Parquet).
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co\) |
-| `datasource` | string | Да | Name of the existing Data Source to append to. Example: "events_raw" |
-| `url` | string | Да | Publicly accessible URL of the file to append. Example: "https://example.com/data.csv" |
-| `format` | string | Нет | Format of the source file: "csv" \(default\), "ndjson", or "parquet" |
-| `token` | string | Да | Tinybird API Token with DATASOURCES:CREATE scope |
 
-#### Выход
+| `datasource` | строка | Да | Имя существующего Data Source для добавления данных |
 
-| Parameter | Type | Description |
+| `url` | строка | Да | Публично доступный URL файла для добавления. Пример: "https://example.com/data.csv" |
+
+| `format` | строка | Нет | Формат источника данных: "csv", "ndjson" или "parquet" |
+
+| `token` | строка | Да | Tinybird API Token со scope DATASOURCES:CREATE |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | Идентификатор операции добавления |
+
 | --------- | ---- | ----------- |
-| `id` | string | Identifier of the append operation |
-| `import_id` | string | Import identifier for the append job |
-| `job_id` | string | Job identifier used to poll import status |
-| `job_url` | string | URL to query the import job status |
-| `status` | string | Initial job status (например, "waiting"\) |
-| `job` | json | Full import job details \(kind, id, status, created_at, datasource, ...\) |
-| `datasource` | json | Target Data Source metadata \(id, name, ...\) |
+
+| `import_id` | строка | Идентификатор импорта для работы по добавлению |
+
+| `job_id` | строка | Идентификатор задания, используемый для опроса статуса задания |
+
+| `job_url` | строка | URL для запроса статуса задания |
+
+| `status` | строка | Текущий статус задания (например, "waiting") |
+
+| `job` | json | Полные детали задания импорта (kind, id, status, created_at, datasource, ...) |
+
+| `datasource` | json | Метаданные целевого Data Source (id, name, ...) |
 
 ### `tinybird_truncate_datasource`
 
-Удалениеll rows from a Tinybird Data Source.
 
-#### Вход
+Удаление всех строк из Tinybird Data Source.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co\) |
-| `datasource` | string | Да | Name of the Data Source to truncate. Example: "events_raw" |
-| `token` | string | Да | Tinybird API Token with DATASOURCES:CREATE scope |
 
-#### Выход
+| `datasource` | строка | Да | Имя Data Source для удаления строк |
 
-| Parameter | Type | Description |
+| `token` | строка | Да | Tinybird API Token со scope DATASOURCES:CREATE |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `truncated` | булево | Флаг, указывающий, успешно ли был удален Data Source |
+
 | --------- | ---- | ----------- |
-| `truncated` | boolean | Указывает,  Data Source was truncated successfully |
-| `result` | json | Raw response body from the truncate endpoint, if any |
+
+| `result` | json | Сырой ответ тела конечной точки удаления, если таковое имеется |
 
 ### `tinybird_delete_datasource_rows`
 
-Delete rows from a Tinybird Data Source matching a SQL condition.
 
-#### Вход
+Удаление строк из Tinybird Data Source на основе SQL условия.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `base_url` | строка | Да | Базовый URL Tinybird API (например, https://api.tinybird.co) |
+
 | --------- | ---- | -------- | ----------- |
-| `base_url` | string | Да | Tinybird API base URL (например, https://api.tinybird.co\) |
-| `datasource` | string | Да | Name of the Data Source to delete rows from. Example: "events_raw" |
-| `delete_condition` | string | Да | SQL WHERE-clause condition selecting the rows to delete. Example: "country = \'ES\'" or "event_date &lt; \'2024-01-01\'" |
-| `dry_run` | boolean | Нет | When true, returns how many rows would be deleted without deleting them. Defaults to false. |
-| `token` | string | Да | Tinybird API Token with DATASOURCES:CREATE scope |
 
-#### Выход
+| `datasource` | строка | Да | Имя Data Source для удаления строк |
 
-| Parameter | Type | Description |
+| `delete_condition` | строка | Да | SQL WHERE-clause условие для выбора строк для удаления. Пример: "country = \'ES\'" или "event_date &lt; \'2024-01-01\'" |
+
+| `dry_run` | булево | Нет | Если true, возвращает количество строк, которые будут удалены без фактического удаления. По умолчанию false. |
+
+| `token` | строка | Да | Tinybird API Token со scope DATASOURCES:CREATE |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | Идентификатор операции удаления |
+
 | --------- | ---- | ----------- |
-| `id` | string | Identifier of the delete operation |
-| `job_id` | string | Job identifier used to poll delete status |
-| `delete_id` | string | Deletion identifier |
-| `job_url` | string | URL to query the delete job status |
-| `status` | string | Current job status (например, "waiting", "done"\) |
-| `job` | json | Full delete job details \(kind, id, status, delete_condition, rows_affected, ...\) |
+
+| `job_id` | строка | Идентификатор задания, используемый для опроса статуса |
+
+| `delete_id` | строка | Идентификатор удаления |
+
+| `job_url` | строка | URL для запроса статуса задания |
+
+| `status` | строка | Текущий статус задания (например, "waiting", "done") |
+
+| `job` | json | Полные детали задания удаления (kind, id, status, delete_condition, rows_affected, ...) |
+
+| `datasource` | json | Метаданные целевого Data Source (id, name, ...) |
+
 
 

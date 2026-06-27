@@ -1,6 +1,6 @@
 ---
 title: LeadMagic
-description: Поиск и обогащение B2B-контактов, email, мобильных номеров и данных компаний
+description: Найдите и обогатите контакты в сфере B2B, адреса электронной почты, мобильные номера и данные компаний.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,266 +10,465 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
+
 [LeadMagic](https://leadmagic.io/) is a B2B contact and company data platform for finding and enriching emails, direct mobile numbers, LinkedIn profiles, and firmographics from minimal input.
+
 
 With LeadMagic, you can:
 
+
 - **Find and validate work emails:** Resolve verified work emails by name or company, and check the deliverability of an existing address.
+
 - **Find direct mobile numbers:** Look up mobile phone numbers for a contact.
+
 - **Enrich and cross-reference profiles:** Enrich a LinkedIn profile, reverse-lookup a profile from an email, or find the email behind a profile.
+
 - **Research accounts:** Search companies by domain and identify the people holding a given role at an account.
+
 - **Check your credit balance:** Monitor remaining LeadMagic credits before running large jobs.
 
+
 In Sim, the LeadMagic integration lets your agents find, verify, and enrich B2B contacts and companies inside a workflow — automating lead generation, account research, and CRM enrichment without leaving Sim.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.
+## Использование
+
+
+Интегрируйте LeadMagic для поиска подтвержденных рабочих адресов по имени или названию компании, проверки возможности доставки электронной почты, поиска мобильных номеров, обогащения профилей LinkedIn, обратного поиска профилей по электронной почте, поиска компаний по домену, идентификации лиц, занимающих определенные должности в компаниях, и проверки баланса кредитов учетной записи.
+
 
 
 
 ## Действия
 
+
 ### `leadmagic_validate_email`
 
-Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free.
 
-#### Входные параметры
+Проверьте адрес электронной почты на возможность доставки. Стоимость 0,25 кредита за подтвержденные результаты SMTP (действительный/недействительный); неизвестные и недействительные по RFC результаты бесплатны.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `email` | string | Да | Email address to validate \(e.g., john@example.com\) |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `email` | строка | Да | Адрес электронной почты для проверки (например, john@example.com) |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email` | string | The validated email address |
-| `email_status` | string | Validation result: valid, invalid, or unknown |
-| `is_domain_catch_all` | boolean | Whether the domain accepts all emails \(catch-all\) |
-| `credits_consumed` | number | Credits charged for this request \(0.25 for definitive results\) |
-| `message` | string | Human-readable status message |
-| `mx_record` | string | MX record for the domain |
-| `mx_provider` | string | Email provider \(e.g., Google, Microsoft\) |
-| `mx_gateway` | string | MX gateway for the domain |
-| `mx_security_gateway` | boolean | Whether the domain uses a security gateway |
-| `company_name` | string | Company name associated with the email domain |
-| `company_industry` | string | Industry of the company |
-| `company_size` | string | Company size range |
+
+| `email` | строка | Проверенный адрес электронной почты |
+
+| `email_status` | строка | Результат проверки: действительный, недействительный или неизвестный |
+
+| `is_domain_catch_all` | булево значение | Является ли домен приемником всех адресов (ловушка) |
+
+| `credits_consumed` | число | Кредиты, использованные для этого запроса (0,25 за подтвержденные результаты) |
+
+| `message` | строка | Читаемый человеком статусное сообщение |
+
+| `mx_record` | строка | Запись MX для домена |
+
+| `mx_provider` | строка | Поставщик электронной почты (например, Google, Microsoft) |
+
+| `mx_gateway` | строка | Gateway MX для домена |
+
+| `mx_security_gateway` | булево значение | Использует ли домен security gateway |
+
+| `company_name` | строка | Название компании, связанной с адресом электронной почты |
+
+| `company_industry` | строка | Отрасль компании |
+
+| `company_size` | строка | Диапазон размера компании |
+
 
 ### `leadmagic_find_email`
 
-Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result.
 
-#### Входные параметры
+Найдите подтвержденный рабочий адрес электронной почты для человека по имени и названию компании. Стоимость 1 кредита, если найден действительный адрес; бесплатно, если нет результата.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `first_name` | string | Нет | Person's first name \(use with last_name, or use full_name instead\) |
-| `last_name` | string | Нет | Person's last name \(use with first_name, or use full_name instead\) |
-| `full_name` | string | Нет | Person's full name \(alternative to first_name + last_name\) |
-| `domain` | string | Нет | Company domain \(preferred, e.g. stripe.com\) |
-| `company_name` | string | Нет | Company name \(fallback if domain is unavailable\) |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `first_name` | строка | Нет | Имя человека (используйте с last_name или full_name) |
+
+| `last_name` | строка | Нет | Фамилия человека (используйте с first_name или full_name) |
+
+| `full_name` | строка | Нет | Полное имя человека (альтернатива first_name + last_name) |
+
+| `domain` | строка | Нет | Домен компании (предпочтительно, например, stripe.com) |
+
+| `company_name` | строка | Нет | Название компании (в качестве резервной копии, если домен недоступен) |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email` | string | Found work email address |
-| `status` | string | Result status \(valid, invalid, etc.\) |
-| `credits_consumed` | number | Credits charged \(1 when email found\) |
-| `message` | string | Human-readable status message |
-| `employment_verified` | boolean | Whether employment at the company was verified |
-| `has_mx` | boolean | Whether the domain has a valid MX record |
-| `mx_record` | string | MX record for the email domain |
-| `mx_provider` | string | Email provider |
-| `company_name` | string | Company name |
-| `company_industry` | string | Company industry |
-| `company_size` | string | Company size range |
-| `company_profile_url` | string | Company LinkedIn/B2B profile URL |
+
+| `email` | строка | Найденный рабочий адрес электронной почты |
+
+| `status` | строка | Статус результата (действительный, недействительный и т.д.) |
+
+| `credits_consumed` | число | Кредиты, использованные (1 при обнаружении адреса) |
+
+| `message` | строка | Читаемое человеком статусное сообщение |
+
+| `employment_verified` | булево значение | Подтверждена ли занятость в компании |
+
+| `has_mx` | булево значение | Есть ли у домена действительная запись MX |
+
+| `mx_record` | строка | Запись MX для адреса электронной почты |
+
+| `mx_provider` | строка | Поставщик электронной почты |
+
+| `company_name` | строка | Название компании |
+
+| `company_industry` | строка | Отрасль компании |
+
+| `company_size` | строка | Диапазон размера компании |
+
+| `company_profile_url` | строка | URL профиля компании LinkedIn/B2B |
+
 
 ### `leadmagic_find_mobile`
 
-Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result.
 
-#### Входные параметры
+Найдите мобильный номер для человека по его URL-адресу профиля LinkedIn или адресу электронной почты. Стоимость 5 кредитов, если номер найден; бесплатно, если нет результата.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `profile_url` | string | Нет | LinkedIn profile URL \(provide at least one identifier\) |
-| `work_email` | string | Нет | Work email address \(provide at least one identifier\) |
-| `personal_email` | string | Нет | Personal email address \(provide at least one identifier\) |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `profile_url` | строка | Нет | URL профиля LinkedIn (предоставьте хотя бы один идентификатор) |
+
+| `work_email` | строка | Нет | Адрес электронной почты для работы (предоставьте хотя бы один из work_email или personal_email) |
+
+| `personal_email` | строка | Нет | Личный адрес электронной почты (предоставьте хотя бы один из work_email или personal_email) |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `profile_url` | string | LinkedIn profile URL used for lookup |
-| `email` | string | Email address associated with the profile |
-| `mobile_number` | string | Direct mobile phone number |
-| `credits_consumed` | number | Credits charged \(5 when mobile found\) |
-| `message` | string | Status message from the API |
+
+| `profile_url` | строка | URL профиля LinkedIn, использованный для поиска |
+
+| `email` | строка | Адрес электронной почты, связанный с профилем |
+
+| `mobile_number` | строка | Прямой номер мобильного телефона |
+
+| `credits_consumed` | число | Кредиты, использованные (5 при обнаружении номера) |
+
+| `message` | строка | Статусное сообщение из API |
+
 
 ### `leadmagic_profile_search`
 
-Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found.
 
-#### Входные параметры
+Обогатите профиль LinkedIn информацией о работе, образовании, навыках и контактных данных. Стоимость 1 кредита за успешное обогащение; бесплатно, если профиль не найден.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `profile_url` | string | Да | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
-| `extended_response` | boolean | Нет | Include additional profile image URL in the response \(default: false\) |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `profile_url` | строка | Да | URL профиля LinkedIn или имя пользователя (например, https://linkedin.com/in/johndoe) |
+
+| `extended_response` | булево значение | Нет | Включить дополнительный URL-адрес изображения профиля в ответ (по умолчанию: false) |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `profile_url` | string | LinkedIn profile URL |
-| `first_name` | string | First name |
-| `last_name` | string | Last name |
-| `full_name` | string | Full name |
-| `professional_title` | string | Current job title |
-| `bio` | string | Profile bio / summary |
-| `location` | string | Location string |
-| `country` | string | Country |
-| `followers_range` | string | LinkedIn follower range |
-| `company_name` | string | Current employer |
-| `company_industry` | string | Industry of current employer |
-| `company_website` | string | Company website |
-| `total_tenure_years` | string | Total professional tenure in years |
-| `total_tenure_months` | string | Total professional tenure in months |
-| `work_experience` | array | Work history entries |
-| `education` | array | Education history entries |
-| `certifications` | array | Professional certifications |
-| `credits_consumed` | number | Credits charged \(1 when profile found\) |
-| `message` | string | Human-readable status message |
+
+| `profile_url` | строка | URL профиля LinkedIn |
+
+| `first_name` | строка | Имя |
+
+| `last_name` | строка | Фамилия |
+
+| `full_name` | строка | Полное имя |
+
+| `professional_title` | строка | Текущая должность |
+
+| `bio` | строка | Описание профиля / резюме |
+
+| `location` | строка | Местоположение |
+
+| `country` | строка | Страна |
+
+| `followers_range` | строка | Диапазон количества подписчиков LinkedIn |
+
+| `company_name` | строка | Текущий работодатель |
+
+| `company_industry` | строка | Отрасль текущего работодателя |
+
+| `company_website` | строка | Веб-сайт компании |
+
+| `total_tenure_years` | строка | Общий стаж работы в годах |
+
+| `total_tenure_months` | строка | Общий стаж работы в месяцах |
+
+| `work_experience` | массив | История работы |
+
+| `education` | массив | История образования |
+
+| `certifications` | массив | Профессиональные сертификаты |
+
+| `credits_consumed` | число | Кредиты, использованные (1 при обнаружении профиля) |
+
+| `message` | строка | Читаемое человеком статусное сообщение |
+
 
 ### `leadmagic_profile_to_email`
 
-Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result.
 
-#### Входные параметры
+Извлеките подтвержденный рабочий адрес электронной почты из URL-адреса профиля LinkedIn. Стоимость 5 кредитов, если адрес найден; бесплатно, если нет результата.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `profile_url` | string | Да | LinkedIn profile URL or username \(e.g., https://linkedin.com/in/johndoe\) |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `profile_url` | строка | Да | URL-адрес профиля LinkedIn или имя пользователя (например, https://linkedin.com/in/johndoe) |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email` | string | Work email address found for this profile |
-| `profile_url` | string | LinkedIn profile URL used for lookup |
-| `credits_consumed` | number | Credits charged \(5 when email found\) |
-| `message` | string | Human-readable status message |
 
-### `leadmagic_email_to_profile`
+| `email` | строка | Найденный рабочий адрес электронной почты для этого профиля |
 
-Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result.
+| `profile_url` | строка | URL-адрес профиля LinkedIn, использованный для поиска |
 
-#### Входные параметры
+| `credits_consumed` | число | Кредиты, использованные (5 при обнаружении адреса) |
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `work_email` | string | Нет | Work email address \(provide at least one of work_email or personal_email\) |
-| `personal_email` | string | Нет | Personal email address \(provide at least one of work_email or personal_email\) |
-| `apiKey` | string | Да | LeadMagic API Key |
+| `message` | строка | Читаемое человеком статусное сообщение |
 
-#### Выходные параметры
-
-| Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `profile_url` | string | LinkedIn profile URL for the provided email |
-| `credits_consumed` | number | Credits charged \(10 when profile found\) |
-| `message` | string | Human-readable status message |
 
 ### `leadmagic_company_search`
 
-Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result.
 
-#### Входные параметры
+Обогатите данные о компаниях, включая фирменную информацию, количество сотрудников, финансирование и социальные профили, по домену, URL-адресу LinkedIn или названию. Стоимость 1 кредита при обнаружении компании; бесплатно, если нет результата.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `company_domain` | string | Нет | Company website domain \(e.g., stripe.com\). Provide at least one identifier. |
-| `profile_url` | string | Нет | LinkedIn company profile URL \(e.g., https://linkedin.com/company/stripe\). Provide at least one identifier. |
-| `company_name` | string | Нет | Company name \(fallback if domain/URL unavailable\). Provide at least one identifier. |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+| `company_domain` | строка | Нет | Домен веб-сайта компании (например, stripe.com). Предоставьте хотя бы один идентификатор. |
+
+| `profile_url` | строка | Нет | URL профиля LinkedIn (например, https://linkedin.com/company/stripe). Предоставьте хотя бы один идентификатор. |
+
+| `company_name` | строка | Нет | Название компании (в качестве резервной копии, если домен/URL недоступны). Предоставьте хотя бы один идентификатор. |
+
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
+
+| `companyName` | строка | Название компании |
+
+| `companyId` | число | Внутренний идентификатор компании |
+
+
+| `industry` | строка | Классификация отрасли |
+
+
+| `employeeCount` | число | Количество сотрудников |
+
+
+| `employeeRange` | строка | Диапазон количества сотрудников (например, 1001-5000) |
+
+
+| `founded` | число | Год основания компании |
+
+| --------- | ---- | -------- | ----------- |
+
+| `headquarters` | json | Объект местоположения штаб-квартиры |
+
+| `revenue` | строка | Диапазон выручки |
+
+| `funding` | строка | Объем финансирования |
+
+| `description` | строка | Описание компании |
+
+
+| `specialties` | массив | Специальности и области деятельности компании |
+
+
+| `competitors` | массив | Список компаний-конкурентов |
+
 | --------- | ---- | ----------- |
-| `companyName` | string | Company name |
-| `companyId` | number | Internal company identifier |
-| `industry` | string | Industry classification |
-| `employeeCount` | number | Number of employees |
-| `employeeRange` | string | Headcount range \(e.g., 1001-5000\) |
-| `founded` | number | Year the company was founded |
-| `headquarters` | json | Headquarters location object |
-| `revenue` | string | Revenue range |
-| `funding` | string | Total funding amount |
-| `description` | string | Company description |
-| `specialties` | array | Company specialties and focus areas |
-| `competitors` | array | Competitor companies |
-| `followerCount` | number | LinkedIn follower count |
-| `twitter_url` | string | Twitter/X profile URL |
-| `facebook_url` | string | Facebook page URL |
-| `b2b_profile_url` | string | LinkedIn company profile URL |
-| `logo_url` | string | Company logo URL |
-| `credits_consumed` | number | Credits charged \(1 when company found\) |
-| `message` | string | Human-readable status message |
+
+| `followerCount` | число | Количество подписчиков в LinkedIn |
+
+| `twitter_url` | строка | URL профиля Twitter/X |
+
+| `facebook_url` | строка | URL страницы Facebook |
+
+| `b2b_profile_url` | строка | URL профиля компании LinkedIn |
+
+| `logo_url` | строка | URL логотипа компании |
+
+| `credits_consumed` | число | Кредиты, использованные (1 при обнаружении компании) |
+
+| `message` | строка | Читаемое человеком статусное сообщение |
 
 ### `leadmagic_role_finder`
 
-Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result.
+Найдите человека, занимающего определенную должность в компании. Стоимость 2 кредита при обнаружении человека; бесплатно, если нет результата.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `job_title` | string | Да | Job role to search for \(e.g., Head of Sales, CTO\). Supports partial matching. |
-| `company_domain` | string | Нет | Company website domain \(e.g., stripe.com\). Provide domain or company_name. |
-| `company_name` | string | Нет | Company name \(fallback if domain unavailable\). Provide domain or company_name. |
-| `apiKey` | string | Да | LeadMagic API Key |
+| Параметр | Тип | Требуется | Описание |
 
-#### Выходные параметры
+| `job_title` | строка | Да | Должность для поиска (например, Head of Sales, CTO). Поддерживает частичное сопоставление. |
+
+| `company_domain` | строка | Нет | Домен веб-сайта компании (например, stripe.com). Предоставьте домен или company_name. |
+
+| `company_name` | строка | Нет | Название компании (в качестве резервной копии, если домен недоступен). Предоставьте домен или company_name. |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `first_name` | string | First name of the person found |
-| `last_name` | string | Last name of the person found |
-| `full_name` | string | Full name of the person found |
-| `profile_url` | string | LinkedIn profile URL |
-| `job_title` | string | Verified job title at the company |
-| `company_name` | string | Company name |
-| `company_website` | string | Company website |
-| `credits_consumed` | number | Credits charged \(2 when person found\) |
-| `message` | string | Human-readable status message |
+
+| `first_name` | строка | Имя человека, найденного |
+
+| `last_name` | строка | Фамилия человека, найденного |
+
+
+| `full_name` | строка | Полное имя человека, найденного |
+
+
+| `profile_url` | строка | URL профиля LinkedIn |
+
+
+| `job_title` | строка | Подтвержденная должность в компании |
+
+
+| `company_name` | строка | Название компании |
+
+| --------- | ---- | -------- | ----------- |
+
+| `company_website` | строка | Веб-сайт компании |
+
+| `credits_consumed` | число | Кредиты, использованные (2 при обнаружении человека) |
+
+| `message` | строка | Читаемое человеком статусное сообщение |
 
 ### `leadmagic_get_credits`
 
-Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits.
 
-#### Входные параметры
+Получите текущий баланс кредитов для учетной записи LeadMagic. Этот endpoint бесплатный и не потребляет кредиты.
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LeadMagic API Key |
 
-#### Выходные параметры
+#### Входные данные
+
+| --------- | ---- | ----------- |
+
+| Параметр | Тип | Требуется | Описание |
+
+| `apiKey` | строка | Да | Ключ API LeadMagic |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `credits` | число | Текущий баланс кредитов |
+
+| `company_name` | string | Company name |
+
+| `company_website` | string | Company website |
+
+| `credits_consumed` | number | Credits charged \(2 when person found\) |
+
+| `message` | string | Human-readable status message |
+
+
+### `leadmagic_get_credits`
+
+
+Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits.
+
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | LeadMagic API Key |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `credits` | number | Current credit balance |
+
 
 

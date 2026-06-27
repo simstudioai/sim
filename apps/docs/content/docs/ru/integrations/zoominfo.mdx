@@ -1,6 +1,6 @@
 ---
 title: ZoomInfo
-description: Поиск и обогащение данных о B2B-компаниях и контактах с ZoomInfo.
+description: Найдите и обогатите данные о компаниях и контактах в сфере B2B с помощью ZoomInfo.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,194 +10,337 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#EA1B15"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[ZoomInfo](https://www.zoominfo.com/) is a B2B go-to-market platform with one of the largest verified databases of company and contact data. It pairs deep firmographic and contact records with buyer intent signals and company news, so your sales, marketing, and operations teams can find, prioritize, and reach the right accounts.
 
-With ZoomInfo, you can:
+ZoomInfo (https://www.zoominfo.com/) — это платформа для выхода на рынок B2B с одной из крупнейших проверенных баз данных компаний и контактных данных. Она объединяет подробные данные о компаниях и контактах с сигналами об намерениях покупателей и новостями, чтобы ваши команды продаж, маркетинга и операций могли находить, приоритизировать и взаимодействовать с наиболее подходящими клиентами.
 
-- **Search companies**: Find organizations by name, industry, location, revenue, and employee size
-- **Search contacts**: Discover people by name, job title, department, and management level
-- **Enrich companies and contacts**: Resolve detailed firmographics, verified emails, and phone numbers in bulk
-- **Track buyer intent**: Surface companies showing intent signals on the topics you care about
-- **Monitor company news**: Pull recent articles by category, source, or date range
 
-In Sim, the ZoomInfo integration lets your agents power prospecting, enrichment, and account research workflows end-to-end:
+С ZoomInfo вы можете:
 
-- **Search Companies**: Use `zoominfo_search_companies` to find accounts matching firmographic filters.
-- **Search Contacts**: Use `zoominfo_search_contacts` to find people by role and company. Search results do not include emails or phone numbers — use Enrich Contacts for engagement data.
-- **Enrich Companies**: Use `zoominfo_enrich_companies` to resolve up to 25 companies per request from a name, domain, ticker, or ZoomInfo ID.
-- **Enrich Contacts**: Use `zoominfo_enrich_contacts` to resolve up to 25 contacts per request, returning verified emails, phones, and job details.
-- **Search Intent**: Use `zoominfo_search_intent` to find companies researching specific topics, with signal scores and recommended contacts.
-- **Search News**: Use `zoominfo_search_news` to monitor company news by category, source URL, or publish date.
 
-ZoomInfo authenticates with the OAuth 2.0 client credentials flow: Sim exchanges your client ID and secret for a short-lived bearer token automatically on each call, so you only ever provide your credentials. A common pattern is to search first to identify the records you want, then pass their IDs into the matching enrich tool to pull full detail efficiently.
+- **Искать компании**: Находить организации по имени, отрасли, местоположению, доходам и размеру сотрудников
+
+- **Искать контакты**: Открывать людей по имени, должности, отделу и уровню управления
+
+- **Улучшать данные о компаниях и контактах**: Получать подробные данные о компаниях, проверенные адреса электронной почты и номера телефонов в больших объемах
+
+- **Отслеживать намерения покупателей**: Выявлять компании, проявляющие интерес к интересующим вас темам
+
+- **Мониторить новости компаний**: Извлекать последние статьи по категориям, источникам или диапазону дат
+
+
+В Sim интеграция ZoomInfo позволяет вашим агентам использовать рабочие процессы поиска, обогащения и исследования счетов:
+
+
+- **Искать компании**: Используйте `zoominfo_search_companies` для поиска аккаунтов, соответствующих фирмам.
+
+- **Искать контакты**: Используйте `zoominfo_search_contacts` для поиска людей по роли и компании. Результаты поиска не включают адреса электронной почты или номера телефонов — используйте "Enrich Contacts" для получения данных о взаимодействии.
+
+- **Улучшать данные о компаниях**: Используйте `zoominfo_enrich_companies` для получения информации о до 25 компаниях по имени, доменному имени, тикеру или ID ZoomInfo.
+
+- **Улучшать данные о контактах**: Используйте `zoominfo_enrich_contacts` для получения информации о 25 контактах, возвращающих проверенные адреса электронной почты, номера телефонов и сведения об их должностях.
+
+- **Искать намерения**: Используйте `zoominfo_search_intent` для поиска компаний, изучающих конкретные темы, с оценками намерений и рекомендованными контактами.
+
+- **Искать новости**: Используйте `zoominfo_search_news` для мониторинга новостей компаний по категориям, URL или дате публикации.
+
+
+ZoomInfo аутентифицируется с помощью OAuth 2.0: Sim автоматически обменивается вашим ID и секретом клиента на короткий токен доступа при каждом вызове, поэтому вам нужно предоставлять только свои учетные данные. Распространенный подход — сначала выполнить поиск для определения нужных записей, а затем передавать их идентификаторы в инструмент обогащения для эффективного получения полной информации.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrates ZoomInfo в рабочий процесс. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.
+
+Интегрирует ZoomInfo в рабочий процесс. Поиск компаний и контактов, обогащение данных о компаниях и контактах, поиск сигналов намерения и получение новостей — все это с помощью API GTM ZoomInfo.
+
 
 
 
 ## Действия
 
+
 ### `zoominfo_search_companies`
 
-Search the ZoomInfo company database by name, industry, location, and size.
 
-#### Вход
+Ищите компании в базе данных ZoomInfo по имени, отрасли, местоположению и размеру.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `companyName` | string | Нет | Company name to search for |
-| `companyWebsite` | string | Нет | Company website \(comma-separated for multiple\) |
-| `companyTicker` | string | Нет | Stock ticker symbols — JSON array, comma-separated list, or single ticker. Sent to the API as an array. |
-| `industryCodes` | string | Нет | Industry codes — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
-| `country` | string | Нет | Country name |
-| `state` | string | Нет | State or province |
-| `metroRegion` | string | Нет | US/Canada metro region |
-| `revenueMin` | number | Нет | Minimum annual revenue in thousands USD |
-| `revenueMax` | number | Нет | Maximum annual revenue in thousands USD |
-| `employeeRangeMin` | number | Нет | Minimum employee count |
-| `employeeRangeMax` | number | Нет | Maximum employee count |
-| `excludeDefunctCompanies` | boolean | Нет | Exclude inactive companies |
-| `page` | number | Нет | Page number \(1-based\) |
-| `rpp` | number | Нет | Results per page \(1-100, по умолчанию 25\) |
-| `sortBy` | string | Нет | Field to sort by |
-| `sortOrder` | string | Нет | Sort order \(asc or desc\) |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `companyName` | строка | Нет | Название компании для поиска |
+
+| `companyWebsite` | строка | Нет | Веб-сайт компании (разделите запятыми для нескольких) |
+
+| `companyTicker` | строка | Нет | Символы акций — JSON массив, список, разделенный запятыми, или одиночный символ. Отправляется в API как массив. |
+
+| `industryCodes` | строка | Нет | Коды отраслей — JSON массив или список, разделенный запятыми. Отправляется в API в виде строки, разделенной запятыми. |
+
+| `country` | строка | Нет | Название страны |
+
+| `state` | строка | Нет | Штат или провинция |
+
+| `metroRegion` | строка | Нет | US/Канадский метро регион |
+
+| `revenueMin` | число | Нет | Минимальная годовая выручка в тысячах долларов США |
+
+| `revenueMax` | число | Нет | Максимальная годовая выручка в тысячах долларов США |
+
+| `employeeRangeMin` | число | Нет | Минимальное количество сотрудников |
+
+| `employeeRangeMax` | число | Нет | Максимальное количество сотрудников |
+
+| `excludeDefunctCompanies` | логическое значение | Нет | Исключить неактивные компании |
+
+| `page` | число | Нет | Номер страницы (начиная с 1) |
+
+| `rpp` | число | Нет | Результаты на странице (от 1 до 100, по умолчанию 25) |
+
+| `sortBy` | строка | Нет | Поле для сортировки |
+
+| `sortOrder` | строка | Нет | Порядок сортировки (asc или desc) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `companies` | array | Matching companies |
+
+| `companies` | массив | Соответствующие компании |
+
 
 ### `zoominfo_search_contacts`
 
-Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data.
 
-#### Вход
+Ищите контакты в ZoomInfo по имени, должности, компании и другим критериям. Не возвращает адреса электронной почты или номера телефонов — используйте "Enrich Contacts" для получения данных о взаимодействии.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `firstName` | string | Нет | First name |
-| `lastName` | string | Нет | Last name |
-| `fullName` | string | Нет | Full name |
-| `emailAddress` | string | Нет | Email address |
-| `jobTitle` | string | Нет | Job title |
-| `managementLevel` | string | Нет | Management level — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
-| `department` | string | Нет | Department — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
-| `companyId` | string | Нет | ZoomInfo company ID |
-| `companyName` | string | Нет | Company name |
-| `contactAccuracyScoreMin` | number | Нет | Minimum accuracy score \(70-99\) |
-| `requiredFields` | string | Нет | Fields that must exist in results — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
-| `excludePartialProfiles` | boolean | Нет | Exclude partial profiles |
-| `page` | number | Нет | Page number \(1-based\) |
-| `rpp` | number | Нет | Results per page \(1-100, по умолчанию 25\) |
-| `sortBy` | string | Нет | Field to sort by |
-| `sortOrder` | string | Нет | Sort order \(asc or desc\) |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `firstName` | строка | Нет | Имя |
+
+| `lastName` | строка | Нет | Фамилия |
+
+| `fullName` | строка | Нет | Полное имя |
+
+| `emailAddress` | строка | Нет | Адрес электронной почты |
+
+| `jobTitle` | строка | Нет | Должность |
+
+| `managementLevel` | строка | Нет | Уровень управления — JSON массив или список, разделенный запятыми. Отправляется в API в виде строки, разделенной запятыми. |
+
+| `department` | строка | Нет | Отдел — JSON массив или список, разделенный запятыми. Отправляется в API в виде строки, разделенной запятыми. |
+
+| `companyId` | строка | Нет | ID компании ZoomInfo |
+
+| `companyName` | строка | Нет | Название компании |
+
+| `contactAccuracyScoreMin` | число | Нет | Минимальная оценка точности (от 70 до 99) |
+
+| `requiredFields` | строка | Нет | Поля, которые должны присутствовать в результатах — JSON массив или список, разделенный запятыми. Отправляется в API в виде строки, разделенной запятыми. |
+
+| `excludePartialProfiles` | логическое значение | Нет | Исключить неполные профили |
+
+| `page` | число | Нет | Номер страницы (начиная с 1) |
+
+| `rpp` | число | Нет | Результаты на странице (от 1 до 100, по умолчанию 25) |
+
+| `sortBy` | строка | Нет | Поле для сортировки |
+
+| `sortOrder` | строка | Нет | Порядок сортировки (asc или desc) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `contacts` | array | Matching contacts \(without emails or phone numbers\) |
+
+| `contacts` | массив | Соответствующие контакты (без адресов электронной почты и номеров телефонов) |
+
 
 ### `zoominfo_enrich_companies`
 
-Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more.
 
-#### Вход
+Улучшите до 25 компаний в одном запросе с подробными данными о компании, отрасли, финансах и т. д.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `matchCompanyInput` | string | Да | JSON array \(1-25 items\) of company matching criteria, e.g. \[\{"companyName":"Acme","companyWebsite":"acme.com"\}\] |
-| `outputFields` | string | Нет | JSON array or comma-separated list of fields to return (например, \["id","name","website","revenue","employeeCount"\]\). Defaults to a standard firmographic set if omitted. |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `matchCompanyInput` | строка | Да | JSON массив (от 1 до 25 элементов) критериев соответствия компании, например: \[\{"companyName":"Acme","companyWebsite":"acme.com"\}\] |
+
+| `outputFields` | строка | Нет | JSON массив или список, разделенный запятыми, полей для возврата (например, \["id","name","website","revenue","employeeCount"\]). Если не указано, используется стандартный набор данных о компаниях. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `results` | array | Enrichment results, one per input with match status and attributes |
+
+| `results` | массив | Результаты обогащения, один для каждого входного элемента с состоянием соответствия и атрибутами |
+
 
 ### `zoominfo_enrich_contacts`
 
-Enrich up to 25 contacts in one request with verified emails, phone numbers, job details, and more.
 
-#### Вход
+Улучшите до 25 контактов в одном запросе с проверенными адресами электронной почты, номерами телефонов, сведениями о должностях и т. д.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `matchPersonInput` | string | Да | JSON array \(1-25 items\) of contact matching criteria, e.g. \[\{"firstName":"Jane","lastName":"Doe","companyName":"Acme"\}\] |
-| `outputFields` | string | Нет | JSON array or comma-separated list of fields to return (например, \["id","firstName","email","phone","jobTitle"\]\). Defaults to a standard contact set if omitted. |
-| `requiredFields` | string | Нет | JSON array or comma-separated list of fields that must exist in results (например, \["email"\]\) |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `matchPersonInput` | строка | Да | JSON массив (от 1 до 25 элементов) критериев соответствия контакту, например: \[\{"firstName":"Jane","lastName":"Doe","companyName":"Acme"\}\] |
+
+| `outputFields` | строка | Нет | JSON массив или список, разделенный запятыми, полей для возврата (например, \["id","firstName","email","phone","jobTitle"\]). Если не указано, используется стандартный набор данных о контактах. |
+
+| `requiredFields` | строка | Нет | JSON массив или список, разделенный запятыми, полей, которые должны присутствовать в результатах (например, \["email"\]) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `results` | array | Enrichment results, one per input with match status and attributes |
+
+| `results` | массив | Результаты обогащения, один для каждого входного элемента с состоянием соответствия и атрибутами |
+
 
 ### `zoominfo_search_intent`
 
-Search for companies showing intent signals on specific topics.
 
-#### Вход
+Ищите компании, проявляющие интерес к конкретным темам.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `topics` | string | Да | Up to 50 intent topics as JSON array or comma-separated list (например, \["CRM Software","Marketing Automation"\]\) |
-| `signalStartDate` | string | Нет | Earliest signal date \(YYYY-MM-DD\) |
-| `signalEndDate` | string | Нет | Latest signal date \(YYYY-MM-DD\) |
-| `signalScoreMin` | number | Нет | Minimum signal score \(60-100\) |
-| `signalScoreMax` | number | Нет | Maximum signal score \(60-100\) |
-| `audienceStrengthMin` | string | Нет | Minimum audience strength \(A-E, A is largest\) |
-| `audienceStrengthMax` | string | Нет | Maximum audience strength \(A-E, A is largest\) |
-| `findRecommendedContacts` | boolean | Нет | Include recommended contacts \(по умолчанию true\) |
-| `country` | string | Нет | Country filter |
-| `state` | string | Нет | State filter |
-| `industryCodes` | string | Нет | Industry codes — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
-| `page` | number | Нет | Page number \(1-based\) |
-| `rpp` | number | Нет | Results per page \(1-100, по умолчанию 25\) |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `topics` | строка | Да | До 50 тем намерения в виде JSON массива или списка, разделенного запятыми (например: \["CRM Software","Marketing Automation"\]) |
+
+| `signalStartDate` | строка | Нет | Дата начала сигнала (YYYY-MM-DD) |
+
+| `signalEndDate` | строка | Нет | Дата окончания сигнала (YYYY-MM-DD) |
+
+| `signalScoreMin` | число | Нет | Минимальная оценка сигнала (от 60 до 100) |
+
+| `signalScoreMax` | число | Нет | Максимальная оценка сигнала (от 60 до 100) |
+
+| `audienceStrengthMin` | строка | Нет | Минимальная сила аудитории (A-E, A — самая большая) |
+
+| `audienceStrengthMax` | строка | Нет | Максимальная сила аудитории (A-E, A — самая большая) |
+
+| `findRecommendedContacts` | логическое значение | Нет | Включить рекомендованных контактов (по умолчанию true) |
+
+| `country` | строка | Нет | Фильтр по стране |
+
+| `state` | строка | Нет | Фильтр по штату |
+
+| `industryCodes` | строка | Нет | Коды отраслей — JSON массив или список, разделенный запятыми. Отправляется в API в виде строки, разделенной запятыми. |
+
+| `page` | число | Нет | Номер страницы (начиная с 1) |
+
+| `rpp` | число | Нет | Результаты на странице (от 1 до 100, по умолчанию 25) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `signals` | array | Intent signals with topic, score, audience strength, and company |
+
+| `signals` | массив | Сигналы намерения с темами, оценками, силой аудитории и компаниями |
+
 
 ### `zoominfo_search_news`
 
-Search ZoomInfo news articles by category, URL, or date range.
 
-#### Вход
+Ищите статьи в ZoomInfo по категориям, URL или диапазону дат.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Да | ZoomInfo OAuth client secret |
-| `categories` | string | Нет | News categories as JSON array or comma-separated list |
-| `url` | string | Нет | News source URLs as JSON array or comma-separated list |
-| `pageDateMin` | string | Нет | Earliest publish date \(YYYY-MM-DD\) |
-| `pageDateMax` | string | Нет | Latest publish date \(YYYY-MM-DD\) |
-| `page` | number | Нет | Page number \(1-based\) |
-| `rpp` | number | Нет | Results per page \(1-100, по умолчанию 25\) |
 
-#### Выход
+| `clientId` | строка | Да | ID клиента OAuth ZoomInfo |
 
-| Parameter | Type | Description |
+| `clientSecret` | строка | Да | Секрет клиента OAuth ZoomInfo |
+
+| `categories` | строка | Нет | Категории новостей в виде JSON массива или списка, разделенного запятыми |
+
+| `url` | строка | Нет | URL статей в виде JSON массива или списка, разделенного запятыми |
+
+| `pageDateMin` | строка | Нет | Дата начала публикации (YYYY-MM-DD) |
+
+| `pageDateMax` | строка | Нет | Дата окончания публикации (YYYY-MM-DD) |
+
+| `page` | число | Нет | Номер страницы (начиная с 1) |
+
+| `rpp` | число | Нет | Результаты на странице (от 1 до 100, по умолчанию 25) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `articles` | array | News articles matching the filters |
+
+| `articles` | массив | Статьи, соответствующие фильтрам |
+
 
 

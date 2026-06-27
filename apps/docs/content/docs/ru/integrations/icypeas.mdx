@@ -1,6 +1,6 @@
 ---
 title: Icypeas
-description: Поиск и проверка профессиональных адресов электронной почты
+description: Найдите и проверьте профессиональные адреса электронной почты
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,69 +10,114 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#d4d4d4"
 />
 
+
+===
 {/* MANUAL-CONTENT-START:intro */}
-[Icypeas](https://icypeas.com/) is a B2B prospecting platform for finding and verifying professional email addresses at scale, with results returned asynchronously via polling.
 
-With Icypeas, you can:
+[Icypeas](https://icypeas.com/) — это платформа B2B для поиска и проверки профессиональных адресов электронной почты в больших масштабах, с возвратом результатов асинхронно посредством опроса.
 
-- **Find professional emails:** Resolve a likely professional email from a person's name and their company domain.
-- **Verify existing emails:** Check whether an email address is valid and deliverable before adding it to your outreach.
 
-In Sim, the Icypeas integration lets your agents find and verify professional emails inside a workflow — automating lead enrichment and keeping outreach lists accurate without manual lookups.
+Используя Icypeas, вы можете:
+
+
+- **Найти профессиональные адреса электронной почты:** определить вероятный профессиональный адрес электронной почты по имени и доменному имени компании.
+
+- **Проверить существующие адреса электронной почты:** проверить, является ли адрес электронной почты действительным и работоспособным, прежде чем добавлять его в свои кампании.
+
+
+В Sim интеграция Icypeas позволяет вашим агентам находить и проверять профессиональные адреса электронной почты внутри рабочего процесса — автоматизируя обогащение лидов и поддерживая актуальность списков для рассылок без ручного поиска.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.
+
+Интегрируйте Icypeas, чтобы найти профессиональный адрес электронной почты по имени и доменному имени компании или проверить, является ли существующий адрес действительным и работоспособным. Результаты возвращаются асинхронно посредством опроса.
+
 
 
 
 ## Действия
 
+
 ### `icypeas_find_email`
 
-Find a professional email address from a first name, last name, and company domain or name. Submits the search and polls until a result is available. Costs 1 credit per found email (https://www.icypeas.com/pricing).
 
-#### Входные параметры
+Найти профессиональный адрес электронной почты по имени, фамилии и доменному имени или названию компании. Отправляет запрос и опрашивает до получения результата. Стоимость 1 кредита за найденный адрес (https://www.icypeas.com/pricing).
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Icypeas API key |
-| `firstname` | string | Нет | Target person's first name |
-| `lastname` | string | Нет | Target person's last name |
-| `domainOrCompany` | string | Да | Target company domain \(e.g. stripe.com\) or company name \(e.g. Stripe\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Icypeas |
+
+| `firstname` | строка | Нет | Имя целевого человека |
+
+| `lastname` | строка | Нет | Фамилия целевого человека |
+
+| `domainOrCompany` | строка | Да | Домен компании (например, stripe.com) или название компании (например, Stripe) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `searchId` | string | Icypeas internal search ID |
-| `status` | string | Terminal search status: FOUND \| DEBITED \| NOT_FOUND \| DEBITED_NOT_FOUND \| BAD_INPUT \| INSUFFICIENT_FUNDS \| ABORTED |
-| `email` | string | Email address found or verified |
-| `item` | json | Full raw item object returned by the Icypeas results endpoint |
-| `firstname` | string | Found person's first name |
-| `lastname` | string | Found person's last name |
+
+| `searchId` | строка | Внутренний идентификатор поиска Icypeas |
+
+| `status` | строка | Конечный статус поиска: FOUND \| DEBITED \| NOT_FOUND \| DEBITED_NOT_FOUND \| BAD_INPUT \| INSUFFICIENT_FUNDS \| ABORTED |
+
+| `email` | строка | Найденный или проверенный адрес электронной почты |
+
+| `item` | json | Полный объект raw данных, возвращаемый коневой точкой результатов Icypeas |
+
+| `firstname` | строка | Имя первого найденного человека |
+
+| `lastname` | строка | Фамилия первого найденного человека |
+
 
 ### `icypeas_verify_email`
 
-Verify whether an email address is valid and deliverable. Submits the verification and polls until a result is available. Costs 0.1 credit per verification (https://www.icypeas.com/pricing).
 
-#### Входные параметры
+Проверить, является ли адрес электронной почты действительным и работоспособным. Отправляет запрос и опрашивает до получения результата. Стоимость 0,1 кредита за проверку (https://www.icypeas.com/pricing).
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Icypeas API key |
-| `email` | string | Да | Email address to verify \(e.g. john@stripe.com\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Icypeas |
+
+| `email` | строка | Да | Адрес электронной почты для проверки (например, john@stripe.com) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `searchId` | string | Icypeas internal search ID |
-| `status` | string | Terminal search status: FOUND \| DEBITED \| NOT_FOUND \| DEBITED_NOT_FOUND \| BAD_INPUT \| INSUFFICIENT_FUNDS \| ABORTED |
-| `email` | string | Email address found or verified |
-| `item` | json | Full raw item object returned by the Icypeas results endpoint |
-| `valid` | boolean | Whether the email is valid/deliverable \(true for FOUND/DEBITED status\) |
+
+| `searchId` | строка | Внутренний идентификатор поиска Icypeas |
+
+| `status` | строка | Конечный статус поиска: FOUND \| DEBITED \| NOT_FOUND \| DEBITED_NOT_FOUND \| BAD_INPUT \| INSUFFICIENT_FUNDS \| ABORTED |
+
+| `email` | строка | Найденный или проверенный адрес электронной почты |
+
+| `item` | json | Полный объект raw данных, возвращаемый коневой точкой результатов Icypeas |
+
+| `valid` | логическое значение | Является ли адрес электронной почты действительным/работоспособным (истина для статусов FOUND/DEBITED) |
+
 
 

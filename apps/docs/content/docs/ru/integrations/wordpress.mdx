@@ -1,6 +1,6 @@
 ---
 title: WordPress
-description: Управление контентом WordPress
+description: Manage WordPress content
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,884 +10,1599 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#21759B"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [WordPress](https://wordpress.org/) is the world’s leading open-source content management system, powering websites, blogs, and online stores of all sizes. WordPress provides a flexible platform for publishing and managing content with extensive plugin and theme support.
+
 
 With the WordPress integration in Sim, you can:
 
+
 - **Manage posts**: Create, update, delete, get, and list blog posts with full control over content, status, categories, and tags
+
 - **Manage pages**: Create, update, delete, get, and list static pages
+
 - **Handle media**: Upload, get, list, and delete media files such as images, videos, and documents
+
 - **Moderate comments**: Create, list, update, and delete comments on posts and pages
+
 - **Organize content**: Create and list categories and tags for content taxonomy
-- **Manage users**: Получение the current user, list users, and retrieve user details
+
+- **Manage users**: Get the current user, list users, and retrieve user details
+
 - **Search content**: Search across all content types on the WordPress site
 
+
 In Sim, the WordPress integration enables your agents to automate content publishing and site management as part of automated workflows. Agents can create and publish posts, manage media assets, moderate comments, and organize content—keeping your website fresh and organized without manual effort.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Интегрируйте with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.
-
+## Usage Instructions
 
 
-## Действия
+Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.
+
+
+
+
+## Actions
+
 
 ### `wordpress_create_post`
 
-Создание нового blog post in WordPress.com
 
-#### Вход
+Create a new blog post in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `title` | string | Да | Post title |
-| `content` | string | Нет | Post content \(HTML or plain text\) |
-| `status` | string | Нет | Post status: publish, draft, pending, private, or future |
-| `excerpt` | string | Нет | Post excerpt |
-| `categories` | string | Нет | Comma-separated category IDs |
-| `tags` | string | Нет | Comma-separated tag IDs |
-| `featuredMedia` | number | Нет | Featured image media ID |
-| `slug` | string | Нет | URL slug for the post |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `title` | string | Yes | Post title |
+
+| `content` | string | No | Post content \(HTML or plain text\) |
+
+| `status` | string | No | Post status: publish, draft, pending, private, or future |
+
+| `excerpt` | string | No | Post excerpt |
+
+| `categories` | string | No | Comma-separated category IDs |
+
+| `tags` | string | No | Comma-separated tag IDs |
+
+| `featuredMedia` | number | No | Featured image media ID |
+
+| `slug` | string | No | URL slug for the post |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `post` | object | The created post |
+
 |   ↳ `id` | number | Post ID |
+
 |   ↳ `date` | string | Post creation date |
+
 |   ↳ `modified` | string | Post modification date |
+
 |   ↳ `slug` | string | Post slug |
+
 |   ↳ `status` | string | Post status |
+
 |   ↳ `type` | string | Post type |
+
 |   ↳ `link` | string | Post URL |
+
 |   ↳ `title` | object | Post title object |
+
 |   ↳ `content` | object | Post content object |
+
 |   ↳ `excerpt` | object | Post excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `categories` | array | Category IDs |
+
 |   ↳ `tags` | array | Tag IDs |
+
 
 ### `wordpress_update_post`
 
-Обновление existing blog post in WordPress.com
 
-#### Вход
+Update an existing blog post in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `postId` | number | Да | The ID of the post to update |
-| `title` | string | Нет | Post title |
-| `content` | string | Нет | Post content \(HTML or plain text\) |
-| `status` | string | Нет | Post status: publish, draft, pending, private, or future |
-| `excerpt` | string | Нет | Post excerpt |
-| `categories` | string | Нет | Comma-separated category IDs |
-| `tags` | string | Нет | Comma-separated tag IDs |
-| `featuredMedia` | number | Нет | Featured image media ID |
-| `slug` | string | Нет | URL slug for the post |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `postId` | number | Yes | The ID of the post to update |
+
+| `title` | string | No | Post title |
+
+| `content` | string | No | Post content \(HTML or plain text\) |
+
+| `status` | string | No | Post status: publish, draft, pending, private, or future |
+
+| `excerpt` | string | No | Post excerpt |
+
+| `categories` | string | No | Comma-separated category IDs |
+
+| `tags` | string | No | Comma-separated tag IDs |
+
+| `featuredMedia` | number | No | Featured image media ID |
+
+| `slug` | string | No | URL slug for the post |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `post` | object | The updated post |
+
 |   ↳ `id` | number | Post ID |
+
 |   ↳ `date` | string | Post creation date |
+
 |   ↳ `modified` | string | Post modification date |
+
 |   ↳ `slug` | string | Post slug |
+
 |   ↳ `status` | string | Post status |
+
 |   ↳ `type` | string | Post type |
+
 |   ↳ `link` | string | Post URL |
+
 |   ↳ `title` | object | Post title object |
+
 |   ↳ `content` | object | Post content object |
+
 |   ↳ `excerpt` | object | Post excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `categories` | array | Category IDs |
+
 |   ↳ `tags` | array | Tag IDs |
+
 
 ### `wordpress_delete_post`
 
-Удаление blog post from WordPress.com
 
-#### Вход
+Delete a blog post from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `postId` | number | Да | The ID of the post to delete |
-| `force` | boolean | Нет | Bypass trash and force delete permanently |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `postId` | number | Yes | The ID of the post to delete |
+
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  post was deleted |
+
+| `deleted` | boolean | Whether the post was deleted |
+
 | `post` | object | The deleted post |
+
 |   ↳ `id` | number | Post ID |
+
 |   ↳ `date` | string | Post creation date |
+
 |   ↳ `modified` | string | Post modification date |
+
 |   ↳ `slug` | string | Post slug |
+
 |   ↳ `status` | string | Post status |
+
 |   ↳ `type` | string | Post type |
+
 |   ↳ `link` | string | Post URL |
+
 |   ↳ `title` | object | Post title object |
+
 |   ↳ `content` | object | Post content object |
+
 |   ↳ `excerpt` | object | Post excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `categories` | array | Category IDs |
+
 |   ↳ `tags` | array | Tag IDs |
+
 
 ### `wordpress_get_post`
 
-Получение a single blog post from WordPress.com by ID
 
-#### Вход
+Get a single blog post from WordPress.com by ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `postId` | number | Да | The ID of the post to retrieve |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `postId` | number | Yes | The ID of the post to retrieve |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `post` | object | The retrieved post |
+
 |   ↳ `id` | number | Post ID |
+
 |   ↳ `date` | string | Post creation date |
+
 |   ↳ `modified` | string | Post modification date |
+
 |   ↳ `slug` | string | Post slug |
+
 |   ↳ `status` | string | Post status |
+
 |   ↳ `type` | string | Post type |
+
 |   ↳ `link` | string | Post URL |
+
 |   ↳ `title` | object | Post title object |
+
 |   ↳ `content` | object | Post content object |
+
 |   ↳ `excerpt` | object | Post excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `categories` | array | Category IDs |
+
 |   ↳ `tags` | array | Tag IDs |
+
 
 ### `wordpress_list_posts`
 
-Получение списка blog posts from WordPress.com with optional filters
 
-#### Вход
+List blog posts from WordPress.com with optional filters
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of posts per page (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `status` | string | Нет | Post status filter: publish, draft, pending, private |
-| `author` | number | Нет | Filter by author ID (например, 1, 42\) |
-| `categories` | string | Нет | Comma-separated category IDs to filter by (например, "1,2,3"\) |
-| `tags` | string | Нет | Comma-separated tag IDs to filter by (например, "5,10,15"\) |
-| `search` | string | Нет | Search term to filter posts (например, "tutorial", "announcement"\) |
-| `orderBy` | string | Нет | Order by field: date, id, title, slug, modified |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of posts per page \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `status` | string | No | Post status filter: publish, draft, pending, private |
+
+| `author` | number | No | Filter by author ID \(e.g., 1, 42\) |
+
+| `categories` | string | No | Comma-separated category IDs to filter by \(e.g., "1,2,3"\) |
+
+| `tags` | string | No | Comma-separated tag IDs to filter by \(e.g., "5,10,15"\) |
+
+| `search` | string | No | Search term to filter posts \(e.g., "tutorial", "announcement"\) |
+
+| `orderBy` | string | No | Order by field: date, id, title, slug, modified |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `posts` | array | Получение списка of posts |
+
+| `posts` | array | List of posts |
+
 |   ↳ `id` | number | Post ID |
+
 |   ↳ `date` | string | Post creation date |
+
 |   ↳ `modified` | string | Post modification date |
+
 |   ↳ `slug` | string | Post slug |
+
 |   ↳ `status` | string | Post status |
+
 |   ↳ `type` | string | Post type |
+
 |   ↳ `link` | string | Post URL |
+
 |   ↳ `title` | object | Post title object |
+
 |   ↳ `content` | object | Post content object |
+
 |   ↳ `excerpt` | object | Post excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `categories` | array | Category IDs |
+
 |   ↳ `tags` | array | Tag IDs |
+
 | `total` | number | Total number of posts |
+
 | `totalPages` | number | Total number of pages |
+
 
 ### `wordpress_create_page`
 
-Создание нового page in WordPress.com
 
-#### Вход
+Create a new page in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `title` | string | Да | Page title |
-| `content` | string | Нет | Page content \(HTML or plain text\) |
-| `status` | string | Нет | Page status: publish, draft, pending, private |
-| `excerpt` | string | Нет | Page excerpt |
-| `parent` | number | Нет | Parent page ID for hierarchical pages |
-| `menuOrder` | number | Нет | Order in page menu |
-| `featuredMedia` | number | Нет | Featured image media ID |
-| `slug` | string | Нет | URL slug for the page |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `title` | string | Yes | Page title |
+
+| `content` | string | No | Page content \(HTML or plain text\) |
+
+| `status` | string | No | Page status: publish, draft, pending, private |
+
+| `excerpt` | string | No | Page excerpt |
+
+| `parent` | number | No | Parent page ID for hierarchical pages |
+
+| `menuOrder` | number | No | Order in page menu |
+
+| `featuredMedia` | number | No | Featured image media ID |
+
+| `slug` | string | No | URL slug for the page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `page` | object | The created page |
+
 |   ↳ `id` | number | Page ID |
+
 |   ↳ `date` | string | Page creation date |
+
 |   ↳ `modified` | string | Page modification date |
+
 |   ↳ `slug` | string | Page slug |
+
 |   ↳ `status` | string | Page status |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Page URL |
+
 |   ↳ `title` | object | Page title object |
+
 |   ↳ `content` | object | Page content object |
+
 |   ↳ `excerpt` | object | Page excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `parent` | number | Parent page ID |
+
 |   ↳ `menu_order` | number | Menu order |
+
 
 ### `wordpress_update_page`
 
-Обновление existing page in WordPress.com
 
-#### Вход
+Update an existing page in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `pageId` | number | Да | The ID of the page to update |
-| `title` | string | Нет | Page title |
-| `content` | string | Нет | Page content \(HTML or plain text\) |
-| `status` | string | Нет | Page status: publish, draft, pending, private |
-| `excerpt` | string | Нет | Page excerpt |
-| `parent` | number | Нет | Parent page ID for hierarchical pages |
-| `menuOrder` | number | Нет | Order in page menu |
-| `featuredMedia` | number | Нет | Featured image media ID |
-| `slug` | string | Нет | URL slug for the page |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `pageId` | number | Yes | The ID of the page to update |
+
+| `title` | string | No | Page title |
+
+| `content` | string | No | Page content \(HTML or plain text\) |
+
+| `status` | string | No | Page status: publish, draft, pending, private |
+
+| `excerpt` | string | No | Page excerpt |
+
+| `parent` | number | No | Parent page ID for hierarchical pages |
+
+| `menuOrder` | number | No | Order in page menu |
+
+| `featuredMedia` | number | No | Featured image media ID |
+
+| `slug` | string | No | URL slug for the page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `page` | object | The updated page |
+
 |   ↳ `id` | number | Page ID |
+
 |   ↳ `date` | string | Page creation date |
+
 |   ↳ `modified` | string | Page modification date |
+
 |   ↳ `slug` | string | Page slug |
+
 |   ↳ `status` | string | Page status |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Page URL |
+
 |   ↳ `title` | object | Page title object |
+
 |   ↳ `content` | object | Page content object |
+
 |   ↳ `excerpt` | object | Page excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `parent` | number | Parent page ID |
+
 |   ↳ `menu_order` | number | Menu order |
+
 
 ### `wordpress_delete_page`
 
-Удаление page from WordPress.com
 
-#### Вход
+Delete a page from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `pageId` | number | Да | The ID of the page to delete |
-| `force` | boolean | Нет | Bypass trash and force delete permanently |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `pageId` | number | Yes | The ID of the page to delete |
+
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  page was deleted |
+
+| `deleted` | boolean | Whether the page was deleted |
+
 | `page` | object | The deleted page |
+
 |   ↳ `id` | number | Page ID |
+
 |   ↳ `date` | string | Page creation date |
+
 |   ↳ `modified` | string | Page modification date |
+
 |   ↳ `slug` | string | Page slug |
+
 |   ↳ `status` | string | Page status |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Page URL |
+
 |   ↳ `title` | object | Page title object |
+
 |   ↳ `content` | object | Page content object |
+
 |   ↳ `excerpt` | object | Page excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `parent` | number | Parent page ID |
+
 |   ↳ `menu_order` | number | Menu order |
+
 
 ### `wordpress_get_page`
 
-Получение a single page from WordPress.com by ID
 
-#### Вход
+Get a single page from WordPress.com by ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `pageId` | number | Да | The ID of the page to retrieve |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `pageId` | number | Yes | The ID of the page to retrieve |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `page` | object | The retrieved page |
+
 |   ↳ `id` | number | Page ID |
+
 |   ↳ `date` | string | Page creation date |
+
 |   ↳ `modified` | string | Page modification date |
+
 |   ↳ `slug` | string | Page slug |
+
 |   ↳ `status` | string | Page status |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Page URL |
+
 |   ↳ `title` | object | Page title object |
+
 |   ↳ `content` | object | Page content object |
+
 |   ↳ `excerpt` | object | Page excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `parent` | number | Parent page ID |
+
 |   ↳ `menu_order` | number | Menu order |
+
 
 ### `wordpress_list_pages`
 
-Получение списка pages from WordPress.com with optional filters
 
-#### Вход
+List pages from WordPress.com with optional filters
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of pages per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `status` | string | Нет | Page status filter: publish, draft, pending, private |
-| `parent` | number | Нет | Filter by parent page ID (например, 123\) |
-| `search` | string | Нет | Search term to filter pages (например, "about", "contact"\) |
-| `orderBy` | string | Нет | Order by field: date, id, title, slug, modified, menu_order |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of pages per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `status` | string | No | Page status filter: publish, draft, pending, private |
+
+| `parent` | number | No | Filter by parent page ID \(e.g., 123\) |
+
+| `search` | string | No | Search term to filter pages \(e.g., "about", "contact"\) |
+
+| `orderBy` | string | No | Order by field: date, id, title, slug, modified, menu_order |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `pages` | array | Получение списка of pages |
+
+| `pages` | array | List of pages |
+
 |   ↳ `id` | number | Page ID |
+
 |   ↳ `date` | string | Page creation date |
+
 |   ↳ `modified` | string | Page modification date |
+
 |   ↳ `slug` | string | Page slug |
+
 |   ↳ `status` | string | Page status |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Page URL |
+
 |   ↳ `title` | object | Page title object |
+
 |   ↳ `content` | object | Page content object |
+
 |   ↳ `excerpt` | object | Page excerpt object |
+
 |   ↳ `author` | number | Author ID |
+
 |   ↳ `featured_media` | number | Featured media ID |
+
 |   ↳ `parent` | number | Parent page ID |
+
 |   ↳ `menu_order` | number | Menu order |
+
 | `total` | number | Total number of pages |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_upload_media`
 
+
 Upload a media file (image, video, document) to WordPress.com
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `file` | file | Нет | File to upload \(UserFile object\) |
-| `filename` | string | Нет | Optional filename override (например, image.jpg\) |
-| `title` | string | Нет | Media title |
-| `caption` | string | Нет | Media caption |
-| `altText` | string | Нет | Alternative text for accessibility |
-| `description` | string | Нет | Media description |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `file` | file | No | File to upload \(UserFile object\) |
+
+| `filename` | string | No | Optional filename override \(e.g., image.jpg\) |
+
+| `title` | string | No | Media title |
+
+| `caption` | string | No | Media caption |
+
+| `altText` | string | No | Alternative text for accessibility |
+
+| `description` | string | No | Media description |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `media` | object | The uploaded media item |
+
 |   ↳ `id` | number | Media ID |
+
 |   ↳ `date` | string | Upload date |
+
 |   ↳ `slug` | string | Media slug |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Media page URL |
+
 |   ↳ `title` | object | Media title object |
+
 |   ↳ `caption` | object | Media caption object |
+
 |   ↳ `alt_text` | string | Alt text |
+
 |   ↳ `media_type` | string | Media type \(image, video, etc.\) |
+
 |   ↳ `mime_type` | string | MIME type |
+
 |   ↳ `source_url` | string | Direct URL to the media file |
+
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
+
 
 ### `wordpress_get_media`
 
-Получение a single media item from WordPress.com by ID
 
-#### Вход
+Get a single media item from WordPress.com by ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `mediaId` | number | Да | The ID of the media item to retrieve |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `mediaId` | number | Yes | The ID of the media item to retrieve |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `media` | object | The retrieved media item |
+
 |   ↳ `id` | number | Media ID |
+
 |   ↳ `date` | string | Upload date |
+
 |   ↳ `slug` | string | Media slug |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Media page URL |
+
 |   ↳ `title` | object | Media title object |
+
 |   ↳ `caption` | object | Media caption object |
+
 |   ↳ `alt_text` | string | Alt text |
+
 |   ↳ `media_type` | string | Media type \(image, video, etc.\) |
+
 |   ↳ `mime_type` | string | MIME type |
+
 |   ↳ `source_url` | string | Direct URL to the media file |
+
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
+
 
 ### `wordpress_list_media`
 
-Получение списка media items from the WordPress.com media library
 
-#### Вход
+List media items from the WordPress.com media library
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of media items per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `search` | string | Нет | Search term to filter media (например, "logo", "banner"\) |
-| `mediaType` | string | Нет | Filter by media type: image, video, audio, application |
-| `mimeType` | string | Нет | Filter by specific MIME type (например, image/jpeg, image/png\) |
-| `orderBy` | string | Нет | Order by field: date, id, title, slug |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of media items per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `search` | string | No | Search term to filter media \(e.g., "logo", "banner"\) |
+
+| `mediaType` | string | No | Filter by media type: image, video, audio, application |
+
+| `mimeType` | string | No | Filter by specific MIME type \(e.g., image/jpeg, image/png\) |
+
+| `orderBy` | string | No | Order by field: date, id, title, slug |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `media` | array | Получение списка of media items |
+
+| `media` | array | List of media items |
+
 |   ↳ `id` | number | Media ID |
+
 |   ↳ `date` | string | Upload date |
+
 |   ↳ `slug` | string | Media slug |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Media page URL |
+
 |   ↳ `title` | object | Media title object |
+
 |   ↳ `caption` | object | Media caption object |
+
 |   ↳ `alt_text` | string | Alt text |
+
 |   ↳ `media_type` | string | Media type \(image, video, etc.\) |
+
 |   ↳ `mime_type` | string | MIME type |
+
 |   ↳ `source_url` | string | Direct URL to the media file |
+
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
+
 | `total` | number | Total number of media items |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_delete_media`
 
-Удаление media item from WordPress.com
 
-#### Вход
+Delete a media item from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `mediaId` | number | Да | The ID of the media item to delete |
-| `force` | boolean | Нет | Force delete \(media has no trash, so deletion is permanent\) |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `mediaId` | number | Yes | The ID of the media item to delete |
+
+| `force` | boolean | No | Force delete \(media has no trash, so deletion is permanent\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  media was deleted |
+
+| `deleted` | boolean | Whether the media was deleted |
+
 | `media` | object | The deleted media item |
+
 |   ↳ `id` | number | Media ID |
+
 |   ↳ `date` | string | Upload date |
+
 |   ↳ `slug` | string | Media slug |
+
 |   ↳ `type` | string | Content type |
+
 |   ↳ `link` | string | Media page URL |
+
 |   ↳ `title` | object | Media title object |
+
 |   ↳ `caption` | object | Media caption object |
+
 |   ↳ `alt_text` | string | Alt text |
+
 |   ↳ `media_type` | string | Media type \(image, video, etc.\) |
+
 |   ↳ `mime_type` | string | MIME type |
+
 |   ↳ `source_url` | string | Direct URL to the media file |
+
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
+
 
 ### `wordpress_create_comment`
 
-Создание нового comment on a WordPress.com post
 
-#### Вход
+Create a new comment on a WordPress.com post
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `postId` | number | Да | The ID of the post to comment on |
-| `content` | string | Да | Comment content |
-| `parent` | number | Нет | Parent comment ID for replies |
-| `authorName` | string | Нет | Comment author display name |
-| `authorEmail` | string | Нет | Comment author email |
-| `authorUrl` | string | Нет | Comment author URL |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `postId` | number | Yes | The ID of the post to comment on |
+
+| `content` | string | Yes | Comment content |
+
+| `parent` | number | No | Parent comment ID for replies |
+
+| `authorName` | string | No | Comment author display name |
+
+| `authorEmail` | string | No | Comment author email |
+
+| `authorUrl` | string | No | Comment author URL |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `comment` | object | The created comment |
+
 |   ↳ `id` | number | Comment ID |
+
 |   ↳ `post` | number | Post ID |
+
 |   ↳ `parent` | number | Parent comment ID |
+
 |   ↳ `author` | number | Author user ID |
+
 |   ↳ `author_name` | string | Author display name |
+
 |   ↳ `author_email` | string | Author email |
+
 |   ↳ `author_url` | string | Author URL |
+
 |   ↳ `date` | string | Comment date |
+
 |   ↳ `content` | object | Comment content object |
+
 |   ↳ `link` | string | Comment permalink |
+
 |   ↳ `status` | string | Comment status |
+
 
 ### `wordpress_list_comments`
 
-Получение списка comments from WordPress.com with optional filters
 
-#### Вход
+List comments from WordPress.com with optional filters
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of comments per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `postId` | number | Нет | Filter by post ID (например, 123, 456\) |
-| `status` | string | Нет | Filter by comment status: approved, hold, spam, trash |
-| `search` | string | Нет | Search term to filter comments (например, "question", "feedback"\) |
-| `orderBy` | string | Нет | Order by field: date, id, parent |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of comments per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `postId` | number | No | Filter by post ID \(e.g., 123, 456\) |
+
+| `status` | string | No | Filter by comment status: approved, hold, spam, trash |
+
+| `search` | string | No | Search term to filter comments \(e.g., "question", "feedback"\) |
+
+| `orderBy` | string | No | Order by field: date, id, parent |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `comments` | array | Получение списка of comments |
+
+| `comments` | array | List of comments |
+
 |   ↳ `id` | number | Comment ID |
+
 |   ↳ `post` | number | Post ID |
+
 |   ↳ `parent` | number | Parent comment ID |
+
 |   ↳ `author` | number | Author user ID |
+
 |   ↳ `author_name` | string | Author display name |
+
 |   ↳ `author_email` | string | Author email |
+
 |   ↳ `author_url` | string | Author URL |
+
 |   ↳ `date` | string | Comment date |
+
 |   ↳ `content` | object | Comment content object |
+
 |   ↳ `link` | string | Comment permalink |
+
 |   ↳ `status` | string | Comment status |
+
 | `total` | number | Total number of comments |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_update_comment`
 
+
 Update a comment in WordPress.com (content or status)
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `commentId` | number | Да | The ID of the comment to update |
-| `content` | string | Нет | Updated comment content |
-| `status` | string | Нет | Comment status: approved, hold, spam, trash |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `commentId` | number | Yes | The ID of the comment to update |
+
+| `content` | string | No | Updated comment content |
+
+| `status` | string | No | Comment status: approved, hold, spam, trash |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `comment` | object | The updated comment |
+
 |   ↳ `id` | number | Comment ID |
+
 |   ↳ `post` | number | Post ID |
+
 |   ↳ `parent` | number | Parent comment ID |
+
 |   ↳ `author` | number | Author user ID |
+
 |   ↳ `author_name` | string | Author display name |
+
 |   ↳ `author_email` | string | Author email |
+
 |   ↳ `author_url` | string | Author URL |
+
 |   ↳ `date` | string | Comment date |
+
 |   ↳ `content` | object | Comment content object |
+
 |   ↳ `link` | string | Comment permalink |
+
 |   ↳ `status` | string | Comment status |
+
 
 ### `wordpress_delete_comment`
 
-Удаление comment from WordPress.com
 
-#### Вход
+Delete a comment from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `commentId` | number | Да | The ID of the comment to delete |
-| `force` | boolean | Нет | Bypass trash and force delete permanently |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `commentId` | number | Yes | The ID of the comment to delete |
+
+| `force` | boolean | No | Bypass trash and force delete permanently |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  comment was deleted |
+
+| `deleted` | boolean | Whether the comment was deleted |
+
 | `comment` | object | The deleted comment |
+
 |   ↳ `id` | number | Comment ID |
+
 |   ↳ `post` | number | Post ID |
+
 |   ↳ `parent` | number | Parent comment ID |
+
 |   ↳ `author` | number | Author user ID |
+
 |   ↳ `author_name` | string | Author display name |
+
 |   ↳ `author_email` | string | Author email |
+
 |   ↳ `author_url` | string | Author URL |
+
 |   ↳ `date` | string | Comment date |
+
 |   ↳ `content` | object | Comment content object |
+
 |   ↳ `link` | string | Comment permalink |
+
 |   ↳ `status` | string | Comment status |
+
 
 ### `wordpress_create_category`
 
-Создание нового category in WordPress.com
 
-#### Вход
+Create a new category in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `name` | string | Да | Category name |
-| `description` | string | Нет | Category description |
-| `parent` | number | Нет | Parent category ID for hierarchical categories |
-| `slug` | string | Нет | URL slug for the category |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `name` | string | Yes | Category name |
+
+| `description` | string | No | Category description |
+
+| `parent` | number | No | Parent category ID for hierarchical categories |
+
+| `slug` | string | No | URL slug for the category |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `category` | object | The created category |
+
 |   ↳ `id` | number | Category ID |
+
 |   ↳ `count` | number | Number of posts in this category |
+
 |   ↳ `description` | string | Category description |
+
 |   ↳ `link` | string | Category archive URL |
+
 |   ↳ `name` | string | Category name |
+
 |   ↳ `slug` | string | Category slug |
+
 |   ↳ `taxonomy` | string | Taxonomy name |
+
 |   ↳ `parent` | number | Parent category ID |
+
 
 ### `wordpress_list_categories`
 
-Получение списка categories from WordPress.com
 
-#### Вход
+List categories from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of categories per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `search` | string | Нет | Search term to filter categories (например, "news", "technology"\) |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of categories per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `search` | string | No | Search term to filter categories \(e.g., "news", "technology"\) |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `categories` | array | Получение списка of categories |
+
+| `categories` | array | List of categories |
+
 |   ↳ `id` | number | Category ID |
+
 |   ↳ `count` | number | Number of posts in this category |
+
 |   ↳ `description` | string | Category description |
+
 |   ↳ `link` | string | Category archive URL |
+
 |   ↳ `name` | string | Category name |
+
 |   ↳ `slug` | string | Category slug |
+
 |   ↳ `taxonomy` | string | Taxonomy name |
+
 |   ↳ `parent` | number | Parent category ID |
+
 | `total` | number | Total number of categories |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_create_tag`
 
-Создание нового tag in WordPress.com
 
-#### Вход
+Create a new tag in WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `name` | string | Да | Tag name |
-| `description` | string | Нет | Tag description |
-| `slug` | string | Нет | URL slug for the tag |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `name` | string | Yes | Tag name |
+
+| `description` | string | No | Tag description |
+
+| `slug` | string | No | URL slug for the tag |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tag` | object | The created tag |
+
 |   ↳ `id` | number | Tag ID |
+
 |   ↳ `count` | number | Number of posts with this tag |
+
 |   ↳ `description` | string | Tag description |
+
 |   ↳ `link` | string | Tag archive URL |
+
 |   ↳ `name` | string | Tag name |
+
 |   ↳ `slug` | string | Tag slug |
+
 |   ↳ `taxonomy` | string | Taxonomy name |
+
 
 ### `wordpress_list_tags`
 
-Получение списка tags from WordPress.com
 
-#### Вход
+List tags from WordPress.com
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of tags per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `search` | string | Нет | Search term to filter tags (например, "javascript", "tutorial"\) |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of tags per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `search` | string | No | Search term to filter tags \(e.g., "javascript", "tutorial"\) |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `tags` | array | Получение списка of tags |
+
+| `tags` | array | List of tags |
+
 |   ↳ `id` | number | Tag ID |
+
 |   ↳ `count` | number | Number of posts with this tag |
+
 |   ↳ `description` | string | Tag description |
+
 |   ↳ `link` | string | Tag archive URL |
+
 |   ↳ `name` | string | Tag name |
+
 |   ↳ `slug` | string | Tag slug |
+
 |   ↳ `taxonomy` | string | Taxonomy name |
+
 | `total` | number | Total number of tags |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_get_current_user`
 
-Получение information about the currently authenticated WordPress.com user
 
-#### Вход
+Get information about the currently authenticated WordPress.com user
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The current user |
+
 |   ↳ `id` | number | User ID |
+
 |   ↳ `username` | string | Username |
+
 |   ↳ `name` | string | Display name |
+
 |   ↳ `first_name` | string | First name |
+
 |   ↳ `last_name` | string | Last name |
+
 |   ↳ `email` | string | Email address |
+
 |   ↳ `url` | string | User website URL |
+
 |   ↳ `description` | string | User bio |
+
 |   ↳ `link` | string | Author archive URL |
+
 |   ↳ `slug` | string | User slug |
+
 |   ↳ `roles` | array | User roles |
+
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
+
 
 ### `wordpress_list_users`
 
-Получение списка users from WordPress.com (requires admin privileges)
 
-#### Вход
+List users from WordPress.com (requires admin privileges)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | Нет | Number of users per request (например, 10, 25, 50\). По умолчанию: 10, max: 100 |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `search` | string | Нет | Search term to filter users (например, "john", "admin"\) |
-| `roles` | string | Нет | Comma-separated role names to filter by (например, "administrator,editor"\) |
-| `order` | string | Нет | Order direction: asc or desc |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `perPage` | number | No | Number of users per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+
+| `search` | string | No | Search term to filter users \(e.g., "john", "admin"\) |
+
+| `roles` | string | No | Comma-separated role names to filter by \(e.g., "administrator,editor"\) |
+
+| `order` | string | No | Order direction: asc or desc |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `users` | array | Получение списка of users |
+
+| `users` | array | List of users |
+
 |   ↳ `id` | number | User ID |
+
 |   ↳ `username` | string | Username |
+
 |   ↳ `name` | string | Display name |
+
 |   ↳ `first_name` | string | First name |
+
 |   ↳ `last_name` | string | Last name |
+
 |   ↳ `email` | string | Email address |
+
 |   ↳ `url` | string | User website URL |
+
 |   ↳ `description` | string | User bio |
+
 |   ↳ `link` | string | Author archive URL |
+
 |   ↳ `slug` | string | User slug |
+
 |   ↳ `roles` | array | User roles |
+
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
+
 | `total` | number | Total number of users |
+
 | `totalPages` | number | Total number of result pages |
+
 
 ### `wordpress_get_user`
 
-Получение a specific user from WordPress.com by ID
 
-#### Вход
+Get a specific user from WordPress.com by ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `userId` | number | Да | The ID of the user to retrieve |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `userId` | number | Yes | The ID of the user to retrieve |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `user` | object | The retrieved user |
+
 |   ↳ `id` | number | User ID |
+
 |   ↳ `username` | string | Username |
+
 |   ↳ `name` | string | Display name |
+
 |   ↳ `first_name` | string | First name |
+
 |   ↳ `last_name` | string | Last name |
+
 |   ↳ `email` | string | Email address |
+
 |   ↳ `url` | string | User website URL |
+
 |   ↳ `description` | string | User bio |
+
 |   ↳ `link` | string | Author archive URL |
+
 |   ↳ `slug` | string | User slug |
+
 |   ↳ `roles` | array | User roles |
+
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
+
 
 ### `wordpress_search_content`
 
+
 Search across all content types in WordPress.com (posts, pages, media)
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Да | WordPress.com site ID or domain (например, 12345678 or mysite.wordpress.com\) |
-| `query` | string | Да | Search query |
-| `perPage` | number | Нет | Number of results per request \(по умолчанию: 10, max: 100\) |
-| `page` | number | Нет | Page number for pagination |
-| `type` | string | Нет | Filter by content type: post, page, attachment |
-| `subtype` | string | Нет | Filter by post type slug (например, post, page\) |
 
-#### Выход
+| `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
+
+| `query` | string | Yes | Search query |
+
+| `perPage` | number | No | Number of results per request \(default: 10, max: 100\) |
+
+| `page` | number | No | Page number for pagination |
+
+| `type` | string | No | Filter by content type: post, page, attachment |
+
+| `subtype` | string | No | Filter by post type slug \(e.g., post, page\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `results` | array | Search results |
+
 |   ↳ `id` | number | Content ID |
+
 |   ↳ `title` | string | Content title |
+
 |   ↳ `url` | string | Content URL |
+
 |   ↳ `type` | string | Content type \(post, page, attachment\) |
+
 |   ↳ `subtype` | string | Post type slug |
+
 | `total` | number | Total number of results |
+
 | `totalPages` | number | Total number of result pages |
+
 
 

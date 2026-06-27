@@ -1,6 +1,6 @@
 ---
-title: Linkup
-description: Поиск в интернете с помощью Linkup
+title: Соединение
+description: Search the web with Linkup
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,55 +10,91 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#D6D3C7"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Linkup](https://linkup.so) is a powerful web search tool that integrates seamlessly with Sim, allowing your AI agents to access up-to-date information from the web with proper source attribution.
 
-Linkup enhances your AI agents by providing them with the ability to search the web for current information. When integrated into your agent's toolkit:
+[Linkup](https://linkup.so) — это мощный инструмент для веб-поиска, который бесшовно интегрируется с Sim, позволяя вашим ИИ-агентам получать актуальную информацию из Интернета с указанием источника.
 
-- **Real-time Information Access**: Agents can retrieve the latest information from the web, keeping responses current and relevant.
-- **Source Attribution**: All information comes with proper citations, ensuring transparency and credibility.
-- **Simple Implementation**: Add Linkup to your agents toolset with minimal configuration.
-- **Contextual Awareness**: Agents can use web information while maintaining their personality and conversational style.
 
-To implement Linkup in your agent, simply add the tool to your agent's configuration. Your agent will then be able to search the web whenever they need to answer questions requiring current information.
+Linkup улучшает ваших ИИ-агентов, предоставляя им возможность искать в Интернете актуальную информацию. При интеграции в набор инструментов вашего агента:
+
+
+- **Доступ к информации в реальном времени**: Агенты могут получать самую свежую информацию из Интернета, обеспечивая актуальность и релевантность ответов.
+
+- **Указание источника**: Все данные сопровождаются соответствующими ссылками, обеспечивая прозрачность и достоверность.
+
+- **Простая реализация**: Добавьте Linkup в набор инструментов вашего агента с минимальной настройкой.
+
+- **Контекстное понимание**: Агенты могут использовать информацию из Интернета, сохраняя при этом свою индивидуальность и стиль общения.
+
+
+Чтобы реализовать Linkup в своем агенте, просто добавьте инструмент в конфигурацию своего агента. Ваш агент сможет искать в Интернете каждый раз, когда ему необходимо отвечать на вопросы, требующие актуальной информации.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интеграция Linkup в рабочий процесс. Позволяет выполнять поиск в интернете.
+
+Интегрируйте Linkup в рабочий процесс. Может осуществлять поиск в Интернете.
+
 
 
 
 ## Действия
 
+
 ### `linkup_search`
 
-Search the web for information using Linkup
 
-#### Входные параметры
+Используйте Linkup для поиска информации в Интернете
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `q` | string | Да | The search query \(e.g., "latest AI research papers 2024"\) |
-| `depth` | string | Да | Search depth: "standard" for quick results, "deep" for comprehensive search |
-| `outputType` | string | Да | Output format: "sourcedAnswer" for AI-generated answer with citations, "searchResults" for raw results |
-| `apiKey` | string | Да | Enter your Linkup API key |
-| `includeImages` | boolean | Нет | Whether to include images in search results |
-| `fromDate` | string | Нет | Start date for filtering results \(YYYY-MM-DD format\) |
-| `toDate` | string | Нет | End date for filtering results \(YYYY-MM-DD format\) |
-| `excludeDomains` | string | Нет | Comma-separated list of domain names to exclude from search results |
-| `includeDomains` | string | Нет | Comma-separated list of domain names to restrict search results to |
-| `includeInlineCitations` | boolean | Нет | Add inline citations to answers \(only applies when outputType is "sourcedAnswer"\) |
-| `includeSources` | boolean | Нет | Include sources in response |
-| `pricing` | custom | Нет | No description |
-| `rateLimit` | string | Нет | No description |
 
-#### Выходные параметры
+| `q` | строка | Да | Поисковый запрос (например, «последние научные статьи об ИИ 2024 г.») |
+
+| `depth` | строка | Да | Глубина поиска: «стандарт» для быстрых результатов, «глубокая» для всестороннего поиска |
+
+| `outputType` | строка | Да | Формат вывода: «sourcedAnswer» для ответа, сгенерированного ИИ и содержащего ссылки, «searchResults» для исходных результатов |
+
+| `apiKey` | строка | Да | Введите свой API-ключ Linkup |
+
+| `includeImages` | булево значение | Нет | Включать ли изображения в результаты поиска |
+
+| `fromDate` | строка | Нет | Дата начала фильтрации результатов (формат YYYY-MM-DD) |
+
+| `toDate` | строка | Нет | Дата окончания фильтрации результатов (формат YYYY-MM-DD) |
+
+| `excludeDomains` | строка | Нет | Список доменных имен, которые необходимо исключить из результатов поиска (разделите запятыми) |
+
+| `includeDomains` | строка | Нет | Список доменных имен, к которым следует ограничить поиск |
+
+| `includeInlineCitations` | булево значение | Нет | Добавить встроенные ссылки в ответы (применяется только при outputType = «sourcedAnswer») |
+
+| `includeSources` | булево значение | Нет | Включить источники в ответ |
+
+| `pricing` | пользовательское | Нет | Нет описания |
+
+| `rateLimit` | строка | Нет | Нет описания |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `answer` | string | The sourced answer to the search query |
-| `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
+
+| `answer` | строка | Ответ на поисковый запрос |
+
+| `sources` | массив | Массив источников, использованных для составления ответа, каждый из которых содержит имя, URL и фрагмент |
+
 
 

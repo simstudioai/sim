@@ -1,6 +1,6 @@
 ---
-title: Greptile
-description: Поиск по кодовой базе и вопросы-ответы на базе ИИ
+title: Грептиль
+description: Поиск и ответы на вопросы в кодовой базе с использованием искусственного интеллекта
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,143 +10,248 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#181C1E"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Greptile](https://greptile.com/) is an AI-powered developer tool for searching and querying source code across one or more repositories. Greptile enables engineers to quickly answer complex codebase questions in natural language, locate relevant files or symbols, and gain insights into unfamiliar or legacy code.
+Greptile — это мощный инструмент разработки на базе ИИ для поиска и запросов к исходному коду в одном или нескольких репозиториях. Greptile позволяет инженерам быстро находить ответы на сложные вопросы о кодовой базе, определять соответствующие файлы или символы и получать информацию о незнакомом или устаревшем коде.
 
-With Greptile, you can:
+С помощью Greptile вы можете:
 
-- **Ask complex questions about your codebase in natural language**: Get AI-generated answers about architecture, usage patterns, or specific implementations.
-- **Find relevant code, files, or functions instantly**: Search using keywords or natural language queries and jump right to matching lines, files, or code blocks.
-- **Understand dependencies and relationships**: Uncover where functions are called, how modules are related, or where APIs are used across large codebases.
-- **Accelerate onboarding and code exploration**: Quickly ramp up on new projects or debug tricky issues without needing deep prior context.
 
-The Sim Greptile integration allows your AI agents to:
+- Задавать сложные вопросы о своей кодовой базе на естественном языке: получать ответы, сгенерированные ИИ, об архитектуре, шаблонах использования или конкретных реализациях.
 
-- Query and search private and public repositories using Greptile’s advanced language models.
-- Retrieve contextually relevant code snippets, file references, and explanations to support code review, documentation, and development workflows.
-- Trigger automations in Sim workflows based on search/query results or embed code intelligence directly into your processes.
 
-Whether you’re trying to accelerate developer productivity, automate documentation, or supercharge your team’s understanding of a complex codebase, Greptile and Sim provide seamless access to code intelligence and search—right where you need it.
+- Мгновенно находить релевантный код, файлы или функции: выполнять поиск по ключевым словам или запросам на естественном языке и сразу переходить к соответствующим строкам, файлам или блокам кода.
+
+- Понимать зависимости и взаимосвязи: выявлять, какие функции вызываются, как связаны модули или где используются API в больших кодовых базах.
+
+- Ускорять процесс адаптации и изучения кода: быстро осваивать новые проекты или устранять сложные проблемы без необходимости глубокого знания предыдущего контекста.
+
+Интеграция Sim с Greptile позволяет вашим агентам ИИ:
+
+
+- Запрашивать и искать код в частных и публичных репозиториях, используя передовые языковые модели Greptile.
+
+
+- Получать релевантные фрагменты кода, ссылки на файлы и объяснения для поддержки рецензирования кода, создания документации и рабочих процессов разработки.
+
+- Запускать автоматизацию в рабочих процессах Sim на основе результатов поиска/запросов или напрямую интегрировать интеллект кода в ваши процессы.
+
+Независимо от того, пытаетесь ли вы повысить производительность разработчиков, автоматизировать создание документации или значительно улучшить понимание сложной кодовой базы вашей командой, Greptile и Sim обеспечивают беспрепятственный доступ к информации о коде и поиску — прямо там, где вам это нужно.
+
+
 {/* MANUAL-CONTENT-END */}
 
+## Инструкция по использованию
 
-## Инструкции по использованию
 
-Запросы и поиск по кодовым базам на естественном языке с помощью Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.
 
+Используйте Greptile для запросов и поиска в кодовой базе на естественном языке. Получайте ответы, сгенерированные ИИ, о вашем коде, находите соответствующие файлы и понимайте сложные кодовые базы.
 
 
 ## Действия
 
+
+
+
 ### `greptile_query`
 
-Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions.
 
-#### Входные параметры
+Запрашивайте репозитории на естественном языке и получайте ответы с соответствующими ссылками на код. Greptile использует ИИ для понимания вашей кодовой базы и ответов на вопросы.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `query` | строка | Да | Вопрос на естественном языке о кодовой базе. Пример: "Как работает аутентификация?" или "Где находится логика обработки платежей?". |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Да | Natural language question about the codebase. Example: "How does authentication work?" or "Where is the payment processing logic?" |
-| `repositories` | string | Да | Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" \(defaults to github:main\). Example: "facebook/react" or "github:main:facebook/react,github:main:facebook/relay" |
-| `sessionId` | string | Нет | Session ID for conversation continuity. Use the same sessionId across multiple queries to maintain context. Example: "session-abc123" |
-| `genius` | boolean | Нет | Enable genius mode for more thorough analysis \(slower but more accurate\) |
-| `apiKey` | string | Да | Greptile API key |
-| `githubToken` | string | Да | GitHub Personal Access Token with repo read access |
 
-#### Выходные параметры
+| `repositories` | строка | Да | Разделенный запятыми список репозиториев. Формат: "github:branch:owner/repo" или просто "owner/repo" (по умолчанию github:main). Пример: "facebook/react" или "github:main:facebook/react,github:main:facebook/relay". |
+
+| `sessionId` | строка | Нет | ID сессии для сохранения контекста. Используйте один и тот же sessionId при нескольких запросах. Пример: "session-abc123". |
+
+| `genius` | логическое значение | Нет | Включите режим genius для более тщательного анализа (медленнее, но точнее). |
+
+| `apiKey` | строка | Да | API ключ Greptile |
+
+| `githubToken` | строка | Да | Персональный токен GitHub с правами доступа к репозиториям. |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `message` | строка | Ответ ИИ на запрос |
+
 | --------- | ---- | ----------- |
-| `message` | string | AI-generated answer to the query |
-| `sources` | array | Relevant code references that support the answer |
-|   ↳ `repository` | string | Repository name \(owner/repo\) |
-|   ↳ `remote` | string | Git remote \(github/gitlab\) |
-|   ↳ `branch` | string | Branch name |
-|   ↳ `filepath` | string | Path to the file |
-|   ↳ `linestart` | number | Starting line number |
-|   ↳ `lineend` | number | Ending line number |
-|   ↳ `summary` | string | Summary of the code section |
-|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
+
+| `sources` | массив | Соответствующие ссылки на код, подтверждающие ответ |
+
+|   ↳ `repository` | строка | Название репозитория (owner/repo) |
+
+|   ↳ `remote` | строка | Git-удаленный (github/gitlab) |
+
+|   ↳ `branch` | строка | Имя ветки |
+
+|   ↳ `filepath` | строка | Путь к файлу |
+
+|   ↳ `linestart` | число | Начальная номер строки |
+
+|   ↳ `lineend` | число | Конечная номер строки |
+
+|   ↳ `summary` | строка | Краткое описание кода |
+
+|   ↳ `distance` | число | Показатель схожести (чем ниже, тем релевантнее) |
 
 ### `greptile_search`
 
-Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations.
 
-#### Входные параметры
+Ищите код в репозиториях на естественном языке и получайте соответствующие ссылки на код без генерации ответа. Полезно для поиска конкретных местоположений кода.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `query` | строка | Да | Запрос на естественном языке для поиска соответствующего кода. Пример: "middleware аутентификации" или "обработка подключения к базе данных". |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Да | Natural language search query to find relevant code. Example: "authentication middleware" or "database connection handling" |
-| `repositories` | string | Да | Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" \(defaults to github:main\). Example: "facebook/react" or "github:main:facebook/react,github:main:facebook/relay" |
-| `sessionId` | string | Нет | Session ID for conversation continuity. Use the same sessionId across multiple searches to maintain context. Example: "session-abc123" |
-| `genius` | boolean | Нет | Enable genius mode for more thorough search \(slower but more accurate\) |
-| `apiKey` | string | Да | Greptile API key |
-| `githubToken` | string | Да | GitHub Personal Access Token with repo read access |
 
-#### Выходные параметры
+| `repositories` | строка | Да | Разделенный запятыми список репозиториев. Формат: "github:branch:owner/repo" или просто "owner/repo" (по умолчанию github:main). Пример: "facebook/react" или "github:main:facebook/react,github:main:facebook/relay". |
+
+| `sessionId` | строка | Нет | ID сессии для сохранения контекста. Используйте один и тот же sessionId при нескольких поисках. Пример: "session-abc123". |
+
+| `genius` | логическое значение | Нет | Включите режим genius для более тщательного поиска (медленнее, но точнее). |
+
+| `apiKey` | строка | Да | API ключ Greptile |
+
+| `githubToken` | строка | Да | Персональный токен GitHub с правами доступа к репозиториям. |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `sources` | массив | Соответствующие ссылки на код, соответствующие поисковому запросу |
+
 | --------- | ---- | ----------- |
-| `sources` | array | Relevant code references matching the search query |
-|   ↳ `repository` | string | Repository name \(owner/repo\) |
-|   ↳ `remote` | string | Git remote \(github/gitlab\) |
-|   ↳ `branch` | string | Branch name |
-|   ↳ `filepath` | string | Path to the file |
-|   ↳ `linestart` | number | Starting line number |
-|   ↳ `lineend` | number | Ending line number |
-|   ↳ `summary` | string | Summary of the code section |
-|   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
+
+|   ↳ `repository` | строка | Название репозитория (owner/repo) |
+
+|   ↳ `remote` | строка | Git-удаленный (github/gitlab) |
+
+|   ↳ `branch` | строка | Имя ветки |
+
+|   ↳ `filepath` | строка | Путь к файлу |
+
+|   ↳ `linestart` | число | Начальная номер строки |
+
+|   ↳ `lineend` | число | Конечная номер строки |
+
+|   ↳ `summary` | строка | Краткое описание кода |
+
+|   ↳ `distance` | число | Показатель схожести (чем ниже, тем релевантнее) |
 
 ### `greptile_index_repo`
 
-Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour.
 
-#### Входные параметры
+Отправьте репозиторий для индексации Greptile. Индексация должна завершиться перед запросом к репозиторию. Небольшие репозитории занимают 3-5 минут, большие могут занять более часа.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `remote` | строка | Да | Тип Git-удаленного: github или gitlab |
+
 | --------- | ---- | -------- | ----------- |
-| `remote` | string | Да | Git remote type: github or gitlab |
-| `repository` | string | Да | Repository in owner/repo format. Example: "facebook/react" or "vercel/next.js" |
-| `branch` | string | Да | Branch to index \(e.g., "main" or "master"\) |
-| `reload` | boolean | Нет | Force re-indexing even if already indexed |
-| `notify` | boolean | Нет | Send email notification when indexing completes |
-| `apiKey` | string | Да | Greptile API key |
-| `githubToken` | string | Да | GitHub Personal Access Token with repo read access |
 
-#### Выходные параметры
+| `repository` | строка | Да | Репозиторий в формате owner/repo. Пример: "facebook/react" или "vercel/next.js". |
+
+| `branch` | строка | Да | Ветка для индексации (например, "main" или "master") |
+
+| `reload` | логическое значение | Нет | Принудительная переиндексация даже если уже индексировано |
+
+| `notify` | логическое значение | Нет | Отправка уведомлений по электронной почте при завершении индексации |
+
+| `apiKey` | строка | Да | API ключ Greptile |
+
+| `githubToken` | строка | Да | Персональный токен GitHub с правами доступа к репозиториям. |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `repositoryId` | строка | Уникальный идентификатор индексированного репозитория (формат: remote:branch:owner/repo) |
+
 | --------- | ---- | ----------- |
-| `repositoryId` | string | Unique identifier for the indexed repository \(format: remote:branch:owner/repo\) |
-| `statusEndpoint` | string | URL endpoint to check indexing status |
-| `message` | string | Status message about the indexing operation |
+
+| `statusEndpoint` | строка | URL-адрес конечной точки для проверки статуса индексации |
+
+| `message` | строка | Сообщение о статусе операции индексации |
 
 ### `greptile_status`
 
-Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress.
 
-#### Входные параметры
+Проверьте статус индексации репозитория. Используйте это, чтобы убедиться, что репозиторий готов к запросу или для мониторинга хода индексации.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `remote` | строка | Да | Тип Git-удаленного: github или gitlab |
+
 | --------- | ---- | -------- | ----------- |
-| `remote` | string | Да | Git remote type: github or gitlab |
-| `repository` | string | Да | Repository in owner/repo format. Example: "facebook/react" or "vercel/next.js" |
-| `branch` | string | Да | Branch name \(e.g., "main" or "master"\) |
-| `apiKey` | string | Да | Greptile API key |
-| `githubToken` | string | Да | GitHub Personal Access Token with repo read access |
 
-#### Выходные параметры
+| `repository` | строка | Да | Репозиторий в формате owner/repo. Пример: "facebook/react" или "vercel/next.js". |
+
+| `branch` | строка | Да | Имя ветки (например, "main" или "master") |
+
+| `apiKey` | строка | Да | API ключ Greptile |
+
+| `githubToken` | строка | Да | Персональный токен GitHub с правами доступа к репозиториям. |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `repository` | строка | Название репозитория (owner/repo) |
+
 | --------- | ---- | ----------- |
-| `repository` | string | Repository name \(owner/repo\) |
-| `remote` | string | Git remote \(github/gitlab\) |
-| `branch` | string | Branch name |
-| `private` | boolean | Whether the repository is private |
-| `status` | string | Indexing status: submitted, cloning, processing, completed, or failed |
-| `filesProcessed` | number | Number of files processed so far |
-| `numFiles` | number | Total number of files in the repository |
-| `sampleQuestions` | array | Sample questions for the indexed repository |
+
+| `remote` | строка | Git-удаленный (github/gitlab) |
+
+| `branch` | строка | Имя ветки |
+
+| `private` | логическое значение | Является ли репозиторий приватным |
+
+| `status` | строка | Статус индексации: submitted, cloning, processing, completed или failed |
+
+| `filesProcessed` | число | Количество обработанных файлов |
+
+| `numFiles` | число | Общее количество файлов в репозитории |
+
+| `sampleQuestions` | массив | Примерные вопросы для индексированного репозитория |
+
+| `sha` | строка | Git-commit SHA для индексированной версии |
+
 | `sha` | string | Git commit SHA of the indexed version |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: Pinecone
-description: Использование векторной базы данных Pinecone
+description: Используйте векторную базу данных Pinecone
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,151 +10,260 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0D1117"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Pinecone](https://www.pinecone.io) is a vector database designed for building high-performance vector search applications. It enables efficient storage, management, and similarity search of high-dimensional vector embeddings, making it ideal for AI applications that require semantic search capabilities.
 
-With Pinecone, you can:
+===
+[Pinecone](https://www.pinecone.io) — это векторная база данных, предназначенная для создания высокопроизводительных приложений поиска по векторам. Она позволяет эффективно хранить, управлять и выполнять поиск по схожести с использованием высокоразмерных векторных вложений, что делает её идеальной для задач ИИ, требующих возможностей семантического поиска.
 
-- **Store vector embeddings**: Efficiently manage high-dimensional vectors at scale
-- **Perform similarity search**: Find the most similar vectors to a query vector in milliseconds
-- **Build semantic search**: Create search experiences based on meaning rather than keywords
-- **Implement recommendation systems**: Generate personalized recommendations based on content similarity
-- **Deploy machine learning models**: Operationalize ML models that rely on vector similarity
-- **Scale seamlessly**: Handle billions of vectors with consistent performance
-- **Maintain real-time indexes**: Update your vector database in real-time as new data arrives
+С Pinecone вы можете:
 
-In Sim, the Pinecone integration enables your agents to leverage vector search capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language processing with semantic search and retrieval. Your agents can generate embeddings from text, store these vectors in Pinecone indexes, and perform similarity searches to find the most relevant information. This integration bridges the gap between your AI workflows and vector search infrastructure, enabling more intelligent information retrieval based on semantic meaning rather than exact keyword matching. By connecting Sim with Pinecone, you can create agents that understand context, retrieve relevant information from large datasets, and deliver more accurate and personalized responses to users - all without requiring complex infrastructure management or specialized knowledge of vector databases.
+
+- **Хранить векторные вложения**: Эффективно управляйте векторами большого размера в масштабе
+
+
+- **Выполнять поиск по схожести**: Находите наиболее похожие векторы на запрос за миллисекунды
+
+- **Создавать семантический поиск**: Создавайте интерфейсы поиска, основанные на значении, а не на ключевых словах
+
+- **Реализовывать системы рекомендаций**: Генерируйте персонализированные рекомендации на основе схожести контента
+
+- **Развертывать модели машинного обучения**: Внедряйте ML-модели, основанные на схожести векторов
+
+- **Бесшовно масштабировать**: Обрабатывайте миллиарды векторов с постоянной производительностью
+
+- **Поддерживать актуальные индексы в реальном времени**: Обновляйте свою векторную базу данных в реальном времени по мере поступления новых данных
+
+В Sim интеграция Pinecone позволяет вашим агентам программно использовать возможности поиска по векторам как часть своих рабочих процессов. Это обеспечивает сложные сценарии автоматизации, объединяющие обработку естественного языка с семантическим поиском и извлечением информации. Ваши агенты могут генерировать вложения на основе текста, сохранять эти векторы в индексах Pinecone и выполнять поиск по схожести для поиска наиболее релевантной информации. Эта интеграция устраняет разрыв между вашими рабочими процессами ИИ и инфраструктурой поиска по векторам, обеспечивая более интеллектуальное извлечение информации на основе семантического значения, а не точного соответствия ключевым словам. Используя Sim с Pinecone, вы можете создавать агентов, которые понимают контекст, извлекают релевантную информацию из больших наборов данных и предоставляют пользователям более точные и персонализированные ответы — все это без необходимости в сложном управлении инфраструктурой или специализированных знаниях о векторных базах данных.
+
+
 {/* MANUAL-CONTENT-END */}
-
 
 ## Инструкции по использованию
 
-Интегрируйте Pinecone в рабочий процесс. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.
 
+
+Интегрируйте Pinecone в рабочий процесс. Возможность генерировать вложения, добавлять записи, выполнять поиск с использованием текста, извлекать векторы и выполнять поиск с использованием векторов.
 
 
 ## Действия
 
+
+
+
 ### `pinecone_generate_embeddings`
 
-Generate embeddings from text using Pinecone's hosted models
 
-#### Вход
+Генерирует векторные представления на основе текста, используя модели Pinecone
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `model` | строка | Да | Модель для генерации вложений |
+
 | --------- | ---- | -------- | ----------- |
-| `model` | string | Да | Model to use for generating embeddings |
-| `inputs` | array | Да | Array of text inputs to generate embeddings for |
-| `apiKey` | string | Да | Pinecone Ключ API |
 
-#### Выход
+| `inputs` | массив | Да | Массив текстовых входных данных для генерации вложений |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Да | Ключ API Pinecone |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `data` | массив | Сгенерированные векторные данные со значениями и типом вектора |
+
 | --------- | ---- | ----------- |
-| `data` | array | Generated embeddings data with values and vector type |
-| `model` | string | Model used for generating embeddings |
-| `vector_type` | string | Type of vector generated \(dense/sparse\) |
-| `usage` | object | Usage statistics for embeddings generation |
+
+| `model` | строка | Модель, использованная для генерации вложений |
+
+| `vector_type` | строка | Тип вектора (dense/sparse) |
+
+| `usage` | объект | Статистика использования для генерации вложений |
 
 ### `pinecone_upsert_text`
 
-Insert or update text records in a Pinecone index
 
-#### Вход
+Вставляет или обновляет записи текста в индексе Pinecone
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `indexHost` | строка | Да | Полный URL-адрес индекса Pinecone (например, "https://my-index-abc123.svc.pinecone.io") |
+
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Да | Full Pinecone index host URL (например, "https://my-index-abc123.svc.pinecone.io"\) |
-| `namespace` | string | Да | Namespace to upsert records into (например, "documents", "embeddings"\) |
-| `records` | array | Да | Record or array of records to upsert, each containing _id, text, and optional metadata |
-| `apiKey` | string | Да | Pinecone Ключ API |
 
-#### Выход
+| `namespace` | строка | Да | Пространство имен для вставки записей (например, "documents", "embeddings") |
 
-| Parameter | Type | Description |
+| `records` | массив | Да | Запись или массив записей для вставки, каждая из которых содержит _id, текст и необязательные метаданные |
+
+| `apiKey` | строка | Да | Ключ API Pinecone |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `statusText` | строка | Статус операции вставки |
+
 | --------- | ---- | ----------- |
-| `statusText` | string | Status of the upsert operation |
 
 ### `pinecone_search_text`
 
-Search for similar text in a Pinecone index
 
-#### Вход
+Ищет похожий текст в индексе Pinecone
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `indexHost` | строка | Да | Полный URL-адрес индекса Pinecone (например, "https://my-index-abc123.svc.pinecone.io") |
+
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Да | Full Pinecone index host URL (например, "https://my-index-abc123.svc.pinecone.io"\) |
-| `namespace` | string | Нет | Namespace to search in (например, "documents", "embeddings"\) |
-| `searchQuery` | string | Да | Text to search for |
-| `topK` | string | Нет | Number of results to return (например, "10", "25"\) |
-| `fields` | array | Нет | Fields to return in the results |
-| `filter` | object | Нет | Filter to apply to the search (например, \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
-| `rerank` | object | Нет | Reranking parameters |
-| `apiKey` | string | Да | Pinecone Ключ API |
 
-#### Выход
+| `namespace` | строка | Нет | Пространство имен для поиска (например, "documents", "embeddings") |
 
-| Parameter | Type | Description |
+| `searchQuery` | строка | Да | Текст для поиска |
+
+| `topK` | строка | Нет | Количество результатов для возврата (например, "10", "25") |
+
+| `fields` | массив | Нет | Поля для возврата в результатах |
+
+| `filter` | объект | Нет | Фильтр для применения к поиску (например, \{"category": "tech", "year": \{"$gte": 2020\}\}) |
+
+| `rerank` | объект | Нет | Параметры переранжирования |
+
+| `apiKey` | строка | Да | Ключ API Pinecone |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `matches` | массив | Результаты поиска с ID, оценкой и метаданными |
+
 | --------- | ---- | ----------- |
-| `matches` | array | Search results with ID, score, and metadata |
-|   ↳ `id` | string | Vector ID |
-|   ↳ `score` | number | Similarity score |
-|   ↳ `metadata` | object | Associated metadata |
-| `usage` | object | Usage statistics including tokens, read units, and rerank units |
-|   ↳ `total_tokens` | number | Total tokens used for embedding |
-|   ↳ `read_units` | number | Read units consumed |
-|   ↳ `rerank_units` | number | Rerank units used |
+
+|   ↳ `id` | строка | ID вектора |
+
+|   ↳ `score` | число | Оценка схожести |
+
+|   ↳ `metadata` | объект | Связанные метаданные |
+
+| `usage` | объект | Статистика использования, включая токены, единицы чтения и единицы переранжирования |
+
+|   ↳ `total_tokens` | число | Общее количество токенов, использованных для создания вложений |
+
+|   ↳ `read_units` | число | Единицы чтения, потребленные |
+
+|   ↳ `rerank_units` | число | Единицы переранжирования, используемые |
 
 ### `pinecone_search_vector`
 
-Search for similar vectors in a Pinecone index
 
-#### Вход
+Ищет похожие векторы в индексе Pinecone
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `indexHost` | строка | Да | Полный URL-адрес индекса Pinecone (например, "https://my-index-abc123.svc.pinecone.io") |
+
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Да | Full Pinecone index host URL (например, "https://my-index-abc123.svc.pinecone.io"\) |
-| `namespace` | string | Нет | Namespace to search in (например, "documents", "embeddings"\) |
-| `vector` | array | Да | Vector to search for |
-| `topK` | number | Нет | Number of results to return (например, 10, 25\) |
-| `filter` | object | Нет | Filter to apply to the search (например, \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
-| `includeValues` | boolean | Нет | Include vector values in response |
-| `includeMetadata` | boolean | Нет | Include metadata in response \(true/false\) |
-| `apiKey` | string | Да | Pinecone Ключ API |
 
-#### Выход
+| `namespace` | строка | Нет | Пространство имен для поиска (например, "documents", "embeddings") |
 
-| Parameter | Type | Description |
+| `vector` | массив | Да | Вектор для поиска |
+
+| `topK` | число | Нет | Количество результатов для возврата (например, 10, 25) |
+
+| `filter` | объект | Нет | Фильтр для применения к поиску (например, \{"category": "tech", "year": \{"$gte": 2020\}\}) |
+
+| `includeValues` | логическое значение | Нет | Включить значения вектора в ответ |
+
+| `includeMetadata` | логическое значение | Нет | Включить метаданные в ответ (true/false) |
+
+| `apiKey` | строка | Да | Ключ API Pinecone |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `matches` | массив | Результаты поиска векторов с ID, оценкой, значениями и метаданными |
+
 | --------- | ---- | ----------- |
-| `matches` | array | Vector search results with ID, score, values, and metadata |
-| `namespace` | string | Namespace where the search was performed |
+
+| `namespace` | строка | Пространство имен, в котором выполнялся поиск |
 
 ### `pinecone_fetch`
 
-Fetch vectors by ID from a Pinecone index
 
-#### Вход
+Извлекает векторы по ID из индекса Pinecone
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `indexHost` | строка | Да | Полный URL-адрес индекса Pinecone (например, "https://my-index-abc123.svc.pinecone.io") |
+
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Да | Full Pinecone index host URL (например, "https://my-index-abc123.svc.pinecone.io"\) |
-| `ids` | array | Да | Array of vector IDs to fetch (например, \["vec-001", "vec-002"\]\) |
-| `namespace` | string | Нет | Namespace to fetch vectors from (например, "documents", "embeddings"\) |
-| `apiKey` | string | Да | Pinecone Ключ API |
 
-#### Выход
+| `ids` | массив | Да | Массив ID векторов для извлечения (например, \["vec-001", "vec-002"\]) |
 
-| Parameter | Type | Description |
+| `namespace` | строка | Нет | Пространство имен для извлечения векторов (например, "documents", "embeddings") |
+
+| `apiKey` | строка | Да | Ключ API Pinecone |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `matches` | массив | Извлеченные векторы с ID, значениями, метаданными и оценкой |
+
 | --------- | ---- | ----------- |
-| `matches` | array | Fetched vectors with ID, values, metadata, and score |
-|   ↳ `id` | string | Vector ID |
-|   ↳ `values` | array | Vector values |
-|   ↳ `metadata` | object | Associated metadata |
-|   ↳ `score` | number | Match score \(1.0 for exact matches\) |
+
+| `data` | массив | Данные векторов со значениями и типом вектора |
+
+|   ↳ `values` | массив | Значения вектора |
+
+|   ↳ `vector_type` | строка | Тип вектора (dense/sparse) |
+
+| `usage` | объект | Статистика использования, включая общее количество единиц чтения |
+
+|   ↳ `total_tokens` | число | Количество токенов, потребленных |
+
 | `data` | array | Vector data with values and vector type |
+
 |   ↳ `values` | array | Vector values |
+
 |   ↳ `vector_type` | string | Vector type \(dense/sparse\) |
+
 | `usage` | object | Usage statistics including total read units |
+
 |   ↳ `total_tokens` | number | Read units consumed |
+
 
 

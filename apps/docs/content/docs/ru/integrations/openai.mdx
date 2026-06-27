@@ -1,6 +1,6 @@
 ---
-title: Embeddings
-description: Генерация эмбеддингов Open AI
+title: Векторные представления
+description: Создать эмбеддинги от OpenAI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,54 +10,89 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[OpenAI](https://www.openai.com) is a leading AI research and deployment company that offers a suite of powerful AI models and APIs. OpenAI provides cutting-edge technologies including large language models (like GPT-4), image generation (DALL-E), and embeddings that enable developers to build sophisticated AI-powered applications.
 
-With OpenAI, you can:
+[OpenAI](https://www.openai.com) — ведущая компания в области исследований и внедрения искусственного интеллекта, предлагающая широкий спектр мощных моделей и API ИИ. OpenAI предоставляет передовые технологии, включая большие языковые модели (например, GPT-4), генерацию изображений (DALL-E) и эмбеддинги, которые позволяют разработчикам создавать сложные приложения на основе ИИ.
 
-- **Generate text**: Create human-like text for various applications using GPT models
-- **Create images**: Transform text descriptions into visual content with DALL-E
-- **Produce embeddings**: Convert text into numerical vectors for semantic search and analysis
-- **Build AI assistants**: Develop conversational agents with specialized knowledge
-- **Process and analyze data**: Extract insights and patterns from unstructured text
-- **Translate languages**: Convert content between different languages with high accuracy
-- **Summarize content**: Condense long-form text while preserving key information
 
-In Sim, the OpenAI integration enables your agents to leverage these powerful AI capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language understanding, content generation, and semantic analysis. Your agents can generate vector embeddings from text, which are numerical representations that capture semantic meaning, enabling advanced search, classification, and recommendation systems. Additionally, through the DALL-E integration, agents can create images from text descriptions, opening up possibilities for visual content generation. This integration bridges the gap between your workflow automation and state-of-the-art AI capabilities, enabling your agents to understand context, generate relevant content, and make intelligent decisions based on semantic understanding. By connecting Sim with OpenAI, you can create agents that process information more intelligently, generate creative content, and deliver more personalized experiences to users.
+С помощью OpenAI вы можете:
+
+
+- **Генерировать текст**: Создавать реалистичный текст для различных приложений с использованием моделей GPT
+
+- **Создавать изображения**: Преобразовывать текстовые описания в визуальный контент с помощью DALL-E
+
+- **Создавать эмбеддинги**: Преобразовывать текст в числовые векторы для семантического поиска и анализа
+
+- **Разрабатывать ИИ-ассистентов**: Создавать разговорных агентов со специализированными знаниями
+
+- **Обрабатывать и анализировать данные**: Извлекать информацию и закономерности из неструктурированного текста
+
+- **Переводить языки**: Преобразовывать контент между разными языками с высокой точностью
+
+- **Обобщать контент**: Сокращать длинные тексты, сохраняя при этом ключевую информацию
+
+
+В Sim интеграция OpenAI позволяет вашим агентам использовать эти мощные возможности ИИ программно в рамках своих рабочих процессов. Это обеспечивает сложные сценарии автоматизации, объединяющие понимание естественного языка, генерацию контента и семантический анализ. Ваши агенты могут генерировать векторные эмбеддинги из текста, которые являются числовыми представлениями, отражающими семантическое значение, что позволяет создавать расширенные системы поиска, классификации и рекомендаций. Кроме того, благодаря интеграции с DALL-E, агенты могут создавать изображения на основе текстовых описаний, открывая возможности для генерации визуального контента. Эта интеграция устраняет разрыв между автоматизацией рабочих процессов и передовыми возможностями ИИ, позволяя вашим агентам понимать контекст, генерировать релевантный контент и принимать обоснованные решения на основе семантического понимания. Подключив Sim к OpenAI, вы можете создавать агентов, которые более эффективно обрабатывают информацию, генерируют креативный контент и предоставляют пользователям более персонализированный опыт.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate Embeddings into the workflow. Can generate embeddings from text.
+
+Интегрируйте эмбеддинги в рабочий процесс. Возможность генерировать эмбеддинги из текста.
+
 
 
 
 ## Действия
 
+
 ### `openai_embeddings`
 
-Generate embeddings from text using OpenAI's embedding models
 
-#### Входные параметры
+Генерировать эмбеддинги из текста с использованием моделей эмбеддингов OpenAI
+
+
+#### Входные данные
+
 
 | Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `input` | string | Да | Text to generate embeddings for |
-| `model` | string | Нет | Model to use for embeddings |
-| `encodingFormat` | string | Нет | The format to return the embeddings in |
-| `apiKey` | string | Да | OpenAI API key |
 
-#### Выходные параметры
+| --------- | ---- | -------- | ----------- |
+
+| `input` | строка | Да | Текст для генерации эмбеддингов |
+
+| `model` | строка | Нет | Модель для использования при создании эмбеддингов |
+
+| `encodingFormat` | строка | Нет | Формат, в котором должны быть возвращены эмбеддинги |
+
+| `apiKey` | строка | Да | API-ключ OpenAI |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Embeddings generation results |
-|   ↳ `embeddings` | array | Array of embedding vectors |
-|   ↳ `model` | string | Model used for generating embeddings |
-|   ↳ `usage` | object | Token usage information |
-|     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
-|     ↳ `total_tokens` | number | Total number of tokens used |
+
+| `success` | логическое значение | Статус успешности операции |
+
+| `output` | объект | Результаты генерации эмбеддингов |
+
+|   ↳ `embeddings` | массив | Массив векторных эмбеддингов |
+
+|   ↳ `model` | строка | Модель, использованная для создания эмбеддингов |
+
+|   ↳ `usage` | объект | Информация о использовании токенов |
+
+|     ↳ `prompt_tokens` | число | Количество токенов в запросе |
+
+|     ↳ `total_tokens` | число | Общее количество использованных токенов |
+
 
 

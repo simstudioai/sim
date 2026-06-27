@@ -1,6 +1,6 @@
 ---
 title: ServiceNow
-description: Создание, чтение, обновление и удаление записей ServiceNow
+description: Create, read, update, and delete ServiceNow records
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,416 +10,731 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#032D42"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[ServiceNow](https://www.servicenow.com/) is a powerful cloud platform designed to streamline and automate IT service management (ITSM), workflows, and business processes across your organization. ServiceNow enables you to manage incidents, requests, tasks, users, and more using its extensive API.
 
-With ServiceNow, you can:
+===
+ServiceNow — это мощная облачная платформа, разработанная для упрощения и автоматизации управления ИТ-сервисами (ITSM), рабочих процессов и бизнес-процессов в вашей организации. ServiceNow позволяет вам управлять инцидентами, запросами, задачами, пользователями и многим другим с помощью своего обширного API.
 
-- **Automate IT workflows**: Create, read, update, and delete records in any ServiceNow table, such as incidents, tasks, change requests, and users.
-- **Интегрируйте systems**: Connect ServiceNow with your other tools and processes for seamless automation.
-- **Maintain a single source of truth**: Keep all your service and operations data organized and accessible.
-- **Drive operational efficiency**: Reduce manual work and improve service quality with customizable workflows and automation.
+С помощью ServiceNow вы можете:
 
-In Sim, the ServiceNow integration enables your agents to interact directly with your ServiceNow instance as part of their workflows. Agents can create, read, update, or delete records in any ServiceNow table and leverage ticket or user data for sophisticated automation and decision-making. This integration bridges your workflow automation and IT operations, empowering your agents to manage service requests, incidents, users, and assets without manual intervention. By connecting Sim with ServiceNow, you can automate service management tasks, improve response times, and ensure consistent, secure access to your organization's vital service data.
-{/* MANUAL-CONTENT-END */}
+
+- Автоматизировать ИТ-рабочие процессы: создавать, читать, обновлять и удалять записи в любой таблице ServiceNow, например, инциденты, задачи, запросы на изменение и пользователей.
+
+
+- Интегрировать системы: подключать ServiceNow к другим инструментам и процессам для бесшовной автоматизации.
+
+- Поддерживать единый источник достоверных данных: организовывать и обеспечивать доступ ко всей информации о ваших услугах и операциях.
+
+- Повышать эффективность операций: снижать ручной труд и улучшать качество обслуживания с помощью настраиваемых рабочих процессов и автоматизации.
+
+В Sim интеграция ServiceNow позволяет вашим агентам напрямую взаимодействовать со своей инстанцией ServiceNow в рамках своих рабочих процессов. Агенты могут создавать, читать, обновлять или удалять записи в любой таблице ServiceNow и использовать данные о билетах или пользователях для продвинутой автоматизации и принятия решений. Эта интеграция связывает вашу автоматизацию рабочих процессов и ИТ-операции, позволяя вашим агентам управлять запросами на обслуживание, инцидентами, пользователями и активами без ручного вмешательства. Подключив Sim к ServiceNow, вы можете автоматизировать задачи управления услугами, сократить время реагирования и обеспечить надежный доступ к важнейшей информации о ваших услугах для всей организации.
 
 
 ## Инструкции по использованию
 
-Интегрируйте ServiceNow в ваш рабочий процесс. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.
+Интегрируйте ServiceNow в свой рабочий процесс. Создавайте, читайте, обновляйте и удаляйте записи в любой таблице ServiceNow, включая инциденты, задачи, запросы на изменение, пользователей и т. д.
 
 
 
 ## Действия
 
+
 ### `servicenow_create_record`
 
-Создание нового record in a ServiceNow table
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+
+Создать новую запись в таблице ServiceNow
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table name (например, incident, task, sys_user\) |
-| `fields` | json | Да | Fields to set on the record as JSON object (например, \{"short_description": "Issue title", "priority": "1"\}\) |
 
-#### Выход
+| `password` | строка | Да | Пароль ServiceNow |
 
-| Parameter | Type | Description |
+| `tableName` | строка | Да | Название таблицы (например, инцидент, задача, sys_user) |
+
+| `fields` | json | Да | Поля для установки в записи в виде объекта JSON (например, {"short_description": "Название проблемы", "priority": "1"}) |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+
+| `record` | json | Созданная запись ServiceNow с sys_id и другими полями |
+
+
+| `metadata` | json | Метаданные операции |
+
 | --------- | ---- | ----------- |
-| `record` | json | Created ServiceNow record with sys_id and other fields |
-| `metadata` | json | Operation metadata |
 
 ### `servicenow_read_record`
 
-Read records from a ServiceNow table
+Читать записи из таблицы ServiceNow
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table name (например, incident, task, sys_user, change_request\) |
-| `sysId` | string | Нет | Specific record sys_id (например, 6816f79cc0a8016401c5a33be04be441\) |
-| `number` | string | Нет | Record number (например, INC0010001\) |
-| `query` | string | Нет | Encoded query string (например, "active=true^priority=1"\) |
-| `limit` | number | Нет | Maximum number of records to return (например, 10, 50, 100\) |
-| `offset` | number | Нет | Number of records to skip for pagination (например, 0, 10, 20\) |
-| `fields` | string | Нет | Comma-separated list of fields to return (например, sys_id,number,short_description,state\) |
-| `displayValue` | string | Нет | Return display values for reference fields: "true" \(display only\), "false" \(sys_id only\), or "all" \(both\) |
 
-#### Выход
+| `password` | строка | Да | Пароль ServiceNow |
 
-| Parameter | Type | Description |
+| `tableName` | строка | Да | Название таблицы (например, инцидент, задача, sys_user, change_request) |
+
+| `sysId` | строка | Нет | Конкретный sys_id записи (например, 6816f79cc0a8016401c5a33be04be441) |
+
+| `number` | строка | Нет | Номер записи (например, INC0010001) |
+
+| `query` | строка | Нет | Закодированная строка запроса (например, "active=true^priority=1") |
+
+| `limit` | число | Нет | Максимальное количество записей для возврата (например, 10, 50, 100) |
+
+| `offset` | число | Нет | Количество записей для пропуска для постраточной навигации (например, 0, 10, 20) |
+
+| `fields` | строка | Нет | Разделенный запятыми список полей для возврата (например, sys_id,number,short_description,state) |
+
+| `displayValue` | строка | Нет | Возвращать значения отображения для ссылочных полей: "true" (только отображение), "false" (только sys_id) или "all" (оба) |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+
+| `records` | массив | Массив записей ServiceNow |
+
+
+|   ↳ `sysId` | строка | Sys_id записи |
+
 | --------- | ---- | ----------- |
-| `records` | array | Array of ServiceNow records |
-| `metadata` | json | Operation metadata |
+
+|   ↳ `number` | строка | Номер записи (например, INC0010001, CHG0010001) |
+
+|   ↳ `tableName` | строка | Название таблицы ServiceNow |
+
+
+|   ↳ `shortDescription` | строка | Краткое описание записи |
+
+
+|   ↳ `description` | строка | Полное описание записи |
+
+
+|   ↳ `state` | строка | Текущее состояние записи |
+
+
+|   ↳ `priority` | строка | Уровень приоритета (1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning) |
+
+| --------- | ---- | -------- | ----------- |
+
+|   ↳ `assignedTo` | строка | Пользователь, которому назначена запись |
+
+|   ↳ `assignmentGroup` | строка | Группа, которой назначена запись |
+
+|   ↳ `createdBy` | строка | Пользователь, создавший запись |
+
+|   ↳ `createdOn` | строка | Дата создания записи (ISO 8601) |
+
+|   ↳ `updatedBy` | строка | Пользователь, последний раз обновивший запись |
+
+|   ↳ `updatedOn` | строка | Дата последнего обновления записи (ISO 8601) |
+
+
+|   ↳ `type` | строка | Тип изменения (Normal, Standard, Emergency) |
+
+
+|   ↳ `risk` | строка | Уровень риска изменения |
+
+| --------- | ---- | ----------- |
+
+|   ↳ `impact` | строка | Уровень влияния изменения (1=High, 2=Medium, 3=Low) |
+
+|   ↳ `category` | строка | Категория записи |
+
+
+|   ↳ `subcategory` | строка | Подкатегория записи |
+
+
+|   ↳ `caller` | строка | Пользователь, который вызвал инцидент |
+
+
+|   ↳ `resolvedBy` | строка | Пользователь, который решил инцидент |
+
+
+|   ↳ `resolvedAt` | строка | Дата решения инцидента (ISO 8601) |
+
+| --------- | ---- | -------- | ----------- |
+
+|   ↳ `closeNotes` | строка | Заметки о закрытии инцидента |
+
+| `metadata` | json | Метаданные операции |
 
 ### `servicenow_update_record`
 
-Обновление existing record in a ServiceNow table
+Обновить существующую запись в таблице ServiceNow
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table name (например, incident, task, sys_user, change_request\) |
-| `sysId` | string | Да | Record sys_id to update (например, 6816f79cc0a8016401c5a33be04be441\) |
-| `fields` | json | Да | Fields to update as JSON object (например, \{"state": "2", "priority": "1"\}\) |
 
-#### Выход
+| Параметр | Тип | Требуется | Описание |
 
-| Parameter | Type | Description |
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
 | --------- | ---- | ----------- |
-| `record` | json | Updated ServiceNow record |
-| `metadata` | json | Operation metadata |
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
+| `password` | строка | Да | Пароль ServiceNow |
+
+
+| `tableName` | строка | Да | Название таблицы (например, инцидент, задача, sys_user, change_request) |
+
+
+| `sysId` | строка | Да | Sys_id записи для обновления (например, 6816f79cc0a8016401c5a33be04be441) |
+
+
+| `fields` | json | Да | Поля для обновления в виде объекта JSON (например, {"state": "2", "priority": "1"}) |
+
+
+#### Выходные данные
+
+| --------- | ---- | -------- | ----------- |
+
+| Параметр | Тип | Описание |
+
+| `record` | json | Обновленная запись ServiceNow |
+
+| `metadata` | json | Метаданные операции |
 
 ### `servicenow_delete_record`
 
-Удаление record from a ServiceNow table
+Удалить запись из таблицы ServiceNow
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table name (например, incident, task, sys_user, change_request\) |
-| `sysId` | string | Да | Record sys_id to delete (например, 6816f79cc0a8016401c5a33be04be441\) |
+| Параметр | Тип | Требуется | Описание |
 
-#### Выход
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
 
-| Parameter | Type | Description |
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
+| `password` | строка | Да | Пароль ServiceNow |
+
+| `tableName` | строка | Да | Название таблицы (например, инцидент, задача, sys_user, change_request) |
+
+| `sysId` | строка | Да | Sys_id записи для удаления (например, 6816f79cc0a8016401c5a33be04be441) |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `success` | boolean | Успешно ли удаление |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Указывает,  deletion was successful |
-| `metadata` | json | Operation metadata |
+
+| `metadata` | json | Метаданные операции |
 
 ### `servicenow_aggregate`
 
-Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
+Вычислить агрегированные статистические данные (счет, сумма, среднее значение, минимум, максимум, группировка) в таблице ServiceNow
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table name (например, incident, change_request, task\) |
-| `query` | string | Нет | Encoded query string to filter records before aggregating (например, "active=true"\) |
-| `count` | boolean | Нет | Return the count of matching records |
-| `groupBy` | string | Нет | Comma-separated fields to group results by (например, category,priority\) |
-| `avgFields` | string | Нет | Comma-separated numeric fields to average (например, reassignment_count\) |
-| `sumFields` | string | Нет | Comma-separated numeric fields to sum |
-| `minFields` | string | Нет | Comma-separated fields to compute the minimum of |
-| `maxFields` | string | Нет | Comma-separated fields to compute the maximum of |
-| `having` | string | Нет | Filter on aggregate results (например, "count&gt;5"\) |
-| `displayValue` | string | Нет | Return display values for grouped reference fields: "true", "false", or "all" |
 
-#### Выход
+| `password` | строка | Да | Пароль ServiceNow |
 
-| Parameter | Type | Description |
+| `tableName` | строка | Да | Название таблицы (например, инцидент, change_request, task) |
+
+| `query` | строка | Нет | Закодированная строка запроса для фильтрации записей перед агрегацией (например, "active=true") |
+
+| `count` | boolean | Нет | Вернуть количество соответствующих записей |
+
+| `groupBy` | строка | Нет | Разделенные запятыми поля для группировки результатов (например, category,priority) |
+
+| `avgFields` | строка | Нет | Разделенные запятыми числовые поля для вычисления среднего значения |
+
+
+| `sumFields` | строка | Нет | Разделенные запятыми числовые поля для суммирования |
+
+
+| `minFields` | строка | Нет | Разделенные запятыми поля для вычисления минимума |
+
 | --------- | ---- | ----------- |
-| `result` | json | Aggregate result. Ungrouped: \{stats: \{count, sum, avg, min, max\}\}. Grouped: array of \{stats, groupby_fields\}. |
-| `count` | number | Total matching record count \(only present for ungrouped count queries\) |
-| `metadata` | json | Operation metadata \(grouped, groupCount\) |
+
+| `maxFields` | строка | Нет | Разделенные запятыми поля для вычисления максимума |
+
+| `having` | строка | Нет | Фильтр на агрегированные результаты (например, "count>5") |
+
+| `displayValue` | строка | Нет | Возвращать значения отображения для ссылочных полей: "true", "false" или "all" |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `result` | json | Агрегированный результат. Негруппировано: {"stats": {"count", "sum", "avg", "min", "max"}}. Группировано: массив {"stats", "groupby_fields"} |
+
+| `count` | число | Общее количество соответствующих записей (только для запросов на подсчет) |
+
+
+| `metadata` | json | Метаданные операции (grouped, groupCount) |
+
 
 ### `servicenow_list_attachments`
 
-Получение списка the attachments on a ServiceNow record
 
-#### Вход
+Перечислить прикрепленные файлы к записи ServiceNow
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table that owns the record (например, incident, change_request\) |
-| `recordSysId` | string | Да | sys_id of the record whose attachments should be listed |
-| `limit` | number | Нет | Maximum number of attachments to return |
 
-#### Выход
+| Параметр | Тип | Требуется | Описание |
 
-| Parameter | Type | Description |
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
+| `password` | строка | Да | Пароль ServiceNow |
+
+
+| `tableName` | строка | Да | Таблица, владеющая записью (например, инцидент, change_request) |
+
+
+| `recordSysId` | строка | Да | sys_id записи, для которой нужно перечислить прикрепленные файлы |
+
 | --------- | ---- | ----------- |
-| `attachments` | array | Attachment metadata records |
-|   ↳ `sys_id` | string | Attachment sys_id |
-|   ↳ `file_name` | string | File name |
-|   ↳ `content_type` | string | MIME type |
-|   ↳ `size_bytes` | string | File size in bytes |
-|   ↳ `download_link` | string | Direct download URL for the file |
-| `metadata` | json | Operation metadata \(recordCount\) |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых файлов |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `attachments` | массив | Записи метаданных файла |
+
+
+|   ↳ `sysId` | строка | Sys_id файла |
+
+
+|   ↳ `file_name` | строка | Имя файла |
+
+| --------- | ---- | -------- | ----------- |
+
+|   ↳ `content_type` | строка | MIME-тип |
+
+|   ↳ `size_bytes` | строка | Размер файла в байтах |
+
+|   ↳ `download_link` | строка | URL для прямого скачивания файла |
+
+| `metadata` | json | Метаданные операции (recordCount) |
 
 ### `servicenow_download_attachment`
 
-Download an attachment file from ServiceNow by its sys_id
+Скачать файл прикрепленного объекта из ServiceNow по его sys_id
 
-#### Вход
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `attachmentSysId` | string | Да | sys_id of the attachment to download \(from Получение списка Attachments\) |
 
-#### Выход
+| Параметр | Тип | Требуется | Описание |
 
-| Parameter | Type | Description |
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
 | --------- | ---- | ----------- |
-| `file` | file | Downloaded attachment stored in execution files |
-| `content` | string | Base64 encoded file content |
+
+| `username` | строка | Да | Имя пользователя ServiceNow |
+
+| `password` | строка | Да | Пароль ServiceNow |
+
+
+
+
+| `attachmentSysId` | строка | Да | sys_id файла для скачивания (из List Attachments) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `file` | файл | Скачанный файл, хранящийся в файлах выполнения |
+
+
+| `content` | строка | Закодированный в base64 контент файла |
+
 
 ### `servicenow_upload_attachment`
 
-Attach a file to a ServiceNow record
-
-#### Вход
-
-| Параметр | Тип | Обязательный | Описание |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Да | ServiceNow instance URL (например, https://instance.service-now.com\) |
-| `username` | string | Да | ServiceNow username |
-| `password` | string | Да | ServiceNow password |
-| `tableName` | string | Да | Table that owns the record (например, incident, change_request\) |
-| `recordSysId` | string | Да | sys_id of the record to attach the file to |
-| `fileName` | string | Да | Name to give the uploaded file (например, logs.txt\) |
-| `file` | file | Нет | File to upload \(UserFile object\) |
 
-#### Выход
+Прикрепить файл к записи ServiceNow
 
-| Parameter | Type | Description |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `instanceUrl` | строка | Да | URL экземпляра ServiceNow (например, https://instance.service-now.com) |
+
 | --------- | ---- | ----------- |
-| `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
-| `metadata` | json | Operation metadata |
 
+| `username` | строка | Да | Имя пользователя ServiceNow |
 
+| `password` | строка | Да | Пароль ServiceNow |
+
+| `tableName` | строка | Да | Таблица, владеющая записью (например, инцидент, change_request) |
+
+| `recordSysId` | строка | Да | sys_id записи, к которой нужно прикрепить файл |
+
+| `fileName` | строка | Да | Имя файла для сохранения загруженного файла (например, logs.txt) |
+
+| `file` | файл | Да | Файл для загрузки (объект File) |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `attachment` | json | Созданная запись метаданных файла (sys_id, file_name, content_type, download_link) |
+
+| `metadata` | json | Метаданные операции |
 
 ## Триггеры
 
-**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+**Триггер** — это блок, который запускает рабочий процесс при возникновении события в этом сервисе.
 
 ### ServiceNow Change Request Created
 
-Запуск рабочего процесса when a new change request is created in ServiceNow
+Запустить рабочий процесс при создании новой заявки на изменение в ServiceNow
 
 #### Конфигурация
 
-| Параметр | Тип | Обязательный | Описание |
+| Параметр | Тип | Требуется | Описание |
+
+| `webhookSecret` | строка | Да | Требуется. Используйте то же значение в вашем бизнес-правиле ServiceNow как Bearer token или X-Sim-Webhook-Secret. |
+
+| `tableName` | строка | Нет | Необязательно, чтобы отфильтровать по конкретной таблице ServiceNow |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `sysId` | строка | Уникальный идентификатор системы записи |
+
+
+
+| `number` | строка | Номер записи (например, INC0010001, CHG0010001) |
+
+
+| `tableName` | строка | Название таблицы ServiceNow |
+
+
+| `shortDescription` | строка | Краткое описание записи |
+
+
+| `description` | строка | Полное описание записи |
+
+
+| `state` | строка | Текущее состояние записи |
+
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Да | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
-| `tableName` | string | Нет | Optionally filter to a specific ServiceNow table |
 
-#### Выход
+| `priority` | строка | Уровень приоритета (1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning) |
 
-| Parameter | Type | Description |
+| `assignedTo` | строка | Пользователь, которому назначена запись |
+
+
+| `assignmentGroup` | строка | Группа, которой назначена запись |
+
+
+| `createdBy` | строка | Пользователь, создавший запись |
+
 | --------- | ---- | ----------- |
-| `sysId` | string | Unique system ID of the record |
-| `number` | string | Record number (например, INC0010001, CHG0010001\) |
-| `tableName` | string | ServiceNow table name |
-| `shortDescription` | string | Short description of the record |
+
+| `createdOn` | строка | Дата создания записи (ISO 8601) |
+
+| `updatedBy` | строка | Пользователь, последний раз обновивший запись |
+
+| `updatedOn` | строка | Дата последнего обновления записи (ISO 8601) |
+
+| `type` | строка | Тип изменения (Normal
+
 | `description` | string | Full description of the record |
+
 | `state` | string | Current state of the record |
+
 | `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+
 | `assignedTo` | string | User assigned to this record |
+
 | `assignmentGroup` | string | Group assigned to this record |
+
 | `createdBy` | string | User who created the record |
+
 | `createdOn` | string | When the record was created \(ISO 8601\) |
+
 | `updatedBy` | string | User who last updated the record |
+
 | `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+
 | `type` | string | Change type \(Normal, Standard, Emergency\) |
+
 | `risk` | string | Risk level of the change |
+
 | `impact` | string | Impact level of the change |
+
 | `approval` | string | Approval status |
+
 | `startDate` | string | Planned start date |
+
 | `endDate` | string | Planned end date |
+
 | `category` | string | Change category |
+
 | `record` | json | Full change request record data |
+
 
 
 ---
 
-### ServiceNow Change Request Updated
-
-Запуск рабочего процесса when a change request is updated in ServiceNow
-
-#### Конфигурация
-
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Да | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
-| `tableName` | string | Нет | Optionally filter to a specific ServiceNow table |
-
-#### Выход
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `sysId` | string | Unique system ID of the record |
-| `number` | string | Record number (например, INC0010001, CHG0010001\) |
-| `tableName` | string | ServiceNow table name |
-| `shortDescription` | string | Short description of the record |
-| `description` | string | Full description of the record |
-| `state` | string | Current state of the record |
-| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
-| `assignedTo` | string | User assigned to this record |
-| `assignmentGroup` | string | Group assigned to this record |
-| `createdBy` | string | User who created the record |
-| `createdOn` | string | When the record was created \(ISO 8601\) |
-| `updatedBy` | string | User who last updated the record |
-| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
-| `type` | string | Change type \(Normal, Standard, Emergency\) |
-| `risk` | string | Risk level of the change |
-| `impact` | string | Impact level of the change |
-| `approval` | string | Approval status |
-| `startDate` | string | Planned start date |
-| `endDate` | string | Planned end date |
-| `category` | string | Change category |
-| `record` | json | Full change request record data |
-
-
----
 
 ### ServiceNow Incident Created
 
-Запуск рабочего процесса when a new incident is created in ServiceNow
 
-#### Конфигурация
+Trigger workflow when a new incident is created in ServiceNow
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Да | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
-| `tableName` | string | Нет | Optionally filter to a specific ServiceNow table |
 
-#### Выход
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `sysId` | string | Unique system ID of the record |
-| `number` | string | Record number (например, INC0010001, CHG0010001\) |
+
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+
 | `tableName` | string | ServiceNow table name |
+
 | `shortDescription` | string | Short description of the record |
+
 | `description` | string | Full description of the record |
+
 | `state` | string | Current state of the record |
+
 | `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+
 | `assignedTo` | string | User assigned to this record |
+
 | `assignmentGroup` | string | Group assigned to this record |
+
 | `createdBy` | string | User who created the record |
+
 | `createdOn` | string | When the record was created \(ISO 8601\) |
+
 | `updatedBy` | string | User who last updated the record |
+
 | `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+
 | `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+
 | `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+
 | `category` | string | Incident category |
+
 | `subcategory` | string | Incident subcategory |
+
 | `caller` | string | Caller/requester of the incident |
+
 | `resolvedBy` | string | User who resolved the incident |
+
 | `resolvedAt` | string | When the incident was resolved |
+
 | `closeNotes` | string | Notes added when the incident was closed |
+
 | `record` | json | Full incident record data |
 
 
+
 ---
+
 
 ### ServiceNow Incident Updated
 
-Запуск рабочего процесса when an incident is updated in ServiceNow
 
-#### Конфигурация
+Trigger workflow when an incident is updated in ServiceNow
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Да | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
-| `tableName` | string | Нет | Optionally filter to a specific ServiceNow table |
 
-#### Выход
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `sysId` | string | Unique system ID of the record |
-| `number` | string | Record number (например, INC0010001, CHG0010001\) |
+
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+
 | `tableName` | string | ServiceNow table name |
+
 | `shortDescription` | string | Short description of the record |
+
 | `description` | string | Full description of the record |
+
 | `state` | string | Current state of the record |
+
 | `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+
 | `assignedTo` | string | User assigned to this record |
+
 | `assignmentGroup` | string | Group assigned to this record |
+
 | `createdBy` | string | User who created the record |
+
 | `createdOn` | string | When the record was created \(ISO 8601\) |
+
 | `updatedBy` | string | User who last updated the record |
+
 | `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+
 | `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+
 | `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+
 | `category` | string | Incident category |
+
 | `subcategory` | string | Incident subcategory |
+
 | `caller` | string | Caller/requester of the incident |
+
 | `resolvedBy` | string | User who resolved the incident |
+
 | `resolvedAt` | string | When the incident was resolved |
+
 | `closeNotes` | string | Notes added when the incident was closed |
+
 | `record` | json | Full incident record data |
+
 
 
 ---
 
+
 ### ServiceNow Webhook (All Events)
 
-Запуск рабочего процесса on any ServiceNow webhook event
 
-#### Конфигурация
+Trigger workflow on any ServiceNow webhook event
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Configuration
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Да | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
-| `tableName` | string | Нет | Optionally filter to a specific ServiceNow table |
 
-#### Выход
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `sysId` | string | Unique system ID of the record |
-| `number` | string | Record number (например, INC0010001, CHG0010001\) |
+
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+
 | `tableName` | string | ServiceNow table name |
+
 | `shortDescription` | string | Short description of the record |
+
 | `description` | string | Full description of the record |
+
 | `state` | string | Current state of the record |
+
 | `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+
 | `assignedTo` | string | User assigned to this record |
+
 | `assignmentGroup` | string | Group assigned to this record |
+
 | `createdBy` | string | User who created the record |
+
 | `createdOn` | string | When the record was created \(ISO 8601\) |
+
 | `updatedBy` | string | User who last updated the record |
+
 | `updatedOn` | string | When the record was last updated \(ISO 8601\) |
-| `eventType` | string | The type of event that triggered this workflow (например, insert, update, delete\) |
+
+| `eventType` | string | The type of event that triggered this workflow \(e.g., insert, update, delete\) |
+
 | `category` | string | Record category |
+
 | `record` | json | Full record data from the webhook payload |
+
 

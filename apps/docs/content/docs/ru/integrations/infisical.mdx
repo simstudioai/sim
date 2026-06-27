@@ -1,6 +1,6 @@
 ---
-title: Infisical
-description: Управление секретами с помощью Infisical
+title: Инфисѝкал
+description: Управляйте секретами с помощью Infisical
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,311 +10,797 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F7FE62"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+[Infisical](https://infisical.com/) — это платформа для управления секретами с открытым исходным кодом, которая помогает командам централизованно управлять секретами приложений, переменными среды и конфиденциальными данными конфигурации в своей инфраструктуре. Эта интеграция позволяет использовать возможности Infisical для управления секретами непосредственно в рабочих процессах Sim.
+
+С помощью Infisical в Sim вы можете:
+- **Перечислить секреты**: Получить все секреты из проекта, отфильтровав по пути, тегам и поддерживая рекурсивные поддиректории.
+- **Получить секрет**: Извлечь конкретный секрет по имени, с необязательной фиксацией версии и расширением ссылки на секрет.
+- **Создать секреты**: Добавить новые секреты в любую среду проекта, поддерживая комментарии, пути и назначение тегов.
+- **Обновить секреты**: Изменить существующие значения секретов, комментарии, имена и теги.
+- **Удалить секреты**: Удалить секреты из среды проекта.
+
+В Sim интеграция Infisical позволяет вашим агентам программно управлять секретами в рамках автоматизированных рабочих процессов — например, для ротации учетных данных, синхронизации переменных среды между средами или аудита использования секретов. Чтобы начать работу, просто настройте блок Infisical с вашим API-ключом, выберите операцию и предоставьте идентификатор проекта и slug среды.
+
+## Инструкции по использованию
+Интегрируйте Infisical в свой рабочий процесс. Перечисляйте, получайте, создавайте, обновляйте и удаляйте секреты в средах проектов.
+
+## Действия
+### `infisical_list_secrets`
+Перечислить все секреты в проекте. Возвращает ключи, значения, комментарии, теги и метаданные секретов.
+#### Входные данные
+| Параметр | Тип | Требуется | Описание |
+|---|---|---|---|
+| `apiKey` | string | Да | Токен API Infisical |
+| `baseUrl` | string | Нет | URL экземпляра Infisical (по умолчанию: "https://us.infisical.com"). Используйте "https://eu.infisical.com" для облака EU или свой URL. |
+| `projectId` | string | Да | ID проекта, из которого нужно перечислить секреты |
+| `environment` | string | Да | Slug среды (например, "dev", "staging", "prod") |
+| `secretPath` | string | Нет | Путь к секретам (по умолчанию: "/") |
+| `recursive` | boolean | Нет | Флаг для рекурсивного извлечения секретов из поддиректорий |
+| `expandSecretReferences` | boolean | Нет | Флаг для расширения ссылок на секреты (по умолчанию: true) |
+| `viewSecretValue` | boolean | Нет | Флаг для включения значений секретов в ответ (по умолчанию: true) |
+| `includeImports` | boolean | Нет | Флаг для включения импортированных секретов (по умолчанию: true) |
+| `tagSlugs` | string | Нет | Разделенные запятыми slug тегов для фильтрации секретов по тегам |
+#### Выходные данные
+| Параметр | Тип | Описание |
+|---|---|---|
+| `secrets` | array | Массив секретов |
+|   ↳ `id` | string | ID секрета |
+|   ↳ `workspace` | string | ID рабочей области/проекта |
+|   ↳ `secretKey` | string | Имя/ключ секрета |
+|   ↳ `secretValue` | string | Значение секрета |
+|   ↳ `secretComment` | string | Комментарий к секрету |
+|   ↳ `secretPath` | string | Путь к секрету |
+|   ↳ `version` | number | Версия секрета |
+|   ↳ `type` | string | Тип секрета (shared или personal) |
+|   ↳ `environment` | string | Slug среды |
+|   ↳ `secretValueHidden` | boolean | Флаг, указывающий, было ли значение секрета скрыто в ответе |
+|   ↳ `isRotatedSecret` | boolean | Флаг, указывающий, управляется ли секрет ротацией |
+|   ↳ `rotationId` | string | ID ротации секрета |
+|   ↳ `secretReminderNote` | string | Заметка для напоминания о ротации |
+|   ↳ `secretReminderRepeatDays` | number | Интервал повторения напоминания о ротации в днях |
+|   ↳ `skipMultilineEncoding` | boolean | Флаг, указывающий, следует ли пропускать многострочное кодирование для этого секрета |
+|   ↳ `tags` | array | Теги, прикрепленные к секрету |
+|     ↳ `id` | string | ID тега |
+|     ↳ `slug` | string | Slug тега |
+|     ↳ `color` | string | Цвет тега |
+|     ↳ `name` | string | Имя тега |
+|   ↳ `secretMetadata` | array | Параметры метаданных key-value |
+|     ↳ `key` | string | Ключ метаданных |
+|     ↳ `value` | string | Значение метаданных |
+|     ↳ `isEncrypted` | boolean | Флаг, указывающий, зашифровано ли значение метаданных |
+|   ↳ `actor` | object | Идентичность, которая последний раз изменяла секрет |
+|     ↳ `actorId` | string | ID актора |
+|     ↳ `actorType` | string | Тип актора |
+|     ↳ `name` | string | Имя актора |
+|     ↳ `membershipId` | string | ID членства |
+|     ↳ `groupId` | string | ID группы |
+|   ↳ `createdAt` | string | Дата создания |
+|   ↳ `updatedAt` | string | Дата последнего обновления |
+| `count` | number | Общее количество секретов, возвращенных |
+### `infisical_get_secret`
+Получить конкретный секрет по имени из среды проекта.
+#### Входные данные
+| Параметр | Тип | Требуется | Описание |
+|---|---|---|---|
+| `apiKey` | string | Да | Токен API Infisical |
+| `baseUrl` | string | Нет | URL экземпляра Infisical (по умолчанию: "https://us.infisical.com"). Используйте "https://eu.infisical.com" для облака EU или свой URL. |
+| `projectId` | string | Да | ID проекта |
+| `environment` | string | Да | Slug среды (например, "dev", "staging", "prod") |
+| `secretName` | string | Да | Имя секрета, который нужно получить |
+| `secretPath` | string | Нет | Путь к секрету (по умолчанию: "/") |
+| `version` | number | Нет | Версия секрета для получения |
+| `type` | string | Нет | Тип секрета: "shared" или "personal" (по умолчанию: "shared") |
+| `viewSecretValue` | boolean | Нет | Флаг, указывающий, следует ли включать значение секрета в ответ (по умолчанию: true) |
+| `expandSecretReferences` | boolean | Нет | Флаг, указывающий, следует ли расширять ссылки на секреты (по умолчанию: true) |
+#### Выходные данные
+| Параметр | Тип | Описание |
+|---|---|---|
+| `secret` | object | Полученный секрет |
+|   ↳ `id` | string | ID секрета |
+|   ↳ `workspace` | string | ID рабочей области/проекта |
+|   ↳ `secretKey` | string | Имя/ключ секрета |
+|   ↳ `secretValue` | string | Значение секрета |
+|   ↳ `secretComment` | string | Комментарий к секрету |
+|   ↳ `secretPath` | string | Путь к секрету |
+|   ↳ `version` | number | Версия секрета |
+|   ↳ `type` | string | Тип секрета (shared или personal) |
+|   ↳ `environment` | string | Slug среды |
+|   ↳ `secretValueHidden` | boolean | Флаг, указывающий, было ли значение секрета скрыто в ответе |
+|   ↳ `isRotatedSecret` | boolean | Флаг, указывающий, управляется ли секрет ротацией |
+|   ↳ `rotationId` | string | ID ротации секрета |
+|   ↳ `secretReminderNote` | string | Заметка для напоминания о ротации |
+|   ↳ `secretReminderRepeatDays` | number | Интервал повторения напоминания о ротации в днях |
+|   ↳ `skipMultilineEncoding` | boolean | Флаг, указывающий, следует ли пропускать многострочное кодирование для этого секрета |
+|   ↳ `tags` | array | Теги, прикрепленные к секрету |
+|     ↳ `id` | string | ID тега |
+|     ↳ `slug` | string | Slug тега |
+|     ↳ `color` | string | Цвет тега |
+|     ↳ `name` | string | Имя тега |
+|   ↳ `secretMetadata` | array | Параметры метаданных key-value |
+|     ↳ `key` | string | Ключ метаданных |
+|     ↳ `value` | string | Значение метаданных |
+|     ↳ `isEncrypted` | boolean | Флаг, указывающий, зашифровано ли значение метаданных |
+|   ↳ `actor` | object | Идентичность, которая последний раз изменяла секрет |
+|     ↳ `actorId` | string | ID актора |
+|     ↳ `actorType` | string | Тип актора |
+|     ↳ `name` | string | Имя актора |
+|     ↳ `membershipId` | string | ID членства |
+|     ↳ `groupId` | string | ID группы |
+|   ↳ `createdAt` | string | Дата создания |
+|   ↳ `updatedAt` | string | Дата последнего обновления |
+### `infisical_create_secret`
+Создать новый секрет в среде проекта.
+#### Входные данные
+| Параметр | Тип | Требуется | Описание |
+|---|---|---|---|
+| `apiKey` | string | Да | Токен API Infisical |
+| `baseUrl` | string | Нет | URL экземпляра Infisical (по умолчанию: "https://us.infisical.com"). Используйте "https://eu.infisical.com" для облака EU или свой URL. |
+| `projectId` | string | Да | ID проекта |
+| `environment` | string | Да | Slug среды (например, "dev", "staging", "prod") |
+| `secretName` | string | Да | Имя секрета, который нужно создать |
+| `secretValue` | string | Да | Значение секрета |
+| `secretPath` | string | Нет | Путь для секрета (по умолчанию: "/") |
+| `secretComment` | string | Нет | Комментарий к секрету |
+| `type` | string | Нет | Тип секрета: "shared" или "personal" (по умолчанию: "shared") |
+| `tagIds` | string | Нет | Разделенные запятыми ID тегов, которые нужно прикрепить к секрету |
+#### Выходные данные
+| Параметр | Тип | Описание |
+|---|---|---|
+| `secret` | object | Созданный секрет |
+|   ↳ `id` | string | ID секрета |
+|   ↳ `workspace` | string | ID рабочей области/проекта |
+|   ↳ `secretKey` | string | Имя/ключ секрета |
+|   ↳ `secretValue` | string | Значение секрета |
+|   ↳ `secretComment` | string | Комментарий к секрету |
+|   ↳ `secretPath` | string | Путь к секрету |
+|   ↳ `version` | number | Версия секрета |
+|   ↳ `type` | string | Тип секрета (shared или personal) |
+|   ↳ `environment` | string | Slug среды |
+|   ↳ `secretValueHidden` | boolean | Флаг, указывающий, было ли значение секрета скрыто в ответе |
+|   ↳ `isRotatedSecret` | boolean | Флаг, указывающий, управляется ли секрет ротацией |
+|   ↳ `rotationId` | string | ID ротации секрета |
+|   ↳ `secretReminderNote` | string | Заметка для напоминания о ротации |
+|   ↳ `secretReminderRepeatDays` | number | Интервал повторения напоминания о ротации в днях |
+|   ↳ `skipMultilineEncoding` | boolean | Флаг, указывающий, следует ли пропускать многострочное кодирование для этого секрета |
+|   ↳ `tags` | array | Теги, прикрепленные к секрету |
+|     ↳ `id` | string | ID тега |
+|     ↳ `slug` | string | Slug тега |
+|     ↳ `color` | string | Цвет тега |
+|     ↳ `name` | string | Имя тега |
+|   ↳ `secretMetadata` | array | Параметры метаданных key-value |
+|     ↳ `key` | string | Ключ метаданных |
+|     ↳ `value` | string | Значение метаданных |
+|     ↳ `isEncrypted` | boolean | Флаг, указывающий, зашифровано ли значение метаданных |
+|   ↳ `actor` | object | Идентичность, которая последний раз изменяла секрет |
+|     ↳ `actorId` | string | ID актора |
+|     ↳ `actorType` | string | Тип актора |
+|     ↳ `name` | string | Имя актора |
+|     ↳ `membershipId` | string | ID членства |
+|     ↳ `groupId` | string | ID группы |
+|   ↳ `createdAt` | string | Дата создания |
+|   ↳ `updatedAt` | string | Дата последнего обновления |
+### `infisical_update_secret`
+Обновить существующий секрет в среде проекта.
+#### Входные данные
+| Параметр | Тип | Требуется | Описание |
+|---|---|---|---|
+| `apiKey` | string | Да | Токен API Infisical |
+| `baseUrl` | string | Нет | URL экземпляра Infisical (по умолчанию: "https://us.infisical.com"). Используйте "https://eu.infisical.com" для облака EU или свой URL. |
+| `projectId` | string | Да | ID проекта |
+| `environment` | string | Да | Slug среды (например, "dev", "staging", "prod") |
+| `secretName` | string | Да | Имя секрета, который нужно обновить |
+| `secretValue` | string | Нет | Новое значение для секрета |
+| `secretPath` | string | Нет | Путь к секрету (по умолчанию: "/") |
+| `secretComment` | string | Нет | Новый комментарий для секрета |
+| `newSecretName` | string | Нет | Новое имя секрета (для переименования) |
+| `type` | string | Нет | Тип секрета: "shared" или "personal" (по умолчанию: "shared") |
+| `tagIds` | string | Нет | Разделенные запятыми ID тегов, которые нужно установить для секрета |
+#### Выходные данные
+| Параметр | Тип | Описание |
+|---|---|---|
+| `secret` | object | Обновленный секрет |
+|   ↳ `id` | string | ID секрета |
+|   ↳ `workspace` | string | ID рабочей области/проекта |
+|   ↳ `secretKey` | string | Имя/ключ секрета |
+|   ↳ `secretValue` | string | Значение секрета |
+|   ↳ `secretComment` | string | Комментарий к секрету |
+|   ↳ `secretPath` | string | Путь к секрету |
+|   ↳ `version` | number | Версия секрета |
+|   ↳ `type` | string | Тип секрета (shared или personal) |
+|   ↳ `environment` | string | Slug среды |
+|   ↳ `secretValueHidden` | boolean | Флаг, указывающий, было ли значение секрета скрыто в ответе |
+|   ↳ `isRotatedSecret` | boolean | Флаг, указывающий, управляется ли секрет ротацией |
+|   ↳ `rotationId` | string | ID ротации секрета |
+|   ↳ `secretReminderNote` | string | Заметка для напоминания о ротации |
+|   ↳ `secretReminderRepeatDays` | number | Интервал повторения напоминания о ротации в днях |
+|   ↳ `skipMultilineEncoding` | boolean | Флаг, указывающий, следует ли пропускать многострочное кодирование для этого секрета |
+|   ↳ `tags` | array | Теги, прикрепленные к секрету |
+|     ↳ `id` | string | ID тега |
+|     ↳ `slug` | string | Slug тега |
+|     ↳ `color` | string | Цвет тега |
+|     ↳ `name` | string | Имя тега |
+|   ↳ `secretMetadata` | array | Параметры метаданных key-value |
+|     ↳ `key` | string | Ключ метаданных |
+|     ↳ `value` | string | Значение метаданных |
+|     ↳ `isEncrypted` | boolean | Флаг, указывающий, зашифровано ли значение метаданных |
+|   ↳ `actor` | object | Идентичность, которая последний раз изменяла секрет |
+|     ↳ `actorId` | string | ID актора |
+|     ↳ `actorType` | string | Тип актора |
+|     ↳ `name` | string | Имя актора |
+|     ↳ `membershipId` | string | ID членства |
+|     ↳ `groupId` | string | ID группы |
+
 [Infisical](https://infisical.com/) is an open-source secrets management platform that helps teams centralize and manage application secrets, environment variables, and sensitive configuration data across their infrastructure. This integration brings Infisical's secrets management capabilities directly into Sim workflows.
+
 
 With Infisical in Sim, you can:
 
+
 - **List secrets**: Retrieve all secrets from a project environment with filtering by path, tags, and recursive subdirectory support
+
 - **Get a secret**: Fetch a specific secret by name, with optional version pinning and secret reference expansion
+
 - **Create secrets**: Add new secrets to any project environment with support for comments, paths, and tag assignments
+
 - **Update secrets**: Modify existing secret values, comments, names, and tags
+
 - **Delete secrets**: Remove secrets from a project environment
 
+
 In Sim, the Infisical integration enables your agents to programmatically manage secrets as part of automated workflows — for example, rotating credentials, syncing environment variables across environments, or auditing secret usage. Simply configure the Infisical block with your API key, select the operation, and provide the project ID and environment slug to get started.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
+
+## Usage Instructions
+
 
 Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.
 
 
 
-## Действия
+
+## Actions
+
 
 ### `infisical_list_secrets`
 
+
 List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Infisical API token |
-| `baseUrl` | string | Нет | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
-| `projectId` | string | Да | The ID of the project to list secrets from |
-| `environment` | string | Да | The environment slug \(e.g., "dev", "staging", "prod"\) |
-| `secretPath` | string | Нет | The path of the secrets \(default: "/"\) |
-| `recursive` | boolean | Нет | Whether to fetch secrets recursively from subdirectories |
-| `expandSecretReferences` | boolean | Нет | Whether to expand secret references \(default: true\) |
-| `viewSecretValue` | boolean | Нет | Whether to include secret values in the response \(default: true\) |
-| `includeImports` | boolean | Нет | Whether to include imported secrets \(default: true\) |
-| `tagSlugs` | string | Нет | Comma-separated tag slugs to filter secrets by |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Infisical API token |
 
-| Параметр | Тип | Описание |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+
+| `projectId` | string | Yes | The ID of the project to list secrets from |
+
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+
+| `secretPath` | string | No | The path of the secrets \(default: "/"\) |
+
+| `recursive` | boolean | No | Whether to fetch secrets recursively from subdirectories |
+
+| `expandSecretReferences` | boolean | No | Whether to expand secret references \(default: true\) |
+
+| `viewSecretValue` | boolean | No | Whether to include secret values in the response \(default: true\) |
+
+| `includeImports` | boolean | No | Whether to include imported secrets \(default: true\) |
+
+| `tagSlugs` | string | No | Comma-separated tag slugs to filter secrets by |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `secrets` | array | Array of secrets |
+
 |   ↳ `id` | string | Secret ID |
+
 |   ↳ `workspace` | string | Workspace/project ID |
+
 |   ↳ `secretKey` | string | Secret name/key |
+
 |   ↳ `secretValue` | string | Secret value |
+
 |   ↳ `secretComment` | string | Secret comment |
+
 |   ↳ `secretPath` | string | Secret path |
+
 |   ↳ `version` | number | Secret version |
+
 |   ↳ `type` | string | Secret type \(shared or personal\) |
+
 |   ↳ `environment` | string | Environment slug |
+
 |   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+
 |   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+
 |   ↳ `rotationId` | string | Secret rotation ID |
+
 |   ↳ `secretReminderNote` | string | Rotation reminder note |
+
 |   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+
 |   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
+
 |   ↳ `tags` | array | Tags attached to the secret |
+
 |     ↳ `id` | string | Tag ID |
+
 |     ↳ `slug` | string | Tag slug |
+
 |     ↳ `color` | string | Tag color |
+
 |     ↳ `name` | string | Tag name |
+
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+
 |     ↳ `key` | string | Metadata key |
+
 |     ↳ `value` | string | Metadata value |
+
 |     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+
 |   ↳ `actor` | object | Identity that last modified the secret |
+
 |     ↳ `actorId` | string | Actor ID |
+
 |     ↳ `actorType` | string | Actor type |
+
 |     ↳ `name` | string | Actor name |
+
 |     ↳ `membershipId` | string | Membership ID |
+
 |     ↳ `groupId` | string | Group ID |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last update timestamp |
+
 | `count` | number | Total number of secrets returned |
+
 
 ### `infisical_get_secret`
 
+
 Retrieve a single secret by name from a project environment.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Infisical API token |
-| `baseUrl` | string | Нет | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
-| `projectId` | string | Да | The ID of the project |
-| `environment` | string | Да | The environment slug \(e.g., "dev", "staging", "prod"\) |
-| `secretName` | string | Да | The name of the secret to retrieve |
-| `secretPath` | string | Нет | The path of the secret \(default: "/"\) |
-| `version` | number | Нет | Specific version of the secret to retrieve |
-| `type` | string | Нет | Secret type: "shared" or "personal" \(default: "shared"\) |
-| `viewSecretValue` | boolean | Нет | Whether to include the secret value in the response \(default: true\) |
-| `expandSecretReferences` | boolean | Нет | Whether to expand secret references \(default: true\) |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Infisical API token |
 
-| Параметр | Тип | Описание |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+
+| `projectId` | string | Yes | The ID of the project |
+
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+
+| `secretName` | string | Yes | The name of the secret to retrieve |
+
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+
+| `version` | number | No | Specific version of the secret to retrieve |
+
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+
+| `viewSecretValue` | boolean | No | Whether to include the secret value in the response \(default: true\) |
+
+| `expandSecretReferences` | boolean | No | Whether to expand secret references \(default: true\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `secret` | object | The retrieved secret |
+
 |   ↳ `id` | string | Secret ID |
+
 |   ↳ `workspace` | string | Workspace/project ID |
+
 |   ↳ `secretKey` | string | Secret name/key |
+
 |   ↳ `secretValue` | string | Secret value |
+
 |   ↳ `secretComment` | string | Secret comment |
+
 |   ↳ `secretPath` | string | Secret path |
+
 |   ↳ `version` | number | Secret version |
+
 |   ↳ `type` | string | Secret type \(shared or personal\) |
+
 |   ↳ `environment` | string | Environment slug |
+
 |   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+
 |   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+
 |   ↳ `rotationId` | string | Secret rotation ID |
+
 |   ↳ `secretReminderNote` | string | Rotation reminder note |
+
 |   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+
 |   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
+
 |   ↳ `tags` | array | Tags attached to the secret |
+
 |     ↳ `id` | string | Tag ID |
+
 |     ↳ `slug` | string | Tag slug |
+
 |     ↳ `color` | string | Tag color |
+
 |     ↳ `name` | string | Tag name |
+
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+
 |     ↳ `key` | string | Metadata key |
+
 |     ↳ `value` | string | Metadata value |
+
 |     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+
 |   ↳ `actor` | object | Identity that last modified the secret |
+
 |     ↳ `actorId` | string | Actor ID |
+
 |     ↳ `actorType` | string | Actor type |
+
 |     ↳ `name` | string | Actor name |
+
 |     ↳ `membershipId` | string | Membership ID |
+
 |     ↳ `groupId` | string | Group ID |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last update timestamp |
+
 
 ### `infisical_create_secret`
 
+
 Create a new secret in a project environment.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Infisical API token |
-| `baseUrl` | string | Нет | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
-| `projectId` | string | Да | The ID of the project |
-| `environment` | string | Да | The environment slug \(e.g., "dev", "staging", "prod"\) |
-| `secretName` | string | Да | The name of the secret to create |
-| `secretValue` | string | Да | The value of the secret |
-| `secretPath` | string | Нет | The path for the secret \(default: "/"\) |
-| `secretComment` | string | Нет | A comment for the secret |
-| `type` | string | Нет | Secret type: "shared" or "personal" \(default: "shared"\) |
-| `tagIds` | string | Нет | Comma-separated tag IDs to attach to the secret |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Infisical API token |
 
-| Параметр | Тип | Описание |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+
+| `projectId` | string | Yes | The ID of the project |
+
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+
+| `secretName` | string | Yes | The name of the secret to create |
+
+| `secretValue` | string | Yes | The value of the secret |
+
+| `secretPath` | string | No | The path for the secret \(default: "/"\) |
+
+| `secretComment` | string | No | A comment for the secret |
+
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+
+| `tagIds` | string | No | Comma-separated tag IDs to attach to the secret |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `secret` | object | The created secret |
+
 |   ↳ `id` | string | Secret ID |
+
 |   ↳ `workspace` | string | Workspace/project ID |
+
 |   ↳ `secretKey` | string | Secret name/key |
+
 |   ↳ `secretValue` | string | Secret value |
+
 |   ↳ `secretComment` | string | Secret comment |
+
 |   ↳ `secretPath` | string | Secret path |
+
 |   ↳ `version` | number | Secret version |
+
 |   ↳ `type` | string | Secret type \(shared or personal\) |
+
 |   ↳ `environment` | string | Environment slug |
+
 |   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+
 |   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+
 |   ↳ `rotationId` | string | Secret rotation ID |
+
 |   ↳ `secretReminderNote` | string | Rotation reminder note |
+
 |   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+
 |   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
+
 |   ↳ `tags` | array | Tags attached to the secret |
+
 |     ↳ `id` | string | Tag ID |
+
 |     ↳ `slug` | string | Tag slug |
+
 |     ↳ `color` | string | Tag color |
+
 |     ↳ `name` | string | Tag name |
+
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+
 |     ↳ `key` | string | Metadata key |
+
 |     ↳ `value` | string | Metadata value |
+
 |     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+
 |   ↳ `actor` | object | Identity that last modified the secret |
+
 |     ↳ `actorId` | string | Actor ID |
+
 |     ↳ `actorType` | string | Actor type |
+
 |     ↳ `name` | string | Actor name |
+
 |     ↳ `membershipId` | string | Membership ID |
+
 |     ↳ `groupId` | string | Group ID |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last update timestamp |
+
 
 ### `infisical_update_secret`
 
+
 Update an existing secret in a project environment.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Infisical API token |
-| `baseUrl` | string | Нет | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
-| `projectId` | string | Да | The ID of the project |
-| `environment` | string | Да | The environment slug \(e.g., "dev", "staging", "prod"\) |
-| `secretName` | string | Да | The name of the secret to update |
-| `secretValue` | string | Нет | The new value for the secret |
-| `secretPath` | string | Нет | The path of the secret \(default: "/"\) |
-| `secretComment` | string | Нет | A comment for the secret |
-| `newSecretName` | string | Нет | New name for the secret \(to rename it\) |
-| `type` | string | Нет | Secret type: "shared" or "personal" \(default: "shared"\) |
-| `tagIds` | string | Нет | Comma-separated tag IDs to set on the secret |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Infisical API token |
 
-| Параметр | Тип | Описание |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+
+| `projectId` | string | Yes | The ID of the project |
+
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+
+| `secretName` | string | Yes | The name of the secret to update |
+
+| `secretValue` | string | No | The new value for the secret |
+
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+
+| `secretComment` | string | No | A comment for the secret |
+
+| `newSecretName` | string | No | New name for the secret \(to rename it\) |
+
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+
+| `tagIds` | string | No | Comma-separated tag IDs to set on the secret |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `secret` | object | The updated secret |
+
 |   ↳ `id` | string | Secret ID |
+
 |   ↳ `workspace` | string | Workspace/project ID |
+
 |   ↳ `secretKey` | string | Secret name/key |
+
 |   ↳ `secretValue` | string | Secret value |
+
 |   ↳ `secretComment` | string | Secret comment |
+
 |   ↳ `secretPath` | string | Secret path |
+
 |   ↳ `version` | number | Secret version |
+
 |   ↳ `type` | string | Secret type \(shared or personal\) |
+
 |   ↳ `environment` | string | Environment slug |
+
 |   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+
 |   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+
 |   ↳ `rotationId` | string | Secret rotation ID |
+
 |   ↳ `secretReminderNote` | string | Rotation reminder note |
+
 |   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+
 |   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
+
 |   ↳ `tags` | array | Tags attached to the secret |
+
 |     ↳ `id` | string | Tag ID |
+
 |     ↳ `slug` | string | Tag slug |
+
 |     ↳ `color` | string | Tag color |
+
 |     ↳ `name` | string | Tag name |
+
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+
 |     ↳ `key` | string | Metadata key |
+
 |     ↳ `value` | string | Metadata value |
+
 |     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+
 |   ↳ `actor` | object | Identity that last modified the secret |
+
 |     ↳ `actorId` | string | Actor ID |
+
 |     ↳ `actorType` | string | Actor type |
+
 |     ↳ `name` | string | Actor name |
+
 |     ↳ `membershipId` | string | Membership ID |
+
 |     ↳ `groupId` | string | Group ID |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last update timestamp |
+
 
 ### `infisical_delete_secret`
 
+
 Delete a secret from a project environment.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Infisical API token |
-| `baseUrl` | string | Нет | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
-| `projectId` | string | Да | The ID of the project |
-| `environment` | string | Да | The environment slug \(e.g., "dev", "staging", "prod"\) |
-| `secretName` | string | Да | The name of the secret to delete |
-| `secretPath` | string | Нет | The path of the secret \(default: "/"\) |
-| `type` | string | Нет | Secret type: "shared" or "personal" \(default: "shared"\) |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Infisical API token |
 
-| Параметр | Тип | Описание |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+
+| `projectId` | string | Yes | The ID of the project |
+
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+
+| `secretName` | string | Yes | The name of the secret to delete |
+
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `secret` | object | The deleted secret |
+
 |   ↳ `id` | string | Secret ID |
+
 |   ↳ `workspace` | string | Workspace/project ID |
+
 |   ↳ `secretKey` | string | Secret name/key |
+
 |   ↳ `secretValue` | string | Secret value |
+
 |   ↳ `secretComment` | string | Secret comment |
+
 |   ↳ `secretPath` | string | Secret path |
+
 |   ↳ `version` | number | Secret version |
+
 |   ↳ `type` | string | Secret type \(shared or personal\) |
+
 |   ↳ `environment` | string | Environment slug |
+
 |   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+
 |   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+
 |   ↳ `rotationId` | string | Secret rotation ID |
+
 |   ↳ `secretReminderNote` | string | Rotation reminder note |
+
 |   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+
 |   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
+
 |   ↳ `tags` | array | Tags attached to the secret |
+
 |     ↳ `id` | string | Tag ID |
+
 |     ↳ `slug` | string | Tag slug |
+
 |     ↳ `color` | string | Tag color |
+
 |     ↳ `name` | string | Tag name |
+
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+
 |     ↳ `key` | string | Metadata key |
+
 |     ↳ `value` | string | Metadata value |
+
 |     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+
 |   ↳ `actor` | object | Identity that last modified the secret |
+
 |     ↳ `actorId` | string | Actor ID |
+
 |     ↳ `actorType` | string | Actor type |
+
 |     ↳ `name` | string | Actor name |
+
 |     ↳ `membershipId` | string | Membership ID |
+
 |     ↳ `groupId` | string | Group ID |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last update timestamp |
+
 
 

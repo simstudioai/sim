@@ -1,6 +1,6 @@
 ---
 title: Asana
-description: Взаимодействие с Asana
+description: Взаимодействуйте с Asana
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,201 +10,358 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Asana](https://asana.com/) — это ведущая платформа управления работой, разработанная для помощи командам в организации, отслеживании и управлении задачами и проектами более эффективно. С помощью Asana отдельные сотрудники и организации могут оптимизировать планирование проектов, делегировать обязанности, отслеживать прогресс и беспрепятственно сотрудничать в различных рабочих пространствах и проектах.
 
-С помощью Asana вы можете:
+Asana — это ведущая платформа для управления задачами, предназначенная для помощи командам в организации, отслеживании и эффективном управлении своими задачами и проектами. С помощью Asana отдельные лица и организации могут оптимизировать планирование проектов, делегировать обязанности, контролировать прогресс и беспрепятственно сотрудничать в различных рабочих пространствах и проектах.
 
-- **Создавать, назначать и обновлять задачи**: разбивайте работу на actionable элементы, назначайте их участникам команды и держите всех в курсе.
-- **Организовывать проекты**: группируйте связанные задачи в проекты, устанавливайте сроки и визуализируйте поток работы от начала до конца.
-- **Устанавливать приоритеты и сроки**: обеспечьте своевременное выполнение важных задач и соответствие целям проекта.
-- **Отслеживать прогресс и завершение**: отслеживайте задачи по мере их прохождения через различные стадии и быстро выявляйте препятствия.
-- **Сотрудничать с командой**: делитесь заметками, прикрепляйте соответствующие ресурсы и обменивайтесь обновлениями непосредственно в задачах.
 
-В Sim интеграция с Asana позволяет вашим агентам программно взаимодействовать с Asana через набор гибких инструментов, описанных ниже. Ваши агенты могут получать, создавать и обновлять задачи, что упрощает автоматизацию рабочих процессов управления проектами, синхронизацию статуса с другими инструментами или запуск действий на основе событий задач Asana. Используйте эти инструменты для повышения продуктивности вашей команды и поддержания всех проектов организованными и актуальными непосредственно в ваших проектах Sim.
+С Asana вы можете:
+
+
+- **Создавать, назначать и обновлять задачи**: Разбивайте свою работу на конкретные действия, назначайте их членам команды и обеспечивайте, чтобы все были в курсе.
+
+- **Организовывать проекты**: Группируйте связанные задачи в проекты, устанавливайте сроки и визуализируйте поток работы от начала до конца.
+
+- **Устанавливать приоритеты и сроки**: Обеспечьте своевременное выполнение важных задач и сохраняйте их соответствие целям проекта.
+
+- **Отслеживать прогресс и завершение**: Контролируйте задачи по мере их продвижения по различным этапам и быстро выявляйте препятствия.
+
+- **Сотрудничать с командой**: Делитесь заметками, прикрепляйте соответствующие ресурсы и обменивайтесь обновлениями непосредственно в задачах.
+
+
+В Sim интеграция Asana позволяет вашим агентам программно взаимодействовать с Asana с помощью набора гибких инструментов, описанных ниже. Ваши агенты могут извлекать, создавать и обновлять задачи, что упрощает автоматизацию рабочих процессов управления проектами, синхронизацию статуса с другими инструментами или инициирование действий на основе событий задач Asana. Используйте эти инструменты для повышения производительности вашей команды и обеспечения того, чтобы все ваши проекты были организованы и актуальны непосредственно в ваших проектах Sim.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкция по использованию
 
-Интегрируйте Asana в рабочий процесс. Позволяет читать, создавать и обновлять задачи.
+
+Интегрируйте Asana в рабочий процесс. Возможность чтения, записи и обновления задач.
+
 
 
 
 ## Действия
 
+
 ### `asana_get_task`
 
-Получение одной задачи по GID или нескольких задач с фильтрами
 
-#### Input
+Получение отдельной задачи по GID или получение нескольких задач с фильтрами
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | No | Глобально уникальный идентификатор (GID) задачи. Если не указан, будут получены несколько задач. |
-| `workspace` | string | No | GID рабочего пространства Asana (числовая строка) для фильтрации задач (обязательно, если не используется taskGid) |
-| `project` | string | No | GID проекта Asana (числовая строка) для фильтрации задач |
-| `limit` | number | No | Максимальное количество возвращаемых задач (по умолчанию: 50) |
 
-#### Output
+| `taskGid` | строка | Нет | Глобально уникальный идентификатор (GID) задачи. Если не указано, будут получены несколько задач. |
 
-| Parameter | Type | Description |
+| `workspace` | строка | Нет | GID рабочего пространства Asana (числовая строка), для фильтрации задач (требуется, если не используется taskGid) |
+
+| `project` | строка | Нет | GID проекта Asana (числовая строка), для фильтрации задач |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых задач (по умолчанию: 50) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `gid` | string | Глобально уникальный идентификатор задачи |
-| `resource_type` | string | Тип ресурса (task) |
-| `resource_subtype` | string | Подтип ресурса |
-| `name` | string | Название задачи |
-| `notes` | string | Заметки или описание задачи |
-| `completed` | boolean | Завершена ли задача |
-| `assignee` | object | Данные назначенного исполнителя |
-|   ↳ `gid` | string | GID исполнителя |
-|   ↳ `name` | string | Имя исполнителя |
-| `created_by` | object | Данные создателя |
-|   ↳ `gid` | string | GID создателя |
-|   ↳ `name` | string | Имя создателя |
-| `due_on` | string | Срок выполнения (ГГГГ-ММ-ДД) |
-| `created_at` | string | Временная метка создания задачи |
-| `modified_at` | string | Временная метка последнего изменения задачи |
-| `tasks` | array | Массив задач (при получении нескольких) |
-|   ↳ `gid` | string | GID задачи |
-|   ↳ `name` | string | Название задачи |
-|   ↳ `completed` | boolean | Статус завершения |
+
+| `success` | булево | Статус успешности операции |
+
+| `ts` | строка | Временная метка ответа |
+
+| `gid` | строка | Глобально уникальный идентификатор задачи |
+
+| `resource_type` | строка | Тип ресурса (задача) |
+
+| `resource_subtype` | строка | Подтип ресурса |
+
+| `name` | строка | Название задачи |
+
+| `notes` | строка | Заметки или описание задачи |
+
+| `completed` | булево | Указано, завершена ли задача |
+
+| `assignee` | объект | Детали назначенных |
+
+|   ↳ `gid` | строка | GID назначенного |
+
+|   ↳ `name` | строка | Имя назначенного |
+
+| `created_by` | объект | Детали создателя |
+
+|   ↳ `gid` | строка | GID создателя |
+
+|   ↳ `name` | строка | Имя создателя |
+
+| `due_on` | строка | Дата выполнения (YYYY-MM-DD) |
+
+| `created_at` | строка | Временная метка создания задачи |
+
+| `modified_at` | строка | Последняя временная метка изменения задачи |
+
+| `tasks` | массив | Массив задач (при получении нескольких) |
+
+|   ↳ `gid` | строка | GID задачи |
+
+|   ↳ `name` | строка | Название задачи |
+
+|   ↳ `completed` | булево | Статус завершения |
+===
+
 
 ### `asana_create_task`
 
-Создание новой задачи в Asana
+
+Create a new task in Asana
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | GID рабочего пространства Asana (числовая строка), в котором будет создана задача |
-| `name` | string | Yes | Название задачи |
-| `notes` | string | No | Заметки или описание задачи |
-| `assignee` | string | No | GID пользователя, которому назначить задачу |
-| `due_on` | string | No | Срок выполнения в формате ГГГГ-ММ-ДД |
+
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) where the task will be created |
+
+| `name` | string | Yes | Name of the task |
+
+| `notes` | string | No | Notes or description for the task |
+
+| `assignee` | string | No | User GID to assign the task to |
+
+| `due_on` | string | No | Due date in YYYY-MM-DD format |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `gid` | string | Глобально уникальный идентификатор задачи |
-| `name` | string | Название задачи |
-| `notes` | string | Заметки или описание задачи |
-| `completed` | boolean | Завершена ли задача |
-| `created_at` | string | Временная метка создания задачи |
-| `permalink_url` | string | URL задачи в Asana |
+
+| `success` | boolean | Operation success status |
+
+| `ts` | string | Timestamp of the response |
+
+| `gid` | string | Task globally unique identifier |
+
+| `name` | string | Task name |
+
+| `notes` | string | Task notes or description |
+
+| `completed` | boolean | Whether the task is completed |
+
+| `created_at` | string | Task creation timestamp |
+
+| `permalink_url` | string | URL to the task in Asana |
+
 
 ### `asana_update_task`
 
-Обновление существующей задачи в Asana
+
+Update an existing task in Asana
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | GID задачи Asana (числовая строка) для обновления |
-| `name` | string | No | Обновлённое название задачи |
-| `notes` | string | No | Обновлённые заметки или описание задачи |
-| `assignee` | string | No | Обновлённый GID назначенного пользователя |
-| `completed` | boolean | No | Отметить задачу как завершённую или незавершённую |
-| `due_on` | string | No | Обновлённый срок выполнения в формате ГГГГ-ММ-ДД |
+
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) of the task to update |
+
+| `name` | string | No | Updated name for the task |
+
+| `notes` | string | No | Updated notes or description for the task |
+
+| `assignee` | string | No | Updated assignee user GID |
+
+| `completed` | boolean | No | Mark task as completed or not completed |
+
+| `due_on` | string | No | Updated due date in YYYY-MM-DD format |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `gid` | string | Глобально уникальный идентификатор задачи |
-| `name` | string | Название задачи |
-| `notes` | string | Заметки или описание задачи |
-| `completed` | boolean | Завершена ли задача |
-| `modified_at` | string | Временная метка последнего изменения задачи |
+
+| `success` | boolean | Operation success status |
+
+| `ts` | string | Timestamp of the response |
+
+| `gid` | string | Task globally unique identifier |
+
+| `name` | string | Task name |
+
+| `notes` | string | Task notes or description |
+
+| `completed` | boolean | Whether the task is completed |
+
+| `modified_at` | string | Task last modified timestamp |
+
 
 ### `asana_get_projects`
 
-Получение всех проектов из рабочего пространства Asana
+
+Retrieve all projects from an Asana workspace
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | GID рабочего пространства Asana (числовая строка) для получения проектов |
+
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to retrieve projects from |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `projects` | array | Массив проектов |
-|   ↳ `gid` | string | GID проекта |
-|   ↳ `name` | string | Название проекта |
-|   ↳ `resource_type` | string | Тип ресурса (project) |
+
+| `success` | boolean | Operation success status |
+
+| `ts` | string | Timestamp of the response |
+
+| `projects` | array | Array of projects |
+
+|   ↳ `gid` | string | Project GID |
+
+|   ↳ `name` | string | Project name |
+
+|   ↳ `resource_type` | string | Resource type \(project\) |
+
 
 ### `asana_search_tasks`
 
-Поиск задач в рабочем пространстве Asana
+
+Search for tasks in an Asana workspace
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | GID рабочего пространства Asana (числовая строка) для поиска задач |
-| `text` | string | No | Текст для поиска в названиях задач |
-| `assignee` | string | No | Фильтр задач по GID назначенного пользователя |
-| `projects` | array | No | Массив GID проектов Asana (числовые строки) для фильтрации задач |
-| `completed` | boolean | No | Фильтр по статусу завершения |
+
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to search tasks in |
+
+| `text` | string | No | Text to search for in task names |
+
+| `assignee` | string | No | Filter tasks by assignee user GID |
+
+| `projects` | array | No | Array of Asana project GIDs \(numeric strings\) to filter tasks by |
+
+| `completed` | boolean | No | Filter by completion status |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `tasks` | array | Массив подходящих задач |
-|   ↳ `gid` | string | GID задачи |
-|   ↳ `resource_type` | string | Тип ресурса |
-|   ↳ `resource_subtype` | string | Подтип ресурса |
-|   ↳ `name` | string | Название задачи |
-|   ↳ `notes` | string | Заметки задачи |
-|   ↳ `completed` | boolean | Статус завершения |
-|   ↳ `assignee` | object | Данные назначенного исполнителя |
-|     ↳ `gid` | string | GID исполнителя |
-|     ↳ `name` | string | Имя исполнителя |
-|   ↳ `due_on` | string | Срок выполнения |
-|   ↳ `created_at` | string | Временная метка создания |
-|   ↳ `modified_at` | string | Временная метка изменения |
-| `next_page` | object | Информация о пагинации |
-|   ↳ `offset` | string | Токен смещения |
-|   ↳ `path` | string | Путь API |
-|   ↳ `uri` | string | Полный URI |
+
+| `success` | boolean | Operation success status |
+
+| `ts` | string | Timestamp of the response |
+
+| `tasks` | array | Array of matching tasks |
+
+|   ↳ `gid` | string | Task GID |
+
+|   ↳ `resource_type` | string | Resource type |
+
+|   ↳ `resource_subtype` | string | Resource subtype |
+
+|   ↳ `name` | string | Task name |
+
+|   ↳ `notes` | string | Task notes |
+
+|   ↳ `completed` | boolean | Completion status |
+
+|   ↳ `assignee` | object | Assignee details |
+
+|     ↳ `gid` | string | Assignee GID |
+
+|     ↳ `name` | string | Assignee name |
+
+|   ↳ `due_on` | string | Due date |
+
+|   ↳ `created_at` | string | Creation timestamp |
+
+|   ↳ `modified_at` | string | Modified timestamp |
+
+| `next_page` | object | Pagination info |
+
+|   ↳ `offset` | string | Offset token |
+
+|   ↳ `path` | string | API path |
+
+|   ↳ `uri` | string | Full URI |
+
 
 ### `asana_add_comment`
 
-Добавление комментария (истории) к задаче Asana
+
+Add a comment (story) to an Asana task
+
 
 #### Input
 
+
 | Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | GID задачи Asana (числовая строка) |
-| `text` | string | Yes | Текстовое содержимое комментария |
+
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) |
+
+| `text` | string | Yes | The text content of the comment |
+
 
 #### Output
 
+
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Статус успешности операции |
-| `ts` | string | Временная метка ответа |
-| `gid` | string | Глобально уникальный идентификатор комментария |
-| `text` | string | Текстовое содержимое комментария |
-| `created_at` | string | Временная метка создания комментария |
-| `created_by` | object | Данные автора комментария |
-|   ↳ `gid` | string | GID автора |
-|   ↳ `name` | string | Имя автора |
+
+| `success` | boolean | Operation success status |
+
+| `ts` | string | Timestamp of the response |
+
+| `gid` | string | Comment globally unique identifier |
+
+| `text` | string | Comment text content |
+
+| `created_at` | string | Comment creation timestamp |
+
+| `created_by` | object | Comment author details |
+
+|   ↳ `gid` | string | Author GID |
+
+|   ↳ `name` | string | Author name |
+
+
+

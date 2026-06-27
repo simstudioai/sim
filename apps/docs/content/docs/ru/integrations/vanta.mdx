@@ -1,6 +1,6 @@
 ---
-title: Vanta
-description: Запрос статуса соответствия требованиям и управление доказательствами в Vanta
+title: Ванта
+description: Query compliance status and manage evidence in Vanta
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,682 +10,1177 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F8F4F3"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [Vanta](https://www.vanta.com/) is a trust management platform that automates security and compliance for frameworks like SOC 2, ISO 27001, HIPAA, and GDPR. It continuously monitors your infrastructure, people, and vendors through automated tests, and centralizes the evidence auditors need.
+
 
 With the Vanta integration in Sim, you can:
 
-- **Monitor compliance posture**: Получение списка frameworks with control, document, and test completion counts, and drill into individual controls and their mapped tests and evidence documents.
-- **Triage failing tests**: Получение списка automated compliance tests by status, framework, integration, or category, and pull the exact failing resource entities that need remediation.
-- **Manage evidence documents**: Получение списка and inspect evidence documents, upload evidence files with descriptions and effective dates, download previously uploaded files, and submit document collections for auditor review.
-- **Track people and security tasks**: Получение списка people with employment status, group membership, and outstanding security tasks (trainings, policy acceptance, background checks, device monitoring).
+
+- **Monitor compliance posture**: List frameworks with control, document, and test completion counts, and drill into individual controls and their mapped tests and evidence documents.
+
+- **Triage failing tests**: List automated compliance tests by status, framework, integration, or category, and pull the exact failing resource entities that need remediation.
+
+- **Manage evidence documents**: List and inspect evidence documents, upload evidence files with descriptions and effective dates, download previously uploaded files, and submit document collections for auditor review.
+
+- **Track people and security tasks**: List people with employment status, group membership, and outstanding security tasks (trainings, policy acceptance, background checks, device monitoring).
+
 - **Review policies and vendors**: Check policy approval status and versions, and track vendors with risk levels, contract dates, and security review schedules.
-- **Stay on top of vulnerabilities**: Получение списка vulnerabilities with severity and SLA deadline filters, review remediation history, and inspect the vulnerable assets behind each finding.
-- **Watch device compliance**: Получение списка monitored computers with screenlock, disk encryption, password manager, and antivirus check outcomes.
+
+- **Stay on top of vulnerabilities**: List vulnerabilities with severity and SLA deadline filters, review remediation history, and inspect the vulnerable assets behind each finding.
+
+- **Watch device compliance**: List monitored computers with screenlock, disk encryption, password manager, and antivirus check outcomes.
+
 - **Manage risk scenarios**: Query risk register scenarios with likelihood/impact scores, treatment decisions, and review status.
 
+
 The integration authenticates with Vanta OAuth client credentials (created under Settings → Developer Console in Vanta) and supports both the commercial (api.vanta.com) and FedRAMP (api.vanta-gov.com) environments. Evidence uploads require credentials granted the `vanta-api.documents:upload` scope.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Интегрируйте Vanta в рабочий процесс. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.
-
+## Usage Instructions
 
 
-## Действия
+Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.
+
+
+
+
+## Actions
+
 
 ### `vanta_list_frameworks`
 
-Получение списка the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts
 
-#### Вход
+List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `frameworks` | array | Frameworks in the Vanta account |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_framework`
 
-Получение a Vanta compliance framework by ID, including its requirement categories and mapped controls
 
-#### Вход
+Get a Vanta compliance framework by ID, including its requirement categories and mapped controls
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `frameworkId` | string | Да | Unique ID of the framework (например, soc2\) |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `framework` | json | The requested framework with requirement categories |
+
 
 ### `vanta_list_framework_controls`
 
-Получение списка the controls that belong to a specific Vanta compliance framework
 
-#### Вход
+List the controls that belong to a specific Vanta compliance framework
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `frameworkId` | string | Да | Unique ID of the framework (например, soc2\) |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `controls` | array | Controls belonging to the framework |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_controls`
 
-Получение списка the security controls in a Vanta account, optionally filtered by framework
 
-#### Вход
+List the security controls in a Vanta account, optionally filtered by framework
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `frameworkMatchesAny` | string | Нет | Comma-separated framework IDs to filter controls by (например, soc2,iso27001\) |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter controls by \(e.g., soc2,iso27001\) |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `controls` | array | Controls matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_control`
 
-Получение a Vanta security control by ID, including its status and evidence pass/fail counts
 
-#### Вход
+Get a Vanta security control by ID, including its status and evidence pass/fail counts
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `controlId` | string | Да | Unique ID of the control |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `controlId` | string | Yes | Unique ID of the control |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `control` | json | The requested control with status and evidence counts |
+
 
 ### `vanta_list_control_tests`
 
-Получение списка the automated tests mapped to a specific Vanta control
 
-#### Вход
+List the automated tests mapped to a specific Vanta control
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `controlId` | string | Да | Unique ID of the control |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `controlId` | string | Yes | Unique ID of the control |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tests` | array | Tests mapped to the control |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_control_documents`
 
-Получение списка the evidence documents mapped to a specific Vanta control
 
-#### Вход
+List the evidence documents mapped to a specific Vanta control
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `controlId` | string | Да | Unique ID of the control |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `controlId` | string | Yes | Unique ID of the control |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `documents` | array | Documents mapped to the control |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_tests`
 
-Получение списка the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category
 
-#### Вход
+List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `statusFilter` | string | Нет | Filter by test status: OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE |
-| `frameworkFilter` | string | Нет | Filter by framework ID (например, soc2\) |
-| `integrationFilter` | string | Нет | Filter by integration ID (например, aws\) |
-| `controlFilter` | string | Нет | Filter by control ID |
-| `ownerFilter` | string | Нет | Filter by owner user ID |
-| `categoryFilter` | string | Нет | Filter by test category (например, ACCOUNTS_ACCESS, COMPUTERS, INFRASTRUCTURE, POLICIES, VULNERABILITY_MANAGEMENT\) |
-| `isInRollout` | boolean | Нет | Filter by whether the test is in rollout |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `statusFilter` | string | No | Filter by test status: OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE |
+
+| `frameworkFilter` | string | No | Filter by framework ID \(e.g., soc2\) |
+
+| `integrationFilter` | string | No | Filter by integration ID \(e.g., aws\) |
+
+| `controlFilter` | string | No | Filter by control ID |
+
+| `ownerFilter` | string | No | Filter by owner user ID |
+
+| `categoryFilter` | string | No | Filter by test category \(e.g., ACCOUNTS_ACCESS, COMPUTERS, INFRASTRUCTURE, POLICIES, VULNERABILITY_MANAGEMENT\) |
+
+| `isInRollout` | boolean | No | Filter by whether the test is in rollout |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `tests` | array | Tests matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_test`
 
-Получение a Vanta automated compliance test by ID, including its status and remediation info
 
-#### Вход
+Get a Vanta automated compliance test by ID, including its status and remediation info
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `testId` | string | Да | Unique ID of the test (например, test-aws-cloudtrail-enabled\) |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `test` | json | The requested test |
+
 
 ### `vanta_list_test_entities`
 
-Получение списка the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation
 
-#### Вход
+List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `testId` | string | Да | Unique ID of the test (например, test-aws-cloudtrail-enabled\) |
-| `entityStatus` | string | Нет | Filter entities by status: FAILING or DEACTIVATED |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
+
+| `entityStatus` | string | No | Filter entities by status: FAILING or DEACTIVATED |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `entities` | array | Resource entities for the test |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_documents`
 
-Получение списка the evidence documents in a Vanta account, optionally filtered by framework or document status
 
-#### Вход
+List the evidence documents in a Vanta account, optionally filtered by framework or document status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `frameworkMatchesAny` | string | Нет | Comma-separated framework IDs to filter documents by (например, soc2,iso27001\) |
-| `statusMatchesAny` | string | Нет | Comma-separated document statuses to filter by: "Needs document", "Needs update", "Not relevant", "OK" |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter documents by \(e.g., soc2,iso27001\) |
+
+| `statusMatchesAny` | string | No | Comma-separated document statuses to filter by: "Needs document", "Needs update", "Not relevant", "OK" |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `documents` | array | Documents matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_document`
 
-Получение a Vanta evidence document by ID, including its renewal schedule and deactivation status
 
-#### Вход
+Get a Vanta evidence document by ID, including its renewal schedule and deactivation status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `documentId` | string | Да | Unique ID of the document |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `documentId` | string | Yes | Unique ID of the document |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `document` | json | The requested document |
+
 
 ### `vanta_list_document_uploads`
 
-Получение списка the files uploaded to a specific Vanta evidence document
 
-#### Вход
+List the files uploaded to a specific Vanta evidence document
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `documentId` | string | Да | Unique ID of the document |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `documentId` | string | Yes | Unique ID of the document |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `uploads` | array | Files uploaded to the document |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_upload_document_file`
 
+
 Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `documentId` | string | Да | Unique ID of the document to attach the file to |
-| `file` | file | Нет | The evidence file to upload |
-| `fileContent` | string | Нет | Base64-encoded file content \(alternative to file\) |
-| `fileName` | string | Нет | Optional file name override |
-| `mimeType` | string | Нет | MIME type of the file (например, application/pdf\); used when uploading base64 content, since uploaded files already carry their own type |
-| `description` | string | Нет | Description of the uploaded evidence (например, "Q3 access review evidence"\) |
-| `effectiveAtDate` | string | Нет | ISO 8601 date indicating when the document is effective from |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `documentId` | string | Yes | Unique ID of the document to attach the file to |
+
+| `file` | file | No | The evidence file to upload |
+
+| `fileContent` | string | No | Base64-encoded file content \(alternative to file\) |
+
+| `fileName` | string | No | Optional file name override |
+
+| `mimeType` | string | No | MIME type of the file \(e.g., application/pdf\); used when uploading base64 content, since uploaded files already carry their own type |
+
+| `description` | string | No | Description of the uploaded evidence \(e.g., "Q3 access review evidence"\) |
+
+| `effectiveAtDate` | string | No | ISO 8601 date indicating when the document is effective from |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `upload` | json | Metadata of the uploaded file |
+
 
 ### `vanta_download_document_file`
 
+
 Download a file previously uploaded to a Vanta evidence document and store it in execution files
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `documentId` | string | Да | Unique ID of the document |
-| `uploadedFileId` | string | Да | Unique ID of the uploaded file \(from Получение списка Document Uploads\) |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `documentId` | string | Yes | Unique ID of the document |
+
+| `uploadedFileId` | string | Yes | Unique ID of the uploaded file \(from List Document Uploads\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `file` | file | Downloaded file stored in execution files |
+
 | `name` | string | Name of the downloaded file |
+
 | `mimeType` | string | MIME type of the downloaded file |
+
 | `size` | number | Size of the downloaded file in bytes |
+
 
 ### `vanta_submit_document`
 
+
 Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `documentId` | string | Да | Unique ID of the document to submit |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `documentId` | string | Yes | Unique ID of the document to submit |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `documentId` | string | ID of the submitted document |
-| `submitted` | boolean | Указывает,  document collection was submitted |
+
+| `submitted` | boolean | Whether the document collection was submitted |
+
 
 ### `vanta_list_people`
 
-Получение списка the people tracked in a Vanta account with employment status, group membership, and security task completion
 
-#### Вход
+List the people tracked in a Vanta account with employment status, group membership, and security task completion
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `emailAndNameFilter` | string | Нет | Filter people by email address or name |
-| `employmentStatus` | string | Нет | Filter by employment status: UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER |
-| `groupIdsMatchesAny` | string | Нет | Comma-separated group IDs to filter people by |
-| `tasksSummaryStatusMatchesAny` | string | Нет | Comma-separated task summary statuses to filter by: NONE, DUE_SOON, OVERDUE, COMPLETE, PAUSED, OFFBOARDING_DUE_SOON, OFFBOARDING_OVERDUE, OFFBOARDING_COMPLETE |
-| `taskTypeMatchesAny` | string | Нет | Comma-separated task types to filter by: COMPLETE_TRAININGS, ACCEPT_POLICIES, COMPLETE_CUSTOM_TASKS, COMPLETE_CUSTOM_OFFBOARDING_TASKS, INSTALL_DEVICE_MONITORING, COMPLETE_BACKGROUND_CHECKS |
-| `taskStatusMatchesAny` | string | Нет | Comma-separated task statuses to filter by: COMPLETE, DUE_SOON, OVERDUE, NONE |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `emailAndNameFilter` | string | No | Filter people by email address or name |
+
+| `employmentStatus` | string | No | Filter by employment status: UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER |
+
+| `groupIdsMatchesAny` | string | No | Comma-separated group IDs to filter people by |
+
+| `tasksSummaryStatusMatchesAny` | string | No | Comma-separated task summary statuses to filter by: NONE, DUE_SOON, OVERDUE, COMPLETE, PAUSED, OFFBOARDING_DUE_SOON, OFFBOARDING_OVERDUE, OFFBOARDING_COMPLETE |
+
+| `taskTypeMatchesAny` | string | No | Comma-separated task types to filter by: COMPLETE_TRAININGS, ACCEPT_POLICIES, COMPLETE_CUSTOM_TASKS, COMPLETE_CUSTOM_OFFBOARDING_TASKS, INSTALL_DEVICE_MONITORING, COMPLETE_BACKGROUND_CHECKS |
+
+| `taskStatusMatchesAny` | string | No | Comma-separated task statuses to filter by: COMPLETE, DUE_SOON, OVERDUE, NONE |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `people` | array | People matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_person`
 
-Получение a person tracked in Vanta by ID, including employment, leave, and security task status
 
-#### Вход
+Get a person tracked in Vanta by ID, including employment, leave, and security task status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `personId` | string | Да | Unique ID of the person |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `personId` | string | Yes | Unique ID of the person |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `person` | json | The requested person |
+
 
 ### `vanta_list_policies`
 
-Получение списка the security policies in a Vanta account with approval status and version info
 
-#### Вход
+List the security policies in a Vanta account with approval status and version info
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `policies` | array | Policies in the Vanta account |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_policy`
 
-Получение a Vanta security policy by ID, including its approval status and latest approved version documents
 
-#### Вход
+Get a Vanta security policy by ID, including its approval status and latest approved version documents
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `policyId` | string | Да | Unique ID of the policy |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `policyId` | string | Yes | Unique ID of the policy |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `policy` | json | The requested policy |
+
 
 ### `vanta_list_vendors`
 
-Получение списка the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules
 
-#### Вход
+List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `name` | string | Нет | Filter vendors by name |
-| `statusMatchesAny` | string | Нет | Comma-separated vendor statuses to filter by: MANAGED, ARCHIVED, IN_PROCUREMENT |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `name` | string | No | Filter vendors by name |
+
+| `statusMatchesAny` | string | No | Comma-separated vendor statuses to filter by: MANAGED, ARCHIVED, IN_PROCUREMENT |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `vendors` | array | Vendors matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_vendor`
 
-Получение a Vanta vendor by ID, including risk levels, contract details, and authentication info
 
-#### Вход
+Get a Vanta vendor by ID, including risk levels, contract details, and authentication info
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `vendorId` | string | Да | Unique ID of the vendor |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `vendorId` | string | Yes | Unique ID of the vendor |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `vendor` | json | The requested vendor |
+
 
 ### `vanta_list_monitored_computers`
 
-Получение списка the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes
 
-#### Вход
+List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `complianceStatusFilterMatchesAny` | string | Нет | Comma-separated compliance issues to filter by: PWM_NOT_INSTALLED, HD_NOT_ENCRYPTED, AV_NOT_INSTALLED, SCREENLOCK_NOT_CONFIGURED, LAST_CHECK_OVER_14_DAYS |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `complianceStatusFilterMatchesAny` | string | No | Comma-separated compliance issues to filter by: PWM_NOT_INSTALLED, HD_NOT_ENCRYPTED, AV_NOT_INSTALLED, SCREENLOCK_NOT_CONFIGURED, LAST_CHECK_OVER_14_DAYS |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `computers` | array | Monitored computers matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_vulnerabilities`
 
-Получение списка the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration
 
-#### Вход
+List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `q` | string | Нет | Search query for vulnerabilities |
-| `severity` | string | Нет | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
-| `isFixAvailable` | boolean | Нет | Filter by whether a fix is available |
-| `isDeactivated` | boolean | Нет | Filter by whether vulnerability monitoring is deactivated |
-| `includeVulnerabilitiesWithoutSlas` | boolean | Нет | Include vulnerabilities that have no SLA deadline |
-| `packageIdentifier` | string | Нет | Filter by the affected package identifier |
-| `externalVulnerabilityId` | string | Нет | Filter by external vulnerability ID (например, a CVE identifier\) |
-| `integrationId` | string | Нет | Filter by the integration that detected the vulnerability |
-| `vulnerableAssetId` | string | Нет | Filter by the vulnerable asset ID |
-| `slaDeadlineAfterDate` | string | Нет | Only include vulnerabilities with an SLA deadline after this ISO 8601 date |
-| `slaDeadlineBeforeDate` | string | Нет | Only include vulnerabilities with an SLA deadline before this ISO 8601 date |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `q` | string | No | Search query for vulnerabilities |
+
+| `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
+
+| `isFixAvailable` | boolean | No | Filter by whether a fix is available |
+
+| `isDeactivated` | boolean | No | Filter by whether vulnerability monitoring is deactivated |
+
+| `includeVulnerabilitiesWithoutSlas` | boolean | No | Include vulnerabilities that have no SLA deadline |
+
+| `packageIdentifier` | string | No | Filter by the affected package identifier |
+
+| `externalVulnerabilityId` | string | No | Filter by external vulnerability ID \(e.g., a CVE identifier\) |
+
+| `integrationId` | string | No | Filter by the integration that detected the vulnerability |
+
+| `vulnerableAssetId` | string | No | Filter by the vulnerable asset ID |
+
+| `slaDeadlineAfterDate` | string | No | Only include vulnerabilities with an SLA deadline after this ISO 8601 date |
+
+| `slaDeadlineBeforeDate` | string | No | Only include vulnerabilities with an SLA deadline before this ISO 8601 date |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `vulnerabilities` | array | Vulnerabilities matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_vulnerability_remediations`
 
-Получение списка remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates
 
-#### Вход
+List remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `integrationId` | string | Нет | Filter by the integration that detected the vulnerability |
-| `severity` | string | Нет | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
-| `isRemediatedOnTime` | boolean | Нет | Filter by whether the vulnerability was remediated before its SLA deadline |
-| `remediatedAfterDate` | string | Нет | Only include remediations completed after this ISO 8601 date |
-| `remediatedBeforeDate` | string | Нет | Only include remediations completed before this ISO 8601 date |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `integrationId` | string | No | Filter by the integration that detected the vulnerability |
+
+| `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
+
+| `isRemediatedOnTime` | boolean | No | Filter by whether the vulnerability was remediated before its SLA deadline |
+
+| `remediatedAfterDate` | string | No | Only include remediations completed after this ISO 8601 date |
+
+| `remediatedBeforeDate` | string | No | Only include remediations completed before this ISO 8601 date |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `remediations` | array | Vulnerability remediations matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_list_vulnerable_assets`
 
-Получение списка the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)
 
-#### Вход
+List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `q` | string | Нет | Search query for vulnerable assets |
-| `integrationId` | string | Нет | Filter by the integration scanning the asset |
-| `assetType` | string | Нет | Filter by asset type: SERVER, SERVERLESS_FUNCTION, CONTAINER, CONTAINER_REPOSITORY, CONTAINER_REPOSITORY_IMAGE, CODE_REPOSITORY, MANIFEST_FILE, WORKSTATION, or OTHER |
-| `assetExternalAccountId` | string | Нет | Filter by the external account ID the asset belongs to |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `q` | string | No | Search query for vulnerable assets |
+
+| `integrationId` | string | No | Filter by the integration scanning the asset |
+
+| `assetType` | string | No | Filter by asset type: SERVER, SERVERLESS_FUNCTION, CONTAINER, CONTAINER_REPOSITORY, CONTAINER_REPOSITORY_IMAGE, CODE_REPOSITORY, MANIFEST_FILE, WORKSTATION, or OTHER |
+
+| `assetExternalAccountId` | string | No | Filter by the external account ID the asset belongs to |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `assets` | array | Vulnerable assets matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_vulnerable_asset`
 
-Получение a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details
 
-#### Вход
+Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `vulnerableAssetId` | string | Да | Unique ID of the vulnerable asset |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `vulnerableAssetId` | string | Yes | Unique ID of the vulnerable asset |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `asset` | json | The requested vulnerable asset |
+
 
 ### `vanta_list_risk_scenarios`
 
-Получение списка the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status
 
-#### Вход
+List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `searchString` | string | Нет | Search string to filter risk scenarios |
-| `includeIgnored` | boolean | Нет | Include ignored risk scenarios |
-| `type` | string | Нет | Filter by scenario type: "Risk Scenario" or "Enterprise Risk" |
-| `ownerMatchesAny` | string | Нет | Comma-separated owner emails to filter by |
-| `categoryMatchesAny` | string | Нет | Comma-separated risk categories to filter by |
-| `ciaCategoryMatchesAny` | string | Нет | Comma-separated CIA categories to filter by: Confidentiality, Integrity, Availability |
-| `treatmentTypeMatchesAny` | string | Нет | Comma-separated treatments to filter by: Mitigate, Transfer, Avoid, Accept |
-| `inherentScoreGroupMatchesAny` | string | Нет | Comma-separated inherent score groups to filter by: "Very low", Low, Med, High, Critical |
-| `residualScoreGroupMatchesAny` | string | Нет | Comma-separated residual score groups to filter by: "Very low", Low, Med, High, Critical |
-| `reviewStatusMatchesAny` | string | Нет | Comma-separated review statuses to filter by: APPROVED, DRAFT, NOT_REVIEWED, AWAITING_SUBMISSION, PENDING_APPROVAL, REQUESTED_CHANGES |
-| `orderBy` | string | Нет | Field to order results by: description or createdAt |
-| `pageSize` | number | Нет | Maximum number of items per page \(1-100, по умолчанию 10\) |
-| `pageCursor` | string | Нет | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `searchString` | string | No | Search string to filter risk scenarios |
+
+| `includeIgnored` | boolean | No | Include ignored risk scenarios |
+
+| `type` | string | No | Filter by scenario type: "Risk Scenario" or "Enterprise Risk" |
+
+| `ownerMatchesAny` | string | No | Comma-separated owner emails to filter by |
+
+| `categoryMatchesAny` | string | No | Comma-separated risk categories to filter by |
+
+| `ciaCategoryMatchesAny` | string | No | Comma-separated CIA categories to filter by: Confidentiality, Integrity, Availability |
+
+| `treatmentTypeMatchesAny` | string | No | Comma-separated treatments to filter by: Mitigate, Transfer, Avoid, Accept |
+
+| `inherentScoreGroupMatchesAny` | string | No | Comma-separated inherent score groups to filter by: "Very low", Low, Med, High, Critical |
+
+| `residualScoreGroupMatchesAny` | string | No | Comma-separated residual score groups to filter by: "Very low", Low, Med, High, Critical |
+
+| `reviewStatusMatchesAny` | string | No | Comma-separated review statuses to filter by: APPROVED, DRAFT, NOT_REVIEWED, AWAITING_SUBMISSION, PENDING_APPROVAL, REQUESTED_CHANGES |
+
+| `orderBy` | string | No | Field to order results by: description or createdAt |
+
+| `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
+
+| `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `riskScenarios` | array | Risk scenarios matching the filters |
+
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+
 
 ### `vanta_get_risk_scenario`
 
-Получение a Vanta risk scenario by ID, including its scores, treatment decision, and review status
 
-#### Вход
+Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Да | Vanta OAuth application client ID |
-| `clientSecret` | string | Да | Vanta OAuth application client secret |
-| `region` | string | Нет | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
-| `riskScenarioId` | string | Да | Unique ID of the risk scenario |
 
-#### Выход
+| `clientId` | string | Yes | Vanta OAuth application client ID |
+
+| `clientSecret` | string | Yes | Vanta OAuth application client secret |
+
+| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
+
+| `riskScenarioId` | string | Yes | Unique ID of the risk scenario |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `riskScenario` | json | The requested risk scenario |
+
 
 

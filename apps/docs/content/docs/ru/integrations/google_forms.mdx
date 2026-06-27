@@ -1,6 +1,6 @@
 ---
-title: Google Forms
-description: Управление Google Forms и ответами
+title: Формы Google
+description: Управляйте формами Google и ответами
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,282 +10,487 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
+
 [Google Forms](https://forms.google.com) is Google's online survey and form tool that allows users to create forms, collect responses, and analyze results. As part of Google's productivity suite, Google Forms makes it easy to gather information, feedback, and data from users.
+
 
 Learn how to integrate the Google Forms tool in Sim to automatically read and process form responses in your workflows. This tutorial walks you through connecting Google Forms, retrieving responses, and using collected data to power automation. Perfect for syncing survey results, registrations, or feedback with your agents in real-time.
 
+
 With Google Forms, you can:
 
+
 - **Create surveys and forms**: Design custom forms for feedback, registration, quizzes, and more
+
 - **Collect responses automatically**: Gather data from users in real-time
+
 - **Analyze results**: View responses in Google Forms or export to Google Sheets for further analysis
+
 - **Collaborate easily**: Share forms and work with others to build and review questions
+
 - **Integrate with other Google services**: Connect with Google Sheets, Drive, and more
 
+
 In Sim, the Google Forms integration enables your agents to programmatically access form responses. This allows for powerful automation scenarios such as processing survey data, triggering workflows based on new submissions, and syncing form results with other tools. Your agents can fetch all responses for a form, retrieve a specific response, and use the data to drive intelligent automation. By connecting Sim with Google Forms, you can automate data collection, streamline feedback processing, and incorporate form responses into your agent's capabilities.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интеграция Google Forms в ваш рабочий процесс. Чтение структуры форм, получение ответов, создание форм, обновление содержимого и управление отслеживанием уведомлений.
+
+Интегрируйте Google Forms в свой рабочий процесс. Читайте структуру формы, получайте ответы, создавайте формы, обновляйте контент и управляйте уведомлениями.
+
 
 
 
 ## Действия
 
+
 ### `google_forms_get_responses`
 
-Retrieve a single response or list responses from a Google Form
 
-#### Входные параметры
+Получите один ответ или список ответов из Google Form
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
-| `responseId` | string | Нет | Response ID - if provided, returns this specific response |
-| `pageSize` | number | Нет | Maximum number of responses to return \(service may return fewer\). Defaults to 5000. |
-| `pageToken` | string | Нет | Page token from a previous list response to fetch the next page of responses |
-| `filter` | string | Нет | Filter responses, e.g. "timestamp &gt; 2024-01-01T00:00:00Z" \(RFC3339 UTC\). Only timestamp filters are supported. |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+| `responseId` | строка | Нет | ID ответа - если указано, возвращает этот конкретный ответ |
+
+| `pageSize` | число | Нет | Максимальное количество ответов для возврата (сервис может вернуть меньше) Значение по умолчанию: 5000. |
+
+| `pageToken` | строка | Нет | Токен страницы из предыдущего ответа для получения следующей страницы ответов |
+
+| `filter` | строка | Нет | Фильтруйте ответы, например, "timestamp &gt; 2024-01-01T00:00:00Z" (RFC3339 UTC). Поддерживаются только фильтры по времени. |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `responses` | array | Array of form responses \(when no responseId provided\) |
-|   ↳ `responseId` | string | Unique response ID |
-|   ↳ `createTime` | string | When the response was created |
-|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
-|   ↳ `answers` | json | Map of question IDs to answer values |
-| `nextPageToken` | string | Token to fetch the next page of responses \(null when no more pages\) |
-| `response` | object | Single form response \(when responseId is provided\) |
-|   ↳ `responseId` | string | Unique response ID |
-|   ↳ `createTime` | string | When the response was created |
-|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
-|   ↳ `answers` | json | Map of question IDs to answer values |
-| `raw` | json | Raw API response data |
+
+| `responses` | массив | Массив ответов формы (если не указан responseId) |
+
+|   ↳ `responseId` | строка | Уникальный ID ответа |
+
+|   ↳ `createTime` | строка | Когда был создан ответ |
+
+|   ↳ `lastSubmittedTime` | строка | Когда последний раз отправлялся ответ |
+
+|   ↳ `answers` | json | Карта ID вопросов к значениям ответов |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы ответов (null, если больше нет страниц) |
+
+| `response` | объект | Один ответ формы (если предоставлен responseId) |
+
+|   ↳ `responseId` | строка | Уникальный ID ответа |
+
+|   ↳ `createTime` | строка | Когда был создан ответ |
+
+|   ↳ `lastSubmittedTime` | строка | Когда последний раз отправлялся ответ |
+
+|   ↳ `answers` | json | Карта ID вопросов к значениям ответов |
+
+| `raw` | json | Сырые данные API |
+
 
 ### `google_forms_get_form`
 
-Retrieve a form structure including its items, settings, and metadata
 
-#### Входные параметры
+Получите структуру формы, включая ее элементы, настройки и метаданные
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID to retrieve |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms для получения |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `formId` | string | The form ID |
-| `title` | string | The form title visible to responders |
-| `description` | string | The form description |
-| `documentTitle` | string | The document title visible in Drive |
-| `responderUri` | string | The URI to share with responders |
-| `linkedSheetId` | string | The ID of the linked Google Sheet |
-| `revisionId` | string | The revision ID of the form |
-| `items` | array | The form items \(questions, sections, etc.\) |
-|   ↳ `itemId` | string | Item ID |
-|   ↳ `title` | string | Item title |
-|   ↳ `description` | string | Item description |
-| `settings` | json | Form settings |
-| `publishSettings` | json | Form publish settings |
+
+| `formId` | строка | ID формы |
+
+| `title` | строка | Название формы, видимое отвечающим |
+
+| `description` | строка | Описание формы |
+
+| `documentTitle` | строка | Название документа, видимого в Drive |
+
+| `responderUri` | строка | URI для обмена с отвечающими |
+
+| `linkedSheetId` | строка | ID связанной Google Sheet |
+
+| `revisionId` | строка | Revision ID формы |
+
+| `items` | массив | Элементы формы (вопросы, разделы и т.д.) |
+
+|   ↳ `itemId` | строка | ID элемента |
+
+|   ↳ `title` | строка | Название элемента |
+
+|   ↳ `description` | строка | Описание элемента |
+
+| `settings` | json | Настройки формы |
+
+| `publishSettings` | json | Настройки публикации формы |
+
 
 ### `google_forms_create_form`
 
-Create a new Google Form with a title
 
-#### Входные параметры
+Создайте новую форму Google с названием
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `title` | string | Да | The title of the form visible to responders |
-| `documentTitle` | string | Нет | The document title visible in Drive \(defaults to form title\) |
-| `unpublished` | boolean | Нет | If true, create an unpublished form that does not accept responses |
 
-#### Выходные параметры
+| `title` | строка | Да | Название формы, видимое отвечающим |
+
+| `documentTitle` | строка | Нет | Название документа, видимое в Drive (по умолчанию - название формы) |
+
+| `unpublished` | boolean | Нет | Если true, создайте незавершенную форму, которая не принимает ответы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `formId` | string | The ID of the created form |
-| `title` | string | The form title |
-| `documentTitle` | string | The document title in Drive |
-| `responderUri` | string | The URI to share with responders |
-| `revisionId` | string | The revision ID of the form |
+
+| `formId` | строка | ID созданной формы |
+
+| `title` | строка | Название формы |
+
+| `documentTitle` | строка | Название документа в Drive |
+
+| `responderUri` | строка | URI для обмена с отвечающими |
+
+| `revisionId` | строка | Revision ID формы |
+
 
 ### `google_forms_batch_update`
 
-Apply multiple updates to a form (add items, update info, change settings, etc.)
 
-#### Входные параметры
+Примените несколько обновлений к форме (создайте элементы, обновите информацию, измените настройки и т.д.)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
-| `requests` | json | Да | Array of update requests \(updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem\) |
-| `includeFormInResponse` | boolean | Нет | Whether to return the updated form in the response |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+| `requests` | json | Да | Массив запросов на обновление (updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem) |
+
+| `includeFormInResponse` | boolean | Нет | Если true, включить обновленную форму в ответ |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `replies` | array | The replies from each update request |
-| `writeControl` | object | Write control information with revision IDs |
-|   ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
-|   ↳ `targetRevisionId` | string | Target revision ID |
-| `form` | object | The updated form \(if includeFormInResponse was true\) |
-|   ↳ `formId` | string | The form ID |
-|   ↳ `info` | object | Form info containing title and description |
-|     ↳ `title` | string | The form title visible to responders |
-|     ↳ `description` | string | The form description |
-|     ↳ `documentTitle` | string | The document title visible in Drive |
-|   ↳ `settings` | object | Form settings |
-|     ↳ `quizSettings` | object | Quiz settings |
-|       ↳ `isQuiz` | boolean | Whether the form is a quiz |
-|     ↳ `emailCollectionType` | string | Email collection type |
-|   ↳ `revisionId` | string | The revision ID of the form |
-|   ↳ `responderUri` | string | The URI to share with responders |
-|   ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
-|   ↳ `publishSettings` | object | Form publish settings |
-|     ↳ `publishState` | object | Current publish state |
-|       ↳ `isPublished` | boolean | Whether the form is published |
-|       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
+
+| `replies` | массив | Ответы на каждый запрос обновления |
+
+| `writeControl` | объект | Информация о контроле записи с Revision ID |
+
+|   ↳ `requiredRevisionId` | строка | Требуемый Revision ID для обнаружения конфликтов |
+
+|   ↳ `targetRevisionId` | строка | Целевой Revision ID |
+
+| `form` | объект | Обновленная форма (если включено includeFormInResponse) |
+
+|   ↳ `formId` | строка | ID формы |
+
+|   ↳ `info` | объект | Информация о форме, содержащая название и описание |
+
+|     ↳ `title` | строка | Название формы, видимое отвечающим |
+
+|     ↳ `description` | строка | Описание формы |
+
+|     ↳ `documentTitle` | строка | Название документа в Drive |
+
+|   ↳ `settings` | объект | Настройки формы |
+
+|     ↳ `quizSettings` | объект | Настройки викторины |
+
+|       ↳ `isQuiz` | boolean | Является ли форма викториной |
+
+|   ↳ `emailCollectionType` | строка | Тип сбора электронной почты |
+
+|   ↳ `revisionId` | строка | Revision ID формы |
+
+|   ↳ `responderUri` | строка | URI для обмена с отвечающими |
+
+|   ↳ `linkedSheetId` | строка | ID связанной Google Sheet |
+
+|   ↳ `publishSettings` | объект | Настройки публикации формы |
+
+|     ↳ `publishState` | объект | Состояние публикации |
+
+|       ↳ `isPublished` | boolean | Является ли форма опубликованной |
+
+|       ↳ `isAcceptingResponses` | boolean | Принимает ли форма ответы |
+
 
 ### `google_forms_set_publish_settings`
 
-Update the publish settings of a form (publish/unpublish, accept responses)
 
-#### Входные параметры
+Обновите настройки публикации формы (опубликовать/отменить публикацию, принимать ответы)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
-| `isPublished` | boolean | Да | Whether the form is published and visible to others |
-| `isAcceptingResponses` | boolean | Нет | Whether the form accepts responses \(forced to false if isPublished is false\) |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+| `isPublished` | boolean | Да | Является ли форма опубликованной и видимой для других |
+
+| `isAcceptingResponses` | boolean | Нет | Принимает ли форма ответы (обязательно false, если isPublished false) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `formId` | string | The form ID |
-| `publishSettings` | json | The updated publish settings |
-|   ↳ `publishState` | object | The publish state |
-|     ↳ `isPublished` | boolean | Whether the form is published |
-|     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
+
+| `formId` | строка | ID формы |
+
+| `publishSettings` | json | Обновленные настройки публикации |
+
+|   ↳ `publishState` | объект | Состояние публикации |
+
+|     ↳ `isPublished` | boolean | Является ли форма опубликованной |
+
+|     ↳ `isAcceptingResponses` | boolean | Принимает ли форма ответы |
+
 
 ### `google_forms_create_watch`
 
-Create a notification watch for form changes (schema changes or new responses)
 
-#### Входные параметры
+Создайте уведомление о изменениях в форме (изменения схемы или новые ответы)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID to watch |
-| `eventType` | string | Да | Event type to watch: SCHEMA \(form changes\) or RESPONSES \(new submissions\) |
-| `topicName` | string | Да | The Cloud Pub/Sub topic name \(format: projects/\{project\}/topics/\{topic\}\) |
-| `watchId` | string | Нет | Custom watch ID \(4-63 chars, lowercase letters, numbers, hyphens\) |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms для наблюдения |
+
+| `eventType` | строка | Да | Тип события для наблюдения: SCHEMA (изменения схемы) или RESPONSES (новые отправки) |
+
+| `topicName` | строка | Да | Название Cloud Pub/Sub темы (формат: projects/\{project\}/topics/\{topic\}) |
+
+| `watchId` | строка | Нет | Пользовательский ID наблюдения (4-63 символа, строчные буквы, цифры, дефисы) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | The watch ID |
-| `eventType` | string | The event type being watched |
-| `topicName` | string | The Cloud Pub/Sub topic |
-| `createTime` | string | When the watch was created |
-| `expireTime` | string | When the watch expires \(7 days after creation\) |
-| `state` | string | The watch state \(ACTIVE, SUSPENDED\) |
+
+| `id` | строка | ID наблюдения |
+
+| `eventType` | строка | Тип события, которое наблюдается |
+
+| `topicName` | строка | Название Cloud Pub/Sub темы |
+
+| `createTime` | строка | Когда было создано наблюдение |
+
+| `expireTime` | строка | Когда истекает наблюдение (через 7 дней после создания) |
+
+| `state` | строка | Состояние наблюдения (ACTIVE, SUSPENDED) |
+
 
 ### `google_forms_list_watches`
 
-List all notification watches for a form
 
-#### Входные параметры
+Перечислите все уведомления о изменениях для формы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `watches` | array | List of watches for the form |
-|   ↳ `id` | string | Watch ID |
-|   ↳ `eventType` | string | Event type \(SCHEMA or RESPONSES\) |
-|   ↳ `createTime` | string | When the watch was created |
-|   ↳ `expireTime` | string | When the watch expires |
-|   ↳ `state` | string | Watch state |
+
+| `watches` | массив | Список наблюдений для формы |
+
+|   ↳ `id` | строка | ID наблюдения |
+
+|   ↳ `eventType` | строка | Тип события (SCHEMA или RESPONSES) |
+
+|   ↳ `createTime` | строка | Когда было создано наблюдение |
+
+|   ↳ `expireTime` | строка | Когда истекает наблюдение |
+
+|   ↳ `state` | строка | Состояние наблюдения |
+
 
 ### `google_forms_delete_watch`
 
-Delete a notification watch from a form
 
-#### Входные параметры
+Удалите уведомление о изменениях для формы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
-| `watchId` | string | Да | Watch ID to delete |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+| `watchId` | строка | Да | ID наблюдения, которое нужно удалить |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the watch was successfully deleted |
+
+| `deleted` | boolean | Является ли наблюдение успешно удалено |
+
 
 ### `google_forms_renew_watch`
 
-Renew a notification watch for another 7 days
 
-#### Входные параметры
+Обновите уведомление о изменениях для формы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Google Forms form ID |
-| `watchId` | string | Да | Watch ID to renew |
 
-#### Выходные параметры
+| `formId` | строка | Да | ID формы Google Forms |
+
+| `watchId` | строка | Да | ID наблюдения, которое нужно обновить |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | The watch ID |
-| `eventType` | string | The event type being watched |
-| `expireTime` | string | The new expiration time |
-| `state` | string | The watch state |
+
+| `id` | строка | ID наблюдения |
+
+| `eventType` | строка | Тип события, которое наблюдается |
+
+| `expireTime` | строка | Новое время истечения срока действия |
+
+| `state` | строка | Состояние наблюдения |
+
 
 
 
 ## Triggers
 
+
 A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 ### Google Forms Webhook
 
+
 Trigger workflow from Google Form submissions (via Apps Script forwarder)
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `token` | string | Да | We validate requests using this secret. Send it as Authorization: Bearer &lt;token&gt; or a custom header. |
-| `secretHeaderName` | string | Нет | If set, the webhook will validate this header equals your Shared Secret instead of Authorization. |
-| `triggerFormId` | string | Нет | Optional, for clarity and matching in workflows. Not required for webhook to work. |
-| `includeRawPayload` | boolean | Нет | Include the original payload from Apps Script in the workflow input. |
-| `setupScript` | string | Нет | Copy this code and paste it into your Google Forms Apps Script editor |
 
-#### Выходные параметры
+| `token` | string | Yes | We validate requests using this secret. Send it as Authorization: Bearer &lt;token&gt; or a custom header. |
 
-| Параметр | Тип | Описание |
+| `secretHeaderName` | string | No | If set, the webhook will validate this header equals your Shared Secret instead of Authorization. |
+
+| `triggerFormId` | string | No | Optional, for clarity and matching in workflows. Not required for webhook to work. |
+
+| `includeRawPayload` | boolean | No | Include the original payload from Apps Script in the workflow input. |
+
+| `setupScript` | string | No | Copy this code and paste it into your Google Forms Apps Script editor |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `responseId` | string | Unique response identifier \(if available\) |
+
 | `createTime` | string | Response creation timestamp |
+
 | `lastSubmittedTime` | string | Last submitted timestamp |
+
 | `formId` | string | Google Form ID |
+
 | `answers` | object | Normalized map of question -&gt; answer |
+
 | `raw` | object | Original payload \(when enabled\) |
+
 

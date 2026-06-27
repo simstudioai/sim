@@ -1,23 +1,19 @@
 {
   "name": "@sim/universal-integrator",
-  "version": "7.0.0",
+  "version": "8.0.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
-  "description": "Deterministic integration generator (DeepSeek API) - chain of algorithms that GUARANTEES complete API coverage",
+  "description": "Deterministic integration generator (local LLM) — chain of algorithms that GUARANTEES complete API coverage",
   "bin": {
     "sim-integrate": "./src/index.ts"
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "integrate": "bun run src/index.ts"
+    "integrate": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@langchain/core": "^0.2.0",
-    "@langchain/langgraph": "^1.4.4",
-    "@langchain/openai": "^0.1.0",
-    "langchain": "^0.2.0",
-    "openai": "^4.52.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 ---
 title: Agiloft
-description: Управляйте данными в системе Agiloft CLM.
+description: Управление данными в системе Agiloft CLM
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,150 +10,599 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#001028"
 />
 
-{/* НАЧАЛО РУЧНОГО СОДЕРЖИЯ: введение */}
-[Agiloft](https://www.agiloft.com/)Agilofthttps://www.agiloft.com/является платформой для управления жизненным циклом контрактов в масштабе предприятия, которая помогает организациям автоматизировать и управлять контрактами, соглашениями и связанными с ними бизнес-процессами в любой базе знаний.
 
-При интеграции с Agiloft в Sim, вы можете:
+{/* MANUAL-CONTENT-START:intro */}
 
-- **Создавайте записи:** Добавляйте новые записи в любую таблицу Agiloft с использованием пользовательских значений полей.- **Прочитать записи:** Получить отдельные записи по идентификатору, с возможностью выбора дополнительных полей.- **Обновление записей:** Изменение полей существующих записей в любой таблице.- **Удаление записей:** Удалите записи из вашей базы знаний.- **Поиск записей:** Находите записи с использованием синтаксиса запросов Agiloft, с поддержкой постраничной навигации.- **Выбор записей:** Используйте операторы SQL WHERE для выполнения запросов и фильтрации данных.- **Сохраненные запросы:** Список определений сохранённых запросов для таблицы.- **Прикрепить файлы:** Загрузите и прикрепите файлы к соответствующим полям.- **Получение вложений:** Скачивание файлов из полей записи.- **Удалить вложения:** Удалите прикрепленные файлы из полей записи, используя их позицию.- **Информация об вложениях:** Получите метаданные обо всех файлах, прикрепленных к определенному полю записи.- **Блокировать записи:** Проверять, получать или освобождать блоки на записях для одновременного редактирования.
-В системе Sim интеграция с Agiloft позволяет вашим агентам управлять контрактами и документами программно в рамках автоматизированных рабочих процессов. Агенты могут создавать и обновлять документы, искать информацию по таблицам, обрабатывать прикрепленные файлы и управлять блокировками документов — что обеспечивает интеллектуальную автоматизацию жизненного цикла контрактов.
-{/* КОНЕЦ_МАНУАЛЬНОГО_СОДЕРЖИЯ */}
+[Agiloft](https://www.agiloft.com/) is an enterprise contract lifecycle management (CLM) platform that helps organizations automate and manage contracts, agreements, and related business processes across any knowledge base.
 
 
-## Инструкция по применению
-Интегрируйтесь с системой управления жизненным циклом контрактов Agiloft для создания, чтения, обновления, удаления и поиска записей. Поддерживает прикрепление файлов, выбор на основе SQL, сохраненные запросы и блокировку записей в любой таблице вашей базы знаний.
+With the Agiloft integration in Sim, you can:
+
+
+- **Create records**: Add new records to any Agiloft table with custom field values
+
+- **Read records**: Retrieve individual records by ID with optional field selection
+
+- **Update records**: Modify existing record fields in any table
+
+- **Delete records**: Remove records from your knowledge base
+
+- **Search records**: Find records using Agiloft's query syntax with pagination support
+
+- **Select records**: Query records using SQL WHERE clauses for advanced filtering
+
+- **Saved searches**: List saved search definitions available for a table
+
+- **Attach files**: Upload and attach files to record fields
+
+- **Retrieve attachments**: Download attached files from record fields
+
+- **Remove attachments**: Delete attached files from record fields by position
+
+- **Attachment info**: Get metadata about all files attached to a record field
+
+- **Lock records**: Check, acquire, or release locks on records for concurrent editing
+
+
+In Sim, the Agiloft integration enables your agents to manage contracts and records programmatically as part of automated workflows. Agents can create and update records, search across tables, handle file attachments, and manage record locks — enabling intelligent contract lifecycle automation.
+
+{/* MANUAL-CONTENT-END */}
+
+
+
+## Использование
+
+
+Интегрируйтесь с Agiloft для управления жизненным циклом контрактов, создания, чтения, обновления и удаления записей. Поддерживает прикрепление файлов, выбор на основе SQL, сохраненные запросы и блокировку записей в любой таблице вашей базы знаний.
+
 
 
 
 ## Действия
+
+
 ### `agiloft_attach_file`
 
-Прикрепите файл к полю в записи в системе Agiloft.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |  ||  | `knowledgeBase` | строка | Да | Название базы знаний |  ||  | `login` | строка | Да | Имя пользователя для Agiloft |  ||  | `password` | строка | Да | Пароль для Agiloft |  ||  | `table` | строка | Да | Имя таблицы (например, «договоры») |  ||  | `recordId` | строка | Да | Идентификатор записи, к которой нужно прикрепить файл. |  ||  | `fieldName` | строка | Да | Название поля для прикрепленного файла |  ||  | `file` | файл | Нет | File to attach |  ||  | `fileName` | string | No | Name to assign to the file \(defaults to original file name\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `recordId` | string | ID of the record the file was attached to |  ||  | `fieldName` | string | Name of the field the file was attached to |  ||  | `fileName` | string | Name of the attached file |  ||  | `totalAttachments` | number | Total number of files attached in the field after the operation |  |
+Прикрепите файл к полю в записи Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+| `recordId` | строка | Да | ID записи для прикрепления файла |
+
+| `fieldName` | строка | Да | Название поля для прикрепления |
+
+| `file` | файл | Нет | Файл для прикрепления |
+
+| `fileName` | строка | Нет | Имя, которое нужно присвоить файлу (по умолчанию имя исходного файла) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `recordId` | строка | ID записи, к которой был прикреплен файл |
+
+| `fieldName` | строка | Название поля, в которое был прикреплен файл |
+
+| `fileName` | строка | Имя прикрепленного файла |
+
+| `totalAttachments` | число | Общее количество файлов, прикрепленных к полю после операции |
+
+
 ### `agiloft_attachment_info`
 
-Get information about file attachments on a record field.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts"\) |  ||  | `recordId` | string | Yes | ID of the record to check attachments on |  ||  | `fieldName` | string | Yes | Name of the attachment field to inspect |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `attachments` | array | List of attachments with position, name, and size |  ||  | ↳ `position` | number | Position index of the attachment in the field |  ||  | ↳ `name` | string | File name of the attachment |  ||  | ↳ `size` | number | File size in bytes |  ||  | `totalCount` | number | Total number of attachments in the field |  |
+Получите информацию об прикрепленных файлах в поле записи.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+| `recordId` | строка | Да | ID записи для проверки прикреплений |
+
+| `fieldName` | строка | Да | Название поля с прикрепленными файлами для проверки |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `attachments` | массив | Список прикрепленных файлов с позицией, именем и размером |
+
+|   ↳ `position` | число | Индекс позиции файла в поле |
+
+|   ↳ `name` | строка | Имя файла |
+
+|   ↳ `size` | число | Размер файла в байтах |
+
+| `totalCount` | число | Общее количество файлов, прикрепленных к полю |
+
+
 ### `agiloft_create_record`
 
-Create a new record in an Agiloft table.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |  ||  | `data` | string | Yes | Record field values as a JSON object \(e.g., \{"first_name": "John", "status": "Active"\}\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `id` | string | ID of the created record |  ||  | `fields` | json | Field values of the created record |  |
+Создайте новую запись в таблице Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts", "contacts.employees") |
+
+| `data` | строка | Да | Значения полей записи в формате JSON (например, {"first_name": "John", "status": "Active"}) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `id` | строка | ID созданной записи |
+
+| `fields` | json | Значения полей созданной записи |
+
+
 ### `agiloft_delete_record`
 
-Delete a record from an Agiloft table.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |  ||  | `recordId` | string | Yes | ID of the record to delete |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `id` | string | ID of the deleted record |  ||  | `deleted` | boolean | Whether the record was successfully deleted |  |
+Удалите запись из таблицы Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts", "contacts.employees") |
+
+| `recordId` | строка | Да | ID записи для удаления |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `id` | строка | ID удаленной записи |
+
+| `deleted` | boolean | Успешно ли была удалена запись |
+
+
 ### `agiloft_get_choice_line_id`
 
-Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "case", "contracts"\) |  ||  | `fieldName` | string | Yes | Choice field name \(e.g., "priority", "status"\) |  ||  | `value` | string | Yes | Choice display value to resolve \(e.g., "High", "Active"\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `choiceLineId` | number | Internal numeric line ID of the choice value |  |
+Получите внутренний числовой ID выбора, используемый в WHERE-клозах для полей выбора.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "case", "contracts") |
+
+| `fieldName` | строка | Да | Название поля выбора (например, "priority", "status") |
+
+| `value` | строка | Да | Значение выбора для разрешения (например, "High", "Active") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `choiceLineId` | число | Внутренний числовой ID значения выбора |
+
+
 ### `agiloft_lock_record`
 
-Lock, unlock, or check the lock status of an Agiloft record.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts"\) |  ||  | `recordId` | string | Yes | ID of the record to lock, unlock, or check |  ||  | `lockAction` | string | Yes | Action to perform: "lock", "unlock", or "check" |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `id` | string | Record ID |  ||  | `lockStatus` | string | Lock status \(e.g., "LOCKED", "UNLOCKED"\) |  ||  | `lockedBy` | string | Username of the user who locked the record |  ||  | `lockExpiresInMinutes` | number | Minutes until the lock expires |  |
+Заблокируйте, разблокируйте или проверьте статус блокировки записи в Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+| `recordId` | строка | Да | ID записи для блокировки, разблокировки или проверки |
+
+| `lockAction` | строка | Да | Действие: "lock", "unlock" или "check" |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `id` | строка | ID записи |
+
+| `lockStatus` | строка | Статус блокировки (например, "LOCKED", "UNLOCKED") |
+
+| `lockedBy` | строка | Имя пользователя, заблокировавшего запись |
+
+| `lockExpiresInMinutes` | число | Количество минут до истечения срока блокировки |
+
+
 ### `agiloft_read_record`
 
-Read a record by ID from an Agiloft table.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |  ||  | `recordId` | string | Yes | ID of the record to read |  ||  | `fields` | string | No | Comma-separated list of field names to include in the response |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `id` | string | ID of the record |  ||  | `fields` | json | Field values of the record |  |
+Прочитайте запись по ID в таблице Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts", "contacts.employees") |
+
+| `recordId` | строка | Да | ID записи для чтения |
+
+| `fields` | строка | Нет | Список полей, которые нужно включить в ответ, разделенных запятыми |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `id` | строка | ID записи |
+
+| `fields` | json | Значения полей записи |
+
+
 ### `agiloft_remove_attachment`
 
-Remove an attached file from a field in an Agiloft record.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts"\) |  ||  | `recordId` | string | Yes | ID of the record containing the attachment |  ||  | `fieldName` | string | Yes | Name of the attachment field |  ||  | `position` | string | Yes | Position index of the file to remove \(starting from 0\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `recordId` | string | ID of the record |  ||  | `fieldName` | string | Name of the attachment field |  ||  | `remainingAttachments` | number | Number of attachments remaining in the field after removal |  |
+Удалите прикрепленный файл из поля в записи Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+| `recordId` | строка | Да | ID записи, содержащей прикрепленный файл |
+
+| `fieldName` | строка | Да | Название поля для прикрепленного файла |
+
+| `position` | строка | Да | Индекс позиции файла для удаления (начиная с 0) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `recordId` | строка | ID записи |
+
+| `fieldName` | строка | Название поля, в котором был прикреплен файл |
+
+| `remainingAttachments` | число | Количество оставшихся файлов в поле после удаления |
+
+
 ### `agiloft_retrieve_attachment`
 
-Download an attached file from an Agiloft record field.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts"\) |  ||  | `recordId` | string | Yes | ID of the record containing the attachment |  ||  | `fieldName` | string | Yes | Name of the attachment field |  ||  | `position` | string | Yes | Position index of the file in the field \(starting from 0\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `file` | file | Downloaded attachment file |  |
-### `agiloft_saved_search`
+Скачайте прикрепленный файл из поля в записи Agiloft.
 
-List saved searches defined for an Agiloft table.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name to list saved searches for \(e.g., "contracts"\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `searches` | array | List of saved searches for the table |  ||  | ↳ `name` | string | Saved search name |  ||  | ↳ `label` | string | Saved search display label |  ||  | ↳ `id` | number | Saved search database identifier |  ||  | ↳ `description` | string | Saved search description |  |
-### `agiloft_search_records`
+#### Входные данные
 
-Search for records in an Agiloft table using a query.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name to search in \(e.g., "contracts", "contacts.employees"\) |  ||  | `query` | string | Yes | Search query using Agiloft query syntax \(e.g., "status=\'Active\'" or "company_name~=\'Acme\'"\) |  ||  | `fields` | string | No | Comma-separated list of field names to include in the results |  ||  | `page` | string | No | Page number for paginated results \(starting from 0\) |  ||  | `limit` | string | No | Maximum number of records to return per page |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `records` | json | Array of matching records with their field values |  ||  | `totalCount` | number | Total number of matching records |  ||  | `page` | number | Current page number |  ||  | `limit` | number | Records per page |  |
-### `agiloft_select_records`
+| Параметр | Тип | Требуется | Описание |
 
-Select record IDs matching a SQL WHERE clause from an Agiloft table.
+| --------- | ---- | -------- | ----------- |
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |  ||  | `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\) |  |
-#### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `recordIds` | array | Array of record IDs matching the query |  ||  | `totalCount` | number | Total number of matching records |  |
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+| `recordId` | строка | Да | ID записи, содержащей прикрепленный файл |
+
+| `fieldName` | строка | Да | Название поля для прикрепленного файла |
+
+| `position` | строка | Да | Индекс позиции файла в поле (начиная с 0) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+| --------- | ---- | ----------- |
+
+| `file` | файл | Скачанный прикрепленный файл |
+
+
 ### `agiloft_update_record`
 
-Update an existing record in an Agiloft table.
 
-#### Input
-|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
-|  | `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |  ||  | `knowledgeBase` | string | Yes | Knowledge base name |  ||  | `login` | string | Yes | Agiloft username |  ||  | `password` | string | Yes | Agiloft password |  ||  | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |  ||  | `recordId` | string | Yes | ID of the record to update |  ||  | `data` | string | Yes | Updated field values as a JSON object \(e.g., \{"status": "Active", "priority": "High"\}\) |  |
+Обновите существующую запись в таблице Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts", "contacts.employees") |
+
+
+| `recordId` | строка | Да | ID записи для обновления |
+
+
+| `data` | строка | Да | Обновленные значения полей в формате JSON (например, {"status": "Active", "priority": "High"}) |
+
+| --------- | ---- | ----------- |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `id` | строка | ID обновленной записи |
+
+| `fields` | json | Значения полей обновленной записи |
+
+### `agiloft_delete_record`
+
+
+Удалите запись из таблицы Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| --------- | ---- | -------- | ----------- |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+| `password` | строка | Да | Пароль Agiloft |
+
+| `table` | строка | Да | Имя таблицы (например, "contracts", "contacts.employees") |
+
+| `recordId` | строка | Да | ID записи для удаления |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `id` | строка | ID удаленной записи |
+
+| `deleted` | boolean | Успешно ли была удалена запись |
+
+
+### `agiloft_get_choice_line_id`
+
+
+Получите внутренний числовой ID выбора, используемый в WHERE-клозах для полей выбора.
+
+| --------- | ---- | ----------- |
+
+#### Входные данные
+
+| Параметр | Тип | Требуется | Описание |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+
+| `password` | строка | Да | Пароль Agiloft |
+
+
+| `table` | строка | Да | Имя таблицы (например, "case", "contracts") |
+
+
+| `fieldName` | строка | Да | Название поля выбора (например, "priority", "status") |
+
+| --------- | ---- | -------- | ----------- |
+
+| `value` | строка | Да | Значение выбора для разрешения (например, "High", "Active") |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `choiceLineId` | число | Внутренний числовой ID значения выбора |
+
+### `agiloft_lock_record`
+
+Заблокируйте, разблокируйте или проверьте статус блокировки записи в Agiloft.
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+| --------- | ---- | ----------- |
+
+| `instanceUrl` | строка | Да | URL экземпляра Agiloft (например, https://mycompany.agiloft.com) |
+
+| `knowledgeBase` | строка | Да | Имя базы знаний |
+
+
+| `login` | строка | Да | Имя пользователя Agiloft |
+
+
+| `password` | строка | Да | Пароль Agiloft |
+
+
+| `table` | строка | Да | Имя таблицы (например, "contracts") |
+
+
+| `recordId` | строка | Да | ID записи для блокировки, разблокировки или проверки |
+
+| --------- | ---- | -------- | ----------- |
+
+| `lockAction` | строка | Да | Действие: "lock
+
+| `knowledgeBase` | string | Yes | Knowledge base name |
+
+| `login` | string | Yes | Agiloft username |
+
+| `password` | string | Yes | Agiloft password |
+
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+
+| `recordId` | string | Yes | ID of the record to update |
+
+| `data` | string | Yes | Updated field values as a JSON object \(e.g., \{"status": "Active", "priority": "High"\}\) |
+
+
 #### Output
-|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
-|  | `id` | string | ID of the updated record |  ||  | `fields` | json | Updated field values of the record |  |
+
+
+| Parameter | Type | Description |
+
+| --------- | ---- | ----------- |
+
+| `id` | string | ID of the updated record |
+
+| `fields` | json | Updated field values of the record |
+
+
 

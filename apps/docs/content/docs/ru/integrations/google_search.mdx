@@ -1,6 +1,6 @@
 ---
-title: Google Search
-description: Поиск в интернете
+title: Поиск Google
+description: Search the web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,77 +10,135 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Search](https://www.google.com) is the world's most widely used web search engine, making it easy to find information, discover new content, and answer questions in real time.
 
-With the Google Search integration in Sim, you can:
+[Google Search](https://www.google.com) — наиболее широко используемый поисковый движок в мире, который позволяет легко находить информацию, открывать новый контент и получать ответы на вопросы в режиме реального времени.
 
-- **Search the web**: Perform queries using Google's Custom Search API and retrieve structured search results with titles, snippets, and URLs
 
-In Sim, the Google Search integration allows your agents to search the web and retrieve live information as part of automated workflows. This enables use cases such as automated research, fact-checking, knowledge synthesis, and dynamic content discovery.
+Интегрируя Google Search в Sim, вы можете:
+
+
+- **Искать в интернете**: Выполнять запросы с использованием API Custom Search Google и получать структурированные результаты поиска с заголовками, описаниями и URL-адресами.
+
+
+В Sim интеграция Google Search позволяет вашим агентам искать в интернете и получать актуальную информацию как часть автоматизированных рабочих процессов. Это открывает возможности для таких задач, как автоматическое исследование, проверка фактов, синтез знаний и динамичное обнаружение контента.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интеграция Google Search в рабочий процесс. Позволяет выполнять поиск в интернете.
+
+Интегрируйте Google Search в рабочий процесс. Можно искать в интернете.
+
 
 
 
 ## Действия
 
+
 ### `google_search`
 
-Search the web with the Custom Search API
 
-#### Входные параметры
+Искать в интернете с помощью API Custom Search
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Да | The search query to execute |
-| `searchEngineId` | string | Да | Custom Search Engine ID |
-| `num` | string | Нет | Number of results to return \(1-10, default 10\) |
-| `start` | number | Нет | Index of the first result \(1-based, for pagination; start + num must be &lt;= 100\) |
-| `dateRestrict` | string | Нет | Restrict results by recency: d\[n\] days, w\[n\] weeks, m\[n\] months, y\[n\] years |
-| `fileType` | string | Нет | Restrict to a file extension \(e.g., pdf, doc\) |
-| `safe` | string | Нет | SafeSearch level: "active" or "off" \(default off\) |
-| `searchType` | string | Нет | Set to "image" to perform an image search |
-| `siteSearch` | string | Нет | A site to include or exclude from results |
-| `siteSearchFilter` | string | Нет | Whether to include \("i"\) or exclude \("e"\) the siteSearch site |
-| `lr` | string | Нет | Restrict to a language, e.g. "lang_en" |
-| `gl` | string | Нет | Two-letter country code to boost geographically relevant results |
-| `sort` | string | Нет | Sort expression, e.g. "date" |
-| `apiKey` | string | Да | Google API key |
 
-#### Выходные параметры
+| `query` | строка | Да | Поисковый запрос для выполнения |
+
+| `searchEngineId` | строка | Да | ID поисковой системы |
+
+| `num` | строка | Нет | Количество результатов для возврата (от 1 до 10, по умолчанию 10) |
+
+| `start` | число | Нет | Индекс первого результата (начиная с 1, для постраничной навигации; start + num должно быть <= 100) |
+
+| `dateRestrict` | строка | Нет | Ограничить результаты по времени: d[n] дней, w[n] недель, m[n] месяцев, y[n] лет |
+
+| `fileType` | строка | Нет | Ограничить до расширения файла (например, pdf, doc) |
+
+| `safe` | строка | Нет | Уровень безопасности: "active" или "off" (по умолчанию off) |
+
+| `searchType` | строка | Нет | Установить значение "image" для выполнения поиска изображений |
+
+| `siteSearch` | строка | Нет | Сайт, который нужно включить или исключить из результатов |
+
+| `siteSearchFilter` | строка | Нет | Включить ("i") или исключить ("e") сайт siteSearch |
+
+| `lr` | строка | Нет | Ограничить результаты определенным языком, например, "lang_en" |
+
+| `gl` | строка | Нет | Двухбуквенный код страны для повышения релевантности результатов |
+
+| `sort` | строка | Нет | Выражение сортировки, например, "date" |
+
+| `apiKey` | строка | Да | Ключ API Google |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `items` | array | Array of search results from Google |
-|   ↳ `title` | string | Title of the search result |
-|   ↳ `htmlTitle` | string | Title of the search result with HTML markup |
-|   ↳ `link` | string | URL of the search result |
-|   ↳ `displayLink` | string | Display URL \(abbreviated form\) |
-|   ↳ `snippet` | string | Snippet or description of the search result |
-|   ↳ `htmlSnippet` | string | Snippet of the search result with HTML markup |
-|   ↳ `formattedUrl` | string | Display URL shown beneath the result |
-|   ↳ `mime` | string | MIME type of the result |
-|   ↳ `fileFormat` | string | File format of the result |
-|   ↳ `cacheId` | string | ID of Google's cached version |
-|   ↳ `pagemap` | object | PageMap information for the result \(structured data\) |
-|   ↳ `image` | object | Image metadata \(present when searchType is image\) |
-|     ↳ `contextLink` | string | URL of the page hosting the image |
-|     ↳ `height` | number | Image height in pixels |
-|     ↳ `width` | number | Image width in pixels |
-|     ↳ `byteSize` | number | Image file size in bytes |
-|     ↳ `thumbnailLink` | string | Thumbnail image URL |
-|     ↳ `thumbnailHeight` | number | Thumbnail height in pixels |
-|     ↳ `thumbnailWidth` | number | Thumbnail width in pixels |
-| `searchInformation` | object | Information about the search query and results |
-|   ↳ `totalResults` | string | Total number of search results available |
-|   ↳ `searchTime` | number | Time taken to perform the search in seconds |
-|   ↳ `formattedSearchTime` | string | Formatted search time for display |
-|   ↳ `formattedTotalResults` | string | Formatted total results count for display |
-| `nextPageStartIndex` | number | Start index for the next page of results \(null if no further results\) |
+
+| `items` | массив | Массив результатов поиска из Google |
+
+|   ↳ `title` | строка | Заголовок результата поиска |
+
+|   ↳ `htmlTitle` | строка | Заголовок результата поиска с HTML-разметкой |
+
+|   ↳ `link` | строка | URL результата поиска |
+
+|   ↳ `displayLink` | строка | Отображаемый URL (сокращенная форма) |
+
+|   ↳ `snippet` | строка | Описание или фрагмент результата поиска |
+
+|   ↳ `htmlSnippet` | строка | Фрагмент результата поиска с HTML-разметкой |
+
+|   ↳ `formattedUrl` | строка | Отображаемый URL под результатом |
+
+|   ↳ `mime` | строка | MIME тип результата |
+
+|   ↳ `fileFormat` | строка | Формат файла результата |
+
+|   ↳ `cacheId` | строка | ID кэша Google |
+
+|   ↳ `pagemap` | объект | Информация о PageMap для результата (структурированные данные) |
+
+|   ↳ `image` | объект | Метаданные изображения (при поиске изображений) |
+
+|     ↳ `contextLink` | строка | URL страницы, содержащей изображение |
+
+|     ↳ `height` | число | Высота изображения в пикселях |
+
+|     ↳ `width` | число | Ширина изображения в пикселях |
+
+|     ↳ `byteSize` | число | Размер файла изображения в байтах |
+
+|     ↳ `thumbnailLink` | строка | URL миниатюры изображения |
+
+|     ↳ `thumbnailHeight` | число | Высота миниатюры в пикселях |
+
+|     ↳ `thumbnailWidth` | число | Ширина миниатюры в пикселях |
+
+| `searchInformation` | объект | Информация о запросе и результатах поиска |
+
+|   ↳ `totalResults` | строка | Общее количество результатов поиска |
+
+|   ↳ `searchTime` | число | Время выполнения поиска в секундах |
+
+|   ↳ `formattedSearchTime` | строка | Отформатированное время поиска для отображения |
+
+|   ↳ `formattedTotalResults` | строка | Отформатированное общее количество результатов для отображения |
+
+| `nextPageStartIndex` | число | Индекс начала следующей страницы результатов (null, если больше нет результатов) |
+
 
 

@@ -1,6 +1,6 @@
 ---
-title: Wikipedia
-description: Поиск и получение контента из Wikipedia
+title: Википедия
+description: Поиск и получение информации из Википедии
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,164 +10,292 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Wikipedia](https://www.wikipedia.org/) is the world's largest free online encyclopedia, offering millions of articles on a vast range of topics, collaboratively written and maintained by volunteers.
 
-With Wikipedia, you can:
+[Wikipedia](https://www.wikipedia.org/) — самая большая в мире бесплатная онлайн-энциклопедия, предлагающая миллионы статей на широкий спектр тем, которые создаются и поддерживаются волонтерами.
 
-- **Search for articles**: Find relevant Wikipedia pages by searching for keywords or topics
-- **Получение article summaries**: Получение concise summaries of Wikipedia pages for quick reference
-- **Access full content**: Obtain the complete content of Wikipedia articles for in-depth information
-- **Discover random articles**: Explore new topics by retrieving random Wikipedia pages
 
-In Sim, the Wikipedia integration enables your agents to programmatically access and interact with Wikipedia content as part of their workflows. Agents can search for articles, fetch summaries, retrieve full page content, and discover random articles, empowering your automations with up-to-date, reliable information from the world's largest encyclopedia. This integration is ideal for scenarios such as research, content enrichment, fact-checking, and knowledge discovery, allowing your agents to seamlessly incorporate Wikipedia data into their decision-making and task execution processes.
+С помощью Wikipedia вы можете:
+
+
+- **Искать статьи**: находить соответствующие страницы Wikipedia, вводя ключевые слова или темы.
+
+- **Получать сводки статей**: получать краткие обзоры страниц Wikipedia для быстрого ознакомления.
+
+- **Получать полный контент**: получать полный контент статей Wikipedia для получения подробной информации.
+
+- **Находить случайные статьи**: исследовать новые темы, получая случайные страницы Wikipedia.
+
+
+В Sim интеграция с Wikipedia позволяет вашим агентам программно получать доступ к и взаимодействовать с контентом Wikipedia в рамках своих рабочих процессов. Агенты могут искать статьи, извлекать сводки, получать полный контент страниц, а также находить случайные статьи, что позволяет автоматизировать ваши процессы на основе актуальной и надежной информации из крупнейшей в мире энциклопедии. Эта интеграция идеально подходит для таких сценариев, как исследования, обогащение контента, проверка фактов и поиск знаний, позволяя вашим агентам беспрепятственно включать данные Wikipedia в свои процессы принятия решений и выполнения задач.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте Wikipedia в рабочий процесс. Can get page summary, search pages, get page content, and get random page.
+
+Интегрируйте Wikipedia в рабочий процесс. Можно получить сводку страницы, искать страницы, получать контент страницы и находить случайную страницу.
+
 
 
 
 ## Действия
 
+
 ### `wikipedia_summary`
 
-Получение a summary and metadata for a specific Wikipedia page.
 
-#### Вход
+Получите сводку и метаданные для конкретной страницы Wikipedia.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `pageTitle` | string | Да | Title of the Wikipedia page to get summary for |
 
-#### Выход
+| `pageTitle` | строка | Да | Название страницы Wikipedia, для которой нужно получить сводку |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `summary` | object | Wikipedia page summary and metadata |
-|   ↳ `type` | string | Page type \(standard, disambiguation, etc.\) |
-|   ↳ `title` | string | Page title |
-|   ↳ `displaytitle` | string | Display title with formatting |
-|   ↳ `description` | string | Short page description |
-|   ↳ `extract` | string | Page extract/summary text |
-|   ↳ `extract_html` | string | Extract in HTML format |
-|   ↳ `thumbnail` | object | Thumbnail image data |
-|     ↳ `source` | string | Thumbnail image URL |
-|     ↳ `width` | number | Thumbnail width in pixels |
-|     ↳ `height` | number | Thumbnail height in pixels |
-|   ↳ `originalimage` | object | Original image data |
-|     ↳ `source` | string | Thumbnail image URL |
-|     ↳ `width` | number | Thumbnail width in pixels |
-|     ↳ `height` | number | Thumbnail height in pixels |
-|   ↳ `content_urls` | object | URLs to access the page |
-|     ↳ `desktop` | object | Desktop URLs |
-|       ↳ `page` | string | Page URL |
-|       ↳ `revisions` | string | Revisions URL |
-|       ↳ `edit` | string | Edit URL |
-|       ↳ `talk` | string | Talk page URL |
-|     ↳ `mobile` | object | Mobile URLs |
-|       ↳ `page` | string | Page URL |
-|       ↳ `revisions` | string | Revisions URL |
-|       ↳ `edit` | string | Edit URL |
-|       ↳ `talk` | string | Talk page URL |
-|   ↳ `lang` | string | Page language code |
-|   ↳ `dir` | string | Text direction \(ltr or rtl\) |
-|   ↳ `timestamp` | string | Last modification timestamp |
-|   ↳ `pageid` | number | Wikipedia page ID |
-|   ↳ `wikibase_item` | string | Wikidata item ID |
-|   ↳ `coordinates` | object | Geographic coordinates |
-|     ↳ `lat` | number | Latitude |
-|     ↳ `lon` | number | Longitude |
+
+| `summary` | объект | Сводка и метаданные страницы Wikipedia |
+
+|   ↳ `type` | строка | Тип страницы (стандарт, справочная страница и т.д.) |
+
+|   ↳ `title` | строка | Название страницы |
+
+|   ↳ `displaytitle` | строка | Отображаемое название с форматированием |
+
+|   ↳ `description` | строка | Краткое описание страницы |
+
+|   ↳ `extract` | строка | Текст извлечения/сводки страницы |
+
+|   ↳ `extract_html` | строка | Извлечение в формате HTML |
+
+|   ↳ `thumbnail` | объект | Данные изображения-миниатюры |
+
+|     ↳ `source` | строка | URL изображения-миниатюры |
+
+|     ↳ `width` | число | Ширина изображения-миниатюры в пикселях |
+
+|     ↳ `height` | число | Высота изображения-миниатюры в пикселях |
+
+|   ↳ `originalimage` | объект | Данные исходного изображения |
+
+|     ↳ `source` | строка | URL изображения-миниатюры |
+
+|     ↳ `width` | число | Ширина изображения-миниатюры в пикселях |
+
+|     ↳ `height` | число | Высота изображения-миниатюры в пикселях |
+
+|   ↳ `content_urls` | объект | URL для доступа к странице |
+
+|     ↳ `desktop` | объект | URL для настольных компьютеров |
+
+|       ↳ `page` | строка | URL страницы |
+
+|       ↳ `revisions` | строка | URL версий |
+
+|       ↳ `edit` | строка | URL редактирования |
+
+|       ↳ `talk` | строка | URL обсуждения |
+
+|     ↳ `mobile` | объект | URL для мобильных устройств |
+
+|       ↳ `page` | строка | URL страницы |
+
+|       ↳ `revisions` | строка | URL версий |
+
+|       ↳ `edit` | строка | URL редактирования |
+
+|       ↳ `talk` | строка | URL обсуждения |
+
+|   ↳ `lang` | строка | Код языка страницы |
+
+|   ↳ `dir` | строка | Направление текста (ltr или rtl) |
+
+|   ↳ `timestamp` | строка | Временная метка последнего изменения |
+
+|   ↳ `pageid` | число | ID страницы Wikipedia |
+
+|   ↳ `wikibase_item` | строка | ID элемента Wikidata |
+
+|   ↳ `coordinates` | объект | Географические координаты |
+
+|     ↳ `lat` | число | Широта |
+
+|     ↳ `lon` | число | Долгота |
+
 
 ### `wikipedia_search`
 
-Search for Wikipedia pages by title or content.
 
-#### Вход
+Ищите страницы Wikipedia по названию или содержанию.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Да | Search query to find Wikipedia pages |
-| `searchLimit` | number | Нет | Maximum number of results to return \(по умолчанию: 10, max: 50\) |
 
-#### Выход
+| `query` | строка | Да | Поисковый запрос для поиска страниц Wikipedia |
 
-| Parameter | Type | Description |
+| `searchLimit` | число | Нет | Максимальное количество результатов, которые нужно вернуть (по умолчанию: 10, максимум: 50) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `searchResults` | array | Array of matching Wikipedia pages |
-|   ↳ `id` | number | Result index |
-|   ↳ `key` | string | URL-friendly page key |
-|   ↳ `title` | string | Page title |
-|   ↳ `excerpt` | string | Search result excerpt |
-|   ↳ `matched_title` | string | Matched title variant |
-|   ↳ `description` | string | Page description |
-|   ↳ `thumbnail` | object | Thumbnail data |
-|     ↳ `mimetype` | string | Image MIME type |
-|     ↳ `size` | number | File size in bytes |
-|     ↳ `width` | number | Width in pixels |
-|     ↳ `height` | number | Height in pixels |
-|     ↳ `duration` | number | Duration for video |
-|     ↳ `url` | string | Thumbnail URL |
-|   ↳ `url` | string | Page URL |
-| `totalHits` | number | Total number of search results found |
-| `query` | string | The search query that was executed |
+
+| `searchResults` | массив | Массив страниц Wikipedia, соответствующих запросу |
+
+|   ↳ `id` | число | Индекс результата |
+
+|   ↳ `key` | строка | URL-friendly ключ страницы |
+
+|   ↳ `title` | строка | Название страницы |
+
+|   ↳ `excerpt` | строка | Выдержка из поискового результата |
+
+|   ↳ `matched_title` | строка | Вариант названия, соответствующий запросу |
+
+|   ↳ `description` | строка | Описание страницы |
+
+|   ↳ `thumbnail` | объект | Данные изображения-миниатюры |
+
+|     ↳ `mimetype` | строка | MIME-тип изображения |
+
+|     ↳ `size` | число | Размер файла в байтах |
+
+|     ↳ `width` | число | Ширина в пикселях |
+
+|     ↳ `height` | число | Высота в пикселях |
+
+|     ↳ `duration` | число | Продолжительность видео |
+
+|     ↳ `url` | строка | URL изображения-миниатюры |
+
+|   ↳ `url` | строка | URL страницы |
+
+| `totalHits` | число | Общее количество результатов поиска, найденных |
+
+| `query` | строка | Поисковый запрос, который был выполнен |
+
 
 ### `wikipedia_content`
 
-Получение the full HTML content of a Wikipedia page.
 
-#### Вход
+Получите полный HTML-контент страницы Wikipedia.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `pageTitle` | string | Да | Title of the Wikipedia page to get content for |
 
-#### Выход
+| `pageTitle` | строка | Да | Название страницы Wikipedia, для которой нужно получить контент |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `content` | object | Full HTML content and metadata of the Wikipedia page |
-|   ↳ `title` | string | Page title |
-|   ↳ `pageid` | number | Wikipedia page ID |
-|   ↳ `html` | string | Full HTML content of the page |
-|   ↳ `revision` | number | Page revision number |
-|   ↳ `tid` | string | Transaction ID \(ETag\) |
-|   ↳ `timestamp` | string | Last modified timestamp |
-|   ↳ `content_model` | string | Content model \(wikitext\) |
-|   ↳ `content_format` | string | Content format \(text/html\) |
+
+| `content` | объект | Полный HTML-контент и метаданные страницы Wikipedia |
+
+|   ↳ `title` | строка | Название страницы |
+
+|   ↳ `pageid` | число | ID страницы Wikipedia |
+
+|   ↳ `html` | строка | Полный HTML-контент страницы |
+
+|   ↳ `revision` | число | Номер версии страницы |
+
+|   ↳ `tid` | строка | Идентификатор транзакции (ETag) |
+
+|   ↳ `timestamp` | строка | Временная метка последнего изменения |
+
+|   ↳ `content_model` | строка | Модель контента (wikitext) |
+
+|   ↳ `content_format` | строка | Формат контента (text/html) |
+===
+
 
 ### `wikipedia_random`
 
-Получение a random Wikipedia page.
 
-#### Вход
+Get a random Wikipedia page.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
 
-#### Выход
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `randomPage` | object | Random Wikipedia page data |
+
 |   ↳ `type` | string | Page type |
+
 |   ↳ `title` | string | Page title |
+
 |   ↳ `displaytitle` | string | Display title |
+
 |   ↳ `description` | string | Page description |
+
 |   ↳ `extract` | string | Page extract/summary |
+
 |   ↳ `thumbnail` | object | Thumbnail image data |
+
 |     ↳ `source` | string | Thumbnail image URL |
+
 |     ↳ `width` | number | Thumbnail width in pixels |
+
 |     ↳ `height` | number | Thumbnail height in pixels |
+
 |   ↳ `content_urls` | object | URLs to access the page |
+
 |     ↳ `desktop` | object | Desktop URL |
+
 |       ↳ `page` | string | Page URL |
+
 |     ↳ `mobile` | object | Mobile URL |
+
 |       ↳ `page` | string | Page URL |
+
 |   ↳ `lang` | string | Language code |
+
 |   ↳ `timestamp` | string | Timestamp |
+
 |   ↳ `pageid` | number | Page ID |
+
 
 

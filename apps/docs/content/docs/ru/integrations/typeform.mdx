@@ -1,6 +1,6 @@
 ---
 title: Typeform
-description: Взаимодействие с Typeform
+description: Взаимодействуйте с Typeform
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,298 +10,527 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#262627"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Typeform](https://www.typeform.com/) is a user-friendly platform for creating conversational forms, surveys, and quizzes with a focus on engaging user experience.
 
-With Typeform, you can:
+[Typeform](https://www.typeform.com/) – это удобная платформа для создания форм, опросов и викторин с акцентом на создание привлекательного пользовательского опыта.
 
-- **Create interactive forms**: Design beautiful, conversational forms that engage respondents with a unique one-question-at-a-time interface
-- **Customize your experience**: Use conditional logic, hidden fields, and custom themes to create personalized user journeys
-- **Интегрируйте with other tools**: Connect with 1000+ apps through native integrations and APIs
-- **Analyze response data**: Получение actionable insights through comprehensive analytics and reporting tools
 
-In Sim, the Typeform integration enables your agents to programmatically interact with your Typeform data as part of their workflows. Agents can retrieve form responses, process submission data, and incorporate user feedback directly into decision-making processes. This integration is particularly valuable for scenarios like lead qualification, customer feedback analysis, and data-driven personalization. By connecting Sim with Typeform, you can create intelligent automation workflows that transform form responses into actionable insights - analyzing sentiment, categorizing feedback, generating summaries, and even triggering follow-up actions based on specific response patterns.
+С помощью Typeform вы можете:
+
+
+- **Создавать интерактивные формы**: Разрабатывайте красивые, разговорные формы, которые вовлекают респондентов благодаря уникальному интерфейсу, где каждый вопрос задается по очереди.
+
+- **Настраивать свой опыт**: Используйте логику условного отображения, скрытые поля и собственные темы для создания персонализированных пользовательских путей.
+
+- **Интегрироваться с другими инструментами**: Подключайтесь к более чем 1000 приложениям через встроенные интеграции и API.
+
+- **Анализировать данные ответов**: Получайте ценную информацию благодаря мощным инструментам аналитики и отчетности.
+
+
+В Sim, интеграция Typeform позволяет вашим агентам программно взаимодействовать с данными Typeform в рамках своих рабочих процессов. Агенты могут извлекать ответы на формы, обрабатывать предоставленные данные и использовать обратную связь пользователей непосредственно в процессах принятия решений. Эта интеграция особенно полезна для сценариев, таких как квалификация лидов, анализ отзывов клиентов и персонализация на основе данных. Используя Sim с Typeform, вы можете создавать автоматизированные рабочие процессы, которые преобразуют ответы на формы в полезную информацию – анализируя тональность, категоризируя отзывы, генерируя сводки и даже инициируя последующие действия на основе определенных паттернов ответов.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Интегрируйте Typeform в рабочий процесс. Can retrieve responses, download files, and get form insights. Can be used in trigger mode to trigger a workflow when a form is submitted. Requires Ключ API.
+## Инструкция по использованию
+
+
+Интегрируйте Typeform в рабочий процесс. Возможность извлекать ответы, загружать файлы и получать информацию о формах. Может использоваться в режиме триггера для запуска рабочего процесса при отправке формы. Требуется API Key.
+
 
 
 
 ## Действия
 
+
 ### `typeform_responses`
 
-Получение form responses from Typeform
 
-#### Вход
+Извлечение ответов на форму из Typeform
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Typeform form ID (например, "abc123XYZ"\) |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `pageSize` | number | Нет | Number of responses to retrieve (например, 10, 25, 50\) |
-| `before` | string | Нет | Cursor token for fetching the next page of older responses |
-| `after` | string | Нет | Cursor token for fetching the next page of newer responses |
-| `since` | string | Нет | Получение responses submitted after this date (например, "2024-01-01T00:00:00Z"\) |
-| `until` | string | Нет | Получение responses submitted before this date (например, "2024-12-31T23:59:59Z"\) |
-| `completed` | string | Нет | Filter by completion status (например, "true", "false", "all"\) |
 
-#### Выход
+| `formId` | строка | Да | Уникальный идентификатор формы Typeform (например, "abc123XYZ") |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
+
+| `pageSize` | число | Нет | Количество ответов для извлечения (например, 10, 25, 50) |
+
+| `before` | строка | Нет | Токен курсора для получения следующей страницы старых ответов |
+
+| `after` | строка | Нет | Токен курсора для получения следующей страницы новых ответов |
+
+| `since` | строка | Нет | Извлечение ответов, отправленных после этой даты (например, "2024-01-01T00:00:00Z") |
+
+| `until` | строка | Нет | Извлечение ответов, отправленных до этой даты (например, "2024-12-31T23:59:59Z") |
+
+| `completed` | строка | Нет | Фильтрация по статусу завершения (например, "true", "false", "all") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `total_items` | number | Total number of responses |
-| `page_count` | number | Total number of pages available |
-| `items` | array | Array of response objects with response_id, submitted_at, answers, and metadata |
+
+| `total_items` | число | Общее количество ответов |
+
+| `page_count` | число | Общее количество доступных страниц |
+
+| `items` | массив | Массив объектов ответов с полями response_id, submitted_at, answers и metadata |
+
 
 ### `typeform_files`
 
-Download files uploaded in Typeform responses
 
-#### Вход
+Загрузка файлов, загруженных в ответах на форму Typeform
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Typeform form ID (например, "abc123XYZ"\) |
-| `responseId` | string | Да | Response ID containing the files (например, "resp_xyz789"\) |
-| `fieldId` | string | Да | Unique ID of the file upload field |
-| `filename` | string | Да | Filename of the uploaded file |
-| `inline` | boolean | Нет | Whether to request the file with inline Content-Disposition |
-| `apiKey` | string | Да | Typeform Personal Access Token |
 
-#### Выход
+| `formId` | строка | Да | Уникальный идентификатор формы Typeform (например, "abc123XYZ") |
 
-| Parameter | Type | Description |
+| `responseId` | строка | Да | ID ответа, содержащего файлы (например, "resp_xyz789") |
+
+| `fieldId` | строка | Да | Уникальный ID поля загрузки файла |
+
+| `filename` | строка | Да | Имя файла, загруженного в файл |
+
+| `inline` | булево | Нет | Флаг, указывающий на запрос файла с использованием inline Content-Disposition |
+
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `fileUrl` | string | Direct download URL for the uploaded file |
-| `file` | file | Downloaded file stored in execution files |
-| `contentType` | string | MIME type of the uploaded file |
-| `filename` | string | Original filename of the uploaded file |
+
+| `fileUrl` | строка | Прямой URL для загруженного файла |
+
+| `file` | файл | Загруженный файл, хранящийся в исполняемых файлах |
+
+| `contentType` | строка | MIME-тип загруженного файла |
+
+| `filename` | строка | Исходное имя файла, загруженного в файл |
+
 
 ### `typeform_insights`
 
-Получение insights and analytics for Typeform forms
 
-#### Вход
+Получение информации и аналитики для форм Typeform
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | Typeform form ID (например, "abc123XYZ"\) |
-| `apiKey` | string | Да | Typeform Personal Access Token |
 
-#### Выход
+| `formId` | строка | Да | Уникальный идентификатор формы Typeform (например, "abc123XYZ") |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `fields` | array | Analytics data for individual form fields |
-|   ↳ `dropoffs` | number | Number of users who dropped off at this field |
-|   ↳ `id` | string | Unique field ID |
-|   ↳ `label` | string | Field label |
-|   ↳ `ref` | string | Field reference name |
-|   ↳ `title` | string | Field title/question |
-|   ↳ `type` | string | Field type (например, short_text, multiple_choice\) |
-|   ↳ `views` | number | Number of times this field was viewed |
-| `form` | object | Form-level analytics and performance data |
-|   ↳ `platforms` | array | Platform-specific analytics data |
-|     ↳ `average_time` | number | Average completion time for this platform |
-|     ↳ `completion_rate` | number | Completion rate for this platform |
-|     ↳ `platform` | string | Platform name (например, desktop, mobile\) |
-|     ↳ `responses_count` | number | Number of responses from this platform |
-|     ↳ `total_visits` | number | Total visits from this platform |
-|     ↳ `unique_visits` | number | Unique visits from this platform |
-|   ↳ `summary` | object | Overall form performance summary |
-|     ↳ `average_time` | number | Overall average completion time |
-|     ↳ `completion_rate` | number | Overall completion rate |
-|     ↳ `responses_count` | number | Total number of responses |
-|     ↳ `total_visits` | number | Total number of visits |
-|     ↳ `unique_visits` | number | Total number of unique visits |
+
+| `fields` | массив | Данные аналитики для отдельных полей формы |
+
+|   ↳ `dropoffs` | число | Количество пользователей, которые "отвалили" на этом поле |
+
+|   ↳ `id` | строка | Уникальный ID поля |
+
+|   ↳ `label` | строка | Метка поля |
+
+|   ↳ `ref` | строка | Ссылка на поле |
+
+|   ↳ `title` | строка | Заголовок/вопрос поля |
+
+|   ↳ `type` | строка | Тип поля (например, short_text, multiple_choice) |
+
+|   ↳ `views` | число | Количество просмотров этого поля |
+
+| `form` | объект | Общая аналитическая и производительная информация о форме |
+
+|   ↳ `platforms` | массив | Данные аналитики для каждой платформы |
+
+|     ↳ `average_time` | число | Среднее время заполнения формы для этой платформы |
+
+|     ↳ `completion_rate` | число | Процент завершения формы для этой платформы |
+
+|     ↳ `platform` | строка | Название платформы (например, desktop, mobile) |
+
+|     ↳ `responses_count` | число | Количество ответов с этой платформы |
+
+|     ↳ `total_visits` | число | Общее количество посещений с этой платформы |
+
+|     ↳ `unique_visits` | число | Уникальное количество посещений с этой платформы |
+
+|   ↳ `summary` | объект | Общая сводная информация о производительности формы |
+
+|     ↳ `average_time` | число | Среднее время заполнения формы |
+
+|     ↳ `completion_rate` | число | Процент завершения формы |
+
+|     ↳ `responses_count` | число | Общее количество ответов |
+
+|     ↳ `total_visits` | число | Общее количество посещений |
+
+|     ↳ `unique_visits` | число | Уникальное количество посещений |
+
 
 ### `typeform_list_forms`
 
-Получение a list of all forms in your Typeform account
 
-#### Вход
+Получение списка всех форм в вашей учетной записи Typeform
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `search` | string | Нет | Search query to filter forms by title (например, "Customer Feedback"\) |
-| `page` | number | Нет | Page number for pagination (например, 1, 2, 3\) |
-| `pageSize` | number | Нет | Number of forms per page (например, 10, 25, 50, max: 200\) |
-| `workspaceId` | string | Нет | Filter forms by workspace ID (например, "ws_abc123"\) |
 
-#### Выход
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
 
-| Parameter | Type | Description |
+| `search` | строка | Нет | Строка поиска для фильтрации форм по названию (например, "Customer Feedback") |
+
+| `page` | число | Нет | Номер страницы для постраничной навигации (например, 1, 2, 3) |
+
+| `pageSize` | число | Нет | Количество форм на странице (например, 10, 25, 50, max: 200) |
+
+| `workspaceId` | строка | Нет | Фильтрация форм по ID рабочего пространства (например, "ws_abc123") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `total_items` | number | Total number of forms in the account |
-| `page_count` | number | Total number of pages available |
-| `items` | array | Array of form objects with id, title, created_at, last_updated_at, settings, theme, and _links |
+
+| `total_items` | число | Общее количество форм в учетной записи |
+
+| `page_count` | число | Общее количество доступных страниц |
+
+| `items` | массив | Массив объектов форм с полями id, title, created_at, last_updated_at, settings, theme и _links |
+
 
 ### `typeform_get_form`
 
-Получение complete details and structure of a specific form
 
-#### Вход
+Получение полной информации и структуры конкретной формы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `formId` | string | Да | Form unique identifier (например, "abc123XYZ"\) |
 
-#### Выход
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
 
-| Parameter | Type | Description |
+| `formId` | строка | Да | Уникальный идентификатор формы (например, "abc123XYZ") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | Form unique identifier |
-| `title` | string | Form title |
-| `type` | string | Form type \(form, quiz, etc.\) |
-| `settings` | object | Form settings including language, progress bar, etc. |
-| `theme` | object | Theme reference |
-| `workspace` | object | Workspace reference |
-| `fields` | array | Array of form fields/questions |
-| `welcome_screens` | array | Array of welcome screens \(empty if none configured\) |
-| `thankyou_screens` | array | Array of thank you screens |
-| `created_at` | string | Form creation timestamp \(ISO 8601 format\) |
-| `last_updated_at` | string | Form last update timestamp \(ISO 8601 format\) |
-| `published_at` | string | Form publication timestamp \(ISO 8601 format\) |
-| `_links` | object | Related resource links including public form URL |
+
+| `id` | строка | Уникальный идентификатор формы |
+
+| `title` | строка | Название формы |
+
+| `type` | строка | Тип формы (form, quiz и т.д.) |
+
+| `settings` | объект | Параметры формы, включая язык, прогресс-бар и т. д. |
+
+| `theme` | объект | Ссылка на тему |
+
+| `workspace` | объект | Ссылка на рабочее пространство |
+
+| `fields` | массив | Массив полей/вопросов формы |
+
+| `welcome_screens` | массив | Массив приветственных экранов (пустой, если не настроены) |
+
+| `thankyou_screens` | массив | Массив экранов благодарности |
+
+| `created_at` | строка | Дата создания формы (формат ISO 8601) |
+
+| `last_updated_at` | строка | Дата последнего обновления формы (формат ISO 8601) |
+
+| `published_at` | строка | Дата публикации формы (формат ISO 8601) |
+
+| `_links` | объект | Ссылки на связанные ресурсы, включая публичную ссылку на форму |
+
 
 ### `typeform_create_form`
 
-Создание нового form with fields and settings
 
-#### Вход
+Создание новой формы с полями и настройками
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `title` | string | Да | Form title |
-| `type` | string | Нет | Form type \(по умолчанию: "form"\). Options: "form", "quiz" |
-| `workspaceId` | string | Нет | Workspace ID to create the form in (например, "ws_abc123"\) |
-| `fields` | json | Нет | Array of field objects defining the form structure. Each field needs: type, title, and optional properties/validations |
-| `settings` | json | Нет | Form settings object \(language, progress_bar, etc.\) |
-| `themeId` | string | Нет | Theme ID to apply to the form |
 
-#### Выход
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
 
-| Parameter | Type | Description |
+| `title` | строка | Да | Название формы |
+
+| `type` | строка | Нет | Тип формы (по умолчанию: "form"). Варианты: "form", "quiz" |
+
+| `workspaceId` | строка | Нет | ID рабочего пространства для создания формы (например, "ws_abc123") |
+
+| `fields` | json | Нет | Массив объектов полей, определяющих структуру формы. Каждый объект поля должен содержать: type, title и необязательные свойства/валидации |
+
+| `settings` | json | Нет | Объект настроек формы (язык, progress_bar и т. д.) |
+
+| `themeId` | строка | Нет | ID темы для применения к форме |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | Created form unique identifier |
-| `title` | string | Form title |
-| `type` | string | Form type |
-| `settings` | object | Form settings object |
-| `theme` | object | Theme reference |
-| `workspace` | object | Workspace reference |
-| `fields` | array | Array of created form fields \(empty if none added\) |
-| `welcome_screens` | array | Array of welcome screens \(empty if none configured\) |
-| `thankyou_screens` | array | Array of thank you screens |
-| `_links` | object | Related resource links including public form URL |
+
+| `id` | строка | Уникальный идентификатор созданной формы |
+
+| `title` | строка | Название формы |
+
+| `type` | строка | Тип формы |
+
+| `settings` | объект | Объект настроек формы |
+
+| `theme` | объект | Ссылка на тему |
+
+| `workspace` | объект | Ссылка на рабочее пространство |
+
+| `fields` | массив | Массив созданных полей формы (пустой, если не добавлялись) |
+
+| `welcome_screens` | массив | Массив приветственных экранов (пустой, если не настроены) |
+
+| `thankyou_screens` | массив | Массив экранов благодарности |
+
+| `_links` | объект | Ссылки на связанные ресурсы, включая публичную ссылку на форму |
+
 
 ### `typeform_update_form`
 
-Обновление existing form using JSON Patch operations
 
-#### Вход
+Обновление существующей формы с использованием операций JSON Patch
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `formId` | string | Да | Form unique identifier to update (например, "abc123XYZ"\) |
-| `operations` | json | Да | Array of JSON Patch operations \(RFC 6902\). Each operation needs: op \(add/remove/replace\), path, and value \(for add/replace\) |
 
-#### Выход
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
 
-| Parameter | Type | Description |
+| `formId` | строка | Да | Уникальный идентификатор формы для обновления (например, "abc123XYZ") |
+
+| `operations` | json | Да | Массив объектов JSON Patch (RFC 6902) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Success confirmation message |
+
+| `message` | строка | Сообщение об успешном подтверждении |
+
 
 ### `typeform_delete_form`
 
-Permanently delete a form and all its responses
 
-#### Вход
+Постоянное удаление формы и всех ее ответов
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Typeform Personal Access Token |
-| `formId` | string | Да | Form unique identifier to delete (например, "abc123XYZ"\) |
 
-#### Выход
+| `apiKey` | строка | Да | Токен личного доступа Typeform |
 
-| Parameter | Type | Description |
+| `formId` | строка | Да | Уникальный идентификатор формы для удаления (например, "abc123XYZ") |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Указывает,  form was successfully deleted |
-| `message` | string | Deletion confirmation message |
+
+| `deleted` | boolean | Флаг, указывающий на успешное удаление формы |
+
+| `message` | строка | Сообщение об успешном удалении |
+
 
 
 
 ## Триггеры
 
-**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
 
-### Typeform Webhook
+**Триггер** – это блок, который запускает рабочий процесс при возникновении события в этом сервисе.
 
-Запуск рабочего процесса when a Typeform submission is received
+
+### Webhook Typeform
+
+
+Запускать рабочий процесс при получении ответа на форму Typeform
+
 
 #### Конфигурация
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Да | The unique identifier for your Typeform. Find it in the form URL or form settings. |
-| `apiKey` | string | Да | Required to automatically register the webhook with Typeform. Получение yours at https://admin.typeform.com/account#/section/tokens |
-| `secret` | string | Нет | A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string \(min 20 characters recommended\). |
-| `includeDefinition` | boolean | Нет | Include the complete form structure \(questions, fields, endings\) in your workflow variables. Note: Typeform always sends this data, but enabling this makes it accessible in your workflow. |
 
-#### Выход
+| `formId` | строка | Да | Уникальный идентификатор вашей формы Typeform. Можно найти в URL формы или настройках формы. |
 
-| Parameter | Type | Description |
+| `apiKey` | строка | Да | Требуется для автоматической регистрации webhook в Typeform. Получите свой токен на https://admin.typeform.com/account#/section/tokens |
+
+| `secret` | строка | Нет | Секретный ключ, используемый для проверки подлинности webhook. Рекомендуется использовать для безопасности. Сгенерируйте случайную строку длиной не менее 20 символов. |
+
+| `includeDefinition` | boolean | Нет | Включать полную структуру формы (вопросы, поля, окончания) в переменные рабочего процесса. Обратите внимание: Typeform всегда отправляет эти данные, но включение этой опции делает их доступными в вашем рабочем процессе. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `event_id` | string | Уникальный идентификатор for this webhook event |
-| `event_type` | string | Type of event \(always "form_response" for form submissions\) |
-| `form_id` | string | Typeform form identifier |
-| `token` | string | Unique response/submission identifier |
-| `submitted_at` | string | ISO timestamp when the form was submitted |
-| `landed_at` | string | ISO timestamp when the user first landed on the form |
-| `calculated` | object | Calculated values from the form |
-|   ↳ `score` | number | Calculated score value |
-| `variables` | array | Array of dynamic variables |
-|   ↳ `key` | string | Variable key |
-|   ↳ `number` | number | Numeric value \(if type is number\) |
-|   ↳ `text` | string | Text value \(if type is text\) |
-| `hidden` | object | Hidden fields passed to the form (например, UTM parameters\) |
-| `answers` | array | Array of respondent answers \(only includes answered questions\) |
-|   ↳ `text` | string | Text answer value |
-|   ↳ `email` | string | Email answer value |
-|   ↳ `number` | number | Number answer value |
-|   ↳ `boolean` | boolean | Boolean answer value |
-|   ↳ `date` | string | Date answer value \(ISO format\) |
-|   ↳ `url` | string | URL answer value |
-|   ↳ `file_url` | string | File URL answer value |
-|   ↳ `choice` | object | Single choice answer |
-|     ↳ `id` | string | Choice ID |
-|     ↳ `ref` | string | Choice reference |
-|     ↳ `label` | string | Choice label |
+
+| `event_id` | строка | Уникальный идентификатор этого webhook-события |
+
+| `event_type` | строка | Тип события (всегда "form_response" для отправки формы) |
+
+| `form_id` | строка | Идентификатор формы Typeform |
+
+| `token` | строка | Уникальный идентификатор ответа/субмиссии |
+
+| `submitted_at` | строка | Дата и время отправки формы (формат ISO 8601) |
+
+| `landed_at` | строка | Дата и время, когда пользователь впервые посетил форму (формат ISO 8601) |
+
+| `calculated` | объект | Вычисленные значения из формы |
+
+|   ↳ `score` | число | Значение вычисленного показателя |
+
+| `variables` | массив | Массив динамических переменных |
+
+|   ↳ `key` | строка | Ключ переменной |
+
+|   ↳ `number` | число | Числовое значение (если тип - number) |
+
+|   ↳ `text` | строка | Текстовое значение (если тип - text) |
+
+| `answers` | массив | Массив ответов респондента (содержит только ответы на вопросы) |
+
+|   ↳ `text` | строка | Значение ответа текста |
+
+|   ↳ `email` | строка | Значение ответа email |
+
+|   ↳ `number` | число | Значение ответа number |
+
+|   ↳ `boolean` | boolean | Значение ответа boolean |
+
+|   ↳ `date` | строка | Значение ответа date (формат ISO) |
+
+|   ↳ `url` | строка | Значение ответа url |
+
+|   ↳ `file_url` | строка | URL файла, отправленного в ответе |
+
+| `choice` | объект | Однозначный ответ выбора |
+
+|   ↳ `id` | строка | ID выбора |
+
+|   ↳ `ref` | строка | Ссылка на выбор |
+
+|   ↳ `label` | строка | Метка выбора |
+
+|   ↳ `choices` | объект | Несколько вариантов выбора |
+===
+
 |   ↳ `choices` | object | Multiple choices answer |
+
 |     ↳ `ids` | array | Array of choice IDs |
+
 |     ↳ `refs` | array | Array of choice refs |
+
 |     ↳ `labels` | array | Array of choice labels |
+
 |   ↳ `field` | object | Field reference |
+
 |     ↳ `id` | string | Field ID |
+
 |     ↳ `ref` | string | Field reference |
+
 | `definition` | object | Form definition \(only included when "Include Form Definition" is enabled\) |
+
 |   ↳ `id` | string | Form ID |
+
 |   ↳ `title` | string | Form title |
+
 |   ↳ `fields` | array | Array of form fields |
+
 |     ↳ `id` | string | Field ID |
+
 |     ↳ `ref` | string | Field reference |
+
 |     ↳ `title` | string | Field title |
+
 |   ↳ `endings` | array | Array of form endings |
+
 | `ending` | object | Ending screen information |
+
 |   ↳ `id` | string | Ending screen ID |
+
 |   ↳ `ref` | string | Ending screen reference |
+
 | `raw` | object | Complete original webhook payload from Typeform |
+
 

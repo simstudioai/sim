@@ -1,6 +1,6 @@
 ---
 title: Gmail
-description: Отправка, чтение, поиск и перемещение писем Gmail или запуск рабочих процессов по событиям Gmail
+description: Отправляйте, читайте, ищите и перемещайте электронные письма в Gmail или запускайте рабочие процессы на основе событий в Gmail.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,349 +10,598 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Gmail](https://mail.google.com/) is one of the world’s most popular email services, trusted by individuals and organizations to send, receive, and manage messages securely.
 
-With the Gmail integration in Sim, you can:
+===
+[Gmail](https://mail.google.com/) — одна из самых популярных в мире служб электронной почты, которой доверяют как отдельные лица, так и организации для безопасной отправки, получения и управления сообщениями.
 
-- **Send emails**: Compose and send emails with support for recipients, CC, BCC, subject, body, and attachments
-- **Create drafts**: Save email drafts for later review and sending
-- **Read emails**: Retrieve email messages by ID with full content and metadata
-- **Search emails**: Find emails using Gmail’s powerful search query syntax
-- **Move emails**: Move messages between folders or labels
-- **Manage read status**: Mark emails as read or unread
-- **Archive and unarchive**: Archive messages to clean up your inbox or restore them
-- **Delete emails**: Remove messages from your mailbox
-- **Manage labels**: Add or remove labels from emails for organization
+С интеграцией Gmail в Sim вы можете:
 
-In Sim, the Gmail integration enables your agents to interact with your inbox programmatically as part of automated workflows. Agents can send notifications, search for specific emails, organize messages, and trigger actions based on email content—enabling intelligent email automation and communication workflows.
+
+- Отправлять электронные письма: составлять и отправлять электронные письма с поддержкой получателей, CC, BCC, темы, тела и вложений.
+
+
+- Создавать черновики: сохранять черновики электронной почты для последующего просмотра и отправки.
+
+- Читать электронные письма: извлекать сообщения электронной почты по ID со всем содержимым и метаданными.
+
+- Искать электронные письма: находить электронные письма, используя мощную синтаксическую структуру поиска Gmail.
+
+- Перемещать электронные письма: перемещать сообщения между папками или метками.
+
+- Управлять статусом прочтения: отмечать электронные письма как прочитанные или непрочитанные.
+
+- Архивировать и снять архивирование: архивировать сообщения для организации вашей почты или восстановления их.
+
+- Удалять электронные письма: удалять сообщения из вашего почтового ящика.
+
+- Управлять метками: добавлять или удалять метки из электронных писем для организации.
+
+В Sim интеграция Gmail позволяет вашим агентам программно взаимодействовать с вашей почтой в рамках автоматизированных рабочих процессов. Агенты могут отправлять уведомления, искать конкретные электронные письма, организовывать сообщения и запускать действия на основе содержимого электронной почты — что обеспечивает интеллектуальную автоматизацию и рабочие процессы обмена информацией по электронной почте.
+
+
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
-
-Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.
+## Инструкции по использованию
 
 
 
-## Actions
+Интегрируйте Gmail в рабочий процесс. Можно отправлять, читать, искать и перемещать электронные письма. Может использоваться в режиме триггера для запуска рабочего процесса при получении новой электронной почты.
+
+
+## Действия
+
+
+
 
 ### `gmail_send`
 
-Send emails using Gmail. Returns API-aligned fields only.
 
-#### Input
+Отправьте электронные письма с использованием Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `to` | строка | Да | Адрес электронной почты получателя |
+
 | --------- | ---- | -------- | ----------- |
-| `to` | string | Yes | Recipient email address |
-| `subject` | string | No | Email subject |
-| `body` | string | Yes | Email body content |
-| `contentType` | string | No | Content type for the email body \(text or html\) |
-| `threadId` | string | No | Thread ID to reply to \(for threading\) |
-| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
-| `cc` | string | No | CC recipients \(comma-separated\) |
-| `bcc` | string | No | BCC recipients \(comma-separated\) |
-| `attachments` | file[] | No | Files to attach to the email |
 
-#### Output
+| `subject` | строка | Нет | Тема электронного письма |
 
-| Parameter | Type | Description |
+| `body` | строка | Да | Содержимое тела электронного письма |
+
+| `contentType` | строка | Нет | Тип содержимого для тела электронного письма (текст или HTML) |
+
+| `threadId` | строка | Нет | ID темы для ответа (для создания темы) |
+
+| `replyToMessageId` | строка | Нет | ID сообщения Gmail, на которое нужно ответить — используйте поле "id" из результатов чтения Gmail (не RFC "messageId") |
+
+| `cc` | строка | Нет | Адреса получателей CC (разделители запятыми) |
+
+| `bcc` | строка | Нет | Адреса получателей BCC (разделители запятыми) |
+
+| `attachments` | файл[] | Нет | Файлы для прикрепления к электронному письму |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Метки электронной почты |
 
 ### `gmail_draft`
 
-Draft emails using Gmail. Returns API-aligned fields only.
 
-#### Input
+Создайте черновик электронного письма с использованием Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `to` | строка | Да | Адрес электронной почты получателя |
+
 | --------- | ---- | -------- | ----------- |
-| `to` | string | Yes | Recipient email address |
-| `subject` | string | No | Email subject |
-| `body` | string | Yes | Email body content |
-| `contentType` | string | No | Content type for the email body \(text or html\) |
-| `threadId` | string | No | Thread ID to reply to \(for threading\) |
-| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
-| `cc` | string | No | CC recipients \(comma-separated\) |
-| `bcc` | string | No | BCC recipients \(comma-separated\) |
-| `attachments` | file[] | No | Files to attach to the email draft |
 
-#### Output
+| `subject` | строка | Нет | Тема электронного письма |
 
-| Parameter | Type | Description |
+| `body` | строка | Да | Содержимое тела электронного письма |
+
+| `contentType` | строка | Нет | Тип содержимого для тела электронного письма (текст или HTML) |
+
+| `threadId` | строка | Нет | ID темы для ответа (для создания темы) |
+
+| `replyToMessageId` | строка | Нет | ID сообщения Gmail, на которое нужно ответить — используйте поле "id" из результатов чтения Gmail (не RFC "messageId") |
+
+| `cc` | строка | Нет | Адреса получателей CC (разделители запятыми) |
+
+| `bcc` | строка | Нет | Адреса получателей BCC (разделители запятыми) |
+
+| `attachments` | файл[] | Нет | Файлы для прикрепления к черновику электронного письма |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `draftId` | строка | ID черновика |
+
 | --------- | ---- | ----------- |
-| `draftId` | string | Draft ID |
-| `messageId` | string | Gmail message ID for the draft |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Email labels |
+
+| `messageId` | строка | ID сообщения Gmail для черновика |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Метки электронной почты |
 
 ### `gmail_edit_draft`
 
-Update an existing Gmail draft in place without deleting and recreating it.
 
-#### Input
+Обновите существующий черновик Gmail на месте, не удаляя и не создавая его заново.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `draftId` | строка | Да | ID черновика для обновления (из Gmail List Drafts или Gmail Get Draft) |
+
 | --------- | ---- | -------- | ----------- |
-| `draftId` | string | Yes | ID of the draft to update \(from Gmail List Drafts or Gmail Get Draft\) |
-| `to` | string | Yes | Recipient email address |
-| `subject` | string | No | Email subject |
-| `body` | string | Yes | Email body content |
-| `contentType` | string | No | Content type for the email body \(text or html\) |
-| `threadId` | string | No | Thread ID to associate the draft with \(for threading\) |
-| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
-| `cc` | string | No | CC recipients \(comma-separated\) |
-| `bcc` | string | No | BCC recipients \(comma-separated\) |
-| `attachments` | file[] | No | Files to attach to the email draft |
 
-#### Output
+| `to` | строка | Да | Адрес электронной почты получателя |
 
-| Parameter | Type | Description |
+| `subject` | строка | Нет | Тема электронного письма |
+
+| `body` | строка | Да | Содержимое тела электронного письма |
+
+| `contentType` | строка | Нет | Тип содержимого для тела электронного письма (текст или HTML) |
+
+| `threadId` | строка | Нет | ID темы для привязки черновика (для создания темы) |
+
+| `replyToMessageId` | строка | Нет | ID сообщения Gmail, на которое нужно ответить — используйте поле "id" из результатов чтения Gmail (не RFC "messageId") |
+
+| `cc` | строка | Нет | Адреса получателей CC (разделители запятыми) |
+
+| `bcc` | строка | Нет | Адреса получателей BCC (разделители запятыми) |
+
+| `attachments` | файл[] | Нет | Файлы для прикрепления к черновику электронного письма |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `draftId` | строка | ID черновика |
+
 | --------- | ---- | ----------- |
-| `draftId` | string | Draft ID |
-| `messageId` | string | Gmail message ID for the draft |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Email labels |
+
+| `messageId` | строка | ID сообщения Gmail для черновика |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Метки электронной почты |
 
 ### `gmail_read`
 
-Read emails from Gmail. Returns API-aligned fields only.
 
-#### Input
+Прочитайте электронные письма из Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Нет | ID сообщения Gmail для чтения (например, 18f1a2b3c4d5e6f7) |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | No | Gmail message ID to read \(e.g., 18f1a2b3c4d5e6f7\) |
-| `folder` | string | No | Folder/label to read emails from \(e.g., INBOX, SENT, DRAFT, TRASH, SPAM, or custom label name\) |
-| `unreadOnly` | boolean | No | Set to true to only retrieve unread messages |
-| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
-| `includeAttachments` | boolean | No | Set to true to download and include email attachments |
 
-#### Output
+| `folder` | строка | Нет | Папка/метка для чтения электронных писем (например, INBOX, SENT, DRAFT, TRASH, SPAM или имя пользовательской метки) |
 
-| Parameter | Type | Description |
+| `unreadOnly` | булево | Нет | Установите значение true, чтобы извлекать только непрочитанные сообщения |
+
+| `maxResults` | число | Нет | Максимальное количество сообщений для получения (по умолчанию: 1, максимум: 10) |
+
+| `includeAttachments` | булево | Нет | Установите значение true, чтобы загрузить и включить вложения электронной почты |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Email labels |
-| `from` | string | Sender email address |
-| `to` | string | Recipient email address |
-| `subject` | string | Email subject |
-| `date` | string | Email date |
-| `body` | string | Email body text \(best-effort plain text\) |
-| `hasAttachments` | boolean | Whether the email has attachments |
-| `attachmentCount` | number | Number of attachments |
-| `attachments` | file[] | Downloaded attachments \(if enabled\) |
-| `results` | json | Summary results when reading multiple messages |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Метки электронной почты |
+
+| `from` | строка | Адрес отправителя |
+
+| `to` | строка | Адрес получателя |
+
+| `subject` | строка | Тема электронного письма |
+
+| `date` | строка | Дата электронного письма в формате ISO |
+
+| `body` | строка | Текст тела электронной почты (предпочтительно текст без форматирования) |
+
+| `hasAttachments` | булево | Указывает, есть ли в письме вложения |
+
+| `attachmentCount` | число | Количество вложений |
+
+| `attachments` | файл[] | Загруженные вложения (если включено) |
+
+| `results` | json | Сводка результатов при чтении нескольких сообщений |
 
 ### `gmail_search`
 
-Search emails in Gmail. Returns API-aligned fields only.
 
-#### Input
+Найдите электронные письма в Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `query` | строка | Да | Поисковый запрос для электронных писем |
+
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search query for emails |
-| `maxResults` | number | No | Maximum number of results to return \(e.g., 10, 25, 50\) |
 
-#### Output
+| `maxResults` | число | Нет | Максимальное количество результатов, которые нужно вернуть (например, 10, 25, 50) |
 
-| Parameter | Type | Description |
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `results` | json | Массив результатов поиска |
+
 | --------- | ---- | ----------- |
-| `results` | json | Array of search results |
 
 ### `gmail_move`
 
-Move emails between labels/folders in Gmail. Returns API-aligned fields only.
 
-#### Input
+Переместите электронные письма между папками/метками в Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для перемещения |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to move |
-| `addLabelIds` | string | Yes | Comma-separated label IDs to add \(e.g., INBOX, Label_123\) |
-| `removeLabelIds` | string | No | Comma-separated label IDs to remove \(e.g., INBOX, SPAM\) |
 
-#### Output
+| `addLabelIds` | строка | Да | Разделите запятыми метки, которые нужно добавить (например, INBOX, Label_123) |
 
-| Parameter | Type | Description |
+| `removeLabelIds` | строка | Нет | Разделите запятыми метки, которые нужно удалить (например, INBOX, SPAM) |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Метки электронной почты |
 
 ### `gmail_mark_read`
 
-Mark a Gmail message as read. Returns API-aligned fields only.
 
-#### Input
+Отметьте электронное письмо в Gmail как прочитанное. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для отметки как прочитанного |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to mark as read |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_mark_unread`
 
-Mark a Gmail message as unread. Returns API-aligned fields only.
 
-#### Input
+Отметьте электронное письмо в Gmail как непрочитанное. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для отметки как непрочитанного |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to mark as unread |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_archive`
 
-Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
 
-#### Input
+Архивируйте электронное письмо в Gmail (удалите из почтового ящика). Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для архивирования |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to archive |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_unarchive`
 
-Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
 
-#### Input
+Извлеките электронное письмо из архива (верните в почтовый ящик). Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для извлечения из архива |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to unarchive |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_delete`
 
-Delete a Gmail message (move to trash). Returns API-aligned fields only.
 
-#### Input
+Удалите электронное письмо из Gmail (переместите в корзину). Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для удаления |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to delete |
 
-#### Output
+#### Выходные данные
 
-| Parameter | Type | Description |
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_add_label`
 
-Add label(s) to a Gmail message. Returns API-aligned fields only.
 
-#### Input
+Добавьте метку(ы) к электронному письму в Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для добавления меток |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to add labels to |
-| `labelIds` | string | Yes | Comma-separated label IDs to add \(e.g., INBOX, Label_123\) |
 
-#### Output
+| `labelIds` | строка | Да | Разделите запятыми метки, которые нужно добавить (например, INBOX, Label_123) |
 
-| Parameter | Type | Description |
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
 
 ### `gmail_remove_label`
 
-Remove label(s) from a Gmail message. Returns API-aligned fields only.
 
-#### Input
+Удалите метку(ы) из электронного письма в Gmail. Возвращает только поля, соответствующие API.
 
-| Parameter | Type | Required | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для удаления меток |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Yes | ID of the message to remove labels from |
-| `labelIds` | string | Yes | Comma-separated label IDs to remove \(e.g., INBOX, Label_123\) |
 
-#### Output
+| `labelIds` | строка | Да | Разделите запятыми метки, которые нужно удалить (например, INBOX, SPAM) |
 
-| Parameter | Type | Description |
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `id` | строка | ID сообщения Gmail |
+
 | --------- | ---- | ----------- |
-| `id` | string | Gmail message ID |
-| `threadId` | string | Gmail thread ID |
-| `labelIds` | array | Updated email labels |
+
+| `threadId` | строка | ID темы Gmail |
+
+| `labelIds` | массив | Обновленные метки электронной почты |
+
+## Триггеры
 
 
 
-## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+**Триггер** — это блок, который запускает рабочий процесс при возникновении события в этом сервисе.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
 
-### Gmail Email Trigger
+Они работают по расписанию (на основе опроса) — они проверяют наличие новых данных, а не получают уведомления.
 
-Triggers when new emails are received in Gmail (requires Gmail credentials)
 
-#### Configuration
+### Триггер электронной почты Gmail
 
-| Parameter | Type | Required | Description |
+
+Запускается при получении новой электронной почты в Gmail (требуются учетные данные Google)
+
+
+#### Конфигурация
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `triggerCredentials` | строка | Да | Эти учетные данные Google необходимы для доступа к вашей учетной записи. |
+
 | --------- | ---- | -------- | ----------- |
-| `triggerCredentials` | string | Yes | This trigger requires google email credentials to access your account. |
-| `labelIds` | string | No | Choose which Gmail labels to monitor. Leave empty to monitor all emails. |
-| `labelFilterBehavior` | string | Yes | Include only emails with selected labels, or exclude emails with selected labels |
-| `searchQuery` | string | No | Optional Gmail search query to filter emails. Use the same format as Gmail search box \(e.g.,  |
-| `markAsRead` | boolean | No | Automatically mark emails as read after processing |
-| `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
 
-#### Output
+| `labelIds` | строка | Нет | Выберите, какие метки Gmail нужно отслеживать. Оставьте пустым, чтобы отслеживать все электронные письма. |
 
-| Parameter | Type | Description |
+| `labelFilterBehavior` | строка | Да | Включить только электронные письма с выбранными метками или исключить электронные письма с выбранными метками |
+
+| `searchQuery` | строка | Нет | Необязательный поисковый запрос Gmail для фильтрации электронных писем (например, |
+
+| `markAsRead` | булево | Нет | Автоматически отмечать электронные письма как прочитанные после обработки |
+
+| `includeAttachments` | булево | Нет | Загружать и включать вложения электронной почты в выходные данные триггера |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
+
+| `email` | объект | Выходные данные электронного письма из инструмента |
+
 | --------- | ---- | ----------- |
-| `email` | object | email output from the tool |
-|   ↳ `id` | string | Gmail message ID |
-|   ↳ `threadId` | string | Gmail thread ID |
-|   ↳ `subject` | string | Email subject line |
-|   ↳ `from` | string | Sender email address |
-|   ↳ `to` | string | Recipient email address |
-|   ↳ `cc` | string | CC recipients |
+
+|   ↳ `id` | строка | ID сообщения Gmail |
+
+|   ↳ `threadId` | строка | ID темы Gmail |
+
+|   ↳ `subject` | строка | Тема электронной почты |
+
+|   ↳ `from` | строка | Адрес отправителя |
+
+|   ↳ `to` | строка | Адрес получателя |
+
+|   ↳ `cc` | строка | Адреса получателей CC |
+
+|   ↳ `date` | строка | Дата электрон
+
 |   ↳ `date` | string | Email date in ISO format |
+
 |   ↳ `bodyText` | string | Plain text email body |
+
 |   ↳ `bodyHtml` | string | HTML email body |
+
 |   ↳ `labels` | string | Email labels array |
+
 |   ↳ `hasAttachments` | boolean | Whether email has attachments |
+
 |   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+
 | `timestamp` | string | Event timestamp |
+
 

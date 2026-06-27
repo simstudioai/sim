@@ -1,6 +1,6 @@
 ---
-title: Persona
-description: Проверка личности с помощью Persona
+title: Личность
+description: Verify identities with Persona
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,518 +10,867 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
+
+
+
 [Persona](https://withpersona.com/) is an identity verification platform that helps businesses verify who their users are. Persona handles the full identity lifecycle — collecting government IDs, selfies, and documents through hosted verification flows, screening individuals against global watchlists and sanctions lists, and routing edge cases to human review.
+
 
 With Persona, you can:
 
+
 - **Verify identities end to end**: Create inquiries from your verification templates, send customers one-time verification links, and read back collected fields and decision results
+
 - **Automate KYC and compliance decisions**: Approve or decline inquiries programmatically, run watchlist, adverse media, and politically-exposed-person screening reports, and monitor cases that need manual review
+
 - **Manage your verified user base**: Create and look up accounts, bulk-import existing users from CSV, and keep your user model in sync with Persona via reference IDs
+
 - **Keep an audit trail**: Download inquiry summary PDFs and retrieve the underlying verifications and documents behind every decision
 
-In Sim, the Persona block lets your agents drive identity verification as part of real workflows. Trigger verification when a customer signs up, route on approval status, screen names against watchlists before activating accounts, post pending reviews to Slack, or archive verification PDFs to cloud storage — all using your Persona Ключ API and templates.
+
+In Sim, the Persona block lets your agents drive identity verification as part of real workflows. Trigger verification when a customer signs up, route on approval status, screen names against watchlists before activating accounts, post pending reviews to Slack, or archive verification PDFs to cloud storage — all using your Persona API key and templates.
+
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкции по использованию
 
-Интегрируйте Persona identity verification в рабочий процесс. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.
-
+## Usage Instructions
 
 
-## Действия
+Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.
+
+
+
+
+## Actions
+
 
 ### `persona_create_inquiry`
 
-Создание нового identity verification inquiry from an inquiry template. Returns the created inquiry, which can then be completed by the individual via a one-time link.
 
-#### Вход
+Create a new identity verification inquiry from an inquiry template. Returns the created inquiry, which can then be completed by the individual via a one-time link.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryTemplateId` | string | Да | Inquiry template ID \(starts with itmpl_\), inquiry template version ID \(starts with itmplv_\), or legacy template ID \(starts with tmpl_\) |
-| `accountId` | string | Нет | Account ID \(starts with act_\) to associate with this inquiry |
-| `referenceId` | string | Нет | Reference ID that refers to an entity in your user model. An account is auto-created for it if one does not exist. |
-| `fields` | json | Нет | JSON object of field name to field value pairs to pre-fill, as defined by the inquiry template (например, \{"name-first": "Jane"\}\) |
-| `note` | string | Нет | Free-form note to attach to the inquiry |
-| `redirectUri` | string | Нет | URI to redirect the individual to after completing the inquiry flow |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryTemplateId` | string | Yes | Inquiry template ID \(starts with itmpl_\), inquiry template version ID \(starts with itmplv_\), or legacy template ID \(starts with tmpl_\) |
+
+| `accountId` | string | No | Account ID \(starts with act_\) to associate with this inquiry |
+
+| `referenceId` | string | No | Reference ID that refers to an entity in your user model. An account is auto-created for it if one does not exist. |
+
+| `fields` | json | No | JSON object of field name to field value pairs to pre-fill, as defined by the inquiry template \(e.g. \{"name-first": "Jane"\}\) |
+
+| `note` | string | No | Free-form note to attach to the inquiry |
+
+| `redirectUri` | string | No | URI to redirect the individual to after completing the inquiry flow |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The created inquiry |
+
 
 ### `persona_get_inquiry`
 
-Получение a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps.
 
-#### Вход
+Retrieve a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to retrieve \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to retrieve \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The retrieved inquiry |
+
 
 ### `persona_list_inquiries`
 
-Получение списка identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated.
 
-#### Вход
+List identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `status` | string | Нет | Filter by inquiry status \(created, pending, completed, failed, expired, needs_review, approved, declined\) |
-| `accountId` | string | Нет | Filter by account ID \(starts with act_\); comma-separate multiple IDs |
-| `referenceId` | string | Нет | Filter by reference ID |
-| `createdAtStart` | string | Нет | Filter to inquiries created at or after this ISO 8601 timestamp |
-| `createdAtEnd` | string | Нет | Filter to inquiries created at or before this ISO 8601 timestamp |
-| `pageSize` | number | Нет | Number of inquiries to return per page \(1-100, по умолчанию 10\) |
-| `pageAfter` | string | Нет | Pagination cursor: return inquiries after this inquiry ID |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `status` | string | No | Filter by inquiry status \(created, pending, completed, failed, expired, needs_review, approved, declined\) |
+
+| `accountId` | string | No | Filter by account ID \(starts with act_\); comma-separate multiple IDs |
+
+| `referenceId` | string | No | Filter by reference ID |
+
+| `createdAtStart` | string | No | Filter to inquiries created at or after this ISO 8601 timestamp |
+
+| `createdAtEnd` | string | No | Filter to inquiries created at or before this ISO 8601 timestamp |
+
+| `pageSize` | number | No | Number of inquiries to return per page \(1-100, default 10\) |
+
+| `pageAfter` | string | No | Pagination cursor: return inquiries after this inquiry ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiries` | array | Inquiries matching the filters |
+
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 
 ### `persona_update_inquiry`
 
-Обновление inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.
 
-#### Вход
+Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to update \(starts with inq_\) |
-| `note` | string | Нет | Free-form note to set on the inquiry |
-| `fields` | json | Нет | JSON object of field name to field value pairs to set, as defined by the inquiry template (например, \{"name-first": "Jane"\}\) |
-| `tags` | array | Нет | JSON array of tag names to set on the inquiry (например, \["vip"\]\) |
-| `redirectUri` | string | Нет | URI to redirect the individual to after completing the inquiry flow |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to update \(starts with inq_\) |
+
+| `note` | string | No | Free-form note to set on the inquiry |
+
+| `fields` | json | No | JSON object of field name to field value pairs to set, as defined by the inquiry template \(e.g. \{"name-first": "Jane"\}\) |
+
+| `tags` | array | No | JSON array of tag names to set on the inquiry \(e.g. \["vip"\]\) |
+
+| `redirectUri` | string | No | URI to redirect the individual to after completing the inquiry flow |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The updated inquiry |
+
 
 ### `persona_approve_inquiry`
 
+
 Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to approve \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to approve \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The approved inquiry |
+
 
 ### `persona_decline_inquiry`
 
+
 Decline an identity verification inquiry. Declining prevents further progress on the inquiry and triggers any associated workflows and webhooks.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to decline \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to decline \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The declined inquiry |
+
 
 ### `persona_mark_inquiry_for_review`
 
+
 Mark an identity verification inquiry for manual review, moving it to the needs_review status.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to mark for review \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to mark for review \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The inquiry marked for review |
+
 
 ### `persona_resume_inquiry`
 
+
 Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to resume \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to resume \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The resumed inquiry |
+
 | `sessionToken` | string | Session token for the new inquiry session, used to continue the flow in embedded SDKs |
+
 
 ### `persona_expire_inquiry`
 
+
 Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to expire \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to expire \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The expired inquiry |
+
 
 ### `persona_generate_inquiry_link`
 
+
 Generate a one-time link for an inquiry that the individual can open to complete their identity verification.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to generate a one-time link for \(starts with inq_\) |
-| `expiresInSeconds` | number | Нет | Number of seconds from now until the link expires \(must be greater than 0; defaults to the inquiry template setting, typically 24 hours\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to generate a one-time link for \(starts with inq_\) |
+
+| `expiresInSeconds` | number | No | Number of seconds from now until the link expires \(must be greater than 0; defaults to the inquiry template setting, typically 24 hours\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The inquiry the link was generated for |
+
 | `oneTimeLink` | string | One-time link the individual can open to complete the inquiry |
+
 | `oneTimeLinkShort` | string | Shortened version of the one-time link |
+
 
 ### `persona_print_inquiry_pdf`
 
+
 Download a PDF summary of an inquiry, including its collected information and verification results.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to print \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to print \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `file` | file | PDF summary of the inquiry, stored in execution files |
+
 
 ### `persona_redact_inquiry`
 
+
 Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `inquiryId` | string | Да | Inquiry ID to redact \(starts with inq_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `inquiryId` | string | Yes | Inquiry ID to redact \(starts with inq_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiry` | object | The redacted inquiry \(PII fields are removed\) |
+
 
 ### `persona_create_account`
 
+
 Create an account that represents an individual in Persona. Accounts consolidate inquiries, verifications, and reports for the same person.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `accountTypeId` | string | Нет | Account type ID to create the account for \(starts with acttp_\); defaults to your organization по умолчанию |
-| `referenceId` | string | Нет | Reference ID that refers to an entity in your user model |
-| `countryCode` | string | Нет | ISO 3166-1 alpha-2 country code (например, US\) |
-| `fields` | json | Нет | JSON object of field name to field value pairs, as defined by the account type (например, \{"name-first": "Jane"\}\) |
-| `tags` | array | Нет | JSON array of tag names to associate with the account (например, \["vip"\]\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `accountTypeId` | string | No | Account type ID to create the account for \(starts with acttp_\); defaults to your organization default |
+
+| `referenceId` | string | No | Reference ID that refers to an entity in your user model |
+
+| `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
+
+| `fields` | json | No | JSON object of field name to field value pairs, as defined by the account type \(e.g. \{"name-first": "Jane"\}\) |
+
+| `tags` | array | No | JSON array of tag names to associate with the account \(e.g. \["vip"\]\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account` | object | The created account |
+
 
 ### `persona_get_account`
 
-Получение a single account by ID, including its reference ID, fields, tags, and status.
 
-#### Вход
+Retrieve a single account by ID, including its reference ID, fields, tags, and status.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `accountId` | string | Да | Account ID to retrieve \(starts with act_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `accountId` | string | Yes | Account ID to retrieve \(starts with act_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account` | object | The retrieved account |
+
 
 ### `persona_list_accounts`
 
-Получение списка accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated.
 
-#### Вход
+List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `referenceId` | string | Нет | Filter by reference ID |
-| `pageSize` | number | Нет | Number of accounts to return per page \(1-100, по умолчанию 10\) |
-| `pageAfter` | string | Нет | Pagination cursor: return accounts after this account ID |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `referenceId` | string | No | Filter by reference ID |
+
+| `pageSize` | number | No | Number of accounts to return per page \(1-100, default 10\) |
+
+| `pageAfter` | string | No | Pagination cursor: return accounts after this account ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `accounts` | array | Accounts matching the filters |
+
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 
 ### `persona_update_account`
 
-Обновление account’s reference ID, country code, fields, or tags. Only the provided values are changed.
 
-#### Вход
+Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `accountId` | string | Да | Account ID to update \(starts with act_\) |
-| `referenceId` | string | Нет | Reference ID that refers to an entity in your user model |
-| `countryCode` | string | Нет | ISO 3166-1 alpha-2 country code (например, US\) |
-| `fields` | json | Нет | JSON object of field name to field value pairs to set, as defined by the account type (например, \{"name-first": "Jane"\}\) |
-| `tags` | array | Нет | JSON array of tag names to set on the account (например, \["vip"\]\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `accountId` | string | Yes | Account ID to update \(starts with act_\) |
+
+| `referenceId` | string | No | Reference ID that refers to an entity in your user model |
+
+| `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
+
+| `fields` | json | No | JSON object of field name to field value pairs to set, as defined by the account type \(e.g. \{"name-first": "Jane"\}\) |
+
+| `tags` | array | No | JSON array of tag names to set on the account \(e.g. \["vip"\]\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account` | object | The updated account |
+
 
 ### `persona_import_accounts`
 
+
 Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `file` | file | Да | CSV file of accounts to import |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `file` | file | Yes | CSV file of accounts to import |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `importer` | object | The created account importer |
+
 
 ### `persona_redact_account`
 
+
 Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `accountId` | string | Да | Account ID to redact \(starts with act_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `accountId` | string | Yes | Account ID to redact \(starts with act_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `account` | object | The redacted account \(PII fields are removed\) |
+
 
 ### `persona_list_cases`
 
-Получение списка manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated.
 
-#### Вход
+List manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `status` | string | Нет | Filter by case status (например, Open, Resolved\) |
-| `accountId` | string | Нет | Filter by account ID \(starts with act_\) |
-| `referenceId` | string | Нет | Filter by reference ID |
-| `pageSize` | number | Нет | Number of cases to return per page \(1-100, по умолчанию 10\) |
-| `pageAfter` | string | Нет | Pagination cursor: return cases after this case ID |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `status` | string | No | Filter by case status \(e.g. Open, Resolved\) |
+
+| `accountId` | string | No | Filter by account ID \(starts with act_\) |
+
+| `referenceId` | string | No | Filter by reference ID |
+
+| `pageSize` | number | No | Number of cases to return per page \(1-100, default 10\) |
+
+| `pageAfter` | string | No | Pagination cursor: return cases after this case ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `cases` | array | Cases matching the filters |
+
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 
 ### `persona_get_case`
 
-Получение a single manual review case by ID, including its status, resolution, and assignee.
 
-#### Вход
+Retrieve a single manual review case by ID, including its status, resolution, and assignee.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `caseId` | string | Да | Case ID to retrieve \(starts with case_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `caseId` | string | Yes | Case ID to retrieve \(starts with case_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `case` | object | The retrieved case |
+
 
 ### `persona_create_report`
 
+
 Run a screening report (watchlist, adverse media, or politically exposed person) against an individual by name or search term.
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `reportType` | string | Да | Type of report to run: watchlist, adverse-media, or politically-exposed-person |
-| `reportTemplateId` | string | Да | Report template ID to run \(starts with rptp_\) |
-| `term` | string | Нет | Full-name search term (например, "Jane Q Doe"\). Provide this or the separate name parts. |
-| `nameFirst` | string | Нет | First name of the individual to search |
-| `nameMiddle` | string | Нет | Middle name of the individual to search |
-| `nameLast` | string | Нет | Last name of the individual to search |
-| `birthdate` | string | Нет | Birthdate of the individual, formatted as YYYY-MM-DD |
-| `countryCode` | string | Нет | ISO 3166-1 alpha-2 country code (например, US\) |
-| `accountId` | string | Нет | Account ID \(starts with act_\) to associate with this report |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `reportType` | string | Yes | Type of report to run: watchlist, adverse-media, or politically-exposed-person |
+
+| `reportTemplateId` | string | Yes | Report template ID to run \(starts with rptp_\) |
+
+| `term` | string | No | Full-name search term \(e.g. "Jane Q Doe"\). Provide this or the separate name parts. |
+
+| `nameFirst` | string | No | First name of the individual to search |
+
+| `nameMiddle` | string | No | Middle name of the individual to search |
+
+| `nameLast` | string | No | Last name of the individual to search |
+
+| `birthdate` | string | No | Birthdate of the individual, formatted as YYYY-MM-DD |
+
+| `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
+
+| `accountId` | string | No | Account ID \(starts with act_\) to associate with this report |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `report` | object | The created report. Reports run asynchronously; poll until status is ready. |
+
 
 ### `persona_get_report`
 
-Получение a single screening report by ID, including its status, match results, and full type-specific attributes.
 
-#### Вход
+Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `reportId` | string | Да | Report ID to retrieve \(starts with rep_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `reportId` | string | Yes | Report ID to retrieve \(starts with rep_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `report` | object | The retrieved report |
+
 
 ### `persona_list_reports`
 
-Получение списка screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.
 
-#### Вход
+List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `accountId` | string | Нет | Filter by account ID \(starts with act_\) |
-| `referenceId` | string | Нет | Filter by reference ID |
-| `pageSize` | number | Нет | Number of reports to return per page \(1-100, по умолчанию 10\) |
-| `pageAfter` | string | Нет | Pagination cursor: return reports after this report ID |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `accountId` | string | No | Filter by account ID \(starts with act_\) |
+
+| `referenceId` | string | No | Filter by reference ID |
+
+| `pageSize` | number | No | Number of reports to return per page \(1-100, default 10\) |
+
+| `pageAfter` | string | No | Pagination cursor: return reports after this report ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `reports` | array | Reports matching the filters |
+
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 
 ### `persona_get_verification`
 
-Получение a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.
 
-#### Вход
+Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `verificationId` | string | Да | Verification ID to retrieve \(starts with ver_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `verificationId` | string | Yes | Verification ID to retrieve \(starts with ver_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `verification` | object | The retrieved verification |
+
 
 ### `persona_get_document`
 
-Получение a single document by ID (government ID, generic document, and more), including its processing status and uploaded files.
 
-#### Вход
+Retrieve a single document by ID (government ID, generic document, and more), including its processing status and uploaded files.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `documentId` | string | Да | Document ID to retrieve \(starts with doc_\) |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `documentId` | string | Yes | Document ID to retrieve \(starts with doc_\) |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `document` | object | The retrieved document |
+
 
 ### `persona_list_inquiry_templates`
 
-Получение списка the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.
 
-#### Вход
+List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Persona Ключ API |
-| `pageSize` | number | Нет | Number of templates to return per page \(1-100, по умолчанию 10\) |
-| `pageAfter` | string | Нет | Pagination cursor: return templates after this template ID |
 
-#### Выход
+| `apiKey` | string | Yes | Persona API key |
+
+| `pageSize` | number | No | Number of templates to return per page \(1-100, default 10\) |
+
+| `pageAfter` | string | No | Pagination cursor: return templates after this template ID |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `inquiryTemplates` | array | Inquiry templates in the organization |
+
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 
 

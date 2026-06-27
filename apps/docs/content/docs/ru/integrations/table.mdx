@@ -1,6 +1,6 @@
 ---
 title: Table
-description: Пользовательские таблицы данных
+description: User-defined data tables
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,288 +10,492 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#10B981"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-Tables allow you to create and manage custom data tables directly within Sim. Store, query, and manipulate structured data within your workflows without needing external database integrations.
 
-**Why Use Tables?**
-- **No external setup**: Create tables instantly without configuring external databases
-- **Workflow-native**: Data persists across workflow executions and is accessible from any workflow in your workspace
-- **Flexible schema**: Define columns with types (string, number, boolean, date, json) and constraints (required, unique)
-- **Powerful querying**: Filter, sort, and paginate data using MongoDB-style operators
-- **Agent-friendly**: Tables can be used as tools by AI agents for dynamic data storage and retrieval
+Таблицы позволяют создавать и управлять пользовательскими таблицами данных непосредственно в Sim. Храните, запрашивайте и манипулируйте структурированными данными в своих рабочих процессах без необходимости интеграции с внешними базами данных.
 
-**Key Features:**
-- Create tables with custom schemas
-- Insert, update, upsert, and delete rows
-- Query with filters and sorting
-- Batch operations for bulk inserts
-- Bulk updates and deletes by filter
-- Up to 10,000 rows per table, 100 tables per workspace
 
-## Creating Tables
+**Почему использовать таблицы?**
 
-Tables are created from the **Tables** section in the sidebar. Each table requires:
-- **Name**: Alphanumeric with underscores (e.g., `customer_leads`)
-- **Description**: Optional description of the table's purpose
-- **Schema**: Define columns with name, type, and optional constraints
+- **Без внешней настройки:** Создавайте таблицы мгновенно, не настраивая внешние базы данных
 
-### Column Types
+- **Нативная для рабочего процесса:** Данные сохраняются между выполнениями рабочих процессов и доступны из любого рабочего процесса в вашем пространстве работы.
 
-| Type | Description | Example Values |
+- **Гибкая схема:** Определяйте столбцы с типами (строка, число, логическое значение, дата, JSON) и ограничениями (обязательно, уникально)
+
+- **Мощные запросы:** Фильтруйте, сортируйте и разбивайте данные с использованием операторов, аналогичных MongoDB.
+
+- **Удобно для агентов:** Таблицы могут использоваться агентами ИИ в качестве инструментов для динамического хранения и извлечения данных.
+
+
+**Основные функции:**
+
+- Создавайте таблицы с пользовательскими схемами
+
+- Вставляйте, обновляйте, выполняйте операцию upsert и удаляйте строки
+
+- Запрашивайте с фильтрами и сортировкой
+
+- Массовые операции для пакетной вставки
+
+- Пакетные обновления и удаления по фильтру
+
+- До 10 000 строк на таблицу, 100 таблиц на пространство работы
+
+
+## Создание таблиц
+
+
+Таблицы создаются из раздела **Таблицы** в боковой панели. Каждая таблица требует:
+
+- **Имя:** Алфанумерическое с использованием подчеркиваний (например, `customer_leads`)
+
+- **Описание:** Необязательное описание цели таблицы
+
+- **Схема:** Определите столбцы с именем, типом и необязательными ограничениями
+
+
+### Типы столбцов
+
+
+| Тип | Описание | Пример значений |
+
 |------|-------------|----------------|
-| `string` | Text data | `"John Doe"`, `"active"` |
-| `number` | Numeric data | `42`, `99.99` |
-| `boolean` | True/false values | `true`, `false` |
-| `date` | Date/time values | `"2024-01-15T10:30:00Z"` |
-| `json` | Complex nested data | `{"address": {"city": "NYC"}}` |
 
-### Column Constraints
+| `string` | Текстовые данные | `"John Doe"`, `"active"` |
 
-- **Required**: Column must have a value (cannot be null)
-- **Unique**: Values must be unique across all rows (enables upsert matching)
+| `number` | Числовые данные | `42`, `99.99` |
+
+| `boolean` | Логические значения | `true`, `false` |
+
+| `date` | Значения даты/времени | `"2024-01-15T10:30:00Z"` |
+
+| `json` | Сложные вложенные данные | `{"address": {"city": "NYC"}}` |
+
+
+### Ограничения столбцов
+
+
+- **Обязательно:** Столбец должен иметь значение (не может быть пустым)
+
+- **Уникально:** Значения должны быть уникальными для всех строк (позволяет выполнять операцию upsert)
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Create and manage custom data tables. Store, query, and manipulate structured data within workflows.
+
+Создавайте и управляйте пользовательскими таблицами данных. Храните, запрашивайте и манипулируйте структурированными данными в рабочих процессах.
+
 
 
 
 ## Действия
 
+
 ### `table_insert_row`
 
-Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
-#### Вход
+Вставляйте новую строку в таблицу. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields" или другие варианты), чтобы указать содержимое строки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `data` | object | Да | Row data as JSON object |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `data` | объект | Да | Данные строки в виде объекта JSON |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether row was inserted |
-| `row` | json | Inserted row data |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли вставлена строка |
+
+| `row` | json | Вставленные данные строки |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_batch_insert_rows`
 
-Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows)
 
-#### Вход
+Вставляйте несколько строк в таблицу одновременно (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `rows` | array | Да | Array of row data objects \(max $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows\) |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `rows` | массив | Да | Массив объектов данных строки (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether rows were inserted |
-| `rows` | array | Inserted rows data |
-| `insertedCount` | number | Number of rows inserted |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли вставлены строки |
+
+| `rows` | массив | Данные вставленных строк |
+
+| `insertedCount` | число | Количество вставленных строк |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_upsert_row`
 
-Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
-#### Вход
+Вставляйте или обновляйте строку на основе ограничений уникальных столбцов. Если строка с совпадающим уникальным полем существует, обновите ее; в противном случае вставьте новую строку. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields", или другие варианты), чтобы указать содержимое строки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `data` | object | Да | Row data to insert or update |
-| `conflictTarget` | string | Нет | Unique column to match on. Required only when the table has more than one unique column. |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `data` | объект | Да | Данные строки для вставки или обновления |
+
+| `conflictTarget` | строка | Нет | Уникальный столбец для сопоставления. Требуется только если таблице принадлежит более одного уникального столбца. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether row was upserted |
-| `row` | json | Upserted row data |
-| `operation` | string | Operation performed: insert or update |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли выполнена операция upsert |
+
+| `row` | json | Данные вставленной/обновленной строки |
+
+| `operation` | строка | Выполненная операция: insert или update |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_update_row`
 
-Обновление existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
 
-#### Вход
+Обновляйте существующую строку в таблице. Поддерживаются частичные обновления - указывайте только поля, которые нужно изменить. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields", или другие варианты), чтобы указать поля для обновления.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `rowId` | string | Да | Row ID to update |
-| `data` | object | Да | Updated row data |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `rowId` | строка | Да | ID строки для обновления |
+
+| `data` | объект | Да | Обновленные данные строки |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether row was updated |
-| `row` | json | Updated row data |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли обновлена строка |
+
+| `row` | json | Обновленные данные строки |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_update_rows_by_filter`
 
-Update multiple rows that match filter criteria. Data is merged with existing row data.
 
-#### Вход
+Обновляйте несколько строк, соответствующих критериям фильтра. Данные объединяются с существующими данными строки.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `filter` | object | Да | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
-| `data` | object | Да | Fields to update \(merged with existing data\) |
-| `limit` | number | Нет | Maximum number of rows to update \(по умолчанию: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `filter` | объект | Да | Критерии фильтрации с использованием операторов, таких как $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty и т.д. |
+
+| `data` | объект | Да | Поля для обновления (объединяются с существующими данными) |
+
+| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether rows were updated |
-| `updatedCount` | number | Number of rows updated |
-| `updatedRowIds` | array | IDs of updated rows |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли обновлены строки |
+
+| `updatedCount` | число | Количество обновленных строк |
+
+| `updatedRowIds` | массив | ID обновленных строк |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_delete_row`
 
-Удаление row from a table
 
-#### Вход
+Удалите строку из таблицы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `rowId` | string | Да | Row ID to delete |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `rowId` | строка | Да | ID строки для удаления |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether row was deleted |
-| `deletedCount` | number | Number of rows deleted |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли удалена строка |
+
+| `deletedCount` | число | Количество удаленных строк |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_delete_rows_by_filter`
 
-Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.
 
-#### Вход
+Удалите несколько строк, соответствующих критериям фильтра. Используйте с осторожностью - поддерживает необязательный лимит для безопасности.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `filter` | object | Да | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
-| `limit` | number | Нет | Maximum number of rows to delete \(по умолчанию: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `filter` | объект | Да | Критерии фильтрации с использованием операторов, таких как $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty и т.д. |
+
+| `limit` | число | Нет | Максимальное количество строк для удаления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether rows were deleted |
-| `deletedCount` | number | Number of rows deleted |
-| `deletedRowIds` | array | IDs of deleted rows |
-| `message` | string | Status message |
+
+| `success` | булево значение | Успешно ли удалены строки |
+
+| `deletedCount` | число | Количество удаленных строк |
+
+| `deletedRowIds` | массив | ID удаленных строк |
+
+| `message` | строка | Сообщение о состоянии |
+
 
 ### `table_query_rows`
 
-Query rows from a table with filtering, sorting, and pagination
 
-#### Вход
+Запрашивайте строки из таблицы с фильтрацией, сортировкой и разбиением на страницы.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `filter` | object | Нет | Filter conditions \(MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty\) |
-| `sort` | object | Нет | Sort order as \{field: "asc"\|"desc"\} |
-| `limit` | number | Нет | Maximum rows to return \(по умолчанию: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT\}, max: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}\) |
-| `offset` | number | Нет | Number of rows to skip \(по умолчанию: 0\) |
 
-#### Выход
+| `tableId` | строка | Да | ID таблицы |
 
-| Parameter | Type | Description |
+| `filter` | объект | Нет | Условия фильтрации (операторы MongoDB: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty) |
+
+| `sort` | объект | Нет | Порядок сортировки в виде {поле: "asc"\|"desc"} |
+
+| `limit` | число | Нет | Максимальное количество строк для возврата (по умолчанию: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, максимум: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}) |
+
+| `offset` | число | Нет | Количество строк для пропуска (по умолчанию: 0) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether query succeeded |
-| `rows` | array | Query result rows |
-| `rowCount` | number | Number of rows returned |
-| `totalCount` | number | Total rows matching filter |
-| `limit` | number | Limit used in query |
-| `offset` | number | Offset used in query |
 
-### `table_get_row`
+| `success` | булево значение | Успешно ли запрос |
 
-Получение a single row by ID
+| `rows` | массив | Результаты запроса строк |
 
-#### Вход
+| `rowCount` | число | Количество строк, соответствующих фильтру |
 
-| Параметр | Тип | Обязательный | Описание |
+| `totalCount` | число | Общее количество строк, соответствующих фильтру |
+
+| `limit` | число | Используемый лимит в запросе |
+
+| `offset` | число | Используемый сдвиг в запросе |
+
+
+## Инструкции по использованию
+
+
+Создавайте и управляйте пользовательскими таблицами данных. Храните, запрашивайте и манипулируйте структурированными данными в рабочих процессах.
+
+
+## Действия
+
+
+### `table_insert_row`
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
-| `rowId` | string | Да | Row ID to retrieve |
 
-#### Выход
+Вставляйте новую строку в таблицу. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields", или другие варианты), чтобы указать содержимое строки.
 
-| Parameter | Type | Description |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `tableId` | строка | Да | ID таблицы |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether row was retrieved |
-| `row` | json | Row data |
-| `message` | string | Status message |
 
-### `table_get_schema`
+| `data` | объект | Да | Данные строки в виде объекта JSON |
 
-Получение the schema configuration of a table
+#### Выходные данные
 
-#### Вход
+| Параметр | Тип | Описание |
 
-| Параметр | Тип | Обязательный | Описание |
+
+| `success` | булево значение | Успешно ли вставлена строка |
+
+
+| `row` | json | Вставленные данные строки |
+
+
+| `message` | строка | Сообщение о состоянии |
+
+
+### `table_batch_insert_rows`
+
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Да | Table ID |
 
-#### Выход
+Вставляйте несколько строк в таблицу одновременно (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк)
 
-| Parameter | Type | Description |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether schema was retrieved |
-| `name` | string | Table name |
-| `columns` | array | Column definitions \(each includes its stable id\) |
-| `columnCount` | number | Number of columns |
-| `rowCount` | number | Number of rows in the table |
-| `maxRows` | number | Max rows per table for the workspace's plan |
-| `message` | string | Status message |
 
-{/* MANUAL-CONTENT-START:notes */}
-## Filter Operators
+| `tableId` | строка | Да | ID таблицы |
 
-Filters use MongoDB-style operators for flexible querying:
+| `rows` | массив | Да | Массив объектов данных строки (до $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} строк) |
 
-| Operator | Description | Example |
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `success` | булево значение | Успешно ли вставлены строки |
+
+| `rows` | массив | Данные вставленных строк |
+
+| `insertedCount` | число | Количество вставленных строк |
+
+
+| `message` | строка | Сообщение о состоянии |
+
+### `table_upsert_row`
+
+
+Вставляйте или обновляйте строку на основе ограничений уникальных столбцов. Если строка с совпадающим уникальным полем существует, обновите ее; в противном случае вставьте новую строку. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields", или другие варианты), чтобы указать содержимое строки.
+
+
+#### Входные данные
+
 |----------|-------------|---------|
-| `$eq` | Equals | `{"status": {"$eq": "active"}}` or `{"status": "active"}` |
-| `$ne` | Not equals | `{"status": {"$ne": "deleted"}}` |
-| `$gt` | Greater than | `{"age": {"$gt": 18}}` |
-| `$gte` | Greater than or equal | `{"score": {"$gte": 80}}` |
-| `$lt` | Less than | `{"price": {"$lt": 100}}` |
-| `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
-| `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
-| `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
-| `$contains` | String contains (case-insensitive) | `{"email": {"$contains": "@gmail.com"}}` |
-| `$ncontains` | Does not contain (case-insensitive; matches empty cells) | `{"email": {"$ncontains": "@spam.com"}}` |
-| `$startsWith` | Starts with (case-insensitive) | `{"name": {"$startsWith": "Dr."}}` |
-| `$endsWith` | Ends with (case-insensitive) | `{"file": {"$endsWith": ".pdf"}}` |
-| `$empty` | Cell is empty (`true`) or non-empty (`false`) | `{"phone": {"$empty": true}}` |
 
-### Combining Filters
+| Параметр | Тип | Требуется | Описание |
 
-Multiple field conditions are combined with AND logic:
+| `tableId` | строка | Да | ID таблицы |
+
+| `data` | объект | Да | Данные строки для вставки или обновления |
+
+| `conflictTarget` | строка | Нет | Уникальный столбец для сопоставления. Требуется только если таблице принадлежит более одного уникального столбца. |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `success` | булево значение | Успешно ли выполнена операция upsert |
+
+| `row` | json | Данные вставленной/обновленной строки |
+
+| `operation` | строка | Выполненная операция: insert или update |
+
+| `message` | строка | Сообщение о состоянии |
+
+### `table_update_row`
+
+Обновляйте существующую строку в таблице. Поддерживаются частичные обновления - указывайте только поля, которые нужно изменить. ВАЖНО: Вам необходимо использовать параметр "data" (а не "values", "row", "fields", или другие варианты), чтобы указать поля для обновления.
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `tableId` | строка | Да | ID таблицы |
+
 
 ```json
 {
@@ -300,7 +504,9 @@ Multiple field conditions are combined with AND logic:
 }
 ```
 
-Use `$or` for OR logic:
+
+| `rowId` | строка | Да | ID строки для обновления |
+
 
 ```json
 {
@@ -311,9 +517,12 @@ Use `$or` for OR logic:
 }
 ```
 
-## Sort Specification
 
-Specify sort order with column names and direction:
+| `data` | объект | Да | Обновленные данные строки |
+
+
+#### Выходные данные
+
 
 ```json
 {
@@ -321,7 +530,9 @@ Specify sort order with column names and direction:
 }
 ```
 
-Multi-column sorting:
+
+| Параметр | Тип | Описание |
+
 
 ```json
 {
@@ -330,37 +541,65 @@ Multi-column sorting:
 }
 ```
 
-## Built-in Columns
 
-Every row automatically includes:
+| `success` | булево значение | Успешно ли обновлена строка |
 
-| Column | Type | Description |
+
+| `row` | json | Обновленные данные строки |
+
+
+| `message` | строка | Сообщение о состоянии |
+
 |--------|------|-------------|
-| `id` | string | Unique row identifier |
-| `createdAt` | date | When the row was created |
-| `updatedAt` | date | When the row was last modified |
 
-These can be used in filters and sorting.
+### `table_update_rows_by_filter`
 
-## Limits
+Обновляйте несколько строк, соответствующих критериям фильтра. Данные объединяются с существующими данными строки.
 
-| Resource | Limit |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `tableId` | строка | Да | ID таблицы |
+
+
+| `filter` | объект | Да | Критерии фильтрации с использованием операторов, таких как $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty и т.д. |
+
 |----------|-------|
-| Tables per workspace | 100 |
-| Rows per table | 10,000 |
-| Columns per table | 50 |
-| Max row size | 100KB |
-| String value length | 10,000 characters |
-| Query limit | 1,000 rows |
-| Batch insert size | 1,000 rows |
-| Bulk update/delete | 1,000 rows |
 
-## Notes
+| `data` | объект | Да | Поля для обновления (объединяются с существующими данными) |
 
-- Category: `blocks`
+| `limit` | число | Нет | Максимальное количество строк для обновления (по умолчанию: нет ограничений, максимум: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}) |
+
+#### Выходные данные
+
+| Параметр | Тип | Описание |
+
+| `success` | булево значение | Успешно ли обновлены строки |
+
+| `updatedCount` | число | Количество обновленных строк |
+
+| `updatedRowIds` | массив | ID обновленных строк |
+
+| `message` | строка | Сообщение о состоянии |
+
+
+### `table_delete_row`
+
+
+Уда
+
 - Type: `table`
+
 - Tables are scoped to workspaces and accessible from any workflow within that workspace
+
 - Data persists across workflow executions
+
 - Use unique constraints to enable upsert functionality
+
 - The visual filter/sort builder provides an easy way to construct queries without writing JSON
+
 {/* MANUAL-CONTENT-END */}
+

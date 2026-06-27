@@ -1,6 +1,6 @@
 ---
 title: LaunchDarkly
-description: Управление флагами функций с помощью LaunchDarkly.
+description: Управляйте флагами функций с помощью LaunchDarkly.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,384 +10,680 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#191919"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[LaunchDarkly](https://launchdarkly.com/) is a feature management platform that enables teams to safely deploy, control, and measure their software features at scale.
 
-With the LaunchDarkly integration in Sim, you can:
-
-- **Feature flag management** — List, create, update, toggle, and delete feature flags programmatically. Toggle flags on or off in specific environments using LaunchDarkly's semantic patch API.
-- **Flag status monitoring** — Check whether a flag is active, inactive, new, or launched in a given environment. Track the last time a flag was evaluated.
-- **Project and environment management** — List all projects and their environments to understand your LaunchDarkly organization structure.
-- **User segments** — List user segments within a project and environment to understand how your audience is organized for targeting.
-- **Team visibility** — List account members and their roles for auditing and access management workflows.
-- **Audit log** — Retrieve recent audit log entries to track who changed what, when. Filter entries by resource type for targeted monitoring.
-
-In Sim, the LaunchDarkly integration enables your agents to automate feature flag operations as part of their workflows. This allows for automation scenarios such as toggling flags on/off based on deployment pipeline events, monitoring flag status and alerting on stale or unused flags, auditing flag changes by querying the audit log after deployments, syncing flag metadata with your project management tools, and listing all feature flags across projects for governance.
-
-## Authentication
-
-This integration uses a LaunchDarkly API key. You can create personal access tokens or service tokens in the LaunchDarkly dashboard under **Account Settings > Authorization**. The API key is passed directly in the `Authorization` header (no `Bearer` prefix).
-
-## Need Help?
-
-If you encounter issues with the LaunchDarkly integration, contact us at [help@sim.ai](mailto:help@sim.ai)
-{/* MANUAL-CONTENT-END */}
-
-
+===
 ## Инструкции по использованию
 
-Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.
-
+Интегрируйте LaunchDarkly в свой рабочий процесс. Создавайте, обновляйте, включайте и отключайте флаги функций. Управляйте проектами, средами, сегментами, членами команды и журналами аудита. Требуется API-ключ.
 
 
 ## Действия
 
+
 ### `launchdarkly_create_flag`
 
-Create a new feature flag in a LaunchDarkly project.
+Создайте новый флаг функции в проекте LaunchDarkly.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key to create the flag in |
-| `name` | string | Да | Human-readable name for the feature flag |
-| `key` | string | Да | Unique key for the feature flag \(used in code\) |
-| `description` | string | Нет | Description of the feature flag |
-| `tags` | string | Нет | Comma-separated list of tags |
-| `temporary` | boolean | Нет | Whether the flag is temporary \(default true\) |
+| Параметр | Тип | Требуемый | Описание |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| `projectKey` | строка | Да | Ключ проекта для создания флага |
+
+
+| `name` | строка | Да | Читабельное имя для флага функции |
+
+
+| `key` | строка | Да | Уникальный ключ для флага функции (используется в коде) |
+
+
+| `description` | строка | Нет | Описание флага функции |
+
+
+| `tags` | строка | Нет | Список тегов, разделенных запятыми |
+
+
+| `temporary` | логическое значение | Нет | Является ли флаг временным (по умолчанию true) |
+
+#### Выходные данные
+
+
 
 | Параметр | Тип | Описание |
+
+
+| `key` | строка | Уникальный ключ флага функции |
+
+
+
+
+| `name` | строка | Читабельное имя флага функции |
+
+
+| `kind` | строка | Тип флага (true или multivariate) |
+
+
+| `description` | строка | Описание флага функции |
+
+
+| `temporary` | логическое значение | Является ли флаг временным |
+
+
+| `archived` | логическое значение | Является ли флаг архивированным |
+
+| --------- | ---- | -------- | ----------- |
+
+| `deprecated` | логическое значение | Является ли флаг устаревшим |
+
+| `creationDate` | число | Unix timestamp в миллисекундах, когда был создан флаг |
+
+| `tags` | массив | Теги, примененные к флагам |
+
+| `variations` | массив | Варианты для этого флага функции |
+
+|   ↳ `value` | строка | Значение варианта (любой тип JSON, представленный текстом) |
+
+|   ↳ `name` | строка | Имя варианта |
+
+|   ↳ `description` | строка | Описание варианта |
+
+
+| `maintainerId` | строка | ID члена команды, отвечающего за этот флаг |
+
+
+| `maintainerEmail` | строка | Электронная почта члена команды, отвечающего за этот флаг |
+
 | --------- | ---- | ----------- |
-| `key` | string | The unique key of the feature flag |
-| `name` | string | The human-readable name of the feature flag |
-| `kind` | string | The type of flag \(boolean or multivariate\) |
-| `description` | string | Description of the feature flag |
-| `temporary` | boolean | Whether the flag is temporary |
-| `archived` | boolean | Whether the flag is archived |
-| `deprecated` | boolean | Whether the flag is deprecated |
-| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
-| `tags` | array | Tags applied to the flag |
-| `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
-|   ↳ `name` | string | The variation name |
-|   ↳ `description` | string | The variation description |
-| `maintainerId` | string | The ID of the member who maintains this flag |
-| `maintainerEmail` | string | The email of the member who maintains this flag |
 
 ### `launchdarkly_delete_flag`
 
-Delete a feature flag from a LaunchDarkly project.
+Удалите флаг функции из проекта LaunchDarkly.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `flagKey` | string | Да | The feature flag key to delete |
+| Параметр | Тип | Требуемый | Описание |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| `projectKey` | строка | Да | Ключ проекта |
+
+| `flagKey` | строка | Да | Ключ флага для удаления |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the flag was successfully deleted |
+
+| `deleted` | логическое значение | Является ли флаг успешно удаленным |
 
 ### `launchdarkly_get_audit_log`
 
-List audit log entries from your LaunchDarkly account.
+Получите записи журнала аудита из вашей учетной записи LaunchDarkly.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `limit` | number | Нет | Maximum number of entries to return \(default 10, max 20\) |
-| `spec` | string | Нет | Resource specifier filter \(e.g. "proj/*:env/*:flag/*" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment\) |
+| Параметр | Тип | Требуемый | Описание |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+
+| `limit` | число | Нет | Максимальное количество записей для возврата (по умолчанию 10, максимум 20) |
+
+
+| `spec` | строка | Нет | Специфика ресурса фильтра (например, "proj/*:env/*:flag/*" для всех изменений флага или "proj/default:env/production:flag/my-flag" для одного флага в одной среде) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+| --------- | ---- | -------- | ----------- |
+
+| `entries` | массив | Список записей журнала аудита |
+
+|   ↳ `id` | строка | ID записи журнала аудита |
+
+|   ↳ `date` | число | Unix timestamp в миллисекундах |
+
+
+|   ↳ `kind` | строка | Тип выполненного действия |
+
+
+|   ↳ `name` | строка | Имя ресурса, на который было произведено действие |
+
 | --------- | ---- | ----------- |
-| `entries` | array | List of audit log entries |
-|   ↳ `id` | string | The audit log entry ID |
-|   ↳ `date` | number | Unix timestamp in milliseconds |
-|   ↳ `kind` | string | The type of action performed |
-|   ↳ `name` | string | The name of the resource acted on |
-|   ↳ `description` | string | Full description of the action |
-|   ↳ `shortDescription` | string | Short description of the action |
-|   ↳ `memberEmail` | string | Email of the member who performed the action |
-|   ↳ `targetName` | string | Name of the target resource |
-|   ↳ `targetKind` | string | Resource specifier of the target \(e.g. proj/default:env/production:flag/my-flag\) |
-| `totalCount` | number | Total number of audit log entries |
+
+|   ↳ `description` | строка | Полное описание действия |
+
+
+|   ↳ `shortDescription` | строка | Краткое описание действия |
+
+
+|   ↳ `memberEmail` | строка | Электронная почта члена команды, выполнившего действие |
+
+
+|   ↳ `targetName` | строка | Имя целевого ресурса |
+
+
+|   ↳ `targetKind` | строка | Специфика ресурса цели (например, proj/default:env/production:flag/my-flag) |
+
+| --------- | ---- | -------- | ----------- |
+
+| `totalCount` | число | Общее количество записей журнала аудита |
 
 ### `launchdarkly_get_flag`
 
-Get a single feature flag by key from a LaunchDarkly project.
+Получите флаг функции по ключу из проекта LaunchDarkly.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `flagKey` | string | Да | The feature flag key |
-| `environmentKey` | string | Нет | Filter flag configuration to a specific environment |
+#### Входные данные
 
-#### Выходные параметры
+
+| Параметр | Тип | Требуемый | Описание |
+
+| --------- | ---- | ----------- |
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| `projectKey` | строка | Да | Ключ проекта |
+
+| `flagKey` | строка | Да | Ключ флага для получения |
+
+| `environmentKey` | строка | Нет | Фильтруйте конфигурацию флага в определенную среду |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `key` | строка | Уникальный ключ флага функции |
+
+| `name` | строка | Читабельное имя флага функции |
+
+| `kind` | строка | Тип флага (true или multivariate) |
+
+| `description` | строка | Описание флага функции |
+
+| `temporary` | логическое значение | Является ли флаг временным |
+
+
+| `archived` | логическое значение | Является ли флаг архивированным |
+
+
+| `deprecated` | логическое значение | Является ли флаг устаревшим |
+
+
+| `creationDate` | число | Unix timestamp в миллисекундах, когда был создан флаг |
+
+
+| `tags` | массив | Теги, примененные к флагам |
+
+| --------- | ---- | -------- | ----------- |
+
+| `variations` | массив | Варианты для этого флага функции |
+
+|   ↳ `value` | строка | Значение варианта (любой тип JSON, представленный текстом) |
+
+|   ↳ `name` | строка | Имя варианта |
+
+|   ↳ `description` | строка | Описание варианта |
+
+
+| `maintainerId` | строка | ID члена команды, отвечающего за этот флаг |
+
+
+| `maintainerEmail` | строка | Электронная почта члена команды, отвечающего за этот флаг |
+
 | --------- | ---- | ----------- |
-| `key` | string | The unique key of the feature flag |
-| `name` | string | The human-readable name of the feature flag |
-| `kind` | string | The type of flag \(boolean or multivariate\) |
-| `description` | string | Description of the feature flag |
-| `temporary` | boolean | Whether the flag is temporary |
-| `archived` | boolean | Whether the flag is archived |
-| `deprecated` | boolean | Whether the flag is deprecated |
-| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
-| `tags` | array | Tags applied to the flag |
-| `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
-|   ↳ `name` | string | The variation name |
-|   ↳ `description` | string | The variation description |
-| `maintainerId` | string | The ID of the member who maintains this flag |
-| `maintainerEmail` | string | The email of the member who maintains this flag |
-| `on` | boolean | Whether the flag is on in the requested environment \(null when the flag spans multiple environments and no environment key was provided\) |
+
+| `on` | логическое значение | Является ли флаг включен в целевую среду (null, если флаг распространяется на несколько сред и не предоставлен ключ среды) |
 
 ### `launchdarkly_get_flag_status`
 
-Get the status of a feature flag across environments (active, inactive, launched, etc.).
+Получите статус флага во всех средах (активен, неактивен, запущен, и т.д.).
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `flagKey` | string | Да | The feature flag key |
-| `environmentKey` | string | Да | The environment key |
+| Параметр | Тип | Требуемый | Описание |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| `projectKey` | строка | Да | Ключ проекта |
+
+| `flagKey` | строка | Да | Ключ флага для получения статуса |
+
+| `environmentKey` | строка | Да | Ключ среды для получения статуса |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `name` | string | The flag status \(new, active, inactive, launched\) |
-| `lastRequested` | string | Timestamp of the last evaluation |
-| `defaultVal` | string | The default variation value |
+
+| `name` | строка | Статус флага (new, active, inactive, launched) |
+
+| `lastRequested` | строка | Дата и время последнего запроса |
+
+| `defaultVal` | строка | Значение варианта по умолчанию |
 
 ### `launchdarkly_list_environments`
 
-List environments in a LaunchDarkly project.
+Перечислите среды в проекте LaunchDarkly.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуемый | Описание |
+
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+
+| `projectKey` | строка | Да | Ключ проекта для перечисления сред |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key to list environments for |
-| `limit` | number | Нет | Maximum number of environments to return \(default 20\) |
 
-#### Выходные параметры
+| `limit` | число | Нет | Максимальное количество сред для возврата (по умолчанию 20) |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `environments` | массив | Список сред |
+
+
+|   ↳ `id` | строка | ID среды |
+
+
+|   ↳ `key` | строка | Уникальный ключ среды |
+
 | --------- | ---- | ----------- |
-| `environments` | array | List of environments |
-|   ↳ `id` | string | The environment ID |
-|   ↳ `key` | string | The unique environment key |
-|   ↳ `name` | string | The environment name |
-|   ↳ `color` | string | The color assigned to this environment |
-|   ↳ `apiKey` | string | The server-side SDK key for this environment |
-|   ↳ `mobileKey` | string | The mobile SDK key for this environment |
-|   ↳ `tags` | array | Tags applied to the environment |
-| `totalCount` | number | Total number of environments |
+
+|   ↳ `name` | строка | Имя среды |
+
+|   ↳ `color` | строка | Цвет, назначенный этой среде |
+
+|   ↳ `apiKey` | строка | Ключ SDK для сервера для этой среды |
+
+
+|   ↳ `mobileKey` | строка | Ключ SDK для мобильных устройств для этой среды |
+
+
+|   ↳ `tags` | массив | Теги, примененные к среде |
+
+
+| `totalCount` | число | Общее количество сред |
+
 
 ### `launchdarkly_list_flags`
 
-List feature flags in a LaunchDarkly project.
-
-#### Входные параметры
-
-| Параметр | Тип | Обязательный | Описание |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key to list flags for |
-| `environmentKey` | string | Нет | Filter flag configurations to a specific environment |
-| `tag` | string | Нет | Filter flags by tag name |
-| `limit` | number | Нет | Maximum number of flags to return \(default 20\) |
 
-#### Выходные параметры
+Перечислите флаги функций в проекте LaunchDarkly.
+
+#### Входные данные
+
+| Параметр | Тип | Требуемый | Описание |
+
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+
+| `projectKey` | строка | Да | Ключ проекта для перечисления флагов |
+
+| --------- | ---- | ----------- |
+
+| `environmentKey` | строка | Нет | Фильтруйте конфигурацию флага в определенную среду |
+
+| `tag` | строка | Нет | Фильтруйте флаги по имени тега |
+
+| `limit` | число | Нет | Максимальное количество флагов для возврата (по умолчанию 20) |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `flags` | массив | Список флагов функций |
+
+|   ↳ `key` | строка | Уникальный ключ флага функции |
+
+|   ↳ `name` | строка | Читабельное имя флага функции |
+
+|   ↳ `kind` | строка | Тип флага (true или multivariate) |
+
+
+|   ↳ `description` | строка | Описание флага функции |
+
+
+|   ↳ `temporary` | логическое значение | Является ли флаг временным |
+
+
+|   ↳ `archived` | логическое значение | Является ли флаг архивированным |
+
+
+|   ↳ `deprecated` | логическое значение | Является ли флаг устаревшим |
+
+| --------- | ---- | -------- | ----------- |
+
+|   ↳ `creationDate` | число | Unix timestamp в миллисекундах, когда был создан флаг |
+
+|   ↳ `tags` | массив | Теги, примененные к флагам |
+
+|   ↳ `variations` | массив | Варианты для этого флага функции |
+
+|     ↳ `value` | строка | Значение варианта (любой тип JSON, представленный текстом) |
+
+|     ↳ `name` | строка | Имя варианта |
+
+
+|     ↳ `description` | строка | Описание варианта |
+
+
+|   ↳ `maintainerId` | строка | ID члена команды, отвечающего за этот флаг |
+
 | --------- | ---- | ----------- |
-| `flags` | array | List of feature flags |
-|   ↳ `key` | string | The unique key of the feature flag |
-|   ↳ `name` | string | The human-readable name of the feature flag |
-|   ↳ `kind` | string | The type of flag \(boolean or multivariate\) |
-|   ↳ `description` | string | Description of the feature flag |
-|   ↳ `temporary` | boolean | Whether the flag is temporary |
-|   ↳ `archived` | boolean | Whether the flag is archived |
-|   ↳ `deprecated` | boolean | Whether the flag is deprecated |
-|   ↳ `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
-|   ↳ `tags` | array | Tags applied to the flag |
-|   ↳ `variations` | array | The variations for this feature flag |
-|     ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
-|     ↳ `name` | string | The variation name |
-|     ↳ `description` | string | The variation description |
-|   ↳ `maintainerId` | string | The ID of the member who maintains this flag |
-|   ↳ `maintainerEmail` | string | The email of the member who maintains this flag |
-| `totalCount` | number | Total number of flags |
+
+|   ↳ `maintainerEmail` | строка | Электронная почта члена команды, отвечающего за этот флаг |
+
+| `totalCount` | число | Общее количество флагов |
 
 ### `launchdarkly_list_members`
 
-List account members in your LaunchDarkly organization.
+Перечислите членов учетной записи в вашей организации LaunchDarkly.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `limit` | number | Нет | Maximum number of members to return \(default 20\) |
+| Параметр | Тип | Требуемый | Описание |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| `limit` | число | Нет | Максимальное количество членов для возврата (по умолчанию 20) |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `members` | array | List of account members |
-|   ↳ `id` | string | The member ID |
-|   ↳ `email` | string | The member email address |
-|   ↳ `firstName` | string | The member first name |
-|   ↳ `lastName` | string | The member last name |
-|   ↳ `role` | string | The member role \(reader, writer, admin, owner\) |
-|   ↳ `lastSeen` | number | Unix timestamp of last activity |
-|   ↳ `creationDate` | number | Unix timestamp when the member was created |
-|   ↳ `verified` | boolean | Whether the member email is verified |
-| `totalCount` | number | Total number of members |
+
+| `members` | массив | Список членов учетной записи |
+
+|   ↳ `id` | строка | ID члена |
+
+|   ↳ `email` | строка | Электронная почта члена |
+
+|   ↳ `firstName` | строка | Имя члена |
+
+|   ↳ `lastName` | строка | Фамилия члена |
+
+|   ↳ `role` | строка | Роль члена (reader, writer, admin, owner) |
+
+|   ↳ `lastSeen` | число | Unix timestamp последней активности |
+
+
+|   ↳ `creationDate` | число | Unix timestamp создания члена |
+
+
+|   ↳ `verified` | логическое значение | Является ли электронная почта члена подтвержденной |
+
+
+| `totalCount` | число | Общее количество членов |
+
 
 ### `launchdarkly_list_projects`
 
-List all projects in your LaunchDarkly account.
-
-#### Входные параметры
-
-| Параметр | Тип | Обязательный | Описание |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `limit` | number | Нет | Maximum number of projects to return \(default 20\) |
 
-#### Выходные параметры
+Перечислите все проекты в вашей учетной записи LaunchDarkly.
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуемый | Описание |
+
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| --------- | ---- | ----------- |
+
+| `limit` | число | Нет | Максимальное количество проектов для возврата (по умолчанию 20) |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `projects` | array | List of projects |
-|   ↳ `id` | string | The project ID |
-|   ↳ `key` | string | The unique project key |
-|   ↳ `name` | string | The project name |
-|   ↳ `tags` | array | Tags applied to the project |
-| `totalCount` | number | Total number of projects |
+
+| `projects` | массив | Список проектов |
+
+|   ↳ `id` | строка | ID проекта |
+
+|   ↳ `key` | строка | Уникальный ключ проекта |
+
+|   ↳ `name` | строка | Имя проекта |
+
+|   ↳ `tags` | массив | Теги, примененные к проекту |
+
+| `totalCount` | число | Общее количество проектов |
 
 ### `launchdarkly_list_segments`
 
-List user segments in a LaunchDarkly project and environment.
 
-#### Входные параметры
+Перечислите сегменты пользователей в проекте и среде LaunchDarkly.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуемый | Описание |
+
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `environmentKey` | string | Да | The environment key |
-| `limit` | number | Нет | Maximum number of segments to return \(default 20\) |
 
-#### Выходные параметры
+| `projectKey` | строка | Да | Ключ проекта |
+
+| `environmentKey` | строка | Да | Ключ среды |
+
+
+| `limit` | число | Нет | Максимальное количество сегментов для возврата (по умолчанию 20) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `segments` | array | List of user segments |
-|   ↳ `key` | string | The unique segment key |
-|   ↳ `name` | string | The segment name |
-|   ↳ `description` | string | The segment description |
-|   ↳ `tags` | array | Tags applied to the segment |
-|   ↳ `creationDate` | number | Unix timestamp in milliseconds when the segment was created |
-|   ↳ `unbounded` | boolean | Whether this is an unbounded \(big\) segment |
-|   ↳ `included` | array | User keys explicitly included in the segment |
-|   ↳ `excluded` | array | User keys explicitly excluded from the segment |
-| `totalCount` | number | Total number of segments |
+
+| `segments` | массив | Список сегментов пользователей |
+
+|   ↳ `key` | строка | Уникальный ключ сегмента |
+
+|   ↳ `name` | строка | Имя сегмента |
+
+|   ↳ `description` | строка | Описание сегмента |
+
+|   ↳ `tags` | массив | Теги, примененные к сегменту |
+
+
+|   ↳ `creationDate` | число | Unix timestamp создания сегмента |
+
+
+|   ↳ `unbounded` | логическое значение | Является ли этот сегмент неограниченным (большим) |
+
+
+|   ↳ `included` | массив | Ключи пользователей, явно включенные в сегмент |
+
+
+|   ↳ `excluded` | массив | Ключи пользователей, явно исключенные из сегмента |
+
+| --------- | ---- | -------- | ----------- |
+
+| `totalCount` | число | Общее количество сегментов |
 
 ### `launchdarkly_toggle_flag`
 
-Toggle a feature flag on or off in a specific LaunchDarkly environment.
+Включите или отключите флаг функции в определенной среде LaunchDarkly.
 
-#### Входные параметры
+#### Входные данные
 
-| Параметр | Тип | Обязательный | Описание |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `flagKey` | string | Да | The feature flag key to toggle |
-| `environmentKey` | string | Да | The environment key to toggle the flag in |
-| `enabled` | boolean | Да | Whether to turn the flag on \(true\) or off \(false\) |
 
-#### Выходные параметры
+| Параметр | Тип | Требуемый | Описание |
+
+
+| `apiKey` | строка | Да | API-ключ LaunchDarkly |
+
+| --------- | ---- | ----------- |
+
+| `projectKey` | строка | Да | Ключ проекта |
+
+| `flagKey` | строка | Да | Ключ флага для включения/отключения |
+
+| `environmentKey` | строка | Да | Ключ среды для включения/отключения флага |
+
+| `enabled` | логическое значение | Да | Является ли флаг включенным (true) или отключенным (false) |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+| `key` | строка | Уникальный ключ флага |
+
+| `name` | строка | Читабельное имя флага |
+
+| `kind` | строка | Тип флага (true или multivariate) |
+
+| `description` | строка | Описание флага |
+
+
+| `temporary` | логическое значение | Является ли флаг временным |
+
+
+| `archived` | логическое значение | Является ли флаг архивированным |
+
+
+| `deprecated` | логическое значение | Является ли фла
+
+
+| Parameter | Type | Required | Description |
+
+| --------- | ---- | -------- | ----------- |
+
+| `apiKey` | string | Yes | LaunchDarkly API key |
+
+| `projectKey` | string | Yes | The project key |
+
+| `flagKey` | string | Yes | The feature flag key to toggle |
+
+| `environmentKey` | string | Yes | The environment key to toggle the flag in |
+
+| `enabled` | boolean | Yes | Whether to turn the flag on \(true\) or off \(false\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `key` | string | The unique key of the feature flag |
+
 | `name` | string | The human-readable name of the feature flag |
+
 | `kind` | string | The type of flag \(boolean or multivariate\) |
+
 | `description` | string | Description of the feature flag |
+
 | `temporary` | boolean | Whether the flag is temporary |
+
 | `archived` | boolean | Whether the flag is archived |
+
 | `deprecated` | boolean | Whether the flag is deprecated |
+
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+
 | `tags` | array | Tags applied to the flag |
+
 | `variations` | array | The variations for this feature flag |
+
 |   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
+
 |   ↳ `name` | string | The variation name |
+
 |   ↳ `description` | string | The variation description |
+
 | `maintainerId` | string | The ID of the member who maintains this flag |
+
 | `maintainerEmail` | string | The email of the member who maintains this flag |
+
 | `on` | boolean | Whether the flag is now on in the target environment |
+
 
 ### `launchdarkly_update_flag`
 
+
 Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | LaunchDarkly API key |
-| `projectKey` | string | Да | The project key |
-| `flagKey` | string | Да | The feature flag key to update |
-| `updateName` | string | Нет | New name for the flag |
-| `updateDescription` | string | Нет | New description for the flag |
-| `addTags` | string | Нет | Comma-separated tags to add |
-| `removeTags` | string | Нет | Comma-separated tags to remove |
-| `archive` | boolean | Нет | Set to true to archive, false to restore |
-| `comment` | string | Нет | Optional comment explaining the update |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | LaunchDarkly API key |
 
-| Параметр | Тип | Описание |
+| `projectKey` | string | Yes | The project key |
+
+| `flagKey` | string | Yes | The feature flag key to update |
+
+| `updateName` | string | No | New name for the flag |
+
+| `updateDescription` | string | No | New description for the flag |
+
+| `addTags` | string | No | Comma-separated tags to add |
+
+| `removeTags` | string | No | Comma-separated tags to remove |
+
+| `archive` | boolean | No | Set to true to archive, false to restore |
+
+| `comment` | string | No | Optional comment explaining the update |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `key` | string | The unique key of the feature flag |
+
 | `name` | string | The human-readable name of the feature flag |
+
 | `kind` | string | The type of flag \(boolean or multivariate\) |
+
 | `description` | string | Description of the feature flag |
+
 | `temporary` | boolean | Whether the flag is temporary |
+
 | `archived` | boolean | Whether the flag is archived |
+
 | `deprecated` | boolean | Whether the flag is deprecated |
+
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+
 | `tags` | array | Tags applied to the flag |
+
 | `variations` | array | The variations for this feature flag |
+
 |   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
+
 |   ↳ `name` | string | The variation name |
+
 |   ↳ `description` | string | The variation description |
+
 | `maintainerId` | string | The ID of the member who maintains this flag |
+
 | `maintainerEmail` | string | The email of the member who maintains this flag |
+
 
 

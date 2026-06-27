@@ -1,6 +1,6 @@
 ---
 title: Amazon RDS
-description: Подключение к Amazon RDS через Data API
+description: Подключитесь к Amazon RDS через API данных
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,185 +10,319 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) is a fully managed relational database that automatically starts up, shuts down, and scales capacity based on your application's needs. It allows you to run SQL databases in the cloud without managing database servers.
 
-With RDS Aurora Serverless, you can:
+Amazon RDS Aurora Serverless — это полностью управляемая реляционная база данных, которая автоматически запускается, останавливается и масштабируется в зависимости от потребностей вашего приложения. Она позволяет вам использовать базы данных SQL в облаке без необходимости управления серверами баз данных.
 
-- **Query data**: Run flexible SQL queries across your tables
-- **Insert new records**: Add data to your database automatically
-- **Update existing records**: Modify data in your tables using custom filters
-- **Delete records**: Remove unwanted data using precise criteria
-- **Execute raw SQL**: Run any valid SQL command supported by Aurora
 
-In Sim, the RDS integration enables your agents to work with Amazon Aurora Serverless databases securely and programmatically. Supported operations include:
+С помощью RDS Aurora Serverless вы можете:
 
-- **Query**: Run SELECT and other SQL queries to fetch rows from your database
-- **Insert**: Insert new records into tables with structured data
-- **Update**: Change data in rows that match your specified conditions
-- **Delete**: Remove records from a table by custom filters or criteria
-- **Execute**: Run raw SQL for advanced scenarios
 
-This integration allows your agents to automate a wide range of database operations without manual intervention. By connecting Sim with Amazon RDS, you can build agents that manage, update, and retrieve relational data within your workflows—all without handling database infrastructure or connections.
+- **Запрашивать данные**: Выполнять гибкие SQL-запросы по всем вашим таблицам.
+
+- **Добавлять новые записи**: Автоматически добавлять данные в вашу базу данных.
+
+- **Обновлять существующие записи**: Изменять данные в ваших таблицах с использованием пользовательских фильтров.
+
+- **Удалять записи**: Удалять нежелательные данные, используя точные критерии.
+
+- **Выполнять raw SQL**: Выполнять любые допустимые SQL-команды, поддерживаемые Aurora.
+
+
+В Sim интеграция RDS позволяет вашим агентам безопасно и программно взаимодействовать с базами данных Amazon Aurora Serverless. Поддерживаются следующие операции:
+
+
+- **Запрос**: Выполнение SELECT и других SQL-запросов для извлечения строк из вашей базы данных.
+
+- **Вставка**: Вставка новых записей в таблицы со структурированными данными.
+
+- **Обновление**: Изменение данных в строках, соответствующих вашим указанным условиям.
+
+- **Удаление**: Удаление записей из таблицы на основе пользовательских фильтров или критериев.
+
+- **Выполнение**: Выполнение raw SQL для продвинутых сценариев.
+
+
+Эта интеграция позволяет вашим агентам автоматизировать широкий спектр операций с базами данных без ручного вмешательства. Используя Sim в сочетании с Amazon RDS, вы можете создавать агентов, которые управляют, обновляют и извлекают реляционные данные внутри ваших рабочих процессов — все это без необходимости управления инфраструктурой или подключения к базе данных.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интегрируйте Amazon RDS Aurora Serverless в рабочий процесс using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.
+
+Интегрируйте Amazon RDS Aurora Serverless в рабочий процесс, используя API Data. Можно выполнять запросы, вставлять, обновлять, удалять и выполнять raw SQL без необходимости управления подключениями к базе данных.
+
 
 
 
 ## Действия
 
+
 ### `rds_query`
 
-Execute a SELECT query on Amazon RDS using the Data API
 
-#### Вход
+Выполнить SELECT-запрос на Amazon RDS с использованием API Data
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `query` | string | Да | SQL SELECT query to execute (например, SELECT * FROM users WHERE status = :status\) |
 
-#### Выход
+| `region` | строка | Да | AWS регион (например, us-east-1) |
 
-| Parameter | Type | Description |
+| `accessKeyId` | строка | Да | AWS идентификатор ключа доступа |
+
+| `secretAccessKey` | строка | Да | AWS секретный ключ доступа |
+
+| `resourceArn` | строка | Да | ARN кластера Aurora DB (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+
+| `secretArn` | строка | Да | ARN секрета Secrets Manager, содержащего учетные данные базы данных |
+
+| `database` | строка | Нет | Имя базы данных для подключения (например, mydb, production_db) |
+
+| `query` | строка | Да | SQL-запрос SELECT для выполнения (например, SELECT * FROM users WHERE status = :status) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
-| `rows` | array | Array of rows returned from the query |
-| `rowCount` | number | Number of rows returned |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив строк, возвращенных запросом |
+
+| `rowCount` | число | Количество строк, возвращенных |
+
 
 ### `rds_insert`
 
-Insert data into an Amazon RDS table using the Data API
 
-#### Вход
+Вставить данные в таблицу Amazon RDS с использованием API Data
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `table` | string | Да | Table name to insert into |
-| `data` | object | Да | Data to insert as key-value pairs |
 
-#### Выход
+| `region` | строка | Да | AWS регион (например, us-east-1) |
 
-| Parameter | Type | Description |
+| `accessKeyId` | строка | Да | AWS идентификатор ключа доступа |
+
+| `secretAccessKey` | строка | Да | AWS секретный ключ доступа |
+
+| `resourceArn` | строка | Да | ARN кластера Aurora DB (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+
+| `secretArn` | строка | Да | ARN секрета Secrets Manager, содержащего учетные данные базы данных |
+
+| `database` | строка | Нет | Имя базы данных для подключения (например, mydb, production_db) |
+
+| `table` | строка | Да | Имя таблицы для вставки |
+
+| `data` | объект | Да | Данные для вставки в виде пар ключ-значение |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
-| `rows` | array | Array of inserted rows |
-| `rowCount` | number | Number of rows inserted |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив вставленных строк |
+
+| `rowCount` | число | Количество вставленных строк |
+
 
 ### `rds_update`
 
-Update data in an Amazon RDS table using the Data API
 
-#### Вход
+Обновить данные в таблице Amazon RDS с использованием API Data
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `table` | string | Да | Table name to update |
-| `data` | object | Да | Data to update as key-value pairs |
-| `conditions` | object | Да | Conditions for the update (например, \{"id": 1\}\) |
 
-#### Выход
+| `region` | строка | Да | AWS регион (например, us-east-1) |
 
-| Parameter | Type | Description |
+| `accessKeyId` | строка | Да | AWS идентификатор ключа доступа |
+
+| `secretAccessKey` | строка | Да | AWS секретный ключ доступа |
+
+| `resourceArn` | строка | Да | ARN кластера Aurora DB (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+
+| `secretArn` | строка | Да | ARN секрета Secrets Manager, содержащего учетные данные базы данных |
+
+| `database` | строка | Нет | Имя базы данных для подключения (например, mydb, production_db) |
+
+| `table` | строка | Да | Имя таблицы для обновления |
+
+| `data` | объект | Да | Данные для обновления в виде пар ключ-значение |
+
+| `conditions` | объект | Да | Условия для обновления (например, {"id": 1}) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
-| `rows` | array | Array of updated rows |
-| `rowCount` | number | Number of rows updated |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив обновленных строк |
+
+| `rowCount` | число | Количество обновленных строк |
+
 
 ### `rds_delete`
 
-Delete data from an Amazon RDS table using the Data API
 
-#### Вход
+Удалить данные из таблицы Amazon RDS с использованием API Data
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `table` | string | Да | Table name to delete from |
-| `conditions` | object | Да | Conditions for the delete (например, \{"id": 1\}\) |
 
-#### Выход
+| `region` | строка | Да | AWS регион (например, us-east-1) |
 
-| Parameter | Type | Description |
+| `accessKeyId` | строка | Да | AWS идентификатор ключа доступа |
+
+| `secretAccessKey` | строка | Да | AWS секретный ключ доступа |
+
+| `resourceArn` | строка | Да | ARN кластера Aurora DB (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+
+| `secretArn` | строка | Да | ARN секрета Secrets Manager, содержащего учетные данные базы данных |
+
+| `database` | строка | Нет | Имя базы данных для подключения (например, mydb, production_db) |
+
+| `table` | строка | Да | Имя таблицы для удаления |
+
+| `conditions` | объект | Да | Условия для удаления (например, {"id": 1}) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
-| `rows` | array | Array of deleted rows |
-| `rowCount` | number | Number of rows deleted |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив удаленных строк |
+
+| `rowCount` | число | Количество удаленных строк |
+
 
 ### `rds_execute`
 
-Execute raw SQL on Amazon RDS using the Data API
 
-#### Вход
+Выполнить raw SQL на Amazon RDS с использованием API Data
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `query` | string | Да | Raw SQL query to execute (например, CREATE TABLE users \(id SERIAL PRIMARY KEY, name VARCHAR\(255\)\)\) |
 
-#### Выход
+| `region` | строка | Да | AWS регион (например, us-east-1) |
 
-| Parameter | Type | Description |
+| `accessKeyId` | строка | Да | AWS идентификатор ключа доступа |
+
+| `secretAccessKey` | строка | Да | AWS секретный ключ доступа |
+
+| `resourceArn` | строка | Да | ARN кластера Aurora DB (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster) |
+
+| `secretArn` | строка | Да | ARN секрета Secrets Manager, содержащего учетные данные базы данных |
+
+| `database` | строка | Нет | Имя базы данных для подключения (например, mydb, production_db) |
+
+| `query` | строка | Да | Raw SQL-запрос для выполнения (например, CREATE TABLE users (id SERIAL PRIMARY KEY, name VARCHAR(255)) ) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
-| `rows` | array | Array of rows returned or affected |
-| `rowCount` | number | Number of rows affected |
+
+| `message` | строка | Сообщение о статусе операции |
+
+| `rows` | массив | Массив строк, возвращенных или затронутых |
+
+| `rowCount` | число | Количество строк, затронутых |
+
 
 ### `rds_introspect`
 
+
 Introspect Amazon RDS Aurora database schema to retrieve table structures, columns, and relationships
 
-#### Вход
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `region` | string | Да | Регион AWS (например, us-east-1\) |
-| `accessKeyId` | string | Да | Идентификатор ключа доступа AWS |
-| `secretAccessKey` | string | Да | Секретный ключ доступа AWS |
-| `resourceArn` | string | Да | ARN of the Aurora DB cluster (например, arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
-| `secretArn` | string | Да | ARN of the Secrets Manager secret containing DB credentials |
-| `database` | string | Нет | Database name to connect to (например, mydb, production_db\) |
-| `schema` | string | Нет | Schema to introspect \(по умолчанию: public for PostgreSQL, database name for MySQL\) |
-| `engine` | string | Нет | Database engine \(aurora-postgresql or aurora-mysql\). Auto-detected if not provided. |
 
-#### Выход
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+
+| `accessKeyId` | string | Yes | AWS access key ID |
+
+| `secretAccessKey` | string | Yes | AWS secret access key |
+
+| `resourceArn` | string | Yes | ARN of the Aurora DB cluster \(e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster\) |
+
+| `secretArn` | string | Yes | ARN of the Secrets Manager secret containing DB credentials |
+
+| `database` | string | No | Database name to connect to \(e.g., mydb, production_db\) |
+
+| `schema` | string | No | Schema to introspect \(default: public for PostgreSQL, database name for MySQL\) |
+
+| `engine` | string | No | Database engine \(aurora-postgresql or aurora-mysql\). Auto-detected if not provided. |
+
+
+#### Output
+
 
 | Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
-| `message` | string | Статус операции message |
+
+| `message` | string | Operation status message |
+
 | `engine` | string | Detected database engine type |
+
 | `tables` | array | Array of table schemas with columns, keys, and indexes |
-| `schemas` | array | Получение списка of available schemas in the database |
+
+| `schemas` | array | List of available schemas in the database |
+
 
 

@@ -1,6 +1,6 @@
 ---
 title: Mailgun
-description: Отправка писем и управление списками рассылки с Mailgun
+description: Отправляйте электронные письма и управляйте списками рассылки с помощью Mailgun
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,207 +10,353 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#C12126"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Mailgun](https://www.mailgun.com) is a powerful email delivery service designed for developers and businesses to send, receive, and track emails effortlessly. Mailgun enables you to leverage robust APIs for reliable transactional and marketing email, flexible mailing list management, and advanced event tracking.
+[Mailgun](https://www.mailgun.com) — это мощный сервис доставки электронной почты, разработанный для разработчиков и предприятий, чтобы отправлять, получать и отслеживать электронные письма без усилий. Mailgun позволяет использовать надежные API для транзакционной и маркетинговой электронной почты, гибкого управления списками рассылки и расширенного отслеживания событий.
 
-With Mailgun's comprehensive feature set, you can automate key email operations and closely monitor deliverability and recipient engagement. This makes it an ideal solution for workflow automation where communications, notifications, and campaign mails are core parts of your processes.
+Благодаря комплексному набору функций Mailgun вы можете автоматизировать ключевые операции с электронной почтой и тщательно контролировать доставку и вовлеченность получателей. Это делает его идеальным решением для автоматизации рабочих процессов, где коммуникации, уведомления и рекламные рассылки являются основными частями ваших процессов.
 
-Key features of Mailgun include:
 
-- **Transactional Email Sending:** Deliver high-volume emails such as account notifications, receipts, alerts, and password resets.
-- **Rich Email Content:** Send both plain text and HTML emails, and use tags for categorizing and tracking your messages.
-- **Mailing List Management:** Create, update, and manage mailing lists and members to send grouped communications efficiently.
-- **Domain Information:** Retrieve details about your sending domains to monitor configuration and health.
-- **Event Tracking:** Analyze email deliverability and engagement with detailed event data on sent messages.
-- **Message Retrieval:** Access stored messages for compliance, analysis, or troubleshooting needs.
+Ключевые функции Mailgun включают:
 
-By integrating Mailgun into Sim, your agents are empowered to programmatically send emails, manage email lists, access domain information, and monitor real-time events as part of automated workflows. This allows for intelligent, data-driven engagement with your users directly from your AI-powered processes.
+
+- **Отправка транзакционной электронной почты:** Отправляйте большие объемы электронных писем, такие как уведомления об учетной записи, квитанции, оповещения и сброс пароля.
+
+
+- **Богатый контент электронной почты:** Отправляйте письма в формате plain text и HTML, а также используйте теги для категоризации и отслеживания ваших сообщений.
+
+- **Управление списками рассылки:** Создавайте, обновляйте и управляйте списками рассылки и участниками для эффективной групповой отправки сообщений.
+
+- **Информация о доменах:** Получайте информацию о своих доменах, используемых для отправки, чтобы контролировать конфигурацию и состояние.
+
+- **Отслеживание событий:** Анализируйте доставку и вовлеченность электронной почты с помощью подробных данных об отправленных сообщениях.
+
+- **Получение сообщений:** Получайте сохраненные сообщения для целей соответствия требованиям, анализа или устранения неполадок.
+
+Интегрируя Mailgun в Sim, ваши агенты смогут программно отправлять электронные письма, управлять списками рассылки, получать информацию о доменах и отслеживать события в режиме реального времени в рамках автоматизированных рабочих процессов. Это позволяет осуществлять целенаправленное взаимодействие с пользователями непосредственно из ваших AI-powered процессов.
+
+
 {/* MANUAL-CONTENT-END */}
-
 
 ## Инструкции по использованию
 
-Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.
 
+
+Интегрируйте Mailgun в свой рабочий процесс. Отправляйте транзакционные электронные письма, управляйте списками рассылки и участниками, просматривайте информацию о доменах и отслеживайте события электронной почты. Поддерживает отправку писем в формате text и HTML, теги для отслеживания и комплексное управление списками.
 
 
 ## Действия
 
+
+
+
 ### `mailgun_send_message`
 
-Send an email using Mailgun API
 
-#### Входные параметры
+Отправьте электронное письмо с помощью API Mailgun
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `domain` | string | Да | Mailgun sending domain \(e.g., mg.example.com\) |
-| `from` | string | Да | Sender email address \(e.g., sender@example.com or "Name &lt;sender@example.com&gt;"\) |
-| `to` | string | Да | Recipient email address \(e.g., user@example.com\). Use comma-separated values for multiple recipients |
-| `subject` | string | Да | Email subject line |
-| `text` | string | Нет | Plain text body of the email |
-| `html` | string | Нет | HTML body of the email \(e.g., "&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;Message content&lt;/p&gt;"\) |
-| `cc` | string | Нет | CC recipient email address \(e.g., cc@example.com\). Use comma-separated values for multiple recipients |
-| `bcc` | string | Нет | BCC recipient email address \(e.g., bcc@example.com\). Use comma-separated values for multiple recipients |
-| `tags` | string | Нет | Tags for the email \(comma-separated\) |
 
-#### Выходные параметры
+| `domain` | строка | Да | Домен для отправки электронной почты (например, mg.example.com) |
+
+| `from` | строка | Да | Адрес отправителя (например, sender@example.com или "Name <sender@example.com>") |
+
+| `to` | строка | Да | Адрес получателя (например, user@example.com). Используйте значения, разделенные запятыми, для нескольких получателей |
+
+| `subject` | строка | Да | Тема письма |
+
+| `text` | строка | Нет | Текст тела письма |
+
+| `html` | строка | Нет | HTML-тело письма (например, "<h1>Hello</h1><p>Message content</p>") |
+
+| `cc` | строка | Нет | Адрес получателя CC (например, cc@example.com). Используйте значения, разделенные запятыми, для нескольких получателей |
+
+| `bcc` | строка | Нет | Адрес получателя BCC (например, bcc@example.com). Используйте значения, разделенные запятыми, для нескольких получателей |
+
+| `tags` | строка | Нет | Теги для письма (разделенные запятыми) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли отправлено сообщение |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the message was sent successfully |
-| `id` | string | Message ID |
-| `message` | string | Response message from Mailgun |
+
+| `id` | строка | ID сообщения |
+
+| `message` | строка | Сообщение ответа от Mailgun |
 
 ### `mailgun_get_message`
 
-Retrieve a stored message by its key
 
-#### Входные параметры
+Получите сохраненное сообщение по его ключу
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `domain` | string | Да | Mailgun domain for retrieving messages \(e.g., mg.example.com\) |
-| `messageKey` | string | Да | Message storage key |
 
-#### Выходные параметры
+| `domain` | строка | Да | Домен для получения сообщений (например, mg.example.com) |
+
+| `messageKey` | строка | Да | Ключ хранения сообщения |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли выполнен запрос |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the request was successful |
-| `recipients` | string | Message recipients |
-| `from` | string | Sender email |
-| `subject` | string | Message subject |
-| `bodyPlain` | string | Plain text body |
-| `strippedText` | string | Stripped text |
-| `strippedSignature` | string | Stripped signature |
-| `bodyHtml` | string | HTML body |
-| `strippedHtml` | string | Stripped HTML |
-| `attachmentCount` | number | Number of attachments |
-| `timestamp` | number | Message timestamp |
-| `messageHeaders` | json | Message headers |
-| `contentIdMap` | json | Content ID map |
+
+| `recipients` | строка | Получатели сообщения |
+
+| `from` | строка | Отправитель |
+
+| `subject` | строка | Тема сообщения |
+
+| `bodyPlain` | строка | Текст тела письма |
+
+| `strippedText` | строка | Очищенный текст |
+
+| `strippedSignature` | строка | Очищенная подпись |
+
+| `bodyHtml` | строка | HTML-тело |
+
+| `strippedHtml` | строка | Очищенный HTML |
+
+| `attachmentCount` | число | Количество вложений |
+
+| `timestamp` | число | Дата и время отправки сообщения |
+
+| `messageHeaders` | json | Заголовки сообщения |
+
+| `contentIdMap` | json | Карта ID содержимого |
 
 ### `mailgun_list_messages`
 
-List events (logs) for messages sent through Mailgun
 
-#### Входные параметры
+Перечислите события (логи) для сообщений, отправленных через Mailgun
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `domain` | string | Да | Mailgun domain for listing events \(e.g., mg.example.com\) |
-| `event` | string | Нет | Filter by event type \(accepted, delivered, failed, opened, clicked, etc.\) |
-| `limit` | number | Нет | Maximum number of events to return \(default: 100\) |
 
-#### Выходные параметры
+| `domain` | строка | Да | Домен для перечисления событий (например, mg.example.com) |
+
+| `event` | строка | Нет | Фильтр по типу события (accepted, delivered, failed, opened, clicked и т. д.) |
+
+| `limit` | число | Нет | Максимальное количество возвращаемых элементов (по умолчанию: 100) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли выполнен запрос |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the request was successful |
-| `items` | json | Array of event items |
-| `paging` | json | Paging information |
+
+| `items` | json | Массив элементов событий |
+
+| `paging` | json | Информация о постраничной навигации |
 
 ### `mailgun_create_mailing_list`
 
-Create a new mailing list
 
-#### Входные параметры
+Создайте новый список рассылки
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `address` | string | Да | Mailing list address \(e.g., newsletter@mg.example.com\) |
-| `name` | string | Нет | Mailing list name |
-| `description` | string | Нет | Mailing list description |
-| `accessLevel` | string | Нет | Access level: readonly, members, or everyone |
 
-#### Выходные параметры
+| `address` | строка | Да | Адрес списка рассылки (например, newsletter@mg.example.com) |
+
+| `name` | строка | Нет | Имя списка рассылки |
+
+| `description` | строка | Нет | Описание списка рассылки |
+
+| `accessLevel` | строка | Нет | Уровень доступа: readonly, members или everyone |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли создан список |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the list was created successfully |
-| `message` | string | Response message |
-| `list` | json | Created mailing list details |
+
+| `message` | строка | Сообщение об ответе |
+
+| `list` | json | Детали созданного списка рассылки |
 
 ### `mailgun_get_mailing_list`
 
-Get details of a mailing list
 
-#### Входные параметры
+Получите детали списка рассылки
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `address` | string | Да | Mailing list address to retrieve \(e.g., newsletter@mg.example.com\) |
 
-#### Выходные параметры
+| `address` | строка | Да | Адрес списка рассылки для получения (например, newsletter@mg.example.com) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли выполнен запрос |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the request was successful |
-| `list` | json | Mailing list details |
+
+| `list` | json | Детали списка рассылки |
 
 ### `mailgun_add_list_member`
 
-Add a member to a mailing list
 
-#### Входные параметры
+Добавьте участника в список рассылки
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `listAddress` | string | Да | Mailing list address \(e.g., list@mg.example.com\) |
-| `address` | string | Да | Member email address to add \(e.g., user@example.com\) |
-| `name` | string | Нет | Member name |
-| `vars` | string | Нет | JSON string of custom variables |
-| `subscribed` | boolean | Нет | Whether the member is subscribed |
 
-#### Выходные параметры
+| `listAddress` | строка | Да | Адрес списка рассылки (например, list@mg.example.com) |
+
+| `address` | строка | Да | Адрес электронной почты участника для добавления (например, user@example.com) |
+
+| `name` | строка | Нет | Имя участника |
+
+| `vars` | строка | Нет | Строка JSON с пользовательскими переменными |
+
+| `subscribed` | булево | Нет | Подписан ли участник |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли добавлен участник |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the member was added successfully |
-| `message` | string | Response message |
-| `member` | json | Added member details |
+
+| `message` | строка | Сообщение об ответе |
+
+| `member` | json | Детали добавленного участника |
 
 ### `mailgun_list_domains`
 
-List all domains for your Mailgun account
 
-#### Входные параметры
+Перечислите все домены для вашей учетной записи Mailgun
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
 
-#### Выходные параметры
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли выполнен запрос |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the request was successful |
-| `totalCount` | number | Total number of domains |
-| `items` | json | Array of domain objects |
+
+| `totalCount` | число | Общее количество доменов |
+
+| `items` | json | Массив объектов доменов |
 
 ### `mailgun_get_domain`
 
-Get details of a specific domain
 
-#### Входные параметры
+Получите детали конкретного домена
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Mailgun |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Mailgun API key |
-| `domain` | string | Да | Domain name to retrieve details for \(e.g., mg.example.com\) |
 
-#### Выходные параметры
+| `domain` | строка | Да | Имя домена для получения деталей (например, mg.example.com) |
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешно ли выполнен запрос |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the request was successful |
+
+| `domain` | json | Детали домена |
+
 | `domain` | json | Domain details |
+
 
 

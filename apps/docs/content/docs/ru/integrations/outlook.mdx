@@ -1,6 +1,6 @@
 ---
-title: Outlook
-description: Отправка, чтение, создание черновиков, пересылка и перемещение писем Outlook
+title: Перспективы
+description: Send, read, draft, forward, and move Outlook email messages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,299 +10,521 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Microsoft Outlook](https://outlook.office365.com) is a comprehensive email and calendar platform that helps users manage communications, schedules, and tasks efficiently. As part of Microsoft's productivity suite, Outlook offers robust tools for sending and organizing emails, coordinating meetings, and integrating seamlessly with Microsoft 365 applications — enabling individuals and teams to stay organized and connected across devices.
 
-With Microsoft Outlook, you can:
+===
+Microsoft Outlook](https://outlook.office365.com) — это комплексная платформа электронной почты и календаря, которая помогает пользователям эффективно управлять коммуникациями, расписаниями и задачами. Будучи частью пакета Microsoft 365 для повышения производительности, Outlook предоставляет мощные инструменты для отправки и организации электронных писем, координации встреч и бесшовной интеграции с приложениями Microsoft 365 — что позволяет отдельным лицам и командам оставаться организованными и связанными на различных устройствах.
 
-- **Send and receive emails**: Communicate clearly and professionally with individuals or distribution lists  
-- **Manage calendars and events**: Schedule meetings, set reminders, and view availability  
-- **Organize your inbox**: Use folders, categories, and rules to keep your email streamlined  
-- **Access contacts and tasks**: Keep track of key people and action items in one place  
-- **Integrate with Microsoft 365**: Work seamlessly with Word, Excel, Teams, and other Microsoft apps  
-- **Access across devices**: Use Outlook on desktop, web, and mobile with real-time sync  
-- **Maintain privacy and security**: Leverage enterprise-grade encryption and compliance controls
+С помощью Microsoft Outlook вы можете:
 
-In Sim, the Microsoft Outlook integration enables your agents to interact directly with email and calendar data programmatically with full email management capabilities. This allows for powerful automation scenarios across your entire email workflow. Your agents can:
 
-- **Send and draft**: Compose professional emails with attachments and save drafts for later
-- **Read and forward**: Access inbox messages and forward important communications to team members
-- **Organize efficiently**: Mark emails as read or unread, move messages between folders, and copy emails for reference
-- **Clean up inbox**: Delete unwanted messages and maintain organized folder structures
-- **Trigger workflows**: React to new emails in real-time, enabling responsive automation based on incoming messages
+- Отправлять и получать электронные письма: Четко и профессионально общаться с отдельными пользователями или списками рассылки.
 
-By connecting Sim with Microsoft Outlook, you enable intelligent agents to automate communications, streamline scheduling, maintain visibility into organizational correspondence, and keep inboxes organized — all within your workflow ecosystem. Whether you're managing customer communications, processing invoices, coordinating team updates, or automating follow-ups, the Outlook integration provides enterprise-grade email automation capabilities.
-{/* MANUAL-CONTENT-END */}
+
+- Управлять календарями и событиями: Планировать встречи, устанавливать напоминания и просматривать доступность.
+
+- Организовать свою почту: Использовать папки, категории и правила для поддержания порядка в вашей электронной почте.
+
+- Получить доступ к контактам и задачам: Отслеживать ключевых людей и задачи в одном месте.
+
+- Интегрироваться с Microsoft 365: Бесшовно работать с Word, Excel, Teams и другими приложениями Microsoft.
+
+- Доступ через различные устройства: Использовать Outlook на настольных компьютерах, веб-браузерах и мобильных устройствах с синхронизацией в реальном времени.
+
+- Обеспечить конфиденциальность и безопасность: Использовать шифрование корпоративного уровня и средства контроля соответствия требованиям.
+
+В Sim интеграция Microsoft Outlook позволяет вашим агентам программно взаимодействовать с данными электронной почты и календаря, используя все возможности управления электронной почтой. Это обеспечивает мощные сценарии автоматизации для всей вашей рабочей нагрузки по обработке электронной почты. Ваши агенты могут:
+
+
+- Отправлять и составлять: Составлять профессиональные электронные письма с вложениями и сохранять черновики для последующего использования.
+
+
+- Читать и пересылать: Получать сообщения из входящей почты и пересылать важную информацию членам команды.
+
+- Эффективно организовывать: Отмечать электронные письма как прочитанные или непрочитанные, перемещать сообщения между папками и копировать письма для справки.
+
+- Убирать в почте: Удалять ненужные сообщения и поддерживать организованную структуру папок.
+
+- Запускать рабочие процессы: Реагировать на новые электронные письма в реальном времени, обеспечивая автоматизацию на основе входящих сообщений.
+
+Подключив Sim к Microsoft Outlook, вы позволяете интеллектуальным агентам автоматизировать коммуникации, упрощать планирование, поддерживать видимость корреспонденции в организации и организовывать почтовые ящики — все это внутри вашей экосистемы рабочих процессов. Независимо от того, управляете ли вы клиентскими коммуникациями, обрабатываете счета-фактуры, координируете обновления команды или автоматизируете последующие действия, интеграция с Outlook предоставляет возможности автоматизации электронной почты корпоративного уровня.
 
 
 ## Инструкции по использованию
 
-Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.
+Интегрируйте Outlook в рабочий процесс. Возможность читать, составлять, отправлять, пересылать и перемещать электронные письма. Может использоваться в режиме триггера для запуска рабочего процесса при получении новой электронной почты.
 
 
 
 ## Действия
 
+
 ### `outlook_send`
 
-Send emails using Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+
+Отправка электронных писем с использованием Outlook
+
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `to` | строка | Да | Адрес электронной почты получателя (разделите запятыми для нескольких получателей) |
+
+
+| `subject` | строка | Да | Тема письма |
+
 | --------- | ---- | -------- | ----------- |
-| `to` | string | Да | Recipient email address \(comma-separated for multiple recipients\) |
-| `subject` | string | Да | Email subject |
-| `body` | string | Да | Email body content |
-| `contentType` | string | Нет | Content type for the email body \(text or html\) |
-| `replyToMessageId` | string | Нет | Message ID to reply to \(for threading\) |
-| `cc` | string | Нет | CC recipients \(comma-separated\) |
-| `bcc` | string | Нет | BCC recipients \(comma-separated\) |
-| `attachments` | file[] | Нет | Files to attach to the email |
 
-#### Выходные параметры
+| `body` | строка | Да | Содержание письма |
+
+| `contentType` | строка | Нет | Тип содержимого для тела письма (text или html) |
+
+| `replyToMessageId` | строка | Нет | ID сообщения для ответа (для создания цепочки сообщений) |
+
+| `cc` | строка | Нет | Адреса получателей CC (разделите запятыми) |
+
+| `bcc` | строка | Нет | Адрес получателей BCC (разделите запятыми) |
+
+| `attachments` | файл[] | Нет | Файлы для вложения в письмо |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешная отправка письма |
+
+
+| `status` | строка | Статус доставки письма |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Email send success status |
-| `status` | string | Delivery status of the email |
-| `timestamp` | string | Timestamp when email was sent |
-| `message` | string | Success or error message |
+
+| `timestamp` | строка | Дата и время отправки письма (ISO 8601) |
+
+| `message` | строка | Сообщение об успехе или ошибке |
 
 ### `outlook_draft`
 
-Draft emails using Outlook
+Составление электронных писем с использованием Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `to` | строка | Да | Адрес электронной почты получателя |
+
+
+| `subject` | строка | Да | Тема письма |
+
 | --------- | ---- | -------- | ----------- |
-| `to` | string | Да | Recipient email address |
-| `subject` | string | Да | Email subject |
-| `body` | string | Да | Email body content |
-| `contentType` | string | Нет | Content type for the email body \(text or html\) |
-| `cc` | string | Нет | CC recipients \(comma-separated\) |
-| `bcc` | string | Нет | BCC recipients \(comma-separated\) |
-| `attachments` | file[] | Нет | Files to attach to the email draft |
 
-#### Выходные параметры
+| `body` | строка | Да | Содержание письма |
+
+| `contentType` | строка | Нет | Тип содержимого для тела письма (text или html) |
+
+| `cc` | строка | Нет | Адреса получателей CC (разделите запятыми) |
+
+| `bcc` | строка | Нет | Адрес получателей BCC (разделите запятыми) |
+
+| `attachments` | файл[] | Нет | Файлы для вложения в черновик письма |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешное создание черновика письма |
+
+
+| `messageId` | строка | Уникальный идентификатор созданного черновика |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Email draft creation success status |
-| `messageId` | string | Unique identifier for the drafted email |
-| `status` | string | Draft status of the email |
-| `subject` | string | Subject of the drafted email |
-| `timestamp` | string | Timestamp when draft was created |
-| `message` | string | Success or error message |
+
+| `status` | строка | Статус черновика |
+
+| `subject` | строка | Тема черновика |
+
+| `timestamp` | строка | Дата и время создания черновика |
+
+| `message` | строка | Сообщение об успехе или ошибке |
 
 ### `outlook_read`
 
-Read emails from Outlook
+Чтение электронных писем из Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `folder` | строка | Нет | ID папки для чтения писем (например, "Inbox", "Drafts" или ID папки) |
+
+
+| `maxResults` | число | Нет | Максимальное количество получаемых писем (по умолчанию: 1, максимум: 10) |
+
 | --------- | ---- | -------- | ----------- |
-| `folder` | string | Нет | Folder ID to read emails from \(e.g., "Inbox", "Drafts", or a folder ID\) |
-| `maxResults` | number | Нет | Maximum number of emails to retrieve \(default: 1, max: 10\) |
-| `includeAttachments` | boolean | Нет | Whether to download and include email attachments |
 
-#### Выходные параметры
+| `includeAttachments` | булево | Нет | Включить и загрузить вложения электронной почты |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `message` | строка | Сообщение об успехе или статусе |
+
+
+| `results` | массив | Массив объектов сообщений |
+
 | --------- | ---- | ----------- |
-| `message` | string | Success or status message |
-| `results` | array | Array of email message objects |
-|   ↳ `id` | string | Unique message identifier |
-|   ↳ `subject` | string | Email subject |
-|   ↳ `bodyPreview` | string | Preview of the message body |
-|   ↳ `body` | object | Message body |
-|     ↳ `contentType` | string | Body content type \(text or html\) |
-|     ↳ `content` | string | Body content |
-|   ↳ `sender` | object | Sender information |
-|     ↳ `name` | string | Display name of the person or entity |
-|     ↳ `address` | string | Email address |
-|   ↳ `from` | object | From address information |
-|     ↳ `name` | string | Display name of the person or entity |
-|     ↳ `address` | string | Email address |
-|   ↳ `toRecipients` | array | To recipients |
-|     ↳ `name` | string | Display name of the person or entity |
-|     ↳ `address` | string | Email address |
-|   ↳ `ccRecipients` | array | CC recipients |
-|     ↳ `name` | string | Display name of the person or entity |
-|     ↳ `address` | string | Email address |
-|   ↳ `receivedDateTime` | string | When the message was received \(ISO 8601\) |
-|   ↳ `sentDateTime` | string | When the message was sent \(ISO 8601\) |
-|   ↳ `hasAttachments` | boolean | Whether the message has attachments |
-|   ↳ `isRead` | boolean | Whether the message has been read |
-|   ↳ `importance` | string | Message importance \(low, normal, high\) |
-| `attachments` | file[] | All email attachments flattened from all emails |
+
+|   ↳ `id` | строка | Уникальный идентификатор сообщения |
+
+|   ↳ `subject` | строка | Тема письма |
+
+|   ↳ `bodyPreview` | строка | Превью содержания письма |
+
+|   ↳ `body` | объект | Содержание письма |
+
+|     ↳ `contentType` | строка | Тип содержимого тела (text или html) |
+
+|     ↳ `content` | строка | Содержание тела |
+
+|   ↳ `sender` | объект | Информация отправителя |
+
+|     ↳ `name` | строка | Имя отправителя |
+
+|     ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `from` | объект | Адрес отправителя |
+
+|     ↳ `name` | строка | Имя отправителя |
+
+|     ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `toRecipients` | массив | Список получателей |
+
+|     ↳ `name` | строка | Имя получателя |
+
+|     ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `ccRecipients` | массив | Список получателей CC |
+
+|     ↳ `name` | строка | Имя получателя |
+
+|     ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `receivedDateTime` | строка | Дата получения письма (ISO 8601) |
+
+|   ↳ `sentDateTime` | строка | Дата отправки письма (ISO 8601) |
+
+|   ↳ `hasAttachments` | булево | Есть ли вложения |
+
+|   ↳ `isRead` | булево | Прочитано или нет |
+
+|   ↳ `importance` | строка | Важность письма (low, normal, high) |
+
+| `attachments` | файл[] | Все вложения электронной почты, полученные из всех писем |
 
 ### `outlook_forward`
 
-Forward an existing Outlook message to specified recipients
+Пересылка существующего сообщения Outlook на указанные адреса
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для пересылки |
+
+
+| `to` | строка | Да | Адрес электронной почты (или адреса) получателей |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | The ID of the message to forward |
-| `to` | string | Да | Recipient email address\(es\), comma-separated |
-| `comment` | string | Нет | Optional comment to include with the forwarded message |
 
-#### Выходные параметры
+| `comment` | строка | Нет | Необязательный комментарий, который будет включен в пересланное сообщение |
+
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
+
+| `results` | объект | Детали результатов доставки |
+
 | --------- | ---- | ----------- |
-| `message` | string | Success or error message |
-| `results` | object | Delivery result details |
-|   ↳ `status` | string | Delivery status of the email |
-|   ↳ `timestamp` | string | Timestamp when email was forwarded |
-|   ↳ `httpStatus` | number | HTTP status code returned by the API |
-|   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
-|   ↳ `messageId` | string | Forwarded message ID if provided by API |
-|   ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
+
+|   ↳ `status` | строка | Статус доставки письма |
+
+|   ↳ `timestamp` | строка | Дата и время пересылки письма (ISO 8601) |
+
+|   ↳ `httpStatus` | число | HTTP статус код, возвращенный API |
+
+|   ↳ `requestId` | строка | Заголовок Microsoft Graph request-id для отслеживания |
+
+|   ↳ `messageId` | строка | ID пересланного сообщения (если предоставлено API) |
+
+|   ↳ `internetMessageId` | строка | RFC 822 Message-ID (если предоставлено) |
 
 ### `outlook_move`
 
-Move emails between Outlook folders
+Перемещение электронных писем между папками Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для перемещения |
+
+
+| `destinationId` | строка | Да | ID папки назначения |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | ID of the message to move |
-| `destinationId` | string | Да | ID of the destination folder |
 
-#### Выходные параметры
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешность перемещения письма |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Email move success status |
-| `message` | string | Success or error message |
-| `messageId` | string | ID of the moved message |
-| `newFolderId` | string | ID of the destination folder |
+
+| `messageId` | строка | ID перемещенного сообщения |
+
+| `newFolderId` | строка | ID новой папки назначения |
 
 ### `outlook_mark_read`
 
-Mark an Outlook message as read
+Отметка электронного письма как прочитанного в Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для отметки как прочитанного |
+
+
+#### Выходные данные
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | ID of the message to mark as read |
-
-#### Выходные параметры
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешность операции |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `message` | string | Success or error message |
-| `messageId` | string | ID of the message |
-| `isRead` | boolean | Read status of the message |
+
+| `messageId` | строка | ID сообщения |
+
+| `isRead` | булево | Статус прочитанного состояния |
 
 ### `outlook_mark_unread`
 
-Mark an Outlook message as unread
+Отметка электронного письма как непрочитанного в Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для отметки как непрочитанного |
+
+
+#### Выходные данные
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | ID of the message to mark as unread |
-
-#### Выходные параметры
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешность операции |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `message` | string | Success or error message |
-| `messageId` | string | ID of the message |
-| `isRead` | boolean | Read status of the message |
+
+| `messageId` | строка | ID сообщения |
+
+| `isRead` | булево | Статус прочитанного состояния |
 
 ### `outlook_delete`
 
-Delete an Outlook message (move to Deleted Items)
+Удаление электронного письма (перемещение в папку "Deleted Items") в Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для удаления |
+
+
+#### Выходные данные
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | ID of the message to delete |
-
-#### Выходные параметры
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешность операции |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `message` | string | Success or error message |
-| `messageId` | string | ID of the deleted message |
-| `status` | string | Deletion status |
+
+| `messageId` | строка | ID удаленного сообщения |
+
+| `status` | строка | Статус удаления |
 
 ### `outlook_copy`
 
-Copy an Outlook message to another folder
+Копирование электронного письма в другую папку Outlook
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
+
+| `messageId` | строка | Да | ID сообщения для копирования |
+
+
+| `destinationId` | строка | Да | ID папки назначения |
+
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | Да | ID of the message to copy |
-| `destinationId` | string | Да | ID of the destination folder |
 
-#### Выходные параметры
+#### Выходные данные
 
 | Параметр | Тип | Описание |
+
+
+| `success` | булево | Успешность копирования письма |
+
+
+| `message` | строка | Сообщение об успехе или ошибке |
+
 | --------- | ---- | ----------- |
-| `success` | boolean | Email copy success status |
-| `message` | string | Success or error message |
-| `originalMessageId` | string | ID of the original message |
+
+| `originalMessageId` | строка | ID оригинального сообщения |
+
+| `copiedMessageId` | строка | ID скопированного сообщения |
+
+| `destinationFolderId` | строка | ID папки назначения |
+===
+
 | `copiedMessageId` | string | ID of the copied message |
+
 | `destinationFolderId` | string | ID of the destination folder |
+
 
 
 
 ## Triggers
 
+
 A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
 
+
 ### Outlook Email Trigger
+
 
 Triggers when new emails are received in Outlook (requires Microsoft credentials)
 
+
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `triggerCredentials` | string | Да | This trigger requires outlook credentials to access your account. |
-| `folderIds` | string | Нет | Choose which Outlook folders to monitor. Leave empty to monitor all emails. |
-| `folderFilterBehavior` | string | Да | Include only emails from selected folders, or exclude emails from selected folders |
-| `markAsRead` | boolean | Нет | Automatically mark emails as read after processing |
-| `includeAttachments` | boolean | Нет | Download and include email attachments in the trigger payload |
 
-#### Выходные параметры
+| `triggerCredentials` | string | Yes | This trigger requires outlook credentials to access your account. |
 
-| Параметр | Тип | Описание |
+| `folderIds` | string | No | Choose which Outlook folders to monitor. Leave empty to monitor all emails. |
+
+| `folderFilterBehavior` | string | Yes | Include only emails from selected folders, or exclude emails from selected folders |
+
+| `markAsRead` | boolean | No | Automatically mark emails as read after processing |
+
+| `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `email` | object | email output from the tool |
+
 |   ↳ `id` | string | Outlook message ID |
+
 |   ↳ `conversationId` | string | Outlook conversation ID |
+
 |   ↳ `subject` | string | Email subject line |
+
 |   ↳ `from` | string | Sender email address |
+
 |   ↳ `to` | string | Recipient email address |
+
 |   ↳ `cc` | string | CC recipients |
+
 |   ↳ `date` | string | Email date in ISO format |
+
 |   ↳ `bodyText` | string | Plain text email body |
+
 |   ↳ `bodyHtml` | string | HTML email body |
+
 |   ↳ `hasAttachments` | boolean | Whether email has attachments |
+
 |   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+
 |   ↳ `isRead` | boolean | Whether email is read |
+
 |   ↳ `folderId` | string | Outlook folder ID where email is located |
+
 |   ↳ `messageId` | string | Message ID for threading |
+
 |   ↳ `threadId` | string | Thread ID for conversation threading |
+
 | `timestamp` | string | Event timestamp |
+
 

@@ -1,6 +1,6 @@
 ---
-title: Obsidian
-description: Взаимодействие с хранилищем Obsidian через Local REST API
+title: Обсидиан
+description: Взаимодействуйте со своей папкой Obsidian через локальный REST API
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,330 +10,557 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0F0F0F"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Obsidian](https://obsidian.md/) is a powerful knowledge base and note-taking application that works on top of a local folder of plain-text Markdown files. With features like bidirectional linking, graph views, and a rich plugin ecosystem, Obsidian is widely used for personal knowledge management, research, and documentation.
 
-With the Sim Obsidian integration, you can:
+[Obsidian](https://obsidian.md/) — мощная база знаний и приложение для ведения заметок, работающее поверх локальной папки с файлами Markdown. Благодаря таким функциям, как двунаправленное связывание, графические представления и богатой экосистеме плагинов, Obsidian широко используется для управления личными знаниями, исследований и создания документации.
 
-- **Read and create notes**: Retrieve note content from your vault or create new notes programmatically as part of automated workflows.
-- **Update and patch notes**: Modify existing notes in full or patch content at specific locations within a note.
-- **Search your vault**: Find notes by keyword or content across your entire Obsidian vault.
-- **Manage periodic notes**: Access and create daily or other periodic notes for journaling and task tracking.
-- **Execute commands**: Trigger Obsidian commands remotely to automate vault operations.
 
-**How it works in Sim:**
-Add an Obsidian block to your workflow and select an operation. This integration requires the [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin to be installed and running in your vault. Provide your API key and vault URL, along with any required parameters. The block communicates with your local Obsidian instance and returns structured data you can pass to downstream blocks — for example, searching your vault for research notes and feeding them into an AI agent for summarization.
+С интеграцией Sim Obsidian вы можете:
+
+
+- **Читать и создавать заметки**: Получать содержимое заметок из вашего хранилища или создавать новые заметки программно в рамках автоматизированных рабочих процессов.
+
+- **Обновлять и исправлять заметки**: Изменять существующие заметки полностью или редактировать содержимое в определенных местах внутри заметки.
+
+- **Искать в вашем хранилище**: Находить заметки по ключевому слову или содержимому во всем вашем хранилище Obsidian.
+
+- **Управлять периодическими заметками**: Получать доступ к и создавать ежедневные или другие периодические заметки для ведения дневника и отслеживания задач.
+
+- **Выполнять команды**: Удаленно запускать команды Obsidian для автоматизации операций с хранилищем.
+
+
+**Как это работает в Sim:**
+
+Добавьте блок Obsidian в свой рабочий процесс и выберите операцию. Для работы этой интеграции необходимо установить и запустить плагин [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api). Предоставьте ваш ключ API и URL хранилища, а также любые необходимые параметры. Блок взаимодействует с вашим локальным экземпляром Obsidian и возвращает структурированные данные, которые можно передать в последующие блоки — например, для поиска заметок в вашем хранилище для исследований и передачи их агенту ИИ для создания сводок.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Read, create, update, search, and delete notes in your Obsidian vault. Manage periodic notes, execute commands, and patch content at specific locations. Requires the Obsidian Local REST API plugin.
+
+Читайте, создавайте, обновляйте, ищите и удаляйте заметки в вашем хранилище Obsidian. Управляйте периодическими заметками, выполняйте команды и редактируйте содержимое в определенных местах. Требуется плагин Obsidian Local REST API.
+
 
 
 
 ## Действия
 
+
 ### `obsidian_append_active`
 
-Append content to the currently active file in Obsidian
 
-#### Входные параметры
+Добавляет контент к текущей активной файлу в Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `content` | string | Да | Markdown content to append to the active file |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `content` | строка | Да | Markdown контент для добавления к активному файлу |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `appended` | boolean | Whether content was successfully appended |
+
+| `appended` | булево | Успешно ли добавлен контент |
+
 
 ### `obsidian_append_note`
 
-Append content to an existing note in your Obsidian vault
 
-#### Входные параметры
+Добавляет контент к существующей заметке в вашем хранилище Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
-| `content` | string | Да | Markdown content to append to the note |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к заметке относительно корневого каталога хранилища (например, "folder/note.md") |
+
+| `content` | строка | Да | Markdown контент для добавления к заметке |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `filename` | string | Path of the note |
-| `appended` | boolean | Whether content was successfully appended |
+
+| `filename` | строка | Путь к заметке |
+
+| `appended` | булево | Успешно ли добавлен контент |
+
 
 ### `obsidian_append_periodic_note`
 
-Append content to the current periodic note (daily, weekly, monthly, quarterly, or yearly). Creates the note if it does not exist.
 
-#### Входные параметры
+Добавляет контент к текущей периодической заметке (ежедневно, еженедельно, ежемесячно, ежеквартально или ежегодно). Создаёт заметку, если она не существует.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `period` | string | Да | Period type: daily, weekly, monthly, quarterly, or yearly |
-| `content` | string | Да | Markdown content to append to the periodic note |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `period` | строка | Да | Тип периода: ежедневно, еженедельно, ежемесячно, ежеквартально или ежегодно |
+
+| `content` | строка | Да | Markdown контент для добавления к периодической заметке |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `period` | string | Period type of the note |
-| `appended` | boolean | Whether content was successfully appended |
+
+| `period` | строка | Тип периода заметки |
+
+| `appended` | булево | Успешно ли добавлен контент |
+
 
 ### `obsidian_create_note`
 
-Create or replace a note in your Obsidian vault
 
-#### Входные параметры
+Создаёт или заменяет заметку в вашем хранилище Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path for the note relative to vault root \(e.g. "folder/note.md"\) |
-| `content` | string | Да | Markdown content for the note |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к заметке относительно корневого каталога хранилища (например, "folder/note.md") |
+
+| `content` | строка | Да | Markdown контент для заметки |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `filename` | string | Path of the created note |
-| `created` | boolean | Whether the note was successfully created |
+
+| `filename` | строка | Путь к созданной заметке |
+
+| `created` | булево | Успешно ли создана заметка |
+
 
 ### `obsidian_delete_note`
 
-Delete a note from your Obsidian vault
 
-#### Входные параметры
+Удаляет заметку из вашего хранилища Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path to the note to delete relative to vault root |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к заметке, которую нужно удалить |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `filename` | string | Path of the deleted note |
-| `deleted` | boolean | Whether the note was successfully deleted |
+
+| `filename` | строка | Путь к удаленной заметке |
+
+| `deleted` | булево | Успешно ли удалена заметка |
+
 
 ### `obsidian_execute_command`
 
-Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
 
-#### Входные параметры
+Выполняет команду в Obsidian (например, открывает ежедневную заметку, включает боковую панель)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `commandId` | string | Да | ID of the command to execute \(use List Commands operation to discover available commands\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `commandId` | строка | Да | ID команды, которую нужно выполнить (используйте операцию List Commands для получения списка доступных команд) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `commandId` | string | ID of the executed command |
-| `executed` | boolean | Whether the command was successfully executed |
+
+| `commandId` | строка | ID выполненной команды |
+
+| `executed` | булево | Успешно ли выполнена команда |
+
 
 ### `obsidian_get_active`
 
-Retrieve the content of the currently active file in Obsidian
 
-#### Входные параметры
+Получает содержимое текущей активной заметки в Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `content` | string | Markdown content of the active file |
-| `filename` | string | Path to the active file |
+
+| `content` | строка | Markdown контент активной заметки |
+
+| `filename` | строка | Путь к активной заметке |
+
 
 ### `obsidian_get_note`
 
-Retrieve the content of a note from your Obsidian vault
 
-#### Входные параметры
+Получает содержимое заметки из вашего хранилища Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к заметке относительно корневого каталога хранилища (например, "folder/note.md") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `content` | string | Markdown content of the note |
-| `filename` | string | Path to the note |
+
+| `content` | строка | Markdown контент заметки |
+
+| `filename` | строка | Путь к заметке |
+
 
 ### `obsidian_get_periodic_note`
 
-Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly)
 
-#### Входные параметры
+Получает текущую периодическую заметку (ежедневно, еженедельно, ежемесячно, ежеквартально или ежегодно). Создаёт заметку, если она не существует.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Обязательно | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `period` | string | Да | Period type: daily, weekly, monthly, quarterly, or yearly |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `period` | строка | Да | Тип периода: ежедневно, еженедельно, ежемесячно, ежеквартально или ежегодно |
+
+
+| `content` | строка | Да | Markdown контент для добавления к периодической заметке |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `content` | string | Markdown content of the periodic note |
-| `period` | string | Period type of the note |
+
+| `period` | строка | Тип периода заметки |
+
+
+| `appended` | булево | Успешно ли добавлен контент |
+
 
 ### `obsidian_list_commands`
 
-List all available commands in Obsidian
 
-#### Входные параметры
+Выводит список всех доступных команд в Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `commands` | json | List of available commands with IDs and names |
-|   ↳ `id` | string | Command identifier |
-|   ↳ `name` | string | Human-readable command name |
+
+| `commands` | json | Список доступных команд с ID и именами |
+
+|   ↳ `id` | строка | Идентификатор команды |
+
+
+|   ↳ `name` | строка | Человеко-читаемое имя команды |
+
 
 ### `obsidian_list_files`
 
-List files and directories in your Obsidian vault
 
-#### Входные параметры
+Выводит список файлов и каталогов в вашем хранилище Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `path` | string | Нет | Directory path relative to vault root. Leave empty to list root. |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+
+| `path` | строка | Нет | Путь к каталогу относительно корневого каталога хранилища. Оставьте пустым, чтобы вывести список корневого каталога. |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `files` | json | List of files and directories |
-|   ↳ `path` | string | File or directory path |
-|   ↳ `type` | string | Whether the entry is a file or directory |
+
+| `files` | json | Список файлов и каталогов |
+
+|   ↳ `path` | строка | Путь к файлу или каталогу |
+
+
+|   ↳ `type` | строка | Указывает, является ли элемент файлом или каталогом |
+
 
 ### `obsidian_open_file`
 
-Open a file in the Obsidian UI (creates the file if it does not exist)
 
-#### Входные параметры
+Открывает файл в интерфейсе Obsidian (создаёт файл, если он не существует)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path to the file relative to vault root |
-| `newLeaf` | boolean | Нет | Whether to open the file in a new leaf/tab |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к файлу относительно корневого каталога хранилища |
+
+
+| `newLeaf` | булево | Нет | Указывает, нужно ли открыть файл в новом лист/вкладке (по умолчанию: false) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `filename` | string | Path of the opened file |
-| `opened` | boolean | Whether the file was successfully opened |
+
+| `filename` | строка | Путь к открытому файлу |
+
+
+| `opened` | булево | Успешно ли был открыт файл |
+
 
 ### `obsidian_patch_active`
 
-Insert or replace content at a specific heading, block reference, or frontmatter field in the active file
 
-#### Входные параметры
+Вставляет или заменяет содержимое в определенном месте (например, заголовке, блоке ссылки или поле frontmatter) активной заметки
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `content` | string | Да | Content to insert at the target location |
-| `operation` | string | Да | How to insert content: append, prepend, or replace |
-| `targetType` | string | Да | Type of target: heading, block, or frontmatter |
-| `target` | string | Да | Target identifier \(heading text, block reference ID, or frontmatter field name\) |
-| `targetDelimiter` | string | Нет | Delimiter for nested headings \(default: "::"\) |
-| `trimTargetWhitespace` | boolean | Нет | Whether to trim whitespace from target before matching \(default: false\) |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `content` | строка | Да | Контент для вставки в целевое место |
+
+| `operation` | строка | Да | Способ вставки контента: append, prepend или replace |
+
+| `targetType` | строка | Да | Тип целевого объекта: heading, block или frontmatter |
+
+| `target` | строка | Да | Идентификатор целевого объекта (текст заголовка, ID блока или имя поля frontmatter) |
+
+| `targetDelimiter` | строка | Нет | Разделитель для вложенных заголовков (по умолчанию: "::") |
+
+
+| `trimTargetWhitespace` | булево | Нет | Указывает, нужно ли обрезать пробелы из целевого объекта перед сопоставлением (по умолчанию: false) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `patched` | boolean | Whether the active file was successfully patched |
+
+
+| `patched` | булево | Успешно ли была отредактирована активная заметка |
+
 
 ### `obsidian_patch_note`
 
-Insert or replace content at a specific heading, block reference, or frontmatter field in a note
 
-#### Входные параметры
+Вставляет или заменяет содержимое в определенном месте (например, заголовке, блоке ссылки или поле frontmatter) в заметке
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `filename` | string | Да | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
-| `content` | string | Да | Content to insert at the target location |
-| `operation` | string | Да | How to insert content: append, prepend, or replace |
-| `targetType` | string | Да | Type of target: heading, block, or frontmatter |
-| `target` | string | Да | Target identifier \(heading text, block reference ID, or frontmatter field name\) |
-| `targetDelimiter` | string | Нет | Delimiter for nested headings \(default: "::"\) |
-| `trimTargetWhitespace` | boolean | Нет | Whether to trim whitespace from target before matching \(default: false\) |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `filename` | строка | Да | Путь к заметке относительно корневого каталога хранилища (например, "folder/note.md") |
+
+| `content` | строка | Да | Контент для вставки в целевое место |
+
+| `operation` | строка | Да | Способ вставки контента: append, prepend или replace |
+
+| `targetType` | строка | Да | Тип целевого объекта: heading, block или frontmatter |
+
+| `target` | строка | Да | Идентификатор целевого объекта (текст заголовка, ID блока или имя поля frontmatter) |
+
+| `targetDelimiter` | строка | Нет | Разделитель для вложенных заголовков (по умолчанию: "::") |
+
+
+| `trimTargetWhitespace` | булево | Нет | Указывает, нужно ли обрезать пробелы из целевого объекта перед сопоставлением (по умолчанию: false) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `filename` | string | Path of the patched note |
-| `patched` | boolean | Whether the note was successfully patched |
+
+| `filename` | строка | Путь к отредактированной заметке |
+
+
+| `patched` | булево | Успешно ли была отредактирована заметка |
+
 
 ### `obsidian_search`
 
-Search for text across notes in your Obsidian vault
 
-#### Входные параметры
+Ищет текст в заметках вашего хранилища Obsidian
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | API key from Obsidian Local REST API plugin settings |
-| `baseUrl` | string | Да | Base URL for the Obsidian Local REST API |
-| `query` | string | Да | Text to search for across vault notes |
-| `contextLength` | number | Нет | Number of characters of context around each match \(default: 100\) |
 
-#### Выходные параметры
+| Параметр | Тип | Обязательно | Описание |
+
+| `apiKey` | строка | Да | Ключ API из настроек плагина Obsidian Local REST API |
+
+| `baseUrl` | строка | Да | Базовый URL для Obsidian Local REST API |
+
+| `query` | строка | Да | Текст для поиска во всех заметках хранилища |
+
+
+| `contextLength` | число | Нет | Количество символов контекста вокруг каждого совпадения (по умолчанию: 100) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `results` | json | Search results with filenames, scores, and matching contexts |
-|   ↳ `filename` | string | Path to the matching note |
-|   ↳ `score` | number | Relevance score |
-|   ↳ `matches` | json | Matching text contexts |
-|     ↳ `context` | string | Text surrounding the match |
+
+| `results` | json | Результаты поиска с файлами, оценками и соответствующими контекстами |
+
+|   ↳ `filename` | строка | Путь к заметке, в которой найдено совпадение |
+
+|   ↳ `score` | число | Оценка релевантности |
+
+|   ↳ `matches` | json | Соответствующие текстовые контексты |
+
 
 

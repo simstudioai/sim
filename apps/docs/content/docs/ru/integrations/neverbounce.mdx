@@ -1,6 +1,6 @@
 ---
 title: NeverBounce
-description: Проверка доставляемости email и проверка кредитов аккаунта
+description: Проверьте возможность доставки электронной почты и проверьте остаток средств на счете.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,57 +10,92 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#064AF4"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-NeverBounce is a real-time email verification and list-cleaning service. Use this integration to check whether an email address is deliverable — it classifies each address as valid, invalid, disposable, catch-all, or unknown and surfaces role-account and free-provider flags — and to read the paid and free verification credits left on your account. Verify addresses before sending to cut bounces and keep your domain reputation healthy.
+
+NeverBounce — это служба проверки и очистки списков электронной почты в режиме реального времени. Используйте эту интеграцию для проверки того, является ли адрес электронной почты действительным — он классифицирует каждый адрес как действительный, недействительный, одноразовый, общий или неизвестный, а также отображает флаги для учетных записей и бесплатных провайдеров — и для просмотра оставшихся кредитов на проверку (как платных, так и бесплатных) в вашей учетной записи. Проверяйте адреса перед отправкой, чтобы избежать отказов и поддерживать здоровую репутацию вашего домена.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.
+
+Интегрируйте NeverBounce для проверки возможности доставки электронной почты в режиме реального времени — классифицируйте адреса как действительные, недействительные, общие, одноразовые или неизвестные — и проверяйте оставшиеся кредиты на проверку.
+
 
 
 
 ## Действия
 
+
 ### `neverbounce_verify_email`
 
-Verify the deliverability of an email address. Uses one verification credit.
 
-#### Входные параметры
+Проверьте возможность доставки электронной почты. Использует один кредит на проверку.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `email` | string | Да | Email address to verify \(e.g., john@example.com\) |
-| `apiKey` | string | Да | NeverBounce API Key |
 
-#### Выходные параметры
+| `email` | строка | Да | Адрес электронной почты для проверки (например, john@example.com) |
+
+| `apiKey` | строка | Да | Ключ API NeverBounce |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email` | string | The verified email address |
-| `status` | string | Verification status \(valid, invalid, catch_all, disposable, unknown\) |
-| `deliverable` | boolean | Whether the email is valid and safe to send |
-| `roleAccount` | boolean | Whether the address is a role account \(e.g., info@, sales@\) |
-| `freeEmail` | boolean | Whether the address is on a free email provider |
-| `didYouMean` | string | Suggested correction for a likely typo |
-| `flags` | array | Raw NeverBounce flags for the address |
+
+| `email` | строка | Проверенный адрес электронной почты |
+
+| `status` | строка | Статус проверки (действительный, недействительный, общий, одноразовый, неизвестный) |
+
+| `deliverable` | логическое значение | Является ли адрес действительным и безопасным для отправки |
+
+| `roleAccount` | логическое значение | Является ли адрес учетной записью (например, info@, sales@) |
+
+| `freeEmail` | логическое значение | Является ли адрес адресом бесплатного провайдера электронной почты |
+
+| `didYouMean` | строка | Предлагаемая коррекция для вероятной опечатки |
+
+| `flags` | массив | Необработанные флаги NeverBounce для адреса |
+
 
 ### `neverbounce_get_credits`
 
-Retrieve the remaining paid and free verification credits for the account.
 
-#### Входные параметры
+Получите оставшиеся кредиты на проверку (как платные, так и бесплатные) для учетной записи.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | NeverBounce API Key |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API NeverBounce |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `credits` | number | Remaining paid verification credits |
-| `freeCredits` | number | Remaining free verification credits |
+
+| `credits` | число | Остаток кредитов на проверку |
+
+| `freeCredits` | число | Остаток бесплатных кредитов на проверку |
+
 
 

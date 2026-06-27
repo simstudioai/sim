@@ -1,5 +1,5 @@
 ---
-title: Google Groups
+title: Группы Google
 description: Управление группами Google Workspace и их участниками
 ---
 
@@ -10,413 +10,716 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E8F0FE"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Google Groups](https://groups.google.com) is part of Google Workspace, providing email-based group communication, collaboration, and access control for teams and organizations. Google Groups lets you create mailing lists, manage membership, and control permissions for both internal and external users.
 
-This page explains how you can use Sim to automate the management of Google Groups in your workflows. With Sim, agents can create and configure groups, add or remove members, update group settings, and keep directory lists up-to-date automatically—ideal for onboarding workflows, syncing IT systems, or dynamically managing project teams.
+Google Groups является частью Google Workspace, предоставляя функциональность для создания групп по электронной почте, совместной работы и контроля доступа для команд и организаций. Google Groups позволяет создавать списки рассылки, управлять членством и настраивать разрешения как для внутренних, так и для внешних пользователей.
 
-With Google Groups, you can:
 
-- **Centralize communications**: Create team or project mailing lists for group conversations
-- **Manage group membership**: Add, remove, or update members with granular roles (owner, manager, member)
-- **Control access**: Manage who can view, post, or join; set permissions for public/private visibility
-- **Collaborate across teams**: Streamline communication and document sharing via group-based access
-- **Automate IT tasks**: Use Sim to keep group memberships current as teams change
+На этой странице объясняется, как вы можете использовать Sim для автоматизации управления группами Google в ваших рабочих процессах. С помощью Sim агенты могут создавать и настраивать группы, добавлять или удалять участников, обновлять настройки групп и автоматически поддерживать актуальность списков контактов — идеально подходит для процессов онбординга, синхронизации систем IT или динамического управления проектными командами.
 
-In Sim, the Google Groups integration gives your agents API-driven control to automate common administrative tasks. Connect directly to your Google Workspace domain to add users to groups, manage lists, audit group settings, and ensure your organization’s access controls are always up-to-date—without manual overhead.
+
+С Google Groups вы можете:
+
+
+- **Централизовать коммуникацию**: Создавайте списки рассылки для команд или проектов для групповых обсуждений
+
+- **Управлять членством в группе**: Добавляйте, удаляйте или обновляйте участников с помощью детальных ролей (владелец, менеджер, участник)
+
+- **Контролировать доступ**: Управляйте тем, кто может просматривать, публиковать или присоединяться; настраивайте разрешения для публичного/приватного доступа
+
+- **Совместно работать в командах**: Оптимизируйте коммуникацию и обмен документами через группы с предоставленным доступом
+
+- **Автоматизировать задачи IT**: Используйте Sim, чтобы поддерживать актуальность членства в группах при изменении команд
+
+
+В Sim интеграция Google Groups предоставляет вашим агентам API-управляемый контроль для автоматизации распространенных административных задач. Подключитесь непосредственно к вашей домене Google Workspace, чтобы добавлять пользователей в группы, управлять списками, проводить аудит настроек групп и обеспечивать актуальность ваших организационных политик доступа — без необходимости ручного вмешательства.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Подключение к Google Workspace для создания, обновления и управления группами и их участниками с помощью Admin SDK Directory API.
+
+Подключитесь к Google Workspace для создания, обновления и управления группами и их участниками с использованием API Directory API.
+
 
 
 
 ## Действия
 
+
 ### `google_groups_list_groups`
 
-List all groups in a Google Workspace domain
 
-#### Входные параметры
+Перечислите все группы в домене Google Workspace
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `customer` | string | Нет | Customer ID or "my_customer" for the authenticated user\'s domain |
-| `domain` | string | Нет | Domain name to filter groups by |
-| `maxResults` | number | Нет | Maximum number of results to return \(1-200\). Example: 50 |
-| `pageToken` | string | Нет | Token for fetching the next page of results |
-| `query` | string | Нет | Search query to filter groups \(e.g., "email:admin*"\) |
 
-#### Выходные параметры
+| `customer` | строка | Нет | Идентификатор клиента или "my_customer" для домена, принадлежащего аутентифицированному пользователю |
+
+| `domain` | строка | Нет | Название домена для фильтрации групп |
+
+| `maxResults` | число | Нет | Максимальное количество результатов для возврата (1-200). Пример: 50 |
+
+| `pageToken` | строка | Нет | Токен для получения следующей страницы результатов |
+
+| `query` | строка | Нет | Поисковый запрос для фильтрации групп (например, "email:admin*") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `groups` | json | Array of group objects |
-| `nextPageToken` | string | Token for fetching next page of results |
+
+| `groups` | json | Массив объектов группы |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов |
+
 
 ### `google_groups_get_group`
 
-Get details of a specific Google Group by email or group ID
 
-#### Входные параметры
+Получите детали конкретной группы Google по электронной почте или идентификатору группы
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `group` | json | Group object |
+
+| `group` | json | Объект группы |
+
 
 ### `google_groups_create_group`
 
-Create a new Google Group in the domain
 
-#### Входные параметры
+Создайте новую группу Google в домене
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `email` | string | Да | Email address for the new group \(e.g., team@example.com\) |
-| `name` | string | Да | Display name for the group \(e.g., Engineering Team\) |
-| `description` | string | Нет | Description of the group |
 
-#### Выходные параметры
+| `email` | строка | Да | Адрес электронной почты для новой группы (например, team@example.com) |
+
+| `name` | строка | Да | Отображаемое имя группы (например, Engineering Team) |
+
+| `description` | строка | Нет | Описание группы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `group` | json | Created group object |
+
+| `group` | json | Созданный объект группы |
+
 
 ### `google_groups_update_group`
 
-Update an existing Google Group
 
-#### Входные параметры
+Обновите существующую группу Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `name` | string | Нет | New display name for the group \(e.g., Engineering Team\) |
-| `description` | string | Нет | New description for the group |
-| `email` | string | Нет | New email address for the group \(e.g., newteam@example.com\) |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `name` | строка | Нет | Новое отображаемое имя группы (например, Engineering Team) |
+
+| `description` | строка | Нет | Новое описание группы |
+
+| `email` | строка | Нет | Новый адрес электронной почты группы (например, newteam@example.com) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `group` | json | Updated group object |
+
+| `group` | json | Обновленный объект группы |
+
 
 ### `google_groups_delete_group`
 
-Delete a Google Group
 
-#### Входные параметры
+Удалите группу Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier to delete. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы для удаления. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Success message |
+
+| `message` | строка | Сообщение об успехе |
+
 
 ### `google_groups_list_members`
 
-List all members of a Google Group
 
-#### Входные параметры
+Перечислите всех участников группы Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `maxResults` | number | Нет | Maximum number of results to return \(1-200\). Example: 50 |
-| `pageToken` | string | Нет | Token for fetching the next page of results |
-| `roles` | string | Нет | Filter by roles \(comma-separated: OWNER, MANAGER, MEMBER\) |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `maxResults` | число | Нет | Максимальное количество результатов для возврата (1-200). Пример: 50 |
+
+| `pageToken` | строка | Нет | Токен для получения следующей страницы результатов |
+
+| `roles` | строка | Нет | Фильтр по ролям (разделите запятыми: OWNER, MANAGER, MEMBER) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `members` | json | Array of member objects |
-| `nextPageToken` | string | Token for fetching next page of results |
+
+| `members` | json | Массив объектов участников |
+
+| `nextPageToken` | строка | Токен для получения следующей страницы результатов |
+
 
 ### `google_groups_get_member`
 
-Get details of a specific member in a Google Group
 
-#### Входные параметры
+Получите детали конкретного участника в группе Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `memberKey` | string | Да | Member identifier. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `memberKey` | строка | Да | Идентификатор участника для получения. Может быть адресом электронной почты участника (например, user@example.com) или уникальным идентификатором участника |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `member` | json | Member object |
+
+| `member` | json | Объект участника |
+
 
 ### `google_groups_add_member`
 
-Add a new member to a Google Group
 
-#### Входные параметры
+Добавьте нового участника в группу Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `email` | string | Да | Email address of the member to add \(e.g., user@example.com\) |
-| `role` | string | Нет | Role for the member: MEMBER, MANAGER, or OWNER. Defaults to MEMBER |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `email` | строка | Да | Адрес электронной почты участника для добавления (например, user@example.com) |
+
+| `role` | строка | Нет | Роль для участника: MEMBER, MANAGER или OWNER. По умолчанию MEMBER |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `member` | json | Added member object |
+
+| `member` | json | Добавленный объект участника |
+
 
 ### `google_groups_remove_member`
 
-Remove a member from a Google Group
 
-#### Входные параметры
+Удалите участника из группы Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `memberKey` | string | Да | Member identifier to remove. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `memberKey` | строка | Да | Идентификатор участника для удаления. Может быть адресом электронной почты участника (например, user@example.com) или уникальным идентификатором участника |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `message` | string | Success message |
+
+| `message` | строка | Сообщение об успехе |
+
 
 ### `google_groups_update_member`
 
-Update a member's role in a Google Group (promote or demote)
 
-#### Входные параметры
+Обновите роль участника в группе Google (продвиньте или понизьте)
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `memberKey` | string | Да | Member identifier. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
-| `role` | string | Да | New role for the member: MEMBER, MANAGER, or OWNER |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `memberKey` | строка | Да | Идентификатор участника. Может быть адресом электронной почты участника (например, user@example.com) или уникальным идентификатором участника |
+
+| `role` | строка | Да | Новая роль для участника: MEMBER, MANAGER или OWNER |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `member` | json | Updated member object |
+
+| `member` | json | Обновленный объект участника |
+
 
 ### `google_groups_has_member`
 
-Check if a user is a member of a Google Group
 
-#### Входные параметры
+Проверьте, является ли пользователь участником группы Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `memberKey` | string | Да | Member identifier to check. Can be the member email address \(e.g., user@example.com\) or the unique member ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `memberKey` | строка | Да | Идентификатор участника для проверки. Может быть адресом электронной почты участника (например, user@example.com) или уникальным идентификатором участника |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `isMember` | boolean | Whether the user is a member of the group |
+
+| `isMember` | boolean | True, если пользователь является участником группы |
+
 
 ### `google_groups_list_aliases`
 
-List all email aliases for a Google Group
 
-#### Входные параметры
+Перечислите все email-адреса, связанные с группой Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `aliases` | array | List of email aliases for the group |
-|   ↳ `id` | string | Unique group identifier |
-|   ↳ `primaryEmail` | string | Group's primary email address |
-|   ↳ `alias` | string | Alias email address |
-|   ↳ `kind` | string | API resource type |
-|   ↳ `etag` | string | Resource version identifier |
+
+| `aliases` | массив | Список email-адресов для группы |
+
+|   ↳ `id` | строка | Уникальный идентификатор группы |
+
+|   ↳ `primaryEmail` | строка | Основной адрес электронной почты группы |
+
+|   ↳ `alias` | строка | Адрес alias |
+
+|   ↳ `kind` | строка | Тип API-ресурса |
+
+|   ↳ `etag` | строка | Идентификатор версии ресурса |
+
 
 ### `google_groups_add_alias`
 
-Add an email alias to a Google Group
 
-#### Входные параметры
+Добавьте email-адрес в группу Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `alias` | string | Да | The email alias to add to the group |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `alias` | строка | Да | Email-адрес для добавления в группу |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | Unique group identifier |
-| `primaryEmail` | string | Group's primary email address |
-| `alias` | string | The alias that was added |
-| `kind` | string | API resource type |
-| `etag` | string | Resource version identifier |
+
+| `id` | строка | Уникальный идентификатор группы |
+
+| `primaryEmail` | строка | Основной адрес электронной почты группы |
+
+| `alias` | строка | Добавленный alias |
+
+| `kind` | строка | Тип API-ресурса |
+
+| `etag` | строка | Идентификатор версии ресурса |
+
 
 ### `google_groups_remove_alias`
 
-Remove an email alias from a Google Group
 
-#### Входные параметры
+Удалите email-адрес из группы Google
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupKey` | string | Да | Group identifier. Can be the group email address \(e.g., team@example.com\) or the unique group ID |
-| `alias` | string | Да | The email alias to remove from the group |
 
-#### Выходные параметры
+| `groupKey` | строка | Да | Идентификатор группы. Может быть адресом электронной почты группы (например, team@example.com) или уникальным идентификатором группы |
+
+| `alias` | строка | Да | Email-адрес для удаления из группы |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the alias was successfully deleted |
+
+| `deleted` | boolean | True, если alias был успешно удален |
+
 
 ### `google_groups_get_settings`
 
-Get the settings for a Google Group including access permissions, moderation, and posting options
 
-#### Входные параметры
+Получите настройки группы Google, включая разрешения доступа, модерацию и параметры публикации
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `groupEmail` | string | Да | The email address of the group \(e.g., team@example.com\) |
 
-#### Выходные параметры
+| `groupEmail` | строка | Да | Адрес электронной почты группы (например, team@example.com) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `email` | string | The group's email address |
-| `name` | string | The group name \(max 75 characters\) |
-| `description` | string | The group description \(max 4096 characters\) |
-| `whoCanJoin` | string | Who can join the group \(ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN\) |
-| `whoCanViewMembership` | string | Who can view group membership |
-| `whoCanViewGroup` | string | Who can view group messages |
-| `whoCanPostMessage` | string | Who can post messages to the group |
-| `allowExternalMembers` | string | Whether external users can be members |
-| `allowWebPosting` | string | Whether web posting is allowed |
-| `primaryLanguage` | string | The group's primary language |
-| `isArchived` | string | Whether messages are archived |
-| `archiveOnly` | string | Whether the group is archive-only \(inactive\) |
-| `messageModerationLevel` | string | Message moderation level |
-| `spamModerationLevel` | string | Spam handling level \(ALLOW, MODERATE, SILENTLY_MODERATE, REJECT\) |
-| `replyTo` | string | Default reply destination |
-| `customReplyTo` | string | Custom email for replies |
-| `includeCustomFooter` | string | Whether to include custom footer |
-| `customFooterText` | string | Custom footer text \(max 1000 characters\) |
-| `sendMessageDenyNotification` | string | Whether to send rejection notifications |
-| `defaultMessageDenyNotificationText` | string | Default rejection message text |
-| `membersCanPostAsTheGroup` | string | Whether members can post as the group |
-| `includeInGlobalAddressList` | string | Whether included in Global Address List |
-| `whoCanLeaveGroup` | string | Who can leave the group |
-| `whoCanContactOwner` | string | Who can contact the group owner |
+
+| `email` | строка | Адрес электронной почты группы |
+
+| `name` | строка | Имя группы (максимум 75 символов) |
+
+| `description` | строка | Описание группы (максимум 4096 символов) |
+
+| `whoCanJoin` | строка | Кто может присоединиться к группе (ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN) |
+
+| `whoCanViewMembership` | строка | Кто может просматривать членство в группе (ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW) |
+
+| `whoCanViewGroup` | строка | Кто может просматривать сообщения группы (ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW) |
+
+| `whoCanPostMessage` | строка | Кто может публиковать сообщения в группе (NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST) |
+
+| `allowExternalMembers` | строка | True или false, разрешено ли присоединение внешних пользователей |
+
+| `allowWebPosting` | строка | True или false, разрешена ли публикация в Интернете |
+
+| `primaryLanguage` | строка | Основной язык группы (например, en) |
+
+| `isArchived` | строка | True или false, архивированы ли сообщения |
+
+| `archiveOnly` | строка | True или false, является ли группа только для архивации (неактивна) |
+
+| `messageModerationLevel` | строка | Уровень модерации сообщений (MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE) |
+
+| `spamModerationLevel` | строка | Уровень модерации спама (ALLOW, MODERATE, SILENTLY_MODERATE, REJECT) |
+
+| `replyTo` | строка | Целевой адрес для ответов (REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS) |
+
+| `customReplyTo` | строка | Адрес электронной почты для ответов (когда REPLY_TO_CUSTOM) |
+
+| `includeCustomFooter` | строка | True или false, включать ли пользовательский подвал |
+
+| `customFooterText` | строка | Текст пользовательского подвала (максимум 1000 символов) |
+
+| `sendMessageDenyNotification` | строка | True или false, отправлять ли уведомления об отклонении |
+
+| `defaultMessageDenyNotificationText` | строка | Текст уведомления об отклонении по умолчанию |
+
+| `membersCanPostAsTheGroup` | строка | True или false, могут ли участники публиковать от имени группы |
+
+| `includeInGlobalAddressList` | строка | True или false, включено ли в список адресов |
+
+| `whoCanLeaveGroup` | строка | Кто может покинуть группу (ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_ЛЕAVE, NONE_CAN_LEAVE) |
+
+| `whoCanContactOwner` | строка | Кто может связаться с владельцем группы (ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_
+
 | `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+
 | `whoCanApproveMembers` | string | Who can approve new members |
+
 | `whoCanBanUsers` | string | Who can ban users |
+
 | `whoCanModerateMembers` | string | Who can manage members |
+
 | `whoCanModerateContent` | string | Who can moderate content |
+
 | `whoCanAssistContent` | string | Who can assist with content metadata |
+
 | `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+
 | `whoCanDiscoverGroup` | string | Who can discover the group |
+
 | `defaultSender` | string | Default sender identity \(DEFAULT_SELF or GROUP\) |
+
 
 ### `google_groups_update_settings`
 
+
 Update the settings for a Google Group including access permissions, moderation, and posting options
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `groupEmail` | string | Да | The email address of the group \(e.g., team@example.com\) |
-| `name` | string | Нет | The group name \(max 75 characters\) |
-| `description` | string | Нет | The group description \(max 4096 characters\) |
-| `whoCanJoin` | string | Нет | Who can join: ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
-| `whoCanViewMembership` | string | Нет | Who can view membership: ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
-| `whoCanViewGroup` | string | Нет | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW |
-| `whoCanPostMessage` | string | Нет | Who can post: NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
-| `allowExternalMembers` | string | Нет | Whether external users can be members: true or false |
-| `allowWebPosting` | string | Нет | Whether web posting is allowed: true or false |
-| `primaryLanguage` | string | Нет | The group's primary language \(e.g., en\) |
-| `isArchived` | string | Нет | Whether messages are archived: true or false |
-| `archiveOnly` | string | Нет | Whether the group is archive-only \(inactive\): true or false |
-| `messageModerationLevel` | string | Нет | Message moderation: MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE |
-| `spamModerationLevel` | string | Нет | Spam handling: ALLOW, MODERATE, SILENTLY_MODERATE, REJECT |
-| `replyTo` | string | Нет | Default reply: REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS |
-| `customReplyTo` | string | Нет | Custom email for replies \(when replyTo is REPLY_TO_CUSTOM\) |
-| `includeCustomFooter` | string | Нет | Whether to include custom footer: true or false |
-| `customFooterText` | string | Нет | Custom footer text \(max 1000 characters\) |
-| `sendMessageDenyNotification` | string | Нет | Whether to send rejection notifications: true or false |
-| `defaultMessageDenyNotificationText` | string | Нет | Default rejection message text |
-| `membersCanPostAsTheGroup` | string | Нет | Whether members can post as the group: true or false |
-| `includeInGlobalAddressList` | string | Нет | Whether included in Global Address List: true or false |
-| `whoCanLeaveGroup` | string | Нет | Who can leave: ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_LEAVE, NONE_CAN_LEAVE |
-| `whoCanContactOwner` | string | Нет | Who can contact owner: ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
-| `favoriteRepliesOnTop` | string | Нет | Whether favorite replies appear at top: true or false |
-| `whoCanApproveMembers` | string | Нет | Who can approve members: ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
-| `whoCanBanUsers` | string | Нет | Who can ban users: ALL_MEMBERS, OWNERS_AND_MANAGERS, OWNERS_ONLY, NONE |
-| `whoCanModerateMembers` | string | Нет | Who can manage members: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
-| `whoCanModerateContent` | string | Нет | Who can moderate content: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
-| `whoCanAssistContent` | string | Нет | Who can assist with content metadata: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
-| `enableCollaborativeInbox` | string | Нет | Whether collaborative inbox is enabled: true or false |
-| `whoCanDiscoverGroup` | string | Нет | Who can discover: ANYONE_CAN_DISCOVER, ALL_IN_DOMAIN_CAN_DISCOVER, ALL_MEMBERS_CAN_DISCOVER |
-| `defaultSender` | string | Нет | Default sender: DEFAULT_SELF or GROUP |
 
-#### Выходные параметры
+| `groupEmail` | string | Yes | The email address of the group \(e.g., team@example.com\) |
 
-| Параметр | Тип | Описание |
+| `name` | string | No | The group name \(max 75 characters\) |
+
+| `description` | string | No | The group description \(max 4096 characters\) |
+
+| `whoCanJoin` | string | No | Who can join: ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
+
+| `whoCanViewMembership` | string | No | Who can view membership: ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+
+| `whoCanViewGroup` | string | No | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW |
+
+| `whoCanPostMessage` | string | No | Who can post: NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
+
+| `allowExternalMembers` | string | No | Whether external users can be members: true or false |
+
+| `allowWebPosting` | string | No | Whether web posting is allowed: true or false |
+
+| `primaryLanguage` | string | No | The group's primary language \(e.g., en\) |
+
+| `isArchived` | string | No | Whether messages are archived: true or false |
+
+| `archiveOnly` | string | No | Whether the group is archive-only \(inactive\): true or false |
+
+| `messageModerationLevel` | string | No | Message moderation: MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE |
+
+| `spamModerationLevel` | string | No | Spam handling: ALLOW, MODERATE, SILENTLY_MODERATE, REJECT |
+
+| `replyTo` | string | No | Default reply: REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS |
+
+| `customReplyTo` | string | No | Custom email for replies \(when replyTo is REPLY_TO_CUSTOM\) |
+
+| `includeCustomFooter` | string | No | Whether to include custom footer: true or false |
+
+| `customFooterText` | string | No | Custom footer text \(max 1000 characters\) |
+
+| `sendMessageDenyNotification` | string | No | Whether to send rejection notifications: true or false |
+
+| `defaultMessageDenyNotificationText` | string | No | Default rejection message text |
+
+| `membersCanPostAsTheGroup` | string | No | Whether members can post as the group: true or false |
+
+| `includeInGlobalAddressList` | string | No | Whether included in Global Address List: true or false |
+
+| `whoCanLeaveGroup` | string | No | Who can leave: ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_LEAVE, NONE_CAN_LEAVE |
+
+| `whoCanContactOwner` | string | No | Who can contact owner: ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
+
+| `favoriteRepliesOnTop` | string | No | Whether favorite replies appear at top: true or false |
+
+| `whoCanApproveMembers` | string | No | Who can approve members: ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
+
+| `whoCanBanUsers` | string | No | Who can ban users: ALL_MEMBERS, OWNERS_AND_MANAGERS, OWNERS_ONLY, NONE |
+
+| `whoCanModerateMembers` | string | No | Who can manage members: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+
+| `whoCanModerateContent` | string | No | Who can moderate content: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+
+| `whoCanAssistContent` | string | No | Who can assist with content metadata: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+
+| `enableCollaborativeInbox` | string | No | Whether collaborative inbox is enabled: true or false |
+
+| `whoCanDiscoverGroup` | string | No | Who can discover: ANYONE_CAN_DISCOVER, ALL_IN_DOMAIN_CAN_DISCOVER, ALL_MEMBERS_CAN_DISCOVER |
+
+| `defaultSender` | string | No | Default sender: DEFAULT_SELF or GROUP |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `email` | string | The group's email address |
+
 | `name` | string | The group name |
+
 | `description` | string | The group description |
+
 | `whoCanJoin` | string | Who can join the group |
+
 | `whoCanViewMembership` | string | Who can view group membership |
+
 | `whoCanViewGroup` | string | Who can view group messages |
+
 | `whoCanPostMessage` | string | Who can post messages to the group |
+
 | `allowExternalMembers` | string | Whether external users can be members |
+
 | `allowWebPosting` | string | Whether web posting is allowed |
+
 | `primaryLanguage` | string | The group's primary language |
+
 | `isArchived` | string | Whether messages are archived |
+
 | `archiveOnly` | string | Whether the group is archive-only |
+
 | `messageModerationLevel` | string | Message moderation level |
+
 | `spamModerationLevel` | string | Spam handling level |
+
 | `replyTo` | string | Default reply destination |
+
 | `customReplyTo` | string | Custom email for replies |
+
 | `includeCustomFooter` | string | Whether to include custom footer |
+
 | `customFooterText` | string | Custom footer text |
+
 | `sendMessageDenyNotification` | string | Whether to send rejection notifications |
+
 | `defaultMessageDenyNotificationText` | string | Default rejection message text |
+
 | `membersCanPostAsTheGroup` | string | Whether members can post as the group |
+
 | `includeInGlobalAddressList` | string | Whether included in Global Address List |
+
 | `whoCanLeaveGroup` | string | Who can leave the group |
+
 | `whoCanContactOwner` | string | Who can contact the group owner |
+
 | `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+
 | `whoCanApproveMembers` | string | Who can approve new members |
+
 | `whoCanBanUsers` | string | Who can ban users |
+
 | `whoCanModerateMembers` | string | Who can manage members |
+
 | `whoCanModerateContent` | string | Who can moderate content |
+
 | `whoCanAssistContent` | string | Who can assist with content metadata |
+
 | `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+
 | `whoCanDiscoverGroup` | string | Who can discover the group |
+
 | `defaultSender` | string | Default sender identity |
+
 
 

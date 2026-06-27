@@ -1,6 +1,6 @@
 ---
-title: Monday
-description: Управление досками, элементами и группами Monday.com
+title: Понедельник
+description: Управляйте досками, элементами и группами в Monday.com.
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,582 +10,1023 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
-## Инструкции по использованию
+
+
+
 
 Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.
 
 
 
-## Действия
+
+## Actions
+
 
 ### `monday_list_boards`
 
+
 List boards from your Monday.com account
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `limit` | number | Нет | Maximum number of boards to return \(default 25, max 500\) |
-| `page` | number | Нет | Page number for pagination \(starts at 1\) |
 
-#### Выходные параметры
+| `limit` | number | No | Maximum number of boards to return \(default 25, max 500\) |
 
-| Параметр | Тип | Описание |
+| `page` | number | No | Page number for pagination \(starts at 1\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boards` | array | List of Monday.com boards |
+
 |   ↳ `id` | string | Board ID |
+
 |   ↳ `name` | string | Board name |
+
 |   ↳ `description` | string | Board description |
+
 |   ↳ `state` | string | Board state \(active, archived, deleted\) |
+
 |   ↳ `boardKind` | string | Board kind \(public, private, share\) |
+
 |   ↳ `itemsCount` | number | Number of items on the board |
+
 |   ↳ `url` | string | Board URL |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 | `count` | number | Number of boards returned |
+
 
 ### `monday_get_board`
 
+
 Get a specific Monday.com board with its groups and columns
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board to retrieve |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board to retrieve |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `board` | json | Board details |
+
 |   ↳ `id` | string | Board ID |
+
 |   ↳ `name` | string | Board name |
+
 |   ↳ `description` | string | Board description |
+
 |   ↳ `state` | string | Board state |
+
 |   ↳ `boardKind` | string | Board kind \(public, private, share\) |
+
 |   ↳ `itemsCount` | number | Number of items |
+
 |   ↳ `url` | string | Board URL |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 | `groups` | array | Groups on the board |
+
 |   ↳ `id` | string | Group ID |
+
 |   ↳ `title` | string | Group title |
+
 |   ↳ `color` | string | Group color \(hex\) |
+
 |   ↳ `archived` | boolean | Whether the group is archived |
+
 |   ↳ `deleted` | boolean | Whether the group is deleted |
+
 |   ↳ `position` | string | Group position |
+
 | `columns` | array | Columns on the board |
+
 |   ↳ `id` | string | Column ID |
+
 |   ↳ `title` | string | Column title |
+
 |   ↳ `type` | string | Column type |
+
 
 ### `monday_get_item`
 
+
 Get a specific item by ID from Monday.com
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `itemId` | string | Да | The ID of the item to retrieve |
 
-#### Выходные параметры
+| `itemId` | string | Yes | The ID of the item to retrieve |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `item` | json | The requested item |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 
 ### `monday_get_items`
 
+
 Get items from a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board to get items from |
-| `groupId` | string | Нет | Filter items by group ID |
-| `limit` | number | Нет | Maximum number of items to return \(default 25, max 500\) |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board to get items from |
 
-| Параметр | Тип | Описание |
+| `groupId` | string | No | Filter items by group ID |
+
+| `limit` | number | No | Maximum number of items to return \(default 25, max 500\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `items` | array | List of items from the board |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state \(active, archived, deleted\) |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values for the item |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Human-readable text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 | `count` | number | Number of items returned |
+
 
 ### `monday_search_items`
 
+
 Search for items on a Monday.com board by column values
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board to search |
-| `columns` | string | Да | JSON array of column filters, e.g. \[\{"column_id":"status","column_values":\["Done"\]\}\] |
-| `limit` | number | Нет | Maximum number of items to return \(default 25, max 500\) |
-| `cursor` | string | Нет | Pagination cursor from a previous search response |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board to search |
 
-| Параметр | Тип | Описание |
+| `columns` | string | Yes | JSON array of column filters, e.g. \[\{"column_id":"status","column_values":\["Done"\]\}\] |
+
+| `limit` | number | No | Maximum number of items to return \(default 25, max 500\) |
+
+| `cursor` | string | No | Pagination cursor from a previous search response |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `items` | array | Matching items |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 | `count` | number | Number of items returned |
+
 | `cursor` | string | Pagination cursor for fetching the next page |
+
 
 ### `monday_create_item`
 
+
 Create a new item on a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board to create the item on |
-| `itemName` | string | Да | The name of the new item |
-| `groupId` | string | Нет | The group ID to create the item in |
-| `columnValues` | string | Нет | JSON string of column values to set \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board to create the item on |
 
-| Параметр | Тип | Описание |
+| `itemName` | string | Yes | The name of the new item |
+
+| `groupId` | string | No | The group ID to create the item in |
+
+| `columnValues` | string | No | JSON string of column values to set \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `item` | json | The created item |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 
 ### `monday_update_item`
 
+
 Update column values of an item on a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board containing the item |
-| `itemId` | string | Да | The ID of the item to update |
-| `columnValues` | string | Да | JSON string of column values to update \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board containing the item |
 
-| Параметр | Тип | Описание |
+| `itemId` | string | Yes | The ID of the item to update |
+
+| `columnValues` | string | Yes | JSON string of column values to update \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `item` | json | The updated item |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 
 ### `monday_delete_item`
 
+
 Delete an item from a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `itemId` | string | Да | The ID of the item to delete |
 
-#### Выходные параметры
+| `itemId` | string | Yes | The ID of the item to delete |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `id` | string | The ID of the deleted item |
+
 
 ### `monday_archive_item`
 
+
 Archive an item on a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `itemId` | string | Да | The ID of the item to archive |
 
-#### Выходные параметры
+| `itemId` | string | Yes | The ID of the item to archive |
 
-| Параметр | Тип | Описание |
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `id` | string | The ID of the archived item |
+
 
 ### `monday_move_item_to_group`
 
+
 Move an item to a different group on a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `itemId` | string | Да | The ID of the item to move |
-| `groupId` | string | Да | The ID of the target group |
 
-#### Выходные параметры
+| `itemId` | string | Yes | The ID of the item to move |
 
-| Параметр | Тип | Описание |
+| `groupId` | string | Yes | The ID of the target group |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `item` | json | The moved item with updated group |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 
 ### `monday_create_subitem`
 
+
 Create a subitem under a parent item on Monday.com
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `parentItemId` | string | Да | The ID of the parent item |
-| `itemName` | string | Да | The name of the new subitem |
-| `columnValues` | string | Нет | JSON string of column values to set |
 
-#### Выходные параметры
+| `parentItemId` | string | Yes | The ID of the parent item |
 
-| Параметр | Тип | Описание |
+| `itemName` | string | Yes | The name of the new subitem |
+
+| `columnValues` | string | No | JSON string of column values to set |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `item` | json | The created subitem |
+
 |   ↳ `id` | string | Item ID |
+
 |   ↳ `name` | string | Item name |
+
 |   ↳ `state` | string | Item state |
+
 |   ↳ `boardId` | string | Board ID |
+
 |   ↳ `groupId` | string | Group ID |
+
 |   ↳ `groupTitle` | string | Group title |
+
 |   ↳ `columnValues` | array | Column values |
+
 |     ↳ `id` | string | Column ID |
+
 |     ↳ `text` | string | Text value |
+
 |     ↳ `value` | string | Raw JSON value |
+
 |     ↳ `type` | string | Column type |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `updatedAt` | string | Last updated timestamp |
+
 |   ↳ `url` | string | Item URL |
+
 
 ### `monday_create_update`
 
+
 Add an update (comment) to a Monday.com item
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `itemId` | string | Да | The ID of the item to add the update to |
-| `body` | string | Да | The update text content \(supports HTML\) |
 
-#### Выходные параметры
+| `itemId` | string | Yes | The ID of the item to add the update to |
 
-| Параметр | Тип | Описание |
+| `body` | string | Yes | The update text content \(supports HTML\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `update` | json | The created update |
+
 |   ↳ `id` | string | Update ID |
+
 |   ↳ `body` | string | Update body \(HTML\) |
+
 |   ↳ `textBody` | string | Plain text body |
+
 |   ↳ `createdAt` | string | Creation timestamp |
+
 |   ↳ `creatorId` | string | Creator user ID |
+
 |   ↳ `itemId` | string | Item ID |
+
 
 ### `monday_create_group`
 
+
 Create a new group on a Monday.com board
 
-#### Входные параметры
 
-| Параметр | Тип | Обязательный | Описание |
+#### Input
+
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `boardId` | string | Да | The ID of the board to create the group on |
-| `groupName` | string | Да | The name of the new group \(max 255 characters\) |
-| `groupColor` | string | Нет | The group color as a hex code \(e.g., "#ff642e"\) |
 
-#### Выходные параметры
+| `boardId` | string | Yes | The ID of the board to create the group on |
 
-| Параметр | Тип | Описание |
+| `groupName` | string | Yes | The name of the new group \(max 255 characters\) |
+
+| `groupColor` | string | No | The group color as a hex code \(e.g., "#ff642e"\) |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `group` | json | The created group |
+
 |   ↳ `id` | string | Group ID |
+
 |   ↳ `title` | string | Group title |
+
 |   ↳ `color` | string | Group color \(hex\) |
+
 |   ↳ `archived` | boolean | Whether archived |
+
 |   ↳ `deleted` | boolean | Whether deleted |
+
 |   ↳ `position` | string | Group position |
+
 
 
 
 ## Triggers
 
+
 A **Trigger** is a block that starts a workflow when an event happens in this service.
+
 
 ### Monday Column Value Changed
 
+
 Trigger workflow when any column value changes on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `columnId` | string | The ID of the changed column |
+
 | `columnType` | string | The type of the changed column |
+
 | `columnTitle` | string | The title of the changed column |
+
 | `value` | json | The new value of the column |
+
 | `previousValue` | json | The previous value of the column |
 
 
+
 ---
+
 
 ### Monday Item Archived
 
+
 Trigger workflow when an item is archived on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
 
 
+
 ---
+
 
 ### Monday Item Created
 
+
 Trigger workflow when a new item is created on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
 
 
+
 ---
+
 
 ### Monday Item Deleted
 
+
 Trigger workflow when an item is deleted on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
 
 
+
 ---
+
 
 ### Monday Item Moved to Group
 
+
 Trigger workflow when an item is moved to any group on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `destGroupId` | string | The destination group ID the item was moved to |
+
 | `sourceGroupId` | string | The source group ID the item was moved from |
 
 
+
 ---
+
 
 ### Monday Item Name Changed
 
+
 Trigger workflow when an item name changes on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `columnId` | string | The ID of the changed column |
+
 | `columnType` | string | The type of the changed column |
+
 | `columnTitle` | string | The title of the changed column |
+
 | `value` | json | The new value of the column |
+
 | `previousValue` | json | The previous value of the column |
 
 
+
 ---
+
 
 ### Monday Status Changed
 
+
 Trigger workflow when a status column value changes on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `columnId` | string | The ID of the changed column |
+
 | `columnType` | string | The type of the changed column |
+
 | `columnTitle` | string | The title of the changed column |
+
 | `value` | json | The new value of the column |
+
 | `previousValue` | json | The previous value of the column |
 
 
+
 ---
+
 
 ### Monday Subitem Created
 
+
 Trigger workflow when a subitem is created on a Monday.com board
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `parentItemId` | string | The parent item ID |
+
 | `parentItemBoardId` | string | The parent item board ID |
+
 
 
 ---
 
+
 ### Monday Update Posted
+
 
 Trigger workflow when an update or comment is posted on a Monday.com item
 
-#### Выходные параметры
 
-| Параметр | Тип | Описание |
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `boardId` | string | The board ID where the event occurred |
+
 | `itemId` | string | The item ID \(pulseId\) |
+
 | `itemName` | string | The item name \(pulseName\) |
+
 | `groupId` | string | The group ID of the item |
+
 | `userId` | string | The ID of the user who triggered the event |
+
 | `triggerTime` | string | ISO timestamp of when the event occurred |
+
 | `triggerUuid` | string | Unique identifier for this event |
+
 | `subscriptionId` | string | The webhook subscription ID |
+
 | `updateId` | string | The ID of the created update |
+
 | `body` | string | The HTML body of the update |
+
 | `textBody` | string | The plain text body of the update |
+
 

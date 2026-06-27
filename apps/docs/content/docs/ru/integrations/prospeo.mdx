@@ -1,6 +1,6 @@
 ---
-title: Prospeo
-description: Обогащение и поиск B2B-контактов и компаний
+title: Проспео
+description: Расширяйте и находите контакты и компании для бизнеса
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,228 +10,393 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FF1A26"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Prospeo](https://prospeo.io/) is a B2B data platform that finds verified work emails and mobile numbers, enriches person and company profiles, and exposes a searchable database of leads and companies through 20+ filters.
 
-With Prospeo, you can:
+Prospeo — это платформа данных для B2B, которая помогает находить проверенные адреса электронной почты и номера телефонов, обогащать профили людей и компаний, а также предоставляет поисковую базу лидов и компаний с помощью более чем 20 фильтров.
 
-- **Find verified contact details**: Discover work emails and mobile numbers from a name, LinkedIn URL, or company
-- **Enrich people and companies**: Fill in profile data including job history, location, technology stack, and funding signals
-- **Bulk-enrich at scale**: Process arrays of identifiers in a single request for high-volume workflows
-- **Search the B2B database**: Filter leads and accounts by job title, location, industry, headcount, and more
-- **Monitor account usage**: Check remaining credits, used credits, and renewal dates before running expensive operations
 
-In Sim, the Prospeo integration lets your agents perform contact discovery and CRM enrichment programmatically:
+С Prospeo вы можете:
 
-- **Enrich a person**: Use `prospeo_enrich_person` to match a contact and return verified email, mobile, and profile data
-- **Enrich a company**: Use `prospeo_enrich_company` to resolve a domain, LinkedIn URL, or name into a full company profile
-- **Bulk enrichment**: Use `prospeo_bulk_enrich_person` and `prospeo_bulk_enrich_company` for batched workflows
-- **Search the database**: Use `prospeo_search_person` and `prospeo_search_company` with JSON filter objects to surface leads
-- **Build dynamic filter UIs**: Use `prospeo_search_suggestions` to autocomplete locations and job titles
-- **Track usage**: Use `prospeo_account_information` to monitor credits and plan status from within a workflow
 
-This turns Prospeo into a reliable contact and company data source for your agents — wire it into sales prospecting, CRM hygiene, lead scoring, or any pipeline that depends on accurate B2B identity data.
+- **Находить проверенные контактные данные**: находить адреса электронной почты и номера телефонов по имени, URL LinkedIn или названию компании.
+
+- **Обогащать профили людей и компаний**: заполнять информацию о профиле, включая историю работы, местоположение, технологический стек и данные о финансировании.
+
+- **Массово обогащать данные**: обрабатывать массивы идентификаторов в одном запросе для высокопроизводительных рабочих процессов.
+
+- **Искать в базе данных B2B**: фильтровать лиды и аккаунты по должности, местоположению, отрасли, численности персонала и другим критериям.
+
+- **Отслеживать использование учетной записи**: проверять оставшиеся кредиты, использованные кредиты и даты обновления перед запуском дорогостоящих операций.
+
+
+В Sim интеграция Prospeo позволяет вашим агентам программно выполнять поиск контактов и обогащение CRM:
+
+
+- **Обогатить профиль человека**: использовать `prospeo_enrich_person` для сопоставления контакта и получения проверенной электронной почты, номера телефона и данных профиля.
+
+- **Обогатить компанию**: использовать `prospeo_enrich_company` для разрешения домена, URL LinkedIn или названия компании в полный профиль компании.
+
+- **Массовое обогащение**: использовать `prospeo_bulk_enrich_person` и `prospeo_bulk_enrich_company` для пакетной обработки данных.
+
+- **Поиск в базе данных**: использовать `prospeo_search_person` и `prospeo_search_company` с JSON объектами фильтров для поиска лидов.
+
+- **Создание динамических интерфейсов фильтрации**: использовать `prospeo_search_suggestions` для автозаполнения местоположений и должностей.
+
+- **Отслеживание использования**: использовать `prospeo_account_information` для мониторинга кредитов и статуса плана в рамках рабочего процесса.
+
+
+Это позволяет Prospeo стать надежным источником данных о контактах и компаниях для ваших агентов — используйте его для поиска потенциальных клиентов, улучшения качества CRM, оценки лидов или любых других процессов, зависящих от точных данных B2B.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.
+
+Находите проверенные адреса электронной почты и номера телефонов, обогащайте профили людей и компаний, а также ищите в базе данных B2B с помощью более чем 20 фильтров.
+
 
 
 
 ## Действия
 
+
 ### `prospeo_account_information`
 
-Получение the current plan, remaining credits, and renewal date of your Prospeo account.
 
-#### Вход
+Получите текущий план, оставшиеся кредиты и дату обновления вашего аккаунта Prospeo.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `current_plan` | string | Current Prospeo plan name |
-| `current_team_members` | number | Number of team members in your team |
-| `remaining_credits` | number | Number of credits remaining |
-| `used_credits` | number | Number of credits already used |
-| `next_quota_renewal_days` | number | Days until the next quota renewal |
-| `next_quota_renewal_date` | string | Date and time of the next quota renewal |
+
+| `current_plan` | строка | Текущий план Prospeo |
+
+| `current_team_members` | число | Количество членов команды |
+
+| `remaining_credits` | число | Количество оставшихся кредитов |
+
+| `used_credits` | число | Количество уже использованных кредитов |
+
+| `next_quota_renewal_days` | число | Количество дней до следующего обновления квоты |
+
+| `next_quota_renewal_date` | строка | Дата и время следующего обновления квоты |
+
 
 ### `prospeo_enrich_person`
 
-Enrich a person with complete B2B profile data, email address and mobile.
 
-#### Вход
+Обогатите профиль человека полными данными B2B, включая адрес электронной почты и номер телефона.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `first_name` | string | Нет | First name of the person |
-| `last_name` | string | Нет | Last name of the person |
-| `full_name` | string | Нет | Full name of the person \(alternative to first_name + last_name\) |
-| `linkedin_url` | string | Нет | Person's public LinkedIn URL |
-| `email` | string | Нет | Work email of the person |
-| `company_name` | string | Нет | Company name |
-| `company_website` | string | Нет | Company website |
-| `company_linkedin_url` | string | Нет | Company's public LinkedIn URL |
-| `person_id` | string | Нет | Prospeo person_id from a previous Search Person response |
-| `only_verified_email` | boolean | Нет | Only return records with a verified email |
-| `enrich_mobile` | boolean | Нет | Reveal mobile number \(10 credits per match; email included\) |
-| `only_verified_mobile` | boolean | Нет | Only return records that have a mobile \(implies enrich_mobile\) |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `first_name` | строка | Нет | Имя человека |
+
+| `last_name` | строка | Нет | Фамилия человека |
+
+| `full_name` | строка | Нет | Полное имя человека (альтернатива first_name + last_name) |
+
+| `linkedin_url` | строка | Нет | Публичный URL LinkedIn человека |
+
+| `email` | строка | Нет | Адрес электронной почты человека |
+
+| `company_name` | строка | Нет | Название компании |
+
+| `company_website` | строка | Нет | Веб-сайт компании |
+
+| `company_linkedin_url` | строка | Нет | Публичный URL LinkedIn компании |
+
+| `person_id` | строка | Нет | ID человека Prospeo из предыдущего запроса Search Person |
+
+| `only_verified_email` | логическое значение | Нет | Вернуть только записи с проверенной электронной почтой |
+
+| `enrich_mobile` | логическое значение | Нет | Отобразить номер телефона (10 кредитов за совпадение; email включен) |
+
+| `only_verified_mobile` | логическое значение | Нет | Вернуть только записи, имеющие номер телефона (implies enrich_mobile) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
-| `person` | json | The matched person object including person_id, name, linkedin_url, current_job_title, job_history, mobile, email, location, and skills |
-| `company` | json | The current company of the matched person including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
+
+| `free_enrichment` | логическое значение | Истина, если обогащение было бесплатным (уже обогащено в прошлом) |
+
+| `person` | json | Соответствующий объект человека, включая person_id, имя, linkedin_url, текущую должность, историю работы, номер телефона, адрес электронной почты, местоположение и навыки |
+
+| `company` | json | Текущая компания соответствующего человека, включая название, веб-сайт, домен, отрасль, численность персонала, местоположение, URL социальных сетей, данные о финансировании и технологии |
+
 
 ### `prospeo_enrich_company`
 
-Enrich a company with complete B2B data.
 
-#### Вход
+Обогатите компанию полными данными B2B.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `company_website` | string | Нет | Company website (например, "intercom.com"\) |
-| `company_linkedin_url` | string | Нет | Company's public LinkedIn URL |
-| `company_name` | string | Нет | Company name \(use combined with website for best accuracy\) |
-| `company_id` | string | Нет | Prospeo company_id from a previously enriched company |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `company_website` | строка | Нет | Веб-сайт компании (например, "intercom.com") |
+
+| `company_linkedin_url` | строка | Нет | Публичный URL LinkedIn компании |
+
+| `company_name` | строка | Нет | Название компании (используйте в сочетании с веб-сайтом для лучшей точности) |
+
+| `company_id` | строка | Нет | ID компании Prospeo из предыдущего запроса enrich_company |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
-| `company` | json | The matched company object including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
+
+| `free_enrichment` | логическое значение | Истина, если обогащение было бесплатным (уже обогащено в прошлом) |
+
+| `company` | json | Соответствующий объект компании, включая название, веб-сайт, домен, отрасль, численность персонала, местоположение, URL социальных сетей, данные о финансировании и технологии |
+
 
 ### `prospeo_bulk_enrich_person`
 
-Enrich up to 50 person records at once.
 
-#### Вход
+Обогатите до 50 человек одновременно.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `data` | json | Да | Array of up to 50 person records to enrich. Each must include an "identifier" plus one of: linkedin_url, email, person_id, or \(first_name + last_name + company_*\), or \(full_name + company_*\). |
-| `only_verified_email` | boolean | Нет | Only return records with a verified email |
-| `enrich_mobile` | boolean | Нет | Reveal mobile numbers \(10 credits per match; email included\) |
-| `only_verified_mobile` | boolean | Нет | Only return records that have a mobile \(implies enrich_mobile\) |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `data` | json | Да | Массив из до 50 записей о людях для обогащения. Каждая запись должна содержать "identifier" и один из: linkedin_url, email, person_id или (first_name + last_name + company_*\), или (full_name + company_*) и (first_name + last_name + company_*) |
+
+| `only_verified_email` | логическое значение | Нет | Вернуть только записи с проверенной электронной почтой |
+
+| `enrich_mobile` | логическое значение | Нет | Отобразить номера телефонов (10 кредитов за совпадение; email включен) |
+
+| `only_verified_mobile` | логическое значение | Нет | Вернуть только записи, имеющие номер телефона (implies enrich_mobile) |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `total_cost` | number | Total credits spent by the request |
-| `matched` | array | Matched records \(identifier, person, company\) |
-|   ↳ `identifier` | string | The identifier you submitted for this record |
-|   ↳ `person` | json | The matched person object |
-|   ↳ `company` | json | The current company of the matched person |
-| `not_matched` | array | Identifiers of records we could not match given the filters |
-| `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
+
+| `total_cost` | число | Общая стоимость запроса в кредитах |
+
+| `matched` | массив | Соответствующие записи (identifier, person, company) |
+
+|   ↳ `identifier` | строка | Идентификатор, который вы предоставили для этой записи |
+
+|   ↳ `person` | json | Соответствующий объект человека |
+
+|   ↳ `company` | json | Текущая компания соответствующего человека |
+
+| `not_matched` | массив | Идентификаторы записей, которые не удалось сопоставить |
+
+| `invalid_datapoints` | массив | Идентификаторы записей, которые не соответствуют минимальным требованиям к сопоставлению |
+
 
 ### `prospeo_bulk_enrich_company`
 
-Enrich up to 50 company records at once.
 
-#### Вход
+Обогатите до 50 компаний одновременно.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `data` | json | Да | Array of up to 50 company records to enrich. Each must include an "identifier" plus one of: company_website, company_linkedin_url, company_name, or company_id. |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `data` | json | Да | Массив из до 50 записей о компаниях для обогащения. Каждая запись должна содержать "identifier" и один из: company_website, company_linkedin_url, company_name или company_id. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `total_cost` | number | Total credits spent by the request |
-| `matched` | array | Matched company records \(identifier, company\) |
-|   ↳ `identifier` | string | The identifier you submitted for this record |
-|   ↳ `company` | json | The matched company object |
-| `not_matched` | array | Identifiers of records we could not match |
-| `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
+
+| `total_cost` | число | Общая стоимость запроса в кредитах |
+
+| `matched` | массив | Соответствующие записи (identifier, company) |
+
+|   ↳ `identifier` | строка | Идентификатор, который вы предоставили для этой записи |
+
+|   ↳ `company` | json | Соответствующий объект компании |
+
+| `not_matched` | массив | Идентификаторы записей, которые не удалось сопоставить |
+
+| `invalid_datapoints` | массив | Идентификаторы записей, которые не соответствуют минимальным требованиям к сопоставлению |
+
 
 ### `prospeo_search_person`
 
-Search for leads using 20+ filters to build targeted contact lists.
 
-#### Вход
+Ищите лиды с помощью более чем 20 фильтров для создания целевых списков контактов.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `filters` | json | Да | Filter configuration object. See https://prospeo.io/api-docs/filters-documentation for all supported filters (например, person_seniority, company_industry, person_location\). |
-| `page` | number | Нет | Page number \(defaults to 1\). Up to 1000 pages of 25 results. |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `filters` | json | Да | Объект конфигурации фильтров (например, person_seniority, company_industry, person_location).  См. https://prospeo.io/api-docs/filters-documentation для всех поддерживаемых фильтров (например, person_seniority, company_industry, person_location) |
+
+| `page` | число | Нет | Номер страницы (по умолчанию 1). До 1000 страниц по 25 результатов. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `pagination` | object | Pagination details |
-|   ↳ `current_page` | number | Current page number |
-|   ↳ `per_page` | number | Results per page |
-|   ↳ `total_page` | number | Total number of pages |
-|   ↳ `total_count` | number | Total number of matching records |
-| `free` | boolean | True if the request was free due to 30-day result-set deduplication |
-| `results` | array | Up to 25 search results \(person + company, no email/mobile\) |
-|   ↳ `person` | json | Matched person \(no email/mobile in search response\) |
-|   ↳ `company` | json | Current company of the person |
+
+| `pagination` | объект | Детали навигации |
+
+|   ↳ `current_page` | число | Текущий номер страницы |
+
+|   ↳ `per_page` | число | Результаты на странице |
+
+|   ↳ `total_page` | число | Общее количество страниц |
+
+|   ↳ `total_count` | число | Общее количество соответствующих записей |
+
+| `free` | логическое значение | Истина, если запрос был бесплатным из-за 30-дневной дедупликации результатов |
+
+| `results` | массив | До 25 результатов поиска (person + company, без email/phone) |
+
+|   ↳ `person` | json | Соответствующий человек (без email/phone в ответе поиска) |
+
+|   ↳ `company` | json | Текущая компания соответствующего человека |
+
 
 ### `prospeo_search_company`
 
-Search for companies using 20+ filters to build account lists.
 
-#### Вход
+Ищите компании с помощью более чем 20 фильтров для создания списков аккаунтов.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `filters` | json | Да | Filter configuration object. See https://prospeo.io/api-docs/filters-documentation for all supported filters (например, company_industry, company_headcount_range, company_funding\). |
-| `page` | number | Нет | Page number \(defaults to 1\). Up to 1000 pages of 25 results. |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `filters` | json | Да | Объект конфигурации фильтров (например, company_industry, company_headcount_range, company_funding).  См. https://prospeo.io/api-docs/filters-documentation для всех поддерживаемых фильтров (например, company_industry, company_headcount_range, company_funding) |
+
+| `page` | число | Нет | Номер страницы (по умолчанию 1). До 1000 страниц по 25 результатов. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `pagination` | object | Pagination details |
-|   ↳ `current_page` | number | Current page number |
-|   ↳ `per_page` | number | Results per page |
-|   ↳ `total_page` | number | Total number of pages |
-|   ↳ `total_count` | number | Total number of matching records |
-| `free` | boolean | True if the request was free due to 30-day result-set deduplication |
-| `results` | array | Up to 25 matching companies |
-|   ↳ `company` | json | Matched company object |
+
+| `pagination` | объект | Детали навигации |
+
+|   ↳ `current_page` | число | Текущий номер страницы |
+
+|   ↳ `per_page` | число | Результаты на странице |
+
+|   ↳ `total_page` | число | Общее количество страниц |
+
+|   ↳ `total_count` | число | Общее количество соответствующих записей |
+
+| `free` | логическое значение | Истина, если запрос был бесплатным из-за 30-дневной дедупликации результатов |
+
+| `results` | массив | До 25 соответствующих компаний |
+
+|   ↳ `company` | json | Соответствующий объект компании |
+
 
 ### `prospeo_search_suggestions`
 
-Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search.
 
-#### Вход
+Бесплатный endpoint для получения допустимых значений местоположения или должностей для использования в фильтрах поиска. Предоставьте один из: location_search или job_title_search.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Prospeo Ключ API |
-| `location_search` | string | Нет | Search query for location suggestions \(minimum 2 characters\). Mutually exclusive with job_title_search. |
-| `job_title_search` | string | Нет | Search query for job title suggestions \(minimum 2 characters\). Mutually exclusive with location_search. |
 
-#### Выход
+| `apiKey` | строка | Да | API ключ Prospeo |
 
-| Parameter | Type | Description |
+| `location_search` | строка | Нет | Поисковый запрос для предложений местоположения (минимальная длина 2 символа).  Исключительно с job_title_search. |
+
+| `job_title_search` | строка | Нет | Поисковый запрос для предложений должностей (минимальная длина 2 символа). Исключительно с location_search. |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `location_suggestions` | array | Location suggestions when using location_search \(empty when searching job titles\) |
-|   ↳ `name` | string | Formatted location name to use in filters |
-|   ↳ `type` | string | Location type \(COUNTRY, STATE, CITY, or ZONE\) |
-| `job_title_suggestions` | array | Up to 25 job title suggestions ordered by popularity when using job_title_search \(empty when searching locations\) |
+
+| `location_suggestions` | массив | Предложения местоположения, когда используется location_search (пусто, если ищется job_title) |
+
+|   ↳ `name` | строка | Отформатированное название местоположения для использования в фильтрах |
+
+|   ↳ `type` | строка | Тип местоположения (COUNTRY, STATE, CITY или ZONE) |
+
+| `job_title_suggestions` | массив | До 25 предложений должностей, отсортированных по популярности, когда используется job_title_search (пусто, если ищется location) |
+
 
 

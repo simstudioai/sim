@@ -1,6 +1,6 @@
 ---
 title: Sixtyfour AI
-description: Обогащение лидов и компаний с помощью исследований на базе AI
+description: Enrich leads and companies with AI-powered research
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,120 +10,208 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
-## Инструкции по использованию
 
-Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.
+## Использование
+
+
+Найдите электронные письма, номера телефонов и обогатите данные лида или компании контактной информацией, профилями в социальных сетях и подробными исследованиями с помощью Sixtyfour AI.
+
 
 
 
 ## Действия
 
+
 ### `sixtyfour_find_phone`
 
-Find phone numbers for a lead using Sixtyfour AI.
 
-#### Вход
+Найдите номера телефонов для лида с помощью Sixtyfour AI.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Sixtyfour Ключ API |
-| `name` | string | Да | Full name of the person |
-| `company` | string | Нет | Company name |
-| `linkedinUrl` | string | Нет | LinkedIn profile URL |
-| `domain` | string | Нет | Company website domain |
-| `email` | string | Нет | Email address |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API Sixtyfour |
 
-| Parameter | Type | Description |
+| `name` | строка | Да | Полное имя человека |
+
+| `company` | строка | Нет | Название компании |
+
+| `linkedinUrl` | строка | Нет | URL профиля в LinkedIn |
+
+| `domain` | строка | Нет | Домен веб-сайта компании |
+
+| `email` | строка | Нет | Адрес электронной почты |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `name` | string | Name of the person |
-| `company` | string | Company name |
-| `phone` | string | Phone number\(s\) found |
-| `linkedinUrl` | string | LinkedIn profile URL |
+
+| `name` | строка | Имя человека |
+
+| `company` | строка | Название компании |
+
+| `phone` | строка | Номера телефонов, найденные |
+
+| `linkedinUrl` | строка | URL профиля в LinkedIn |
+
 
 ### `sixtyfour_find_email`
 
-Find email addresses for a lead using Sixtyfour AI.
 
-#### Вход
+Найдите адреса электронной почты для лида с помощью Sixtyfour AI.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Sixtyfour Ключ API |
-| `name` | string | Да | Full name of the person |
-| `company` | string | Нет | Company name |
-| `linkedinUrl` | string | Нет | LinkedIn profile URL |
-| `domain` | string | Нет | Company website domain |
-| `phone` | string | Нет | Phone number |
-| `title` | string | Нет | Job title |
-| `mode` | string | Нет | Email discovery mode: PROFESSIONAL \(default\) or PERSONAL |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API Sixtyfour |
 
-| Parameter | Type | Description |
+| `name` | строка | Да | Полное имя человека |
+
+| `company` | строка | Нет | Название компании |
+
+| `linkedinUrl` | строка | Нет | URL профиля в LinkedIn |
+
+| `domain` | строка | Нет | Домен веб-сайта компании |
+
+| `phone` | строка | Нет | Номер телефона |
+
+| `title` | строка | Нет | Должность |
+
+| `mode` | строка | Нет | Режим поиска электронной почты: PROFESSIONAL (по умолчанию) или PERSONAL |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `name` | string | Name of the person |
-| `company` | string | Company name |
-| `title` | string | Job title |
-| `phone` | string | Phone number |
-| `linkedinUrl` | string | LinkedIn profile URL |
-| `emails` | json | Professional email addresses found |
-|   ↳ `address` | string | Email address |
-|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
-|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
-| `personalEmails` | json | Personal email addresses found \(only in PERSONAL mode\) |
-|   ↳ `address` | string | Email address |
-|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
-|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+
+| `name` | строка | Имя человека |
+
+| `company` | строка | Название компании |
+
+| `title` | строка | Должность |
+
+| `phone` | строка | Номер телефона |
+
+| `linkedinUrl` | строка | URL профиля в LinkedIn |
+
+| `emails` | json | Найденные адреса электронной почты (профессиональные) |
+
+|   ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `status` | строка | Статус проверки (OK или UNKNOWN) |
+
+|   ↳ `type` | строка | Тип электронной почты (COMPANY или PERSONAL) |
+
+| `personalEmails` | json | Найденные личные адреса электронной почты (только в режиме PERSONAL) |
+
+|   ↳ `address` | строка | Адрес электронной почты |
+
+|   ↳ `status` | строка | Статус проверки (OK или UNKNOWN) |
+
+|   ↳ `type` | строка | Тип электронной почты (COMPANY или PERSONAL) |
+
 
 ### `sixtyfour_enrich_lead`
 
-Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.
 
-#### Вход
+Обогатите информацию о лиде контактными данными, профилями в социальных сетях и данными компании с помощью Sixtyfour AI.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Sixtyfour Ключ API |
-| `leadInfo` | string | Да | Lead information as JSON object with key-value pairs (например, name, company, title, linkedin\) |
-| `struct` | string | Да | Fields to collect as JSON object. Keys are field names, values are descriptions (например, \{"email": "The individual\'s email address", "phone": "Phone number"\}\) |
-| `researchPlan` | string | Нет | Optional research plan to guide enrichment strategy |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API Sixtyfour |
 
-| Parameter | Type | Description |
+| `leadInfo` | строка | Да | Информация о лиде в виде объекта JSON с ключевыми-значевыми парами (например, name, company, title, linkedin) |
+
+| `struct` | строка | Да | Поля для сбора в виде объекта JSON. Ключи - это имена полей, значения - описания (например, {"email": "Адрес электронной почты человека", "phone": "Номер телефона"}) |
+
+| `researchPlan` | строка | Нет | Необязательный план исследования для руководства стратегией обогащения |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `notes` | string | Research notes about the lead |
-| `structuredData` | json | Enriched lead data matching the requested struct fields |
-| `references` | json | Source URLs and descriptions used for enrichment |
-| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
+
+| `notes` | строка | Заметки о лиде |
+
+| `structuredData` | json | Обогащенные данные о лиде, соответствующие запрошенным полям struct |
+
+| `references` | json | URL и описания источников, использованных для обогащения |
+
+| `confidenceScore` | число | Качественный показатель возвращенных данных (от 0 до 10) |
+
 
 ### `sixtyfour_enrich_company`
 
-Enrich company data with additional information and find associated people using Sixtyfour AI.
 
-#### Вход
+Обогатите данные компании дополнительной информацией и найдите связанных людей с помощью Sixtyfour AI.
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Sixtyfour Ключ API |
-| `targetCompany` | string | Да | Company data as JSON object (например, \{"name": "Acme Inc", "domain": "acme.com"\}\) |
-| `struct` | string | Да | Fields to collect as JSON object. Keys are field names, values are descriptions (например, \{"website": "Company website URL", "num_employees": "Employee count"\}\) |
-| `findPeople` | boolean | Нет | Whether to find people associated with the company |
-| `fullOrgChart` | boolean | Нет | Whether to retrieve the full organizational chart |
-| `researchPlan` | string | Нет | Optional strategy describing how the agent should search for information |
-| `peopleFocusPrompt` | string | Нет | Description of people to find \(roles, responsibilities\) |
-| `leadStruct` | string | Нет | Custom schema for returned lead data as JSON object |
 
-#### Выход
+| `apiKey` | строка | Да | Ключ API Sixtyfour |
 
-| Parameter | Type | Description |
+| `targetCompany` | строка | Да | Данные компании в виде объекта JSON (например, {"name": "Acme Inc", "domain": "acme.com"}) |
+
+| `struct` | строка | Да | Поля для сбора в виде объекта JSON. Ключи - это имена полей, значения - описания (например, {"website": "URL веб-сайта компании", "num_employees": "Количество сотрудников"}) |
+
+| `findPeople` | логическое значение | Нет | Нужно ли найти людей, связанных с компанией |
+
+| `fullOrgChart` | логическое значение | Нет | Нужно ли получить полную организационную структуру |
+
+| `researchPlan` | строка | Нет | Необязательная стратегия, описывающая, как агент должен искать информацию |
+
+| `peopleFocusPrompt` | строка | Нет | Описание людей для поиска (роли, обязанности) |
+
+| `leadStruct` | строка | Нет | Пользовательская схема для возвращенных данных о лидах в виде объекта JSON |
+
+
+#### Выходные данные
+
+
+| Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `notes` | string | Research notes about the company |
-| `structuredData` | json | Enriched company data matching the requested struct fields |
-| `references` | json | Source URLs and descriptions used for enrichment |
-| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
-| `orgChart` | json | Org chart returned when fullOrgChart is enabled |
+
+| `notes` | строка | Заметки о компании |
+
+| `structuredData` | json | Обогащенные данные о компании, соответствующие запрошенным полям struct |
+
+| `references` | json | URL и описания источников, использованных для обогащения |
+
+| `confidenceScore` | число | Качественный показатель возвращенных данных (от 0 до 10) |
+
+| `orgChart` | json | Организационная структура, возвращаемая при включении fullOrgChart |
+
 
 

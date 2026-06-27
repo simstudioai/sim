@@ -1,6 +1,6 @@
 ---
-title: Grain
-description: Доступ к записям встреч, транскриптам и ИИ-сводкам
+title: Зерно
+description: Доступ к записям встреч, транскриптам и сводным резюме, сгенерированным ИИ
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -10,480 +10,827 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F6FAF9"
 />
 
+
 {/* MANUAL-CONTENT-START:intro */}
-[Grain](https://grain.com/) is a modern platform for capturing, storing, and sharing meeting recordings, transcripts, highlights, and AI-powered summaries. Grain enables teams to turn conversations into actionable insights and keep everyone aligned on key moments from meetings.
 
-With Grain, you can:
+[Grain](https://grain.com/) – это современная платформа для записи, хранения и обмена записями встреч, транскриптами, ключевыми моментами и AI-генерируемыми сводками. Grain позволяет командам превращать разговоры в полезные сведения и обеспечивать согласованность всех участников по важным моментам встреч.
 
-- **Access searchable recordings and transcripts**: Find and review every meeting by keyword, participant, or topic.
-- **Share highlights and clips**: Capture important moments and share short video/audio highlights across your team or workflows.
-- **Get AI-generated summaries**: Automatically produce meeting summaries, action items, and key insights using Grain’s advanced AI.
-- **Organize meetings by team or type**: Tag and categorize recordings for easy access and reporting.
 
-The Sim Grain integration empowers your agents to:
+С Grain вы можете:
 
-- List, search, and retrieve meeting recordings and details by flexible filters (datetime, participant, team, etc).
-- Access AI summaries, participants, highlights, and other metadata for meetings to power automations or analysis.
-- Trigger workflows whenever new meetings are processed, summaries are generated, or highlights are created via Grain webhooks.
-- Easily bridge Grain data into other tools or notify teammates the moment something important happens in a meeting.
 
-Whether you want to automate follow-up actions, keep records of important conversations, or surface insights across your organization, Grain and Sim make it easy to connect meeting intelligence to your workflows.
+- **Получать доступ к поистине индексированным записям и транскриптам:** Находите и просматривайте любые встречи, используя ключевые слова, имена участников или темы обсуждения.
+
+- **Делиться ключевыми моментами и фрагментами:** Записывайте важные моменты и делитесь короткими видео/аудиофрагментами с вашей командой или для конкретных рабочих процессов.
+
+- **Получать AI-генерируемые сводки:** Автоматически создавайте сводки встреч, определяйте задачи и выявляйте ключевые моменты с помощью продвинутого AI Grain.
+
+- **Организовывать встречи по командам или типам:** Тегируйте и категоризируйте записи для удобного доступа и отчетности.
+
+
+Интеграция Sim Grain позволяет вашим агентам:
+
+
+- **Перечислять, искать и извлекать записи встреч и детали** с помощью гибких фильтров (дата/время, участник, команда и т.д.).
+
+- **Получать AI-сводки, списки участников, ключевые моменты и другую метаинформацию** для встреч, чтобы использовать их в автоматизации или анализе.
+
+- **Запускать рабочие процессы** при обработке новых встреч, создании сводок или выделении ключевых моментов с помощью вебхуков Grain.
+
+- **Легко передавать данные Grain в другие инструменты** или уведомлять коллег о важных событиях во время встречи.
+
+
+Независимо от того, хотите ли вы автоматизировать последующие действия, сохранять важные разговоры или получать общие сведения для всей организации, Grain и Sim упрощают подключение интеллектуальных данных встреч к вашим рабочим процессам.
+
 {/* MANUAL-CONTENT-END */}
+
 
 
 ## Инструкции по использованию
 
-Интеграция Grain в ваш рабочий процесс. Доступ к записям встреч, транскриптам, основным моментам и сводкам, созданным ИИ. Также поддерживает запуск рабочих процессов на основе событий вебхуков Grain.
+
+Интегрируйте Grain в свой рабочий процесс. Получайте доступ к записям встреч, транскриптам, ключевым моментам и AI-генерируемым сводкам. Также можно запускать рабочие процессы на основе вебхуков Grain.
+
 
 
 
 ## Действия
 
+
 ### `grain_list_recordings`
 
-List recordings from Grain with optional filters and pagination
 
-#### Входные параметры
+Перечислите записи из Grain с опциональными фильтрами и постраничной загрузкой
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `cursor` | string | Нет | Pagination cursor for next page \(returned from previous response\) |
-| `beforeDatetime` | string | Нет | Only recordings before this ISO8601 timestamp \(e.g., "2024-01-15T00:00:00Z"\) |
-| `afterDatetime` | string | Нет | Only recordings after this ISO8601 timestamp \(e.g., "2024-01-01T00:00:00Z"\) |
-| `participantScope` | string | Нет | Filter: "internal" or "external" |
-| `titleSearch` | string | Нет | Search term to filter by recording title \(e.g., "weekly standup"\) |
-| `teamId` | string | Нет | Filter by team UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
-| `meetingTypeId` | string | Нет | Filter by meeting type UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
-| `includeHighlights` | boolean | Нет | Include highlights/clips in response |
-| `includeParticipants` | boolean | Нет | Include participant list in response |
-| `includeAiSummary` | boolean | Нет | Include AI-generated summary |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+| `cursor` | строка | Нет | Курсор для следующей страницы (возвращается в предыдущем ответе) |
+
+| `beforeDatetime` | строка | Нет | Только записи до этой метки времени ISO8601 (например, "2024-01-15T00:00:00Z") |
+
+| `afterDatetime` | строка | Нет | Только записи после этой метки времени ISO8601 (например, "2024-01-01T00:00:00Z") |
+
+| `participantScope` | строка | Нет | Фильтр: "internal" или "external" |
+
+| `titleSearch` | строка | Нет | Термин поиска для фильтрации по названию записи (например, "еженедельный стендап") |
+
+| `teamId` | строка | Нет | UUID команды (например, "a1b2c3d4-e5f6-7890-abcd-ef1234567890") |
+
+| `meetingTypeId` | строка | Нет | UUID типа встречи (например, "a1b2c3d4-e5f6-7890-abcd-ef1234567890") |
+
+| `includeHighlights` | логическое значение | Нет | Включить ключевые моменты/фрагменты в ответ |
+
+| `includeParticipants` | логическое значение | Нет | Включить список участников в ответ |
+
+| `includeAiSummary` | логическое значение | Нет | Включить AI-сводку |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `recordings` | array | Array of recording objects |
-|   ↳ `id` | string | Recording UUID |
-|   ↳ `title` | string | Recording title |
-|   ↳ `start_datetime` | string | ISO8601 start timestamp |
-|   ↳ `end_datetime` | string | ISO8601 end timestamp |
-|   ↳ `duration_ms` | number | Duration in milliseconds |
-|   ↳ `media_type` | string | audio, transcript, or video |
-|   ↳ `source` | string | Recording source |
-|   ↳ `url` | string | URL to view in Grain |
-|   ↳ `thumbnail_url` | string | Thumbnail URL |
-|   ↳ `tags` | array | Array of tags |
-|   ↳ `teams` | array | Teams the recording belongs to |
-|   ↳ `meeting_type` | object | Meeting type info |
-| `cursor` | string | Cursor for next page \(null if no more\) |
+
+| `recordings` | массив | Массив объектов записей |
+
+|   ↳ `id` | строка | UUID записи |
+
+|   ↳ `title` | строка | Название записи |
+
+|   ↳ `start_datetime` | строка | Метка времени начала ISO8601 |
+
+|   ↳ `end_datetime` | строка | Метка времени окончания ISO8601 |
+
+|   ↳ `duration_ms` | число | Продолжительность в миллисекундах |
+
+|   ↳ `media_type` | строка | audio, transcript или video |
+
+|   ↳ `source` | строка | Источник записи |
+
+|   ↳ `url` | строка | URL для просмотра в Grain |
+
+|   ↳ `thumbnail_url` | строка | URL изображения миниатюры |
+
+|   ↳ `tags` | массив | Массив тегов |
+
+|   ↳ `teams` | массив | Массив объектов команд |
+
+|   ↳ `meeting_type` | объект | Информация о типе встречи (id, name, scope) |
+
+| `cursor` | строка | Курсор для следующей страницы (null, если больше нет) |
+
 
 ### `grain_get_recording`
 
-Get details of a single recording by ID
 
-#### Входные параметры
+Получить детали одной записи по ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `recordingId` | string | Да | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
-| `includeHighlights` | boolean | Нет | Include highlights/clips |
-| `includeParticipants` | boolean | Нет | Include participant list |
-| `includeAiSummary` | boolean | Нет | Include AI summary |
-| `includeCalendarEvent` | boolean | Нет | Include calendar event data |
-| `includeHubspot` | boolean | Нет | Include HubSpot associations |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+| `recordingId` | строка | Да | UUID записи (например, "a1b2c3d4-e5f6-7890-abcd-ef1234567890") |
+
+| `includeHighlights` | логическое значение | Нет | Включить ключевые моменты/фрагменты |
+
+| `includeParticipants` | логическое значение | Нет | Включить список участников |
+
+| `includeAiSummary` | логическое значение | Нет | Включить AI-сводку |
+
+| `includeCalendarEvent` | логическое значение | Нет | Включить данные о событии в календаре |
+
+| `includeHubspot` | логическое значение | Нет | Включить ассоциации с HubSpot |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | Recording UUID |
-| `title` | string | Recording title |
-| `start_datetime` | string | ISO8601 start timestamp |
-| `end_datetime` | string | ISO8601 end timestamp |
-| `duration_ms` | number | Duration in milliseconds |
-| `media_type` | string | audio, transcript, or video |
-| `source` | string | Recording source \(zoom, meet, teams, etc.\) |
-| `url` | string | URL to view in Grain |
-| `thumbnail_url` | string | Thumbnail image URL |
-| `tags` | array | Array of tag strings |
-| `teams` | array | Teams the recording belongs to |
-| `meeting_type` | object | Meeting type info \(id, name, scope\) |
-| `highlights` | array | Highlights \(if included\) |
-| `participants` | array | Participants \(if included\) |
-| `ai_summary` | object | AI summary text \(if included\) |
-| `calendar_event` | object | Calendar event data \(if included\) |
-| `hubspot` | object | HubSpot associations \(if included\) |
+
+| `id` | строка | UUID записи |
+
+| `title` | строка | Название записи |
+
+| `start_datetime` | строка | Метка времени начала ISO8601 |
+
+| `end_datetime` | строка | Метка времени окончания ISO8601 |
+
+| `duration_ms` | число | Продолжительность в миллисекундах |
+
+| `media_type` | строка | audio, transcript или video |
+
+| `source` | строка | Источник записи (zoom, meet, teams и т.д.) |
+
+| `url` | строка | URL для просмотра в Grain |
+
+| `thumbnail_url` | строка | URL изображения миниатюры |
+
+| `tags` | массив | Массив тегов |
+
+| `teams` | массив | Массив объектов команд |
+
+| `meeting_type` | объект | Информация о типе встречи (id, name, scope) |
+
+| `highlights` | массив | Ключевые моменты (если включены) |
+
+| `participants` | массив | Участники (если включены) |
+
+| `ai_summary` | объект | AI-сводка текста (если включена) |
+
+| `calendar_event` | объект | Данные о событии в календаре (если включены) |
+
+| `hubspot` | объект | Ассоциации с HubSpot (если включены) |
+
 
 ### `grain_get_transcript`
 
-Get the full transcript of a recording
 
-#### Входные параметры
+Получить полный транскрипт записи
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `recordingId` | string | Да | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+| `recordingId` | строка | Да | UUID записи (например, "a1b2c3d4-e5f6-7890-abcd-ef1234567890") |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `transcript` | array | Array of transcript sections |
-|   ↳ `participant_id` | string | Participant UUID \(nullable\) |
-|   ↳ `speaker` | string | Speaker name |
-|   ↳ `start` | number | Start timestamp in ms |
-|   ↳ `end` | number | End timestamp in ms |
-|   ↳ `text` | string | Transcript text |
+
+| `transcript` | массив | Массив секций транскрипта |
+
+|   ↳ `participant_id` | строка | UUID участника (nullable) |
+
+|   ↳ `speaker` | строка | Имя спикера |
+
+|   ↳ `start` | число | Метка времени начала в мс |
+
+|   ↳ `end` | число | Метка времени окончания в мс |
+
+|   ↳ `text` | строка | Текст транскрипта |
+
 
 ### `grain_list_views`
 
-List available Grain views for webhook subscriptions
 
-#### Входные параметры
+Перечислить доступные представления Grain для подписок на вебхуки
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `typeFilter` | string | Нет | Optional view type filter: recordings, highlights, or stories |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+| `typeFilter` | строка | Нет | Необязательный фильтр типа представления: recordings, highlights или stories |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `views` | array | Array of Grain views |
-|   ↳ `id` | string | View UUID |
-|   ↳ `name` | string | View name |
-|   ↳ `type` | string | View type: recordings, highlights, or stories |
+
+| `views` | массив | Массив объектов представлений Grain |
+
+|   ↳ `id` | строка | UUID представления |
+
+|   ↳ `name` | строка | Название представления |
+
+|   ↳ `type` | строка | Тип представления: recordings, highlights или stories |
+
 
 ### `grain_list_teams`
 
-List all teams in the workspace
 
-#### Входные параметры
+Перечислить все команды в рабочем пространстве
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `teams` | array | Array of team objects |
-|   ↳ `id` | string | Team UUID |
-|   ↳ `name` | string | Team name |
+
+| `teams` | массив | Массив объектов команд |
+
+|   ↳ `id` | строка | UUID команды |
+
+|   ↳ `name` | строка | Название команды |
+
 
 ### `grain_list_meeting_types`
 
-List all meeting types in the workspace
 
-#### Входные параметры
+Перечислить все типы встреч в рабочем пространстве
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `meeting_types` | array | Array of meeting type objects |
-|   ↳ `id` | string | Meeting type UUID |
-|   ↳ `name` | string | Meeting type name |
-|   ↳ `scope` | string | internal or external |
+
+| `meeting_types` | массив | Массив объектов типов встреч |
+
+|   ↳ `id` | строка | UUID типа встречи |
+
+|   ↳ `name` | строка | Название типа встречи |
+
+|   ↳ `scope` | строка | internal или external |
+
 
 ### `grain_create_hook`
 
-Create a webhook to receive recording events
 
-#### Входные параметры
+Создать вебхук для получения событий Grain
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
+
+| Параметр | Тип | Требуется | Описание |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `hookUrl` | string | Да | Webhook endpoint URL \(e.g., "https://example.com/webhooks/grain"\) |
-| `viewId` | string | Да | Grain view ID from GET /_/public-api/views |
-| `actions` | array | Нет | Optional list of actions to subscribe to: added, updated, removed |
 
-#### Выходные параметры
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+| `hookUrl` | строка | Да | URL вебхука (например, "https://example.com/webhooks/grain") |
+
+| `viewId` | строка | Да | ID представления Grain для подписки (получается из GET /_/public-api/views) |
+
+| `actions` | массив | Нет | Необязательный список действий для подписки: added, updated, removed |
+
+
+#### Выходные данные
+
 
 | Параметр | Тип | Описание |
+
 | --------- | ---- | ----------- |
-| `id` | string | Hook UUID |
-| `enabled` | boolean | Whether hook is active |
-| `hook_url` | string | The webhook URL |
-| `view_id` | string | Grain view ID for the webhook |
-| `actions` | array | Configured actions for the webhook |
-| `inserted_at` | string | ISO8601 creation timestamp |
+
+| `id` | строка | UUID хука |
+
+| `enabled` | логическое значение | Флаг активности хука |
+
+| `hook_url` | строка | URL вебхука |
+
+| `view_id` | строка | ID представления Grain для вебхука |
+
+| `actions` | массив | Конфигурируемые действия для вебхука |
+
+| `inserted_at` | строка | Метка времени создания ISO8601 |
+
+
+---
+
 
 ### `grain_list_hooks`
 
-List all webhooks for the account
 
-#### Входные параметры
+Перечислить все вебхуки для учетной записи
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
 
-#### Выходные параметры
+| Параметр | Тип | Требуется | Описание |
+
+
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `hooks` | array | Array of hook objects |
-|   ↳ `id` | string | Hook UUID |
-|   ↳ `enabled` | boolean | Whether hook is active |
-|   ↳ `hook_url` | string | Webhook URL |
-|   ↳ `view_id` | string | Grain view ID |
-|   ↳ `actions` | array | Configured actions |
-|   ↳ `inserted_at` | string | Creation timestamp |
+
+| `hooks` | массив | Массив объектов хуков |
+
+|   ↳ `id` | строка | UUID хука |
+
+|   ↳ `enabled` | логическое значение | Флаг активности хука |
+
+|   ↳ `hook_url` | строка | URL вебхука |
+
+|   ↳ `view_id` | строка | ID представления Grain |
+
+|   ↳ `actions` | массив | Конфигурируемые действия |
+
+
+|   ↳ `inserted_at` | строка | Метка времени создания |
+
 
 ### `grain_delete_hook`
 
-Delete a webhook by ID
 
-#### Входные параметры
+Удалить вебхук по ID
 
-| Параметр | Тип | Обязательный | Описание |
+
+#### Входные данные
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Grain API key \(Personal Access Token\) |
-| `hookId` | string | Да | The hook UUID to delete \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
-#### Выходные параметры
+| Параметр | Тип | Требуется | Описание |
+
+| `apiKey` | строка | Да | Ключ API Grain (Персональный токен доступа) |
+
+
+| `hookId` | строка | Да | UUID хука, который нужно удалить (например, "a1b2c3d4-e5f6-7890-abcd-ef1234567890") |
+
+
+#### Выходные данные
+
+| --------- | ---- | ----------- |
 
 | Параметр | Тип | Описание |
-| --------- | ---- | ----------- |
-| `success` | boolean | True when webhook was successfully deleted |
 
 
 
-## Triggers
+
+| `success` | логическое значение | True, если вебхук успешно удален |
+===
+
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
 
+
 ### Grain All Events
+
 
 Trigger on all actions (added, updated, removed) in a Grain view
 
+
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | The view determines which content type fires events \(recordings, highlights, or stories\). |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type \(e.g., recording_added\) |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
 
+
 ---
+
 
 ### Grain Highlight Created
 
+
 Trigger workflow when a new highlight/clip is created in Grain
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | Required by Grain to create the webhook subscription. |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | data output from the tool |
+
 |   ↳ `id` | string | Highlight UUID |
+
 |   ↳ `recording_id` | string | Parent recording UUID |
+
 |   ↳ `text` | string | Highlight title/description |
+
 |   ↳ `transcript` | string | Transcript text of the clip |
+
 |   ↳ `speakers` | array | Array of speaker names |
+
 |   ↳ `timestamp` | number | Start timestamp in ms |
+
 |   ↳ `duration` | number | Duration in ms |
+
 |   ↳ `tags` | array | Array of tag strings |
+
 |   ↳ `url` | string | URL to view in Grain |
+
 |   ↳ `thumbnail_url` | string | Thumbnail URL |
+
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
 
+
 ---
+
 
 ### Grain Highlight Updated
 
+
 Trigger workflow when a highlight/clip is updated in Grain
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | Required by Grain to create the webhook subscription. |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | data output from the tool |
+
 |   ↳ `id` | string | Highlight UUID |
+
 |   ↳ `recording_id` | string | Parent recording UUID |
+
 |   ↳ `text` | string | Highlight title/description |
+
 |   ↳ `transcript` | string | Transcript text of the clip |
+
 |   ↳ `speakers` | array | Array of speaker names |
+
 |   ↳ `timestamp` | number | Start timestamp in ms |
+
 |   ↳ `duration` | number | Duration in ms |
+
 |   ↳ `tags` | array | Array of tag strings |
+
 |   ↳ `url` | string | URL to view in Grain |
+
 |   ↳ `thumbnail_url` | string | Thumbnail URL |
+
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
 
+
 ---
+
 
 ### Grain Item Added
 
+
 Trigger when a new item is added to a Grain view (recording, highlight, or story)
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | The view determines which content type fires events \(recordings, highlights, or stories\). |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type \(e.g., recording_added\) |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
 
+
 ---
+
 
 ### Grain Item Updated
 
+
 Trigger when an item is updated in a Grain view (recording, highlight, or story)
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | The view determines which content type fires events \(recordings, highlights, or stories\). |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type \(e.g., recording_added\) |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
 
+
 ---
+
 
 ### Grain Recording Created
 
+
 Trigger workflow when a new recording is added in Grain
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | Required by Grain to create the webhook subscription. |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | data output from the tool |
+
 |   ↳ `id` | string | Recording UUID |
+
 |   ↳ `title` | string | Recording title |
+
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
+
 |   ↳ `end_datetime` | string | ISO8601 end timestamp |
+
 |   ↳ `duration_ms` | number | Duration in milliseconds |
+
 |   ↳ `media_type` | string | audio, transcript, or video |
+
 |   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+
 |   ↳ `url` | string | URL to view in Grain |
+
 |   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+
 |   ↳ `tags` | array | Array of tag strings |
+
 |   ↳ `teams` | array | Array of team objects |
+
 |   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
 
 
+
 ---
+
 
 ### Grain Recording Updated
 
+
 Trigger workflow when a recording is updated in Grain
+
 
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | Required by Grain to create the webhook subscription. |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | data output from the tool |
+
 |   ↳ `id` | string | Recording UUID |
+
 |   ↳ `title` | string | Recording title |
+
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
+
 |   ↳ `end_datetime` | string | ISO8601 end timestamp |
+
 |   ↳ `duration_ms` | number | Duration in milliseconds |
+
 |   ↳ `media_type` | string | audio, transcript, or video |
+
 |   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+
 |   ↳ `url` | string | URL to view in Grain |
+
 |   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+
 |   ↳ `tags` | array | Array of tag strings |
+
 |   ↳ `teams` | array | Array of team objects |
+
 |   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
+
 
 
 ---
 
+
 ### Grain Story Created
+
 
 Trigger workflow when a new story is created in Grain
 
+
 #### Configuration
 
-| Параметр | Тип | Обязательный | Описание |
+
+| Parameter | Type | Required | Description |
+
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Да | Required to create the webhook in Grain. |
-| `viewId` | string | Да | Required by Grain to create the webhook subscription. |
 
-#### Выходные параметры
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
 
-| Параметр | Тип | Описание |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+
+#### Output
+
+
+| Parameter | Type | Description |
+
 | --------- | ---- | ----------- |
+
 | `type` | string | Event type |
+
 | `user_id` | string | User UUID who triggered the event |
+
 | `data` | object | data output from the tool |
+
 |   ↳ `id` | string | Story UUID |
+
 |   ↳ `title` | string | Story title |
+
 |   ↳ `url` | string | URL to view in Grain |
+
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
 
