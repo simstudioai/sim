@@ -1,5 +1,5 @@
 import { DatagmaBlockDisplay } from '@/blocks/blocks/datagma.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { DatagmaResponse } from '@/tools/datagma/types'
 
 export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
@@ -309,8 +309,3 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
     credits: { type: 'number', description: 'Remaining Datagma credits' },
   },
 }
-
-export const DatagmaBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://datagma.com',
-} as const satisfies BlockMeta

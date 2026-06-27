@@ -1,5 +1,5 @@
 import { LeadMagicBlockDisplay } from '@/blocks/blocks/leadmagic.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { LeadMagicResponse } from '@/tools/leadmagic/types'
 
 export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
@@ -374,8 +374,3 @@ export const LeadMagicBlock: BlockConfig<LeadMagicResponse> = {
     credits: { type: 'number', description: 'Remaining credit balance' },
   },
 }
-
-export const LeadMagicBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://leadmagic.io',
-} as const satisfies BlockMeta

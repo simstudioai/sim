@@ -1,6 +1,6 @@
 import { MillionVerifierIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const MillionVerifierBlockDisplay = {
   type: 'millionverifier',
@@ -14,3 +14,8 @@ export const MillionVerifierBlockDisplay = {
   docsLink: 'https://docs.sim.ai/integrations/millionverifier',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const MillionVerifierBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.millionverifier.com',
+} as const satisfies BlockMeta

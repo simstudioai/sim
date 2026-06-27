@@ -1,5 +1,5 @@
 import { ZeroBounceBlockDisplay } from '@/blocks/blocks/zerobounce.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ZeroBounceResponse } from '@/tools/zerobounce/types'
 
 export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
@@ -87,8 +87,3 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
     credits: { type: 'number', description: 'Remaining validation credits' },
   },
 }
-
-export const ZeroBounceBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://www.zerobounce.net',
-} as const satisfies BlockMeta

@@ -1,6 +1,6 @@
 import { NeverBounceIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const NeverBounceBlockDisplay = {
   type: 'neverbounce',
@@ -14,3 +14,8 @@ export const NeverBounceBlockDisplay = {
   docsLink: 'https://docs.sim.ai/integrations/neverbounce',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const NeverBounceBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.neverbounce.com',
+} as const satisfies BlockMeta

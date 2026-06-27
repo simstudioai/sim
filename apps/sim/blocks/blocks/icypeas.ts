@@ -1,5 +1,5 @@
 import { IcypeasBlockDisplay } from '@/blocks/blocks/icypeas.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { IcypeasResponse } from '@/tools/icypeas/types'
 
 export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
@@ -147,8 +147,3 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
     },
   },
 }
-
-export const IcypeasBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://www.icypeas.com',
-} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { MillionVerifierBlockDisplay } from '@/blocks/blocks/millionverifier.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { MillionVerifierResponse } from '@/tools/millionverifier/types'
 
 export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
@@ -90,8 +90,3 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
     credits: { type: 'number', description: 'Remaining verification credits' },
   },
 }
-
-export const MillionVerifierBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://www.millionverifier.com',
-} as const satisfies BlockMeta

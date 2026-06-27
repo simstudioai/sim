@@ -108,6 +108,14 @@ export function getBlockCatalog(type: string): BlockMeta | undefined {
   )
 }
 
+/** Alias of {@link getBlockCatalog}: catalog meta for a block type. */
+export const getBlockMeta = getBlockCatalog
+
+/** Every block's catalog meta, keyed by base block type. */
+export function getAllBlockMeta(): Record<string, BlockMeta> {
+  return BLOCK_CATALOG
+}
+
 /**
  * All templates whose owner block is `type` or which list `type` in their
  * `alsoIntegrations`. Each returned template carries `otherBlockTypes` — the

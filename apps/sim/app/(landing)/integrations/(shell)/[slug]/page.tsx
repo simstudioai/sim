@@ -17,7 +17,7 @@ import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug
 import { IntegrationFAQ } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
-import { getTemplatesForBlock } from '@/blocks/registry'
+import { getTemplatesForBlock } from '@/blocks/manifest'
 
 const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length

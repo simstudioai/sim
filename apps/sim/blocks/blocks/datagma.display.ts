@@ -1,6 +1,6 @@
 import { DatagmaIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const DatagmaBlockDisplay = {
   type: 'datagma',
@@ -14,3 +14,8 @@ export const DatagmaBlockDisplay = {
   docsLink: 'https://docs.sim.ai/tools/datagma',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const DatagmaBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://datagma.com',
+} as const satisfies BlockMeta

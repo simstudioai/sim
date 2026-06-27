@@ -1,6 +1,6 @@
 import { ZeroBounceIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const ZeroBounceBlockDisplay = {
   type: 'zerobounce',
@@ -14,3 +14,8 @@ export const ZeroBounceBlockDisplay = {
   docsLink: 'https://docs.sim.ai/integrations/zerobounce',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const ZeroBounceBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.zerobounce.net',
+} as const satisfies BlockMeta

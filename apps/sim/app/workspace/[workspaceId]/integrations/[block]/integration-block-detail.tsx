@@ -25,7 +25,7 @@ import {
   getSuggestedSkillsForBlock,
   getTemplatesForBlock,
   type ScopedBlockTemplate,
-} from '@/blocks/registry'
+} from '@/blocks/manifest'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 

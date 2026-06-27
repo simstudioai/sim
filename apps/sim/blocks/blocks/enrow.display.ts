@@ -1,6 +1,6 @@
 import { EnrowIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const EnrowBlockDisplay = {
   type: 'enrow',
@@ -14,3 +14,8 @@ export const EnrowBlockDisplay = {
   docsLink: 'https://enrow.readme.io',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const EnrowBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://enrow.io',
+} as const satisfies BlockMeta

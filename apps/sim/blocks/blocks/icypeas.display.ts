@@ -1,6 +1,6 @@
 import { IcypeasIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const IcypeasBlockDisplay = {
   type: 'icypeas',
@@ -14,3 +14,8 @@ export const IcypeasBlockDisplay = {
   docsLink: 'https://docs.sim.ai/tools/icypeas',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const IcypeasBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.icypeas.com',
+} as const satisfies BlockMeta

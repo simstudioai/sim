@@ -1,5 +1,5 @@
 import { NeverBounceBlockDisplay } from '@/blocks/blocks/neverbounce.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { NeverBounceResponse } from '@/tools/neverbounce/types'
 
 export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
@@ -91,8 +91,3 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
     freeCredits: { type: 'number', description: 'Remaining free verification credits' },
   },
 }
-
-export const NeverBounceBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://www.neverbounce.com',
-} as const satisfies BlockMeta

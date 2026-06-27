@@ -2,77 +2,95 @@
 // Source of truth is each blocks/blocks/<name>.display.ts. Run `bun run blocks:manifest-data`.
 import { A2ABlockDisplay } from '@/blocks/blocks/a2a.display'
 import { AgentBlockDisplay } from '@/blocks/blocks/agent.display'
-import { AgentMailBlockDisplay } from '@/blocks/blocks/agentmail.display'
-import { AgentPhoneBlockDisplay } from '@/blocks/blocks/agentphone.display'
-import { AgiloftBlockDisplay } from '@/blocks/blocks/agiloft.display'
-import { AhrefsBlockDisplay } from '@/blocks/blocks/ahrefs.display'
-import { AirtableBlockDisplay } from '@/blocks/blocks/airtable.display'
-import { AirweaveBlockDisplay } from '@/blocks/blocks/airweave.display'
-import { AlgoliaBlockDisplay } from '@/blocks/blocks/algolia.display'
-import { AmplitudeBlockDisplay } from '@/blocks/blocks/amplitude.display'
+import { AgentMailBlockDisplay, AgentMailBlockMeta } from '@/blocks/blocks/agentmail.display'
+import { AgentPhoneBlockDisplay, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone.display'
+import { AgiloftBlockDisplay, AgiloftBlockMeta } from '@/blocks/blocks/agiloft.display'
+import { AhrefsBlockDisplay, AhrefsBlockMeta } from '@/blocks/blocks/ahrefs.display'
+import { AirtableBlockDisplay, AirtableBlockMeta } from '@/blocks/blocks/airtable.display'
+import { AirweaveBlockDisplay, AirweaveBlockMeta } from '@/blocks/blocks/airweave.display'
+import { AlgoliaBlockDisplay, AlgoliaBlockMeta } from '@/blocks/blocks/algolia.display'
+import { AmplitudeBlockDisplay, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude.display'
 import { ApiBlockDisplay } from '@/blocks/blocks/api.display'
 import { ApiTriggerBlockDisplay } from '@/blocks/blocks/api_trigger.display'
-import { ApifyBlockDisplay } from '@/blocks/blocks/apify.display'
-import { ApolloBlockDisplay } from '@/blocks/blocks/apollo.display'
-import { AppConfigBlockDisplay } from '@/blocks/blocks/appconfig.display'
-import { ArxivBlockDisplay } from '@/blocks/blocks/arxiv.display'
-import { AsanaBlockDisplay } from '@/blocks/blocks/asana.display'
-import { AshbyBlockDisplay } from '@/blocks/blocks/ashby.display'
-import { AthenaBlockDisplay } from '@/blocks/blocks/athena.display'
-import { AttioBlockDisplay } from '@/blocks/blocks/attio.display'
-import { AzureDevOpsBlockDisplay } from '@/blocks/blocks/azure_devops.display'
-import { BoxBlockDisplay } from '@/blocks/blocks/box.display'
-import { BrandfetchBlockDisplay } from '@/blocks/blocks/brandfetch.display'
-import { BrexBlockDisplay } from '@/blocks/blocks/brex.display'
-import { BrightDataBlockDisplay } from '@/blocks/blocks/brightdata.display'
-import { BrowserUseBlockDisplay } from '@/blocks/blocks/browser_use.display'
-import { CalComBlockDisplay } from '@/blocks/blocks/calcom.display'
-import { CalendlyBlockDisplay } from '@/blocks/blocks/calendly.display'
+import { ApifyBlockDisplay, ApifyBlockMeta } from '@/blocks/blocks/apify.display'
+import { ApolloBlockDisplay, ApolloBlockMeta } from '@/blocks/blocks/apollo.display'
+import { AppConfigBlockDisplay, AppConfigBlockMeta } from '@/blocks/blocks/appconfig.display'
+import { ArxivBlockDisplay, ArxivBlockMeta } from '@/blocks/blocks/arxiv.display'
+import { AsanaBlockDisplay, AsanaBlockMeta } from '@/blocks/blocks/asana.display'
+import { AshbyBlockDisplay, AshbyBlockMeta } from '@/blocks/blocks/ashby.display'
+import { AthenaBlockDisplay, AthenaBlockMeta } from '@/blocks/blocks/athena.display'
+import { AttioBlockDisplay, AttioBlockMeta } from '@/blocks/blocks/attio.display'
+import { AzureDevOpsBlockDisplay, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops.display'
+import { BoxBlockDisplay, BoxBlockMeta } from '@/blocks/blocks/box.display'
+import { BrandfetchBlockDisplay, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch.display'
+import { BrexBlockDisplay, BrexBlockMeta } from '@/blocks/blocks/brex.display'
+import { BrightDataBlockDisplay, BrightDataBlockMeta } from '@/blocks/blocks/brightdata.display'
+import { BrowserUseBlockDisplay, BrowserUseBlockMeta } from '@/blocks/blocks/browser_use.display'
+import { CalComBlockDisplay, CalComBlockMeta } from '@/blocks/blocks/calcom.display'
+import { CalendlyBlockDisplay, CalendlyBlockMeta } from '@/blocks/blocks/calendly.display'
 import { ChatTriggerBlockDisplay } from '@/blocks/blocks/chat_trigger.display'
-import { CirclebackBlockDisplay } from '@/blocks/blocks/circleback.display'
-import { ClayBlockDisplay } from '@/blocks/blocks/clay.display'
-import { ClerkBlockDisplay } from '@/blocks/blocks/clerk.display'
-import { ClickHouseBlockDisplay } from '@/blocks/blocks/clickhouse.display'
-import { CloudflareBlockDisplay } from '@/blocks/blocks/cloudflare.display'
-import { CloudFormationBlockDisplay } from '@/blocks/blocks/cloudformation.display'
-import { CloudWatchBlockDisplay } from '@/blocks/blocks/cloudwatch.display'
-import { CodePipelineBlockDisplay } from '@/blocks/blocks/codepipeline.display'
+import { CirclebackBlockDisplay, CirclebackBlockMeta } from '@/blocks/blocks/circleback.display'
+import { ClayBlockDisplay, ClayBlockMeta } from '@/blocks/blocks/clay.display'
+import { ClerkBlockDisplay, ClerkBlockMeta } from '@/blocks/blocks/clerk.display'
+import { ClickHouseBlockDisplay, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse.display'
+import { CloudflareBlockDisplay, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare.display'
+import {
+  CloudFormationBlockDisplay,
+  CloudFormationBlockMeta,
+} from '@/blocks/blocks/cloudformation.display'
+import { CloudWatchBlockDisplay, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch.display'
+import {
+  CodePipelineBlockDisplay,
+  CodePipelineBlockMeta,
+} from '@/blocks/blocks/codepipeline.display'
 import { ConditionBlockDisplay } from '@/blocks/blocks/condition.display'
 import {
   ConfluenceBlockDisplay,
+  ConfluenceBlockMeta,
   ConfluenceV2BlockDisplay,
 } from '@/blocks/blocks/confluence.display'
-import { ContextDevBlockDisplay } from '@/blocks/blocks/context_dev.display'
-import { ConvexBlockDisplay } from '@/blocks/blocks/convex.display'
+import { ContextDevBlockDisplay, ContextDevBlockMeta } from '@/blocks/blocks/context_dev.display'
+import { ConvexBlockDisplay, ConvexBlockMeta } from '@/blocks/blocks/convex.display'
 import { CredentialBlockDisplay } from '@/blocks/blocks/credential.display'
-import { CrowdStrikeBlockDisplay } from '@/blocks/blocks/crowdstrike.display'
-import { CursorBlockDisplay, CursorV2BlockDisplay } from '@/blocks/blocks/cursor.display'
-import { DagsterBlockDisplay } from '@/blocks/blocks/dagster.display'
-import { DatabricksBlockDisplay } from '@/blocks/blocks/databricks.display'
-import { DatadogBlockDisplay } from '@/blocks/blocks/datadog.display'
-import { DatagmaBlockDisplay } from '@/blocks/blocks/datagma.display'
-import { DaytonaBlockDisplay } from '@/blocks/blocks/daytona.display'
+import { CrowdStrikeBlockDisplay, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike.display'
+import {
+  CursorBlockDisplay,
+  CursorBlockMeta,
+  CursorV2BlockDisplay,
+} from '@/blocks/blocks/cursor.display'
+import { DagsterBlockDisplay, DagsterBlockMeta } from '@/blocks/blocks/dagster.display'
+import { DatabricksBlockDisplay, DatabricksBlockMeta } from '@/blocks/blocks/databricks.display'
+import { DatadogBlockDisplay, DatadogBlockMeta } from '@/blocks/blocks/datadog.display'
+import { DatagmaBlockDisplay, DatagmaBlockMeta } from '@/blocks/blocks/datagma.display'
+import { DaytonaBlockDisplay, DaytonaBlockMeta } from '@/blocks/blocks/daytona.display'
 import { DeploymentsBlockDisplay } from '@/blocks/blocks/deployments.display'
-import { DevinBlockDisplay } from '@/blocks/blocks/devin.display'
-import { DiscordBlockDisplay } from '@/blocks/blocks/discord.display'
-import { DocuSignBlockDisplay } from '@/blocks/blocks/docusign.display'
-import { DropboxBlockDisplay } from '@/blocks/blocks/dropbox.display'
-import { DropcontactBlockDisplay } from '@/blocks/blocks/dropcontact.display'
-import { DSPyBlockDisplay } from '@/blocks/blocks/dspy.display'
-import { DubBlockDisplay } from '@/blocks/blocks/dub.display'
-import { DuckDuckGoBlockDisplay } from '@/blocks/blocks/duckduckgo.display'
-import { DynamoDBBlockDisplay } from '@/blocks/blocks/dynamodb.display'
-import { ElasticsearchBlockDisplay } from '@/blocks/blocks/elasticsearch.display'
-import { ElevenLabsBlockDisplay } from '@/blocks/blocks/elevenlabs.display'
-import { EmailBisonBlockDisplay } from '@/blocks/blocks/emailbison.display'
-import { EnrichBlockDisplay } from '@/blocks/blocks/enrich.display'
-import { EnrichmentBlockDisplay } from '@/blocks/blocks/enrichment.display'
-import { EnrowBlockDisplay } from '@/blocks/blocks/enrow.display'
+import { DevinBlockDisplay, DevinBlockMeta } from '@/blocks/blocks/devin.display'
+import { DiscordBlockDisplay, DiscordBlockMeta } from '@/blocks/blocks/discord.display'
+import { DocuSignBlockDisplay, DocuSignBlockMeta } from '@/blocks/blocks/docusign.display'
+import { DropboxBlockDisplay, DropboxBlockMeta } from '@/blocks/blocks/dropbox.display'
+import { DropcontactBlockDisplay, DropcontactBlockMeta } from '@/blocks/blocks/dropcontact.display'
+import { DSPyBlockDisplay, DSPyBlockMeta } from '@/blocks/blocks/dspy.display'
+import { DubBlockDisplay, DubBlockMeta } from '@/blocks/blocks/dub.display'
+import { DuckDuckGoBlockDisplay, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo.display'
+import { DynamoDBBlockDisplay, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb.display'
+import {
+  ElasticsearchBlockDisplay,
+  ElasticsearchBlockMeta,
+} from '@/blocks/blocks/elasticsearch.display'
+import { ElevenLabsBlockDisplay, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs.display'
+import { EmailBisonBlockDisplay, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison.display'
+import { EnrichBlockDisplay, EnrichBlockMeta } from '@/blocks/blocks/enrich.display'
+import { EnrichmentBlockDisplay, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment.display'
+import { EnrowBlockDisplay, EnrowBlockMeta } from '@/blocks/blocks/enrow.display'
 import { EvaluatorBlockDisplay } from '@/blocks/blocks/evaluator.display'
-import { EvernoteBlockDisplay } from '@/blocks/blocks/evernote.display'
-import { ExaBlockDisplay } from '@/blocks/blocks/exa.display'
-import { ExtendBlockDisplay, ExtendV2BlockDisplay } from '@/blocks/blocks/extend.display'
-import { FathomBlockDisplay } from '@/blocks/blocks/fathom.display'
+import { EvernoteBlockDisplay, EvernoteBlockMeta } from '@/blocks/blocks/evernote.display'
+import { ExaBlockDisplay, ExaBlockMeta } from '@/blocks/blocks/exa.display'
+import {
+  ExtendBlockDisplay,
+  ExtendBlockMeta,
+  ExtendV2BlockDisplay,
+} from '@/blocks/blocks/extend.display'
+import { FathomBlockDisplay, FathomBlockMeta } from '@/blocks/blocks/fathom.display'
 import {
   FileBlockDisplay,
   FileV2BlockDisplay,
@@ -80,206 +98,304 @@ import {
   FileV4BlockDisplay,
   FileV5BlockDisplay,
 } from '@/blocks/blocks/file.display'
-import { FindymailBlockDisplay } from '@/blocks/blocks/findymail.display'
-import { FirecrawlBlockDisplay } from '@/blocks/blocks/firecrawl.display'
-import { FirefliesBlockDisplay, FirefliesV2BlockDisplay } from '@/blocks/blocks/fireflies.display'
+import { FindymailBlockDisplay, FindymailBlockMeta } from '@/blocks/blocks/findymail.display'
+import { FirecrawlBlockDisplay, FirecrawlBlockMeta } from '@/blocks/blocks/firecrawl.display'
+import {
+  FirefliesBlockDisplay,
+  FirefliesBlockMeta,
+  FirefliesV2BlockDisplay,
+  FirefliesV2BlockMeta,
+} from '@/blocks/blocks/fireflies.display'
 import { FunctionBlockDisplay } from '@/blocks/blocks/function.display'
-import { GammaBlockDisplay } from '@/blocks/blocks/gamma.display'
+import { GammaBlockDisplay, GammaBlockMeta } from '@/blocks/blocks/gamma.display'
 import { GenericWebhookBlockDisplay } from '@/blocks/blocks/generic_webhook.display'
-import { GitHubBlockDisplay, GitHubV2BlockDisplay } from '@/blocks/blocks/github.display'
-import { GitLabBlockDisplay } from '@/blocks/blocks/gitlab.display'
-import { GmailBlockDisplay, GmailV2BlockDisplay } from '@/blocks/blocks/gmail.display'
-import { GongBlockDisplay } from '@/blocks/blocks/gong.display'
-import { GoogleSearchBlockDisplay } from '@/blocks/blocks/google.display'
-import { GoogleAdsBlockDisplay } from '@/blocks/blocks/google_ads.display'
-import { GoogleBigQueryBlockDisplay } from '@/blocks/blocks/google_bigquery.display'
-import { GoogleBooksBlockDisplay } from '@/blocks/blocks/google_books.display'
+import {
+  GitHubBlockDisplay,
+  GitHubBlockMeta,
+  GitHubV2BlockDisplay,
+  GitHubV2BlockMeta,
+} from '@/blocks/blocks/github.display'
+import { GitLabBlockDisplay, GitLabBlockMeta } from '@/blocks/blocks/gitlab.display'
+import {
+  GmailBlockDisplay,
+  GmailBlockMeta,
+  GmailV2BlockDisplay,
+  GmailV2BlockMeta,
+} from '@/blocks/blocks/gmail.display'
+import { GongBlockDisplay, GongBlockMeta } from '@/blocks/blocks/gong.display'
+import { GoogleSearchBlockDisplay, GoogleSearchBlockMeta } from '@/blocks/blocks/google.display'
+import { GoogleAdsBlockDisplay, GoogleAdsBlockMeta } from '@/blocks/blocks/google_ads.display'
+import {
+  GoogleBigQueryBlockDisplay,
+  GoogleBigQueryBlockMeta,
+} from '@/blocks/blocks/google_bigquery.display'
+import { GoogleBooksBlockDisplay, GoogleBooksBlockMeta } from '@/blocks/blocks/google_books.display'
 import {
   GoogleCalendarBlockDisplay,
+  GoogleCalendarBlockMeta,
   GoogleCalendarV2BlockDisplay,
+  GoogleCalendarV2BlockMeta,
 } from '@/blocks/blocks/google_calendar.display'
-import { GoogleContactsBlockDisplay } from '@/blocks/blocks/google_contacts.display'
-import { GoogleDocsBlockDisplay } from '@/blocks/blocks/google_docs.display'
-import { GoogleDriveBlockDisplay } from '@/blocks/blocks/google_drive.display'
-import { GoogleFormsBlockDisplay } from '@/blocks/blocks/google_forms.display'
-import { GoogleGroupsBlockDisplay } from '@/blocks/blocks/google_groups.display'
-import { GoogleMapsBlockDisplay } from '@/blocks/blocks/google_maps.display'
-import { GoogleMeetBlockDisplay } from '@/blocks/blocks/google_meet.display'
-import { GooglePagespeedBlockDisplay } from '@/blocks/blocks/google_pagespeed.display'
+import {
+  GoogleContactsBlockDisplay,
+  GoogleContactsBlockMeta,
+} from '@/blocks/blocks/google_contacts.display'
+import { GoogleDocsBlockDisplay, GoogleDocsBlockMeta } from '@/blocks/blocks/google_docs.display'
+import { GoogleDriveBlockDisplay, GoogleDriveBlockMeta } from '@/blocks/blocks/google_drive.display'
+import { GoogleFormsBlockDisplay, GoogleFormsBlockMeta } from '@/blocks/blocks/google_forms.display'
+import {
+  GoogleGroupsBlockDisplay,
+  GoogleGroupsBlockMeta,
+} from '@/blocks/blocks/google_groups.display'
+import { GoogleMapsBlockDisplay, GoogleMapsBlockMeta } from '@/blocks/blocks/google_maps.display'
+import { GoogleMeetBlockDisplay, GoogleMeetBlockMeta } from '@/blocks/blocks/google_meet.display'
+import {
+  GooglePagespeedBlockDisplay,
+  GooglePagespeedBlockMeta,
+} from '@/blocks/blocks/google_pagespeed.display'
 import {
   GoogleSheetsBlockDisplay,
+  GoogleSheetsBlockMeta,
   GoogleSheetsV2BlockDisplay,
+  GoogleSheetsV2BlockMeta,
 } from '@/blocks/blocks/google_sheets.display'
 import {
   GoogleSlidesBlockDisplay,
+  GoogleSlidesBlockMeta,
   GoogleSlidesV2BlockDisplay,
+  GoogleSlidesV2BlockMeta,
 } from '@/blocks/blocks/google_slides.display'
-import { GoogleTasksBlockDisplay } from '@/blocks/blocks/google_tasks.display'
-import { GoogleTranslateBlockDisplay } from '@/blocks/blocks/google_translate.display'
-import { GoogleVaultBlockDisplay } from '@/blocks/blocks/google_vault.display'
-import { GrafanaBlockDisplay } from '@/blocks/blocks/grafana.display'
-import { GrainBlockDisplay } from '@/blocks/blocks/grain.display'
-import { GranolaBlockDisplay } from '@/blocks/blocks/granola.display'
-import { GreenhouseBlockDisplay } from '@/blocks/blocks/greenhouse.display'
-import { GreptileBlockDisplay } from '@/blocks/blocks/greptile.display'
+import { GoogleTasksBlockDisplay, GoogleTasksBlockMeta } from '@/blocks/blocks/google_tasks.display'
+import {
+  GoogleTranslateBlockDisplay,
+  GoogleTranslateBlockMeta,
+} from '@/blocks/blocks/google_translate.display'
+import { GoogleVaultBlockDisplay, GoogleVaultBlockMeta } from '@/blocks/blocks/google_vault.display'
+import { GrafanaBlockDisplay, GrafanaBlockMeta } from '@/blocks/blocks/grafana.display'
+import { GrainBlockDisplay, GrainBlockMeta } from '@/blocks/blocks/grain.display'
+import { GranolaBlockDisplay, GranolaBlockMeta } from '@/blocks/blocks/granola.display'
+import { GreenhouseBlockDisplay, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse.display'
+import { GreptileBlockDisplay, GreptileBlockMeta } from '@/blocks/blocks/greptile.display'
 import { GuardrailsBlockDisplay } from '@/blocks/blocks/guardrails.display'
-import { HexBlockDisplay } from '@/blocks/blocks/hex.display'
-import { HubSpotBlockDisplay } from '@/blocks/blocks/hubspot.display'
-import { HuggingFaceBlockDisplay } from '@/blocks/blocks/huggingface.display'
+import { HexBlockDisplay, HexBlockMeta } from '@/blocks/blocks/hex.display'
+import { HubSpotBlockDisplay, HubSpotBlockMeta } from '@/blocks/blocks/hubspot.display'
+import { HuggingFaceBlockDisplay, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface.display'
 import { HumanInTheLoopBlockDisplay } from '@/blocks/blocks/human_in_the_loop.display'
-import { HunterBlockDisplay } from '@/blocks/blocks/hunter.display'
-import { IAMBlockDisplay } from '@/blocks/blocks/iam.display'
-import { IcypeasBlockDisplay } from '@/blocks/blocks/icypeas.display'
-import { IdentityCenterBlockDisplay } from '@/blocks/blocks/identity_center.display'
+import { HunterBlockDisplay, HunterBlockMeta } from '@/blocks/blocks/hunter.display'
+import { IAMBlockDisplay, IAMBlockMeta } from '@/blocks/blocks/iam.display'
+import { IcypeasBlockDisplay, IcypeasBlockMeta } from '@/blocks/blocks/icypeas.display'
+import {
+  IdentityCenterBlockDisplay,
+  IdentityCenterBlockMeta,
+} from '@/blocks/blocks/identity_center.display'
 import {
   ImageGeneratorBlockDisplay,
   ImageGeneratorV2BlockDisplay,
 } from '@/blocks/blocks/image_generator.display'
-import { ImapBlockDisplay } from '@/blocks/blocks/imap.display'
-import { IncidentioBlockDisplay } from '@/blocks/blocks/incidentio.display'
-import { InfisicalBlockDisplay } from '@/blocks/blocks/infisical.display'
+import { ImapBlockDisplay, ImapBlockMeta } from '@/blocks/blocks/imap.display'
+import { IncidentioBlockDisplay, IncidentioBlockMeta } from '@/blocks/blocks/incidentio.display'
+import { InfisicalBlockDisplay, InfisicalBlockMeta } from '@/blocks/blocks/infisical.display'
 import { InputTriggerBlockDisplay } from '@/blocks/blocks/input_trigger.display'
-import { InstantlyBlockDisplay } from '@/blocks/blocks/instantly.display'
-import { IntercomBlockDisplay, IntercomV2BlockDisplay } from '@/blocks/blocks/intercom.display'
-import { JinaBlockDisplay } from '@/blocks/blocks/jina.display'
-import { JiraBlockDisplay } from '@/blocks/blocks/jira.display'
-import { JiraServiceManagementBlockDisplay } from '@/blocks/blocks/jira_service_management.display'
-import { KalshiBlockDisplay, KalshiV2BlockDisplay } from '@/blocks/blocks/kalshi.display'
-import { KetchBlockDisplay } from '@/blocks/blocks/ketch.display'
+import { InstantlyBlockDisplay, InstantlyBlockMeta } from '@/blocks/blocks/instantly.display'
+import {
+  IntercomBlockDisplay,
+  IntercomBlockMeta,
+  IntercomV2BlockDisplay,
+  IntercomV2BlockMeta,
+} from '@/blocks/blocks/intercom.display'
+import { JinaBlockDisplay, JinaBlockMeta } from '@/blocks/blocks/jina.display'
+import { JiraBlockDisplay, JiraBlockMeta } from '@/blocks/blocks/jira.display'
+import {
+  JiraServiceManagementBlockDisplay,
+  JiraServiceManagementBlockMeta,
+} from '@/blocks/blocks/jira_service_management.display'
+import {
+  KalshiBlockDisplay,
+  KalshiBlockMeta,
+  KalshiV2BlockDisplay,
+  KalshiV2BlockMeta,
+} from '@/blocks/blocks/kalshi.display'
+import { KetchBlockDisplay, KetchBlockMeta } from '@/blocks/blocks/ketch.display'
 import { KnowledgeBlockDisplay } from '@/blocks/blocks/knowledge.display'
-import { LangsmithBlockDisplay } from '@/blocks/blocks/langsmith.display'
-import { LatexBlockDisplay } from '@/blocks/blocks/latex.display'
-import { LaunchDarklyBlockDisplay } from '@/blocks/blocks/launchdarkly.display'
-import { LeadMagicBlockDisplay } from '@/blocks/blocks/leadmagic.display'
-import { LemlistBlockDisplay } from '@/blocks/blocks/lemlist.display'
-import { LinearBlockDisplay, LinearV2BlockDisplay } from '@/blocks/blocks/linear.display'
-import { LinkedInBlockDisplay } from '@/blocks/blocks/linkedin.display'
-import { LinkupBlockDisplay } from '@/blocks/blocks/linkup.display'
-import { LinqBlockDisplay } from '@/blocks/blocks/linq.display'
+import { LangsmithBlockDisplay, LangsmithBlockMeta } from '@/blocks/blocks/langsmith.display'
+import { LatexBlockDisplay, LatexBlockMeta } from '@/blocks/blocks/latex.display'
+import {
+  LaunchDarklyBlockDisplay,
+  LaunchDarklyBlockMeta,
+} from '@/blocks/blocks/launchdarkly.display'
+import { LeadMagicBlockDisplay, LeadMagicBlockMeta } from '@/blocks/blocks/leadmagic.display'
+import { LemlistBlockDisplay, LemlistBlockMeta } from '@/blocks/blocks/lemlist.display'
+import {
+  LinearBlockDisplay,
+  LinearBlockMeta,
+  LinearV2BlockDisplay,
+} from '@/blocks/blocks/linear.display'
+import { LinkedInBlockDisplay, LinkedInBlockMeta } from '@/blocks/blocks/linkedin.display'
+import { LinkupBlockDisplay, LinkupBlockMeta } from '@/blocks/blocks/linkup.display'
+import { LinqBlockDisplay, LinqBlockMeta } from '@/blocks/blocks/linq.display'
 import { LogsBlockDisplay, LogsV2BlockDisplay } from '@/blocks/blocks/logs.display'
-import { LoopsBlockDisplay } from '@/blocks/blocks/loops.display'
-import { LumaBlockDisplay } from '@/blocks/blocks/luma.display'
-import { MailchimpBlockDisplay } from '@/blocks/blocks/mailchimp.display'
-import { MailgunBlockDisplay } from '@/blocks/blocks/mailgun.display'
+import { LoopsBlockDisplay, LoopsBlockMeta } from '@/blocks/blocks/loops.display'
+import { LumaBlockDisplay, LumaBlockMeta } from '@/blocks/blocks/luma.display'
+import { MailchimpBlockDisplay, MailchimpBlockMeta } from '@/blocks/blocks/mailchimp.display'
+import { MailgunBlockDisplay, MailgunBlockMeta } from '@/blocks/blocks/mailgun.display'
 import { ManualTriggerBlockDisplay } from '@/blocks/blocks/manual_trigger.display'
 import { McpBlockDisplay } from '@/blocks/blocks/mcp.display'
-import { Mem0BlockDisplay } from '@/blocks/blocks/mem0.display'
+import { Mem0BlockDisplay, Mem0BlockMeta } from '@/blocks/blocks/mem0.display'
 import { MemoryBlockDisplay } from '@/blocks/blocks/memory.display'
-import { MicrosoftAdBlockDisplay } from '@/blocks/blocks/microsoft_ad.display'
-import { MicrosoftDataverseBlockDisplay } from '@/blocks/blocks/microsoft_dataverse.display'
+import { MicrosoftAdBlockDisplay, MicrosoftAdBlockMeta } from '@/blocks/blocks/microsoft_ad.display'
+import {
+  MicrosoftDataverseBlockDisplay,
+  MicrosoftDataverseBlockMeta,
+} from '@/blocks/blocks/microsoft_dataverse.display'
 import {
   MicrosoftExcelBlockDisplay,
+  MicrosoftExcelBlockMeta,
   MicrosoftExcelV2BlockDisplay,
+  MicrosoftExcelV2BlockMeta,
 } from '@/blocks/blocks/microsoft_excel.display'
-import { MicrosoftPlannerBlockDisplay } from '@/blocks/blocks/microsoft_planner.display'
-import { MicrosoftTeamsBlockDisplay } from '@/blocks/blocks/microsoft_teams.display'
-import { MillionVerifierBlockDisplay } from '@/blocks/blocks/millionverifier.display'
+import {
+  MicrosoftPlannerBlockDisplay,
+  MicrosoftPlannerBlockMeta,
+} from '@/blocks/blocks/microsoft_planner.display'
+import {
+  MicrosoftTeamsBlockDisplay,
+  MicrosoftTeamsBlockMeta,
+} from '@/blocks/blocks/microsoft_teams.display'
+import {
+  MillionVerifierBlockDisplay,
+  MillionVerifierBlockMeta,
+} from '@/blocks/blocks/millionverifier.display'
 import {
   MistralParseBlockDisplay,
+  MistralParseBlockMeta,
   MistralParseV2BlockDisplay,
   MistralParseV3BlockDisplay,
 } from '@/blocks/blocks/mistral_parse.display'
-import { MondayBlockDisplay } from '@/blocks/blocks/monday.display'
-import { MongoDBBlockDisplay } from '@/blocks/blocks/mongodb.display'
+import { MondayBlockDisplay, MondayBlockMeta } from '@/blocks/blocks/monday.display'
+import { MongoDBBlockDisplay, MongoDBBlockMeta } from '@/blocks/blocks/mongodb.display'
 import { MothershipBlockDisplay } from '@/blocks/blocks/mothership.display'
 import { MySQLBlockDisplay } from '@/blocks/blocks/mysql.display'
-import { Neo4jBlockDisplay } from '@/blocks/blocks/neo4j.display'
-import { NeverBounceBlockDisplay } from '@/blocks/blocks/neverbounce.display'
-import { NewRelicBlockDisplay } from '@/blocks/blocks/new_relic.display'
+import { Neo4jBlockDisplay, Neo4jBlockMeta } from '@/blocks/blocks/neo4j.display'
+import { NeverBounceBlockDisplay, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce.display'
+import { NewRelicBlockDisplay, NewRelicBlockMeta } from '@/blocks/blocks/new_relic.display'
 import { NoteBlockDisplay } from '@/blocks/blocks/note.display'
-import { NotionBlockDisplay, NotionV2BlockDisplay } from '@/blocks/blocks/notion.display'
-import { ObsidianBlockDisplay } from '@/blocks/blocks/obsidian.display'
-import { OktaBlockDisplay } from '@/blocks/blocks/okta.display'
-import { OneDriveBlockDisplay } from '@/blocks/blocks/onedrive.display'
-import { OnePasswordBlockDisplay } from '@/blocks/blocks/onepassword.display'
-import { OpenAIBlockDisplay } from '@/blocks/blocks/openai.display'
-import { OutlookBlockDisplay } from '@/blocks/blocks/outlook.display'
-import { PagerDutyBlockDisplay } from '@/blocks/blocks/pagerduty.display'
-import { ParallelBlockDisplay } from '@/blocks/blocks/parallel.display'
-import { PeopleDataLabsBlockDisplay } from '@/blocks/blocks/peopledatalabs.display'
-import { PerplexityBlockDisplay } from '@/blocks/blocks/perplexity.display'
-import { PersonaBlockDisplay } from '@/blocks/blocks/persona.display'
+import {
+  NotionBlockDisplay,
+  NotionBlockMeta,
+  NotionV2BlockDisplay,
+  NotionV2BlockMeta,
+} from '@/blocks/blocks/notion.display'
+import { ObsidianBlockDisplay, ObsidianBlockMeta } from '@/blocks/blocks/obsidian.display'
+import { OktaBlockDisplay, OktaBlockMeta } from '@/blocks/blocks/okta.display'
+import { OneDriveBlockDisplay, OneDriveBlockMeta } from '@/blocks/blocks/onedrive.display'
+import { OnePasswordBlockDisplay, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword.display'
+import { OpenAIBlockDisplay, OpenAIBlockMeta } from '@/blocks/blocks/openai.display'
+import { OutlookBlockDisplay, OutlookBlockMeta } from '@/blocks/blocks/outlook.display'
+import { PagerDutyBlockDisplay, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty.display'
+import { ParallelBlockDisplay, ParallelBlockMeta } from '@/blocks/blocks/parallel.display'
+import {
+  PeopleDataLabsBlockDisplay,
+  PeopleDataLabsBlockMeta,
+} from '@/blocks/blocks/peopledatalabs.display'
+import { PerplexityBlockDisplay, PerplexityBlockMeta } from '@/blocks/blocks/perplexity.display'
+import { PersonaBlockDisplay, PersonaBlockMeta } from '@/blocks/blocks/persona.display'
 import { PiBlockDisplay } from '@/blocks/blocks/pi.display'
-import { PineconeBlockDisplay } from '@/blocks/blocks/pinecone.display'
-import { PipedriveBlockDisplay } from '@/blocks/blocks/pipedrive.display'
-import { PolymarketBlockDisplay } from '@/blocks/blocks/polymarket.display'
+import { PineconeBlockDisplay, PineconeBlockMeta } from '@/blocks/blocks/pinecone.display'
+import { PipedriveBlockDisplay, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive.display'
+import { PolymarketBlockDisplay, PolymarketBlockMeta } from '@/blocks/blocks/polymarket.display'
 import { PostgreSQLBlockDisplay } from '@/blocks/blocks/postgresql.display'
-import { PostHogBlockDisplay } from '@/blocks/blocks/posthog.display'
-import { ProfoundBlockDisplay } from '@/blocks/blocks/profound.display'
-import { ProspeoBlockDisplay } from '@/blocks/blocks/prospeo.display'
-import { PulseBlockDisplay, PulseV2BlockDisplay } from '@/blocks/blocks/pulse.display'
-import { QdrantBlockDisplay } from '@/blocks/blocks/qdrant.display'
-import { QuartrBlockDisplay } from '@/blocks/blocks/quartr.display'
-import { QuiverBlockDisplay } from '@/blocks/blocks/quiver.display'
-import { RailwayBlockDisplay } from '@/blocks/blocks/railway.display'
-import { RB2BBlockDisplay } from '@/blocks/blocks/rb2b.display'
-import { RDSBlockDisplay } from '@/blocks/blocks/rds.display'
-import { RedditBlockDisplay } from '@/blocks/blocks/reddit.display'
-import { RedisBlockDisplay } from '@/blocks/blocks/redis.display'
-import { ReductoBlockDisplay, ReductoV2BlockDisplay } from '@/blocks/blocks/reducto.display'
-import { ResendBlockDisplay } from '@/blocks/blocks/resend.display'
+import { PostHogBlockDisplay, PostHogBlockMeta } from '@/blocks/blocks/posthog.display'
+import { ProfoundBlockDisplay, ProfoundBlockMeta } from '@/blocks/blocks/profound.display'
+import { ProspeoBlockDisplay, ProspeoBlockMeta } from '@/blocks/blocks/prospeo.display'
+import {
+  PulseBlockDisplay,
+  PulseBlockMeta,
+  PulseV2BlockDisplay,
+} from '@/blocks/blocks/pulse.display'
+import { QdrantBlockDisplay, QdrantBlockMeta } from '@/blocks/blocks/qdrant.display'
+import { QuartrBlockDisplay, QuartrBlockMeta } from '@/blocks/blocks/quartr.display'
+import { QuiverBlockDisplay, QuiverBlockMeta } from '@/blocks/blocks/quiver.display'
+import { RailwayBlockDisplay, RailwayBlockMeta } from '@/blocks/blocks/railway.display'
+import { RB2BBlockDisplay, RB2BBlockMeta } from '@/blocks/blocks/rb2b.display'
+import { RDSBlockDisplay, RDSBlockMeta } from '@/blocks/blocks/rds.display'
+import { RedditBlockDisplay, RedditBlockMeta } from '@/blocks/blocks/reddit.display'
+import { RedisBlockDisplay, RedisBlockMeta } from '@/blocks/blocks/redis.display'
+import {
+  ReductoBlockDisplay,
+  ReductoBlockMeta,
+  ReductoV2BlockDisplay,
+} from '@/blocks/blocks/reducto.display'
+import { ResendBlockDisplay, ResendBlockMeta } from '@/blocks/blocks/resend.display'
 import { ResponseBlockDisplay } from '@/blocks/blocks/response.display'
-import { RevenueCatBlockDisplay } from '@/blocks/blocks/revenuecat.display'
-import { RipplingBlockDisplay } from '@/blocks/blocks/rippling.display'
-import { RootlyBlockDisplay } from '@/blocks/blocks/rootly.display'
+import { RevenueCatBlockDisplay, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat.display'
+import { RipplingBlockDisplay, RipplingBlockMeta } from '@/blocks/blocks/rippling.display'
+import { RootlyBlockDisplay, RootlyBlockMeta } from '@/blocks/blocks/rootly.display'
 import { RouterBlockDisplay, RouterV2BlockDisplay } from '@/blocks/blocks/router.display'
-import { RssBlockDisplay } from '@/blocks/blocks/rss.display'
-import { S3BlockDisplay } from '@/blocks/blocks/s3.display'
-import { SalesforceBlockDisplay } from '@/blocks/blocks/salesforce.display'
-import { SapConcurBlockDisplay } from '@/blocks/blocks/sap_concur.display'
-import { SapS4HanaBlockDisplay } from '@/blocks/blocks/sap_s4hana.display'
+import { RssBlockDisplay, RssBlockMeta } from '@/blocks/blocks/rss.display'
+import { S3BlockDisplay, S3BlockMeta } from '@/blocks/blocks/s3.display'
+import { SalesforceBlockDisplay, SalesforceBlockMeta } from '@/blocks/blocks/salesforce.display'
+import { SapConcurBlockDisplay, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur.display'
+import { SapS4HanaBlockDisplay, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana.display'
 import { ScheduleBlockDisplay } from '@/blocks/blocks/schedule.display'
 import { SearchBlockDisplay } from '@/blocks/blocks/search.display'
-import { SecretsManagerBlockDisplay } from '@/blocks/blocks/secrets_manager.display'
-import { SendblueBlockDisplay } from '@/blocks/blocks/sendblue.display'
-import { SendGridBlockDisplay } from '@/blocks/blocks/sendgrid.display'
-import { SentryBlockDisplay } from '@/blocks/blocks/sentry.display'
-import { SerperBlockDisplay } from '@/blocks/blocks/serper.display'
-import { ServiceNowBlockDisplay } from '@/blocks/blocks/servicenow.display'
-import { SESBlockDisplay } from '@/blocks/blocks/ses.display'
+import {
+  SecretsManagerBlockDisplay,
+  SecretsManagerBlockMeta,
+} from '@/blocks/blocks/secrets_manager.display'
+import { SendblueBlockDisplay, SendblueBlockMeta } from '@/blocks/blocks/sendblue.display'
+import { SendGridBlockDisplay, SendGridBlockMeta } from '@/blocks/blocks/sendgrid.display'
+import { SentryBlockDisplay, SentryBlockMeta } from '@/blocks/blocks/sentry.display'
+import { SerperBlockDisplay, SerperBlockMeta } from '@/blocks/blocks/serper.display'
+import { ServiceNowBlockDisplay, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow.display'
+import { SESBlockDisplay, SESBlockMeta } from '@/blocks/blocks/ses.display'
 import { SftpBlockDisplay } from '@/blocks/blocks/sftp.display'
 import {
   SharepointBlockDisplay,
+  SharepointBlockMeta,
   SharepointV2BlockDisplay,
 } from '@/blocks/blocks/sharepoint.display'
-import { ShopifyBlockDisplay } from '@/blocks/blocks/shopify.display'
+import { ShopifyBlockDisplay, ShopifyBlockMeta } from '@/blocks/blocks/shopify.display'
 import { SimWorkspaceEventBlockDisplay } from '@/blocks/blocks/sim_workspace_event.display'
-import { SimilarwebBlockDisplay } from '@/blocks/blocks/similarweb.display'
-import { SixtyfourBlockDisplay } from '@/blocks/blocks/sixtyfour.display'
-import { SlackBlockDisplay } from '@/blocks/blocks/slack.display'
+import { SimilarwebBlockDisplay, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb.display'
+import { SixtyfourBlockDisplay, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour.display'
+import { SlackBlockDisplay, SlackBlockMeta } from '@/blocks/blocks/slack.display'
 import { SmtpBlockDisplay } from '@/blocks/blocks/smtp.display'
-import { SportmonksBlockDisplay } from '@/blocks/blocks/sportmonks.display'
-import { SpotifyBlockDisplay } from '@/blocks/blocks/spotify.display'
-import { SQSBlockDisplay } from '@/blocks/blocks/sqs.display'
-import { SquareBlockDisplay } from '@/blocks/blocks/square.display'
+import { SportmonksBlockDisplay, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks.display'
+import { SpotifyBlockDisplay, SpotifyBlockMeta } from '@/blocks/blocks/spotify.display'
+import { SQSBlockDisplay, SQSBlockMeta } from '@/blocks/blocks/sqs.display'
+import { SquareBlockDisplay, SquareBlockMeta } from '@/blocks/blocks/square.display'
 import { SSHBlockDisplay } from '@/blocks/blocks/ssh.display'
-import { StagehandBlockDisplay } from '@/blocks/blocks/stagehand.display'
+import { StagehandBlockDisplay, StagehandBlockMeta } from '@/blocks/blocks/stagehand.display'
 import { StartTriggerBlockDisplay } from '@/blocks/blocks/start_trigger.display'
 import { StarterBlockDisplay } from '@/blocks/blocks/starter.display'
-import { StripeBlockDisplay } from '@/blocks/blocks/stripe.display'
-import { STSBlockDisplay } from '@/blocks/blocks/sts.display'
+import { StripeBlockDisplay, StripeBlockMeta } from '@/blocks/blocks/stripe.display'
+import { STSBlockDisplay, STSBlockMeta } from '@/blocks/blocks/sts.display'
 import { SttBlockDisplay, SttV2BlockDisplay } from '@/blocks/blocks/stt.display'
-import { SupabaseBlockDisplay } from '@/blocks/blocks/supabase.display'
+import { SupabaseBlockDisplay, SupabaseBlockMeta } from '@/blocks/blocks/supabase.display'
 import { TableBlockDisplay } from '@/blocks/blocks/table.display'
-import { TailscaleBlockDisplay } from '@/blocks/blocks/tailscale.display'
-import { TavilyBlockDisplay } from '@/blocks/blocks/tavily.display'
-import { TelegramBlockDisplay } from '@/blocks/blocks/telegram.display'
-import { TemporalBlockDisplay } from '@/blocks/blocks/temporal.display'
-import { TextractBlockDisplay, TextractV2BlockDisplay } from '@/blocks/blocks/textract.display'
+import { TailscaleBlockDisplay, TailscaleBlockMeta } from '@/blocks/blocks/tailscale.display'
+import { TavilyBlockDisplay, TavilyBlockMeta } from '@/blocks/blocks/tavily.display'
+import { TelegramBlockDisplay, TelegramBlockMeta } from '@/blocks/blocks/telegram.display'
+import { TemporalBlockDisplay, TemporalBlockMeta } from '@/blocks/blocks/temporal.display'
+import {
+  TextractBlockDisplay,
+  TextractBlockMeta,
+  TextractV2BlockDisplay,
+} from '@/blocks/blocks/textract.display'
 import { ThinkingBlockDisplay } from '@/blocks/blocks/thinking.display'
-import { ThriveBlockDisplay } from '@/blocks/blocks/thrive.display'
-import { TinybirdBlockDisplay } from '@/blocks/blocks/tinybird.display'
+import { ThriveBlockDisplay, ThriveBlockMeta } from '@/blocks/blocks/thrive.display'
+import { TinybirdBlockDisplay, TinybirdBlockMeta } from '@/blocks/blocks/tinybird.display'
 import { TranslateBlockDisplay } from '@/blocks/blocks/translate.display'
-import { TrelloBlockDisplay } from '@/blocks/blocks/trello.display'
-import { TriggerDevBlockDisplay } from '@/blocks/blocks/trigger_dev.display'
+import { TrelloBlockDisplay, TrelloBlockMeta } from '@/blocks/blocks/trello.display'
+import { TriggerDevBlockDisplay, TriggerDevBlockMeta } from '@/blocks/blocks/trigger_dev.display'
 import { TtsBlockDisplay } from '@/blocks/blocks/tts.display'
-import { TwilioSMSBlockDisplay } from '@/blocks/blocks/twilio.display'
-import { TwilioVoiceBlockDisplay } from '@/blocks/blocks/twilio_voice.display'
-import { TypeformBlockDisplay } from '@/blocks/blocks/typeform.display'
-import { UpstashBlockDisplay } from '@/blocks/blocks/upstash.display'
-import { VantaBlockDisplay } from '@/blocks/blocks/vanta.display'
+import { TwilioSMSBlockDisplay, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio.display'
+import { TwilioVoiceBlockDisplay, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice.display'
+import { TypeformBlockDisplay, TypeformBlockMeta } from '@/blocks/blocks/typeform.display'
+import { UpstashBlockDisplay, UpstashBlockMeta } from '@/blocks/blocks/upstash.display'
+import { VantaBlockDisplay, VantaBlockMeta } from '@/blocks/blocks/vanta.display'
 import { VariablesBlockDisplay } from '@/blocks/blocks/variables.display'
-import { VercelBlockDisplay } from '@/blocks/blocks/vercel.display'
+import { VercelBlockDisplay, VercelBlockMeta } from '@/blocks/blocks/vercel.display'
 import {
   VideoGeneratorBlockDisplay,
   VideoGeneratorV2BlockDisplay,
@@ -287,23 +403,23 @@ import {
 } from '@/blocks/blocks/video_generator.display'
 import { VisionBlockDisplay, VisionV2BlockDisplay } from '@/blocks/blocks/vision.display'
 import { WaitBlockDisplay } from '@/blocks/blocks/wait.display'
-import { WealthboxBlockDisplay } from '@/blocks/blocks/wealthbox.display'
-import { WebflowBlockDisplay } from '@/blocks/blocks/webflow.display'
+import { WealthboxBlockDisplay, WealthboxBlockMeta } from '@/blocks/blocks/wealthbox.display'
+import { WebflowBlockDisplay, WebflowBlockMeta } from '@/blocks/blocks/webflow.display'
 import { WebhookRequestBlockDisplay } from '@/blocks/blocks/webhook_request.display'
-import { WhatsAppBlockDisplay } from '@/blocks/blocks/whatsapp.display'
-import { WikipediaBlockDisplay } from '@/blocks/blocks/wikipedia.display'
-import { WizaBlockDisplay } from '@/blocks/blocks/wiza.display'
-import { WordPressBlockDisplay } from '@/blocks/blocks/wordpress.display'
-import { WorkdayBlockDisplay } from '@/blocks/blocks/workday.display'
+import { WhatsAppBlockDisplay, WhatsAppBlockMeta } from '@/blocks/blocks/whatsapp.display'
+import { WikipediaBlockDisplay, WikipediaBlockMeta } from '@/blocks/blocks/wikipedia.display'
+import { WizaBlockDisplay, WizaBlockMeta } from '@/blocks/blocks/wiza.display'
+import { WordPressBlockDisplay, WordPressBlockMeta } from '@/blocks/blocks/wordpress.display'
+import { WorkdayBlockDisplay, WorkdayBlockMeta } from '@/blocks/blocks/workday.display'
 import { WorkflowBlockDisplay } from '@/blocks/blocks/workflow.display'
 import { WorkflowInputBlockDisplay } from '@/blocks/blocks/workflow_input.display'
-import { XBlockDisplay } from '@/blocks/blocks/x.display'
-import { YouTubeBlockDisplay } from '@/blocks/blocks/youtube.display'
-import { ZendeskBlockDisplay } from '@/blocks/blocks/zendesk.display'
-import { ZepBlockDisplay } from '@/blocks/blocks/zep.display'
-import { ZeroBounceBlockDisplay } from '@/blocks/blocks/zerobounce.display'
-import { ZoomBlockDisplay } from '@/blocks/blocks/zoom.display'
-import { ZoomInfoBlockDisplay } from '@/blocks/blocks/zoominfo.display'
+import { XBlockDisplay, XBlockMeta } from '@/blocks/blocks/x.display'
+import { YouTubeBlockDisplay, YouTubeBlockMeta } from '@/blocks/blocks/youtube.display'
+import { ZendeskBlockDisplay, ZendeskBlockMeta } from '@/blocks/blocks/zendesk.display'
+import { ZepBlockDisplay, ZepBlockMeta } from '@/blocks/blocks/zep.display'
+import { ZeroBounceBlockDisplay, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce.display'
+import { ZoomBlockDisplay, ZoomBlockMeta } from '@/blocks/blocks/zoom.display'
+import { ZoomInfoBlockDisplay, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo.display'
 import type { BlockDisplay } from '@/blocks/manifest'
 import type { BlockMeta } from '@/blocks/types'
 
@@ -4331,8 +4447,237 @@ export const TOOL_TO_BLOCK: Record<string, string> = {
   zoominfo_search_news: 'zoominfo',
 }
 
-/**
- * Catalog meta (tags/templates/skills). Empty until each block's {Service}BlockMeta
- * moves into its .display.ts (Phase 1b); catalog accessors fall back to @/blocks/registry.
- */
-export const BLOCK_CATALOG: Record<string, BlockMeta> = {}
+/** Catalog meta (tags/templates/skills) keyed by base block type. */
+export const BLOCK_CATALOG: Record<string, BlockMeta> = {
+  agentmail: AgentMailBlockMeta,
+  agentphone: AgentPhoneBlockMeta,
+  agiloft: AgiloftBlockMeta,
+  ahrefs: AhrefsBlockMeta,
+  airtable: AirtableBlockMeta,
+  airweave: AirweaveBlockMeta,
+  algolia: AlgoliaBlockMeta,
+  amplitude: AmplitudeBlockMeta,
+  apify: ApifyBlockMeta,
+  apollo: ApolloBlockMeta,
+  appconfig: AppConfigBlockMeta,
+  arxiv: ArxivBlockMeta,
+  asana: AsanaBlockMeta,
+  ashby: AshbyBlockMeta,
+  athena: AthenaBlockMeta,
+  attio: AttioBlockMeta,
+  azure_devops: AzureDevOpsBlockMeta,
+  box: BoxBlockMeta,
+  brandfetch: BrandfetchBlockMeta,
+  brex: BrexBlockMeta,
+  brightdata: BrightDataBlockMeta,
+  browser_use: BrowserUseBlockMeta,
+  calcom: CalComBlockMeta,
+  calendly: CalendlyBlockMeta,
+  circleback: CirclebackBlockMeta,
+  clay: ClayBlockMeta,
+  clerk: ClerkBlockMeta,
+  clickhouse: ClickHouseBlockMeta,
+  cloudflare: CloudflareBlockMeta,
+  cloudformation: CloudFormationBlockMeta,
+  cloudwatch: CloudWatchBlockMeta,
+  codepipeline: CodePipelineBlockMeta,
+  confluence: ConfluenceBlockMeta,
+  context_dev: ContextDevBlockMeta,
+  convex: ConvexBlockMeta,
+  crowdstrike: CrowdStrikeBlockMeta,
+  cursor: CursorBlockMeta,
+  dagster: DagsterBlockMeta,
+  databricks: DatabricksBlockMeta,
+  datadog: DatadogBlockMeta,
+  datagma: DatagmaBlockMeta,
+  daytona: DaytonaBlockMeta,
+  devin: DevinBlockMeta,
+  discord: DiscordBlockMeta,
+  docusign: DocuSignBlockMeta,
+  dropbox: DropboxBlockMeta,
+  dropcontact: DropcontactBlockMeta,
+  dspy: DSPyBlockMeta,
+  dub: DubBlockMeta,
+  duckduckgo: DuckDuckGoBlockMeta,
+  dynamodb: DynamoDBBlockMeta,
+  elasticsearch: ElasticsearchBlockMeta,
+  elevenlabs: ElevenLabsBlockMeta,
+  emailbison: EmailBisonBlockMeta,
+  enrich: EnrichBlockMeta,
+  enrichment: EnrichmentBlockMeta,
+  enrow: EnrowBlockMeta,
+  evernote: EvernoteBlockMeta,
+  exa: ExaBlockMeta,
+  extend: ExtendBlockMeta,
+  fathom: FathomBlockMeta,
+  findymail: FindymailBlockMeta,
+  firecrawl: FirecrawlBlockMeta,
+  fireflies: FirefliesBlockMeta,
+  fireflies_v2: FirefliesV2BlockMeta,
+  gamma: GammaBlockMeta,
+  github: GitHubBlockMeta,
+  github_v2: GitHubV2BlockMeta,
+  gitlab: GitLabBlockMeta,
+  gmail: GmailBlockMeta,
+  gmail_v2: GmailV2BlockMeta,
+  gong: GongBlockMeta,
+  google_ads: GoogleAdsBlockMeta,
+  google_bigquery: GoogleBigQueryBlockMeta,
+  google_books: GoogleBooksBlockMeta,
+  google_calendar: GoogleCalendarBlockMeta,
+  google_calendar_v2: GoogleCalendarV2BlockMeta,
+  google_contacts: GoogleContactsBlockMeta,
+  google_docs: GoogleDocsBlockMeta,
+  google_drive: GoogleDriveBlockMeta,
+  google_forms: GoogleFormsBlockMeta,
+  google_groups: GoogleGroupsBlockMeta,
+  google_maps: GoogleMapsBlockMeta,
+  google_meet: GoogleMeetBlockMeta,
+  google_pagespeed: GooglePagespeedBlockMeta,
+  google_search: GoogleSearchBlockMeta,
+  google_sheets: GoogleSheetsBlockMeta,
+  google_sheets_v2: GoogleSheetsV2BlockMeta,
+  google_slides: GoogleSlidesBlockMeta,
+  google_slides_v2: GoogleSlidesV2BlockMeta,
+  google_tasks: GoogleTasksBlockMeta,
+  google_translate: GoogleTranslateBlockMeta,
+  google_vault: GoogleVaultBlockMeta,
+  grafana: GrafanaBlockMeta,
+  grain: GrainBlockMeta,
+  granola: GranolaBlockMeta,
+  greenhouse: GreenhouseBlockMeta,
+  greptile: GreptileBlockMeta,
+  hex: HexBlockMeta,
+  hubspot: HubSpotBlockMeta,
+  huggingface: HuggingFaceBlockMeta,
+  hunter: HunterBlockMeta,
+  iam: IAMBlockMeta,
+  icypeas: IcypeasBlockMeta,
+  identity_center: IdentityCenterBlockMeta,
+  imap: ImapBlockMeta,
+  incidentio: IncidentioBlockMeta,
+  infisical: InfisicalBlockMeta,
+  instantly: InstantlyBlockMeta,
+  intercom: IntercomBlockMeta,
+  intercom_v2: IntercomV2BlockMeta,
+  jina: JinaBlockMeta,
+  jira: JiraBlockMeta,
+  jira_service_management: JiraServiceManagementBlockMeta,
+  kalshi: KalshiBlockMeta,
+  kalshi_v2: KalshiV2BlockMeta,
+  ketch: KetchBlockMeta,
+  langsmith: LangsmithBlockMeta,
+  latex: LatexBlockMeta,
+  launchdarkly: LaunchDarklyBlockMeta,
+  leadmagic: LeadMagicBlockMeta,
+  lemlist: LemlistBlockMeta,
+  linear: LinearBlockMeta,
+  linkedin: LinkedInBlockMeta,
+  linkup: LinkupBlockMeta,
+  linq: LinqBlockMeta,
+  loops: LoopsBlockMeta,
+  luma: LumaBlockMeta,
+  mailchimp: MailchimpBlockMeta,
+  mailgun: MailgunBlockMeta,
+  mem0: Mem0BlockMeta,
+  microsoft_ad: MicrosoftAdBlockMeta,
+  microsoft_dataverse: MicrosoftDataverseBlockMeta,
+  microsoft_excel: MicrosoftExcelBlockMeta,
+  microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
+  microsoft_planner: MicrosoftPlannerBlockMeta,
+  microsoft_teams: MicrosoftTeamsBlockMeta,
+  millionverifier: MillionVerifierBlockMeta,
+  mistral_parse: MistralParseBlockMeta,
+  monday: MondayBlockMeta,
+  mongodb: MongoDBBlockMeta,
+  neo4j: Neo4jBlockMeta,
+  neverbounce: NeverBounceBlockMeta,
+  new_relic: NewRelicBlockMeta,
+  notion: NotionBlockMeta,
+  notion_v2: NotionV2BlockMeta,
+  obsidian: ObsidianBlockMeta,
+  okta: OktaBlockMeta,
+  onedrive: OneDriveBlockMeta,
+  onepassword: OnePasswordBlockMeta,
+  openai: OpenAIBlockMeta,
+  outlook: OutlookBlockMeta,
+  pagerduty: PagerDutyBlockMeta,
+  parallel_ai: ParallelBlockMeta,
+  peopledatalabs: PeopleDataLabsBlockMeta,
+  perplexity: PerplexityBlockMeta,
+  persona: PersonaBlockMeta,
+  pinecone: PineconeBlockMeta,
+  pipedrive: PipedriveBlockMeta,
+  polymarket: PolymarketBlockMeta,
+  posthog: PostHogBlockMeta,
+  profound: ProfoundBlockMeta,
+  prospeo: ProspeoBlockMeta,
+  pulse: PulseBlockMeta,
+  qdrant: QdrantBlockMeta,
+  quartr: QuartrBlockMeta,
+  quiver: QuiverBlockMeta,
+  railway: RailwayBlockMeta,
+  rb2b: RB2BBlockMeta,
+  rds: RDSBlockMeta,
+  reddit: RedditBlockMeta,
+  redis: RedisBlockMeta,
+  reducto: ReductoBlockMeta,
+  resend: ResendBlockMeta,
+  revenuecat: RevenueCatBlockMeta,
+  rippling: RipplingBlockMeta,
+  rootly: RootlyBlockMeta,
+  rss: RssBlockMeta,
+  s3: S3BlockMeta,
+  salesforce: SalesforceBlockMeta,
+  sap_concur: SapConcurBlockMeta,
+  sap_s4hana: SapS4HanaBlockMeta,
+  secrets_manager: SecretsManagerBlockMeta,
+  sendblue: SendblueBlockMeta,
+  sendgrid: SendGridBlockMeta,
+  sentry: SentryBlockMeta,
+  serper: SerperBlockMeta,
+  servicenow: ServiceNowBlockMeta,
+  ses: SESBlockMeta,
+  sharepoint: SharepointBlockMeta,
+  shopify: ShopifyBlockMeta,
+  similarweb: SimilarwebBlockMeta,
+  sixtyfour: SixtyfourBlockMeta,
+  slack: SlackBlockMeta,
+  sportmonks: SportmonksBlockMeta,
+  spotify: SpotifyBlockMeta,
+  sqs: SQSBlockMeta,
+  square: SquareBlockMeta,
+  stagehand: StagehandBlockMeta,
+  stripe: StripeBlockMeta,
+  sts: STSBlockMeta,
+  supabase: SupabaseBlockMeta,
+  tailscale: TailscaleBlockMeta,
+  tavily: TavilyBlockMeta,
+  telegram: TelegramBlockMeta,
+  temporal: TemporalBlockMeta,
+  textract: TextractBlockMeta,
+  thrive: ThriveBlockMeta,
+  tinybird: TinybirdBlockMeta,
+  trello: TrelloBlockMeta,
+  trigger_dev: TriggerDevBlockMeta,
+  twilio_sms: TwilioSMSBlockMeta,
+  twilio_voice: TwilioVoiceBlockMeta,
+  typeform: TypeformBlockMeta,
+  upstash: UpstashBlockMeta,
+  vanta: VantaBlockMeta,
+  vercel: VercelBlockMeta,
+  wealthbox: WealthboxBlockMeta,
+  webflow: WebflowBlockMeta,
+  whatsapp: WhatsAppBlockMeta,
+  wikipedia: WikipediaBlockMeta,
+  wiza: WizaBlockMeta,
+  wordpress: WordPressBlockMeta,
+  workday: WorkdayBlockMeta,
+  x: XBlockMeta,
+  youtube: YouTubeBlockMeta,
+  zendesk: ZendeskBlockMeta,
+  zep: ZepBlockMeta,
+  zerobounce: ZeroBounceBlockMeta,
+  zoom: ZoomBlockMeta,
+  zoominfo: ZoomInfoBlockMeta,
+}

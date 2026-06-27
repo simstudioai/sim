@@ -1,5 +1,5 @@
 import { EnrowBlockDisplay } from '@/blocks/blocks/enrow.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { EnrowResponse } from '@/tools/enrow/types'
 
 export const EnrowBlock: BlockConfig<EnrowResponse> = {
@@ -112,8 +112,3 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
     linkedin_url: { type: 'string', description: 'LinkedIn URL of the person (find only)' },
   },
 }
-
-export const EnrowBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://enrow.io',
-} as const satisfies BlockMeta

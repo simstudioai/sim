@@ -1,6 +1,6 @@
 import { LeadMagicIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const LeadMagicBlockDisplay = {
   type: 'leadmagic',
@@ -14,3 +14,8 @@ export const LeadMagicBlockDisplay = {
   docsLink: 'https://docs.sim.ai/tools/leadmagic',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const LeadMagicBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://leadmagic.io',
+} as const satisfies BlockMeta

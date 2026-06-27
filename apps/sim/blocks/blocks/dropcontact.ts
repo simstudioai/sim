@@ -1,5 +1,5 @@
 import { DropcontactBlockDisplay } from '@/blocks/blocks/dropcontact.display'
-import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { DropcontactResponse } from '@/tools/dropcontact/types'
 
 export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
@@ -208,8 +208,3 @@ export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
     company_results: { type: 'string', description: 'Company net results' },
   },
 }
-
-export const DropcontactBlockMeta = {
-  tags: ['enrichment', 'sales-engagement'],
-  url: 'https://www.dropcontact.com',
-} as const satisfies BlockMeta

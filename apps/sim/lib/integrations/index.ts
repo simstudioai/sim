@@ -15,7 +15,7 @@
 import { stripVersionSuffix } from '@sim/utils/string'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
-import { getAllBlockMeta } from '@/blocks/registry'
+import { getAllBlockMeta } from '@/blocks/manifest'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */
 export const INTEGRATIONS: readonly Integration[] =
@@ -74,6 +74,6 @@ export {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'
 export type { AuthType, FAQItem, Integration } from '@/lib/integrations/types'
-export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/registry'
+export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/manifest'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'
 export { formatIntegrationType } from '@/blocks/types'

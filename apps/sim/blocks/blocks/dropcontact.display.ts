@@ -1,6 +1,6 @@
 import { DropcontactIcon } from '@/components/icons'
 import type { BlockDisplay } from '@/blocks/manifest'
-import { IntegrationType } from '@/blocks/types'
+import { type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const DropcontactBlockDisplay = {
   type: 'dropcontact',
@@ -14,3 +14,8 @@ export const DropcontactBlockDisplay = {
   docsLink: 'https://docs.sim.ai/tools/dropcontact',
   integrationType: IntegrationType.Sales,
 } satisfies BlockDisplay
+
+export const DropcontactBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.dropcontact.com',
+} as const satisfies BlockMeta
