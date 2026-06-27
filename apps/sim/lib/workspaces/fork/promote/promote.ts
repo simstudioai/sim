@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -110,6 +111,113 @@ function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> 
     if (target) pairs.set(reference.sourceId, target)
   }
   return Array.from(pairs.entries())
+}
+
+/**
+ * Grant each mapped target credential the same active members its source credential has,
+ * intersected with the target workspace's members, so a promoted workflow's collaborators
+ * can use the remapped credential. Both sides are validated to actually exist in their
+ * workspace first (so a crafted/stale mapping can't drive cross-workspace access), member
+ * reads are batched, and inserts are conflict-safe. Side-effect only on `credentialMember`.
+ */
+async function propagateCredentialAccess(
+  tx: DbOrTx,
+  params: {
+    plan: ForkPromotePlan
+    sourceWorkspaceId: string
+    targetWorkspaceId: string
+    targetMembers: string[]
+    now: Date
+  }
+): Promise<void> {
+  const { plan, sourceWorkspaceId, targetWorkspaceId, targetMembers, now } = params
+  const credentialPairs = collectCredentialPairs(plan)
+  const propagationTargetIds = credentialPairs.map(([, targetCredId]) => targetCredId)
+  const propagationSourceIds = credentialPairs.map(([sourceCredId]) => sourceCredId)
+
+  const validTargetCredentialIds = new Set<string>()
+  if (propagationTargetIds.length > 0) {
+    const validRows = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(
+        and(
+          inArray(credential.id, propagationTargetIds),
+          eq(credential.workspaceId, targetWorkspaceId)
+        )
+      )
+    for (const row of validRows) validTargetCredentialIds.add(row.id)
+  }
+
+  const validSourceCredentialIds = new Set<string>()
+  if (propagationSourceIds.length > 0) {
+    const validRows = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(
+        and(
+          inArray(credential.id, propagationSourceIds),
+          eq(credential.workspaceId, sourceWorkspaceId)
+        )
+      )
+    for (const row of validRows) validSourceCredentialIds.add(row.id)
+  }
+
+  const validPairs = credentialPairs.filter(
+    ([sourceCredId, targetCredId]) =>
+      validSourceCredentialIds.has(sourceCredId) && validTargetCredentialIds.has(targetCredId)
+  )
+  if (validPairs.length === 0) return
+
+  // Batch all source credentials' active members in one query (instead of one per pair),
+  // then build a single insert. `targetMembers` becomes a Set for O(1) membership checks.
+  const targetMemberSet = new Set(targetMembers)
+  const memberRows = await tx
+    .select({
+      credentialId: credentialMember.credentialId,
+      userId: credentialMember.userId,
+      role: credentialMember.role,
+    })
+    .from(credentialMember)
+    .where(
+      and(
+        inArray(
+          credentialMember.credentialId,
+          validPairs.map(([sourceCredId]) => sourceCredId)
+        ),
+        eq(credentialMember.status, 'active')
+      )
+    )
+  const membersBySource = new Map<
+    string,
+    Array<Pick<(typeof memberRows)[number], 'userId' | 'role'>>
+  >()
+  for (const row of memberRows) {
+    if (!targetMemberSet.has(row.userId)) continue
+    const list = membersBySource.get(row.credentialId)
+    if (list) list.push({ userId: row.userId, role: row.role })
+    else membersBySource.set(row.credentialId, [{ userId: row.userId, role: row.role }])
+  }
+  const memberInserts = validPairs.flatMap(([sourceCredId, targetCredId]) =>
+    (membersBySource.get(sourceCredId) ?? []).map((member) => ({
+      id: generateId(),
+      credentialId: targetCredId,
+      userId: member.userId,
+      role: member.role,
+      status: 'active' as const,
+      joinedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }))
+  )
+  if (memberInserts.length > 0) {
+    await tx
+      .insert(credentialMember)
+      .values(memberInserts)
+      .onConflictDoNothing({
+        target: [credentialMember.credentialId, credentialMember.userId],
+      })
+  }
 }
 
 interface PromoteTxBlocked {
@@ -363,93 +471,13 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     )
     await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, identityEntries)
 
-    const credentialPairs = collectCredentialPairs(plan)
-    const propagationTargetIds = credentialPairs.map(([, targetCredId]) => targetCredId)
-    const propagationSourceIds = credentialPairs.map(([sourceCredId]) => sourceCredId)
-    const validTargetCredentialIds = new Set<string>()
-    if (propagationTargetIds.length > 0) {
-      const validRows = await tx
-        .select({ id: credential.id })
-        .from(credential)
-        .where(
-          and(
-            inArray(credential.id, propagationTargetIds),
-            eq(credential.workspaceId, targetWorkspaceId)
-          )
-        )
-      for (const row of validRows) validTargetCredentialIds.add(row.id)
-    }
-
-    const validSourceCredentialIds = new Set<string>()
-    if (propagationSourceIds.length > 0) {
-      const validRows = await tx
-        .select({ id: credential.id })
-        .from(credential)
-        .where(
-          and(
-            inArray(credential.id, propagationSourceIds),
-            eq(credential.workspaceId, sourceWorkspaceId)
-          )
-        )
-      for (const row of validRows) validSourceCredentialIds.add(row.id)
-    }
-
-    const validPairs = credentialPairs.filter(
-      ([sourceCredId, targetCredId]) =>
-        validSourceCredentialIds.has(sourceCredId) && validTargetCredentialIds.has(targetCredId)
-    )
-    if (validPairs.length > 0) {
-      // Batch all source credentials' active members in one query (instead of one
-      // per pair), then build a single insert. `targetMembers` becomes a Set for
-      // O(1) membership checks.
-      const targetMemberSet = new Set(targetMembers)
-      const memberRows = await tx
-        .select({
-          credentialId: credentialMember.credentialId,
-          userId: credentialMember.userId,
-          role: credentialMember.role,
-        })
-        .from(credentialMember)
-        .where(
-          and(
-            inArray(
-              credentialMember.credentialId,
-              validPairs.map(([sourceCredId]) => sourceCredId)
-            ),
-            eq(credentialMember.status, 'active')
-          )
-        )
-      const membersBySource = new Map<
-        string,
-        Array<Pick<(typeof memberRows)[number], 'userId' | 'role'>>
-      >()
-      for (const row of memberRows) {
-        if (!targetMemberSet.has(row.userId)) continue
-        const list = membersBySource.get(row.credentialId)
-        if (list) list.push({ userId: row.userId, role: row.role })
-        else membersBySource.set(row.credentialId, [{ userId: row.userId, role: row.role }])
-      }
-      const memberInserts = validPairs.flatMap(([sourceCredId, targetCredId]) =>
-        (membersBySource.get(sourceCredId) ?? []).map((member) => ({
-          id: generateId(),
-          credentialId: targetCredId,
-          userId: member.userId,
-          role: member.role,
-          status: 'active' as const,
-          joinedAt: now,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      )
-      if (memberInserts.length > 0) {
-        await tx
-          .insert(credentialMember)
-          .values(memberInserts)
-          .onConflictDoNothing({
-            target: [credentialMember.credentialId, credentialMember.userId],
-          })
-      }
-    }
+    await propagateCredentialAccess(tx, {
+      plan,
+      sourceWorkspaceId,
+      targetWorkspaceId,
+      targetMembers,
+      now,
+    })
 
     const promoteRunId = await upsertPromoteRun(tx, {
       childWorkspaceId: edge.childWorkspaceId,

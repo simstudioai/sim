@@ -1,7 +1,7 @@
 import { workflow, workflowBlocks, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -222,39 +222,23 @@ export async function loadTargetDraftSubBlocks(
   return byWorkflow
 }
 
-async function resolveTargetWorkflowName(
-  tx: DbOrTx,
-  workspaceId: string,
+/**
+ * Pick a non-colliding name for a copied workflow against the preloaded registry, which
+ * mirrors the workspace's (folder, name, not-archived, exclude-self) predicate from one
+ * query instead of one per candidate. Mirrors {@link deduplicateWorkflowName}'s ` (n)`
+ * numbering, but reads from memory so the copy loop issues no per-workflow name queries.
+ */
+function resolveTargetWorkflowName(
+  registry: WorkflowNameRegistry,
   folderId: string | null,
   name: string,
-  excludeWorkflowId: string | null,
-  registry?: WorkflowNameRegistry
-): Promise<string> {
-  const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-
-  const nameTaken = async (candidate: string): Promise<boolean> => {
-    // The registry mirrors the same (workspace, folder, name, not-archived, exclude-self)
-    // predicate as the DB query below, from one preload instead of a query per call.
-    if (registry) return registry.isTaken(folderId, candidate, excludeWorkflowId)
-    const conditions = [
-      eq(workflow.workspaceId, workspaceId),
-      folderCondition,
-      eq(workflow.name, candidate),
-      isNull(workflow.archivedAt),
-    ]
-    if (excludeWorkflowId) conditions.push(ne(workflow.id, excludeWorkflowId))
-    const [row] = await tx
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(and(...conditions))
-      .limit(1)
-    return Boolean(row)
-  }
-
-  if (!(await nameTaken(name))) return name
+  excludeWorkflowId: string | null
+): string {
+  const taken = (candidate: string) => registry.isTaken(folderId, candidate, excludeWorkflowId)
+  if (!taken(name)) return name
   for (let i = 2; i < 100; i++) {
     const candidate = `${name} (${i})`
-    if (!(await nameTaken(candidate))) return candidate
+    if (!taken(candidate)) return candidate
   }
   return `${name} (${generateId().slice(0, 6)})`
 }
@@ -314,7 +298,7 @@ export interface CopyWorkflowStateParams {
    * Preloaded name registry so name-collision resolution reads from memory instead of one
    * query per workflow inside the tx. Build once per copy loop via {@link loadWorkflowNameRegistry}.
    */
-  nameRegistry?: WorkflowNameRegistry
+  nameRegistry: WorkflowNameRegistry
   requestId?: string
 }
 
@@ -481,17 +465,15 @@ export async function copyWorkflowStateIntoTarget(
     }
   }
 
-  const resolvedName = await resolveTargetWorkflowName(
-    tx,
-    targetWorkspaceId,
+  const resolvedName = resolveTargetWorkflowName(
+    nameRegistry,
     targetFolderId,
     sourceMeta.name,
-    mode === 'replace' ? targetWorkflowId : null,
-    nameRegistry
+    mode === 'replace' ? targetWorkflowId : null
   )
   // Claim the resolved name so the next workflow in this copy loop sees it taken. The DB
   // write below uses the same (folderId, name), so the registry stays consistent with it.
-  nameRegistry?.claim(targetFolderId, resolvedName, targetWorkflowId)
+  nameRegistry.claim(targetFolderId, resolvedName, targetWorkflowId)
 
   if (mode === 'create') {
     await tx.insert(workflow).values({

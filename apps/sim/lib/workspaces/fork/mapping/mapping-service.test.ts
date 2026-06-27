@@ -20,7 +20,10 @@ vi.mock('@/lib/workspaces/fork/mapping/resources', () => ({
 }))
 
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
-import { validateForkMappingTargets } from '@/lib/workspaces/fork/mapping/mapping-service'
+import {
+  findDuplicateTargetEntry,
+  validateForkMappingTargets,
+} from '@/lib/workspaces/fork/mapping/mapping-service'
 
 type ExistingByKind = Partial<Record<ForkRemapKind, Set<string>>>
 
@@ -128,5 +131,52 @@ describe('validateForkMappingTargets', () => {
         { resourceType: 'oauth_credential', sourceId: 'cred-foreign', targetId: 'cred-tgt' },
       ])
     ).rejects.toBeInstanceOf(ForkError)
+  })
+})
+
+describe('findDuplicateTargetEntry', () => {
+  it('returns null when every target is used by at most one source', () => {
+    expect(
+      findDuplicateTargetEntry([
+        { resourceType: 'oauth_credential', sourceId: 'c1', targetId: 't1' },
+        { resourceType: 'oauth_credential', sourceId: 'c2', targetId: 't2' },
+      ])
+    ).toBeNull()
+  })
+
+  it('flags two distinct sources mapped to the same target', () => {
+    expect(
+      findDuplicateTargetEntry([
+        { resourceType: 'oauth_credential', sourceId: 'c1', targetId: 'shared' },
+        { resourceType: 'oauth_credential', sourceId: 'c2', targetId: 'shared' },
+      ])
+    ).toEqual({ resourceType: 'oauth_credential', targetId: 'shared' })
+  })
+
+  it('ignores cleared (null target) entries', () => {
+    expect(
+      findDuplicateTargetEntry([
+        { resourceType: 'oauth_credential', sourceId: 'c1', targetId: null },
+        { resourceType: 'oauth_credential', sourceId: 'c2', targetId: null },
+      ])
+    ).toBeNull()
+  })
+
+  it('does not flag the same source+target repeated', () => {
+    expect(
+      findDuplicateTargetEntry([
+        { resourceType: 'table', sourceId: 'c1', targetId: 't1' },
+        { resourceType: 'table', sourceId: 'c1', targetId: 't1' },
+      ])
+    ).toBeNull()
+  })
+
+  it('does not conflate the same target id across resource types', () => {
+    expect(
+      findDuplicateTargetEntry([
+        { resourceType: 'oauth_credential', sourceId: 'c1', targetId: 'same' },
+        { resourceType: 'table', sourceId: 'c2', targetId: 'same' },
+      ])
+    ).toBeNull()
   })
 })

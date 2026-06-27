@@ -222,6 +222,35 @@ export interface ApplyForkMappingEntry {
 }
 
 /**
+ * The first target two distinct sources are mapped to (same resourceType + targetId,
+ * different sourceId), or null when every target is used by at most one source. Cleared
+ * entries (null target) are ignored. Used by the PUSH path only: a push row is unique on
+ * the parent (target) side, so such a pair collides on that unique index and one mapping
+ * would be silently dropped - the caller rejects it instead. Pull is the inverse (many
+ * parent sources may share one child target, which the resolver handles), so pull does not
+ * use this guard.
+ */
+export function findDuplicateTargetEntry(
+  entries: ApplyForkMappingEntry[]
+): { resourceType: ForkResourceType; targetId: string } | null {
+  const sourcesByTarget = new Map<string, Set<string>>()
+  for (const entry of entries) {
+    if (entry.targetId == null) continue
+    // Null-byte separator so a targetId containing ':' (e.g. credentialSet:...) can't
+    // be confused with a different (resourceType, targetId) pair.
+    const key = `${entry.resourceType}\u0000${entry.targetId}`
+    const sources = sourcesByTarget.get(key)
+    if (!sources) {
+      sourcesByTarget.set(key, new Set([entry.sourceId]))
+      continue
+    }
+    sources.add(entry.sourceId)
+    if (sources.size > 1) return { resourceType: entry.resourceType, targetId: entry.targetId }
+  }
+  return null
+}
+
+/**
  * Persist mapping edits for a direction. Pull maps a parent source to a child
  * target; push maps a child source to a parent target (clearing a push mapping
  * deletes the row).
@@ -247,6 +276,20 @@ export async function applyForkMappingEntries(
       }))
     )
     return entries.length
+  }
+  // Push rows are unique on the parent (target) side, so two distinct sources mapped to
+  // the same target would collide on that index and one would be silently dropped (its
+  // reference then resolves unmapped). Reject loudly - on push each parent target can back
+  // only one source. (Pull is the inverse: many parent sources may share one child target,
+  // which the resolver handles, so pull skips this guard. The modal also disables an
+  // already-taken target on push so users never reach this error normally.)
+  const collision = findDuplicateTargetEntry(entries)
+  if (collision) {
+    const kind = resourceTypeToForkKind(collision.resourceType) ?? collision.resourceType
+    throw new ForkError(
+      `Two sources are mapped to the same ${kind} target. Each target can be mapped from only one source.`,
+      400
+    )
   }
   // Push rows are keyed by the child (source) side, but the table's unique key is on
   // the parent side - so clear any existing row for each source first (one grouped

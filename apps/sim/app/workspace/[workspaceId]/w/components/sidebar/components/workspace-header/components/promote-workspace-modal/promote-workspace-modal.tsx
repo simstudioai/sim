@@ -52,6 +52,57 @@ interface ReconfigBlock {
   fields: ForkDependentReconfig[]
 }
 
+/** Group dependent re-picks by their target block, sorted by block name, for inline render. */
+function groupDependentsByBlock(dependents: ForkDependentReconfig[]): ReconfigBlock[] {
+  const byBlock = new Map<string, ReconfigBlock>()
+  for (const dependent of dependents) {
+    let block = byBlock.get(dependent.targetBlockId)
+    if (!block) {
+      block = { targetBlockId: dependent.targetBlockId, blockName: dependent.blockName, fields: [] }
+      byBlock.set(dependent.targetBlockId, block)
+    }
+    block.fields.push(dependent)
+  }
+  return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
+}
+
+/**
+ * Whether a mapping entry needs an in-place reconfigure: its effective target was changed
+ * in-session, or it's an unconfirmed suggestion (accepting it as-is still remaps + clears
+ * the dependents). Pure over (entry, in-session targets) so both the inline render and the
+ * Sync gate / override collection share one predicate instead of drifting copies.
+ */
+function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+  const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
+  if (next === '') return false
+  return entry.suggested || next !== (entry.targetId ?? '')
+}
+
+/** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
+const EMPTY_TARGET_OWNERS: ReadonlyMap<string, string> = new Map()
+
+/**
+ * Targets already taken by OTHER sources in the same kind, each mapped to the owning
+ * source's label (for a hint). Used to disable those targets on PUSH: a push row is unique
+ * on the parent (target) side, so a parent target can back only one source - a second source
+ * picking it would be silently dropped on save. Pull is the inverse (many parent sources may
+ * share one fork target, which resolves correctly), so pull passes the empty map and never
+ * disables. Excludes `exclude` so a source never disables its own current selection.
+ */
+function takenTargetOwners(
+  items: ForkMappingEntry[],
+  targets: Record<string, string>,
+  exclude: ForkMappingEntry
+): Map<string, string> {
+  const owners = new Map<string, string>()
+  for (const item of items) {
+    if (entryKey(item) === entryKey(exclude)) continue
+    const target = targets[entryKey(item)] ?? item.targetId ?? ''
+    if (target !== '') owners.set(target, item.sourceLabel)
+  }
+  return owners
+}
+
 /** Section label + display order per mapping kind (one mapping step per kind). */
 const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
   credential: { label: 'Credentials', order: 0 },
@@ -164,30 +215,15 @@ export function PromoteWorkspaceModal({
 
   // Affected blocks (block-grouped dependent fields) under an entry whose target the user
   // changed - rendered inline beneath that mapping so the credential/KB stays in context.
-  const reconfigBlocksForEntry = (entry: ForkMappingEntry): ReconfigBlock[] => {
-    const next = targetFor(entry)
-    // Show the reconfigure when the target actually changed, OR when it's an unconfirmed
-    // suggestion (accepting it as-is would still remap + clear the dependents).
-    if (next === '') return []
-    if (!entry.suggested && next === (entry.targetId ?? '')) return []
-    const byBlock = new Map<string, ReconfigBlock>()
-    for (const dependent of dependentReconfigs) {
-      if (dependent.parentKind !== entry.kind || dependent.parentSourceId !== entry.sourceId) {
-        continue
-      }
-      let block = byBlock.get(dependent.targetBlockId)
-      if (!block) {
-        block = {
-          targetBlockId: dependent.targetBlockId,
-          blockName: dependent.blockName,
-          fields: [],
-        }
-        byBlock.set(dependent.targetBlockId, block)
-      }
-      block.fields.push(dependent)
-    }
-    return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-  }
+  const reconfigBlocksForEntry = (entry: ForkMappingEntry): ReconfigBlock[] =>
+    shouldReconfigureEntry(entry, targets)
+      ? groupDependentsByBlock(
+          dependentReconfigs.filter(
+            (dependent) =>
+              dependent.parentKind === entry.kind && dependent.parentSourceId === entry.sourceId
+          )
+        )
+      : []
 
   // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
@@ -205,35 +241,23 @@ export function PromoteWorkspaceModal({
   }, [entries])
 
   // Blocks whose dependent fields need re-picking because their parent's target changed
-  // in-session - one card (wizard step) each. Recomputes as the user edits mappings.
-  const reconfigBlocks = useMemo<ReconfigBlock[]>(() => {
-    const targetForEntry = (entry: ForkMappingEntry) =>
-      targets[entryKey(entry)] ?? entry.targetId ?? ''
-    const byBlock = new Map<string, ReconfigBlock>()
-    for (const dependent of dependentReconfigs) {
-      const parent = entries.find(
-        (candidate) =>
-          candidate.kind === dependent.parentKind && candidate.sourceId === dependent.parentSourceId
-      )
-      if (!parent) continue
-      const next = targetForEntry(parent)
-      // Only when the parent's target changed from what the target already has, or is an
-      // unconfirmed suggestion (accepting it still remaps + clears the dependents).
-      if (next === '') continue
-      if (!parent.suggested && next === (parent.targetId ?? '')) continue
-      let block = byBlock.get(dependent.targetBlockId)
-      if (!block) {
-        block = {
-          targetBlockId: dependent.targetBlockId,
-          blockName: dependent.blockName,
-          fields: [],
-        }
-        byBlock.set(dependent.targetBlockId, block)
-      }
-      block.fields.push(dependent)
-    }
-    return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-  }, [dependentReconfigs, entries, targets])
+  // in-session - the Sync gate + override collection read this. Recomputes as the user
+  // edits mappings. Shares the gate/grouping with reconfigBlocksForEntry so the inline
+  // cards and the Sync-gated set can never disagree.
+  const reconfigBlocks = useMemo<ReconfigBlock[]>(
+    () =>
+      groupDependentsByBlock(
+        dependentReconfigs.filter((dependent) => {
+          const parent = entries.find(
+            (candidate) =>
+              candidate.kind === dependent.parentKind &&
+              candidate.sourceId === dependent.parentSourceId
+          )
+          return parent != null && shouldReconfigureEntry(parent, targets)
+        })
+      ),
+    [dependentReconfigs, entries, targets]
+  )
 
   // Every required re-pick is filled - a required dependent left empty must not be synced.
   const reconfigComplete = reconfigBlocks.every((block) =>
@@ -403,31 +427,42 @@ export function PromoteWorkspaceModal({
                 />
               </SettingsSection>
 
-              {workflowChanges.length > 0 ? (
+              {/* Always shown once the diff loads so the user sees the section even with nothing
+                  deployed - an empty change list means the source has no deployed workflows (every
+                  deployed workflow appears here, changed or not), so the muted state nudges a deploy. */}
+              {diff.data ? (
                 <SettingsSection label='Deployed Workflows'>
-                  <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
-                    {workflowChanges.map((change, index) => {
-                      const renamed = change.currentName !== change.otherName
-                      return (
-                        <div
-                          key={`${change.action}:${change.currentName}:${index}`}
-                          className='flex min-w-0 items-center gap-1.5'
-                        >
-                          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                            {change.currentName}
-                          </span>
-                          {renamed ? (
-                            <>
-                              <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                              <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                                {change.otherName}
-                              </span>
-                            </>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </div>
+                  {workflowChanges.length > 0 ? (
+                    <div className='flex max-h-40 flex-col gap-1 overflow-y-auto'>
+                      {workflowChanges.map((change, index) => {
+                        const renamed = change.currentName !== change.otherName
+                        return (
+                          <div
+                            key={`${change.action}:${change.currentName}:${index}`}
+                            className='flex min-w-0 items-center gap-1.5'
+                          >
+                            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+                              {change.currentName}
+                            </span>
+                            {renamed ? (
+                              <>
+                                <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
+                                <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                                  {change.otherName}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className='text-[var(--text-muted)] text-small'>
+                      {direction === 'push'
+                        ? `No deployed workflows. Deploy workflows to push changes to ${parent?.name ?? 'the parent'}.`
+                        : `No deployed workflows in ${parent?.name ?? 'the parent'} to pull.`}
+                    </div>
+                  )}
                 </SettingsSection>
               ) : null}
 
@@ -474,108 +509,123 @@ export function PromoteWorkspaceModal({
             </div>
           ) : currentGroup ? (
             <div className='flex flex-col gap-7 px-2'>
-              {currentGroup.items.map((entry) => (
-                <SettingsSection
-                  key={entryKey(entry)}
-                  label={entry.sourceLabel}
-                  headerAccessory={
-                    entry.required ? (
-                      <span className='text-[var(--text-error)]' title='Required to sync'>
-                        *
-                      </span>
-                    ) : undefined
-                  }
-                >
-                  <ChipCombobox
-                    className='w-full'
-                    options={entry.candidates.map((candidate) => ({
-                      label: candidate.label,
-                      value: candidate.id,
-                    }))}
-                    value={targetFor(entry) || undefined}
-                    onChange={(value) =>
-                      setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                    }
-                    placeholder='Select target'
-                  />
-                  {entry.candidatesTruncated ? (
-                    <div className='mt-1 text-[var(--text-muted)] text-small'>
-                      This workspace has more options than shown here. If you don't see the right
-                      one, narrow it down by name.
-                    </div>
-                  ) : null}
-                  {/* Account changed: re-pick its dependent fields in place, block by block. */}
-                  {reconfigBlocksForEntry(entry).map((block) => {
-                    // Chain re-picks: a re-picked field feeds its SelectorContext key to its
-                    // in-block descendants (e.g. a new spreadsheet drives the sheet selector),
-                    // so deeper selectors query against the user's new upstream choice.
-                    const providedValues: Record<string, string> = {}
-                    const providerByKey = new Map<string, string>()
-                    for (const field of block.fields) {
-                      const picked = reconfig[dependentKey(field)]
-                      if (field.providesContextKey) {
-                        providerByKey.set(field.providesContextKey, dependentKey(field))
-                        if (picked) providedValues[field.providesContextKey] = picked
-                      }
-                    }
-                    return (
-                      <div
-                        key={block.targetBlockId}
-                        className='mt-3 flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-1)] p-3'
-                      >
-                        <span className='font-medium text-[var(--text-secondary)] text-small'>
-                          {block.blockName}
+              {currentGroup.items.map((entry) => {
+                // On push, a parent target can back only one source; disable any target
+                // another source already took (named in the hint) so the user can't create a
+                // mapping that would be silently dropped on save. Pull allows sharing a target.
+                const takenOwners =
+                  direction === 'push'
+                    ? takenTargetOwners(currentGroup.items, targets, entry)
+                    : EMPTY_TARGET_OWNERS
+                return (
+                  <SettingsSection
+                    key={entryKey(entry)}
+                    label={entry.sourceLabel}
+                    headerAccessory={
+                      entry.required ? (
+                        <span className='text-[var(--text-error)]' title='Required to sync'>
+                          *
                         </span>
-                        {block.fields.map((field) => {
-                          // Disabled until the credential is set AND every in-block parent it
-                          // depends on (a sibling re-pick) is chosen, so a child never queries a
-                          // stale upstream value (e.g. a sheet before its spreadsheet is re-picked).
-                          const ready = field.consumesContextKeys.every((key) => {
-                            const providerKey = providerByKey.get(key)
-                            return !providerKey || (reconfig[providerKey] ?? '') !== ''
-                          })
-                          return (
-                            <div key={dependentKey(field)} className='flex flex-col gap-1'>
-                              <span className='text-[var(--text-tertiary)] text-caption'>
-                                {field.title}
-                                {field.required ? (
-                                  <span className='text-[var(--text-error)]'> *</span>
-                                ) : null}
-                              </span>
-                              <DependentFieldSelector
-                                selectorKey={field.selectorKey as SelectorKey}
-                                context={{
-                                  ...field.context,
-                                  ...providedValues,
-                                  [field.parentContextKey]: targetFor(entry),
-                                }}
-                                enabled={targetFor(entry) !== '' && ready}
-                                value={reconfig[dependentKey(field)] ?? ''}
-                                onChange={(value) =>
-                                  setReconfig((prev) => {
-                                    const nextState = { ...prev, [dependentKey(field)]: value }
-                                    // A changed parent invalidates its children's stale re-picks.
-                                    const providedKey = field.providesContextKey
-                                    if (providedKey) {
-                                      for (const sibling of block.fields) {
-                                        if (sibling.consumesContextKeys.includes(providedKey)) {
-                                          delete nextState[dependentKey(sibling)]
+                      ) : undefined
+                    }
+                  >
+                    <ChipCombobox
+                      className='w-full'
+                      options={entry.candidates.map((candidate) => {
+                        const owner = takenOwners.get(candidate.id)
+                        return {
+                          label: owner
+                            ? `${candidate.label} · mapped to ${owner}`
+                            : candidate.label,
+                          value: candidate.id,
+                          disabled: owner !== undefined,
+                        }
+                      })}
+                      value={targetFor(entry) || undefined}
+                      onChange={(value) =>
+                        setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+                      }
+                      placeholder='Select target'
+                    />
+                    {entry.candidatesTruncated ? (
+                      <div className='mt-1 text-[var(--text-muted)] text-small'>
+                        This workspace has more options than shown here. If you don't see the right
+                        one, narrow it down by name.
+                      </div>
+                    ) : null}
+                    {/* Account changed: re-pick its dependent fields in place, block by block. */}
+                    {reconfigBlocksForEntry(entry).map((block) => {
+                      // Chain re-picks: a re-picked field feeds its SelectorContext key to its
+                      // in-block descendants (e.g. a new spreadsheet drives the sheet selector),
+                      // so deeper selectors query against the user's new upstream choice.
+                      const providedValues: Record<string, string> = {}
+                      const providerByKey = new Map<string, string>()
+                      for (const field of block.fields) {
+                        const picked = reconfig[dependentKey(field)]
+                        if (field.providesContextKey) {
+                          providerByKey.set(field.providesContextKey, dependentKey(field))
+                          if (picked) providedValues[field.providesContextKey] = picked
+                        }
+                      }
+                      return (
+                        <div
+                          key={block.targetBlockId}
+                          className='mt-3 flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-1)] p-3'
+                        >
+                          <span className='font-medium text-[var(--text-secondary)] text-small'>
+                            {block.blockName}
+                          </span>
+                          {block.fields.map((field) => {
+                            // Disabled until the credential is set AND every in-block parent it
+                            // depends on (a sibling re-pick) is chosen, so a child never queries a
+                            // stale upstream value (e.g. a sheet before its spreadsheet is re-picked).
+                            const ready = field.consumesContextKeys.every((key) => {
+                              const providerKey = providerByKey.get(key)
+                              return !providerKey || (reconfig[providerKey] ?? '') !== ''
+                            })
+                            return (
+                              <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                                <span className='text-[var(--text-tertiary)] text-caption'>
+                                  {field.title}
+                                  {field.required ? (
+                                    <span className='text-[var(--text-error)]'> *</span>
+                                  ) : null}
+                                </span>
+                                <DependentFieldSelector
+                                  selectorKey={field.selectorKey as SelectorKey}
+                                  context={{
+                                    ...field.context,
+                                    ...providedValues,
+                                    [field.parentContextKey]: targetFor(entry),
+                                  }}
+                                  enabled={targetFor(entry) !== '' && ready}
+                                  value={reconfig[dependentKey(field)] ?? ''}
+                                  onChange={(value) =>
+                                    setReconfig((prev) => {
+                                      const nextState = { ...prev, [dependentKey(field)]: value }
+                                      // A changed parent invalidates its children's stale re-picks.
+                                      const providedKey = field.providesContextKey
+                                      if (providedKey) {
+                                        for (const sibling of block.fields) {
+                                          if (sibling.consumesContextKeys.includes(providedKey)) {
+                                            delete nextState[dependentKey(sibling)]
+                                          }
                                         }
                                       }
-                                    }
-                                    return nextState
-                                  })
-                                }
-                                title={field.title}
-                              />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                </SettingsSection>
-              ))}
+                                      return nextState
+                                    })
+                                  }
+                                  title={field.title}
+                                />
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </SettingsSection>
+                )
+              })}
             </div>
           ) : null}
         </ChipModalBody>

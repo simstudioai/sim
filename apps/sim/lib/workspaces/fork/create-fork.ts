@@ -312,36 +312,49 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // content to copy in the background the row stays `processing` until the runner
   // finishes it (merging in copied/failed); otherwise the fork is already complete.
   const forkedName = result.workspace.name
-  const statusId = await startBackgroundWork(db, {
-    workspaceId: source.id,
-    kind: 'fork_content_copy',
-    // Append-only: each fork is a distinct entry in the source workspace's fork history.
-    supersede: false,
-    message: hasContent ? `Copying resources to "${forkedName}"` : `Forked into "${forkedName}"`,
-    metadata: {
+  // The fork already committed; failing to record the tracking row must not turn it into
+  // a 500. Log and continue without a status row - the background content copy below still
+  // runs (its runner no-ops the status update when statusId is absent).
+  let statusId: string | undefined
+  try {
+    statusId = await startBackgroundWork(db, {
+      workspaceId: source.id,
+      kind: 'fork_content_copy',
+      // Append-only: each fork is a distinct entry in the source workspace's fork history.
+      supersede: false,
+      message: hasContent ? `Copying resources to "${forkedName}"` : `Forked into "${forkedName}"`,
+      metadata: {
+        childWorkspaceId: result.workspace.id,
+        childWorkspaceName: forkedName,
+        actorName: params.actorName,
+        workflowsCopied: result.workflowsCopied,
+        tables: contentPlan.tables.length,
+        knowledgeBases: contentPlan.knowledgeBases.length,
+        files: blobTasks.length,
+        workflowNames: forkedWorkflowNames,
+        tableNames: forkedResourceNames.tables,
+        knowledgeBaseNames: forkedResourceNames.knowledgeBases,
+        fileNames: blobTasks.map((task) => task.fileName),
+        customToolNames: forkedResourceNames.customTools,
+        skillNames: forkedResourceNames.skills,
+        mcpServerNames: forkedResourceNames.mcpServers,
+      },
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to record fork background-work status`, {
       childWorkspaceId: result.workspace.id,
-      childWorkspaceName: forkedName,
-      actorName: params.actorName,
-      workflowsCopied: result.workflowsCopied,
-      tables: contentPlan.tables.length,
-      knowledgeBases: contentPlan.knowledgeBases.length,
-      files: blobTasks.length,
-      workflowNames: forkedWorkflowNames,
-      tableNames: forkedResourceNames.tables,
-      knowledgeBaseNames: forkedResourceNames.knowledgeBases,
-      fileNames: blobTasks.map((task) => task.fileName),
-      customToolNames: forkedResourceNames.customTools,
-      skillNames: forkedResourceNames.skills,
-      mcpServerNames: forkedResourceNames.mcpServers,
-    },
-  })
+      error: getErrorMessage(error),
+    })
+  }
 
   if (!hasContent) {
-    await finishBackgroundWork(db, statusId, {
-      status: 'completed',
-      message: `Forked into "${forkedName}"`,
-      metadata: { copied: 0, failed: 0 },
-    }).catch(() => {})
+    if (statusId) {
+      await finishBackgroundWork(db, statusId, {
+        status: 'completed',
+        message: `Forked into "${forkedName}"`,
+        metadata: { copied: 0, failed: 0 },
+      }).catch(() => {})
+    }
     return result
   }
 
@@ -366,10 +379,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       childWorkspaceId: result.workspace.id,
       error: getErrorMessage(error),
     })
-    await finishBackgroundWork(db, statusId, {
-      status: 'failed',
-      error: getErrorMessage(error, 'Could not start the background copy'),
-    }).catch(() => {})
+    if (statusId) {
+      await finishBackgroundWork(db, statusId, {
+        status: 'failed',
+        error: getErrorMessage(error, 'Could not start the background copy'),
+      }).catch(() => {})
+    }
   }
 
   return result

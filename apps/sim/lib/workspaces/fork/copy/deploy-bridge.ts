@@ -138,10 +138,19 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
       400
     )
   }
+  // Read states in bounded-concurrency batches instead of one serial await per workflow:
+  // serial cost is O(workflows) round trips (this also runs on the diff preview, refetched
+  // while the sync modal is open). The cap keeps concurrent global-pool checkouts well
+  // under the pool max even at the workflow ceiling, and this runs BEFORE any transaction.
   const sourceStates = new Map<string, WorkflowState>()
-  for (const wf of deployedWorkflows) {
-    const state = await readDeployedState(wf.id, sourceWorkspaceId)
-    if (state) sourceStates.set(wf.id, state)
+  const READ_CONCURRENCY = 5
+  for (let i = 0; i < deployedWorkflows.length; i += READ_CONCURRENCY) {
+    const batch = deployedWorkflows.slice(i, i + READ_CONCURRENCY)
+    const states = await Promise.all(batch.map((wf) => readDeployedState(wf.id, sourceWorkspaceId)))
+    batch.forEach((wf, index) => {
+      const state = states[index]
+      if (state) sourceStates.set(wf.id, state)
+    })
   }
   return { deployedWorkflows, sourceStates }
 }
