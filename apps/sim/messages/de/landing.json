@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "product": "Produkt",
+    "docs": "Dokumentation",
+    "pricing": "Preise",
+    "blog": "Blog",
+    "contact": "Kontakt",
+    "signIn": "Anmelden",
+    "startBuilding": "Jetzt loslegen",
+    "integrations": "Integrationen",
+    "templates": "Vorlagen"
+  },
+  "hero": {
+    "title": "Der KI-Workspace, in dem Teams Agenten erstellen, bereitstellen und verwalten",
+    "subtitle": "Erstellen Sie im Gespräch, visuell oder mit Code. Verbinden Sie über 1.000 Integrationen und jedes große LLM, um echte Arbeit zu automatisieren.",
+    "cta": "Kostenlos loslegen",
+    "watchDemo": "Demo ansehen",
+    "trustedBy": "Vertraut von Teams bei"
+  },
+  "features": {
+    "title": "Alles, was Sie zum Erstellen von KI-Agenten brauchen",
+    "subtitle": "Ein Workspace. Alle Funktionen. Kein Wechseln zwischen Tools.",
+    "chat": {
+      "title": "Im Chat erstellen",
+      "description": "Beschreiben Sie in einfacher Sprache, was Sie möchten. Sim kennt Ihren gesamten Workspace und handelt entsprechend."
+    },
+    "workflows": {
+      "title": "Visuelle Workflows",
+      "description": "Gestalten Sie Agenten Block für Block auf einer visuellen Arbeitsfläche – mit voller Kontrolle über jeden Schritt."
+    },
+    "knowledge": {
+      "title": "Wissensdatenbanken",
+      "description": "Verankern Sie Agenten in Ihren Dokumenten. Laden Sie PDFs, Websites und mehr für RAG hoch."
+    },
+    "tables": {
+      "title": "Strukturierte Tabellen",
+      "description": "Eine integrierte Datenbank. Speichern, abfragen und strukturierte Daten direkt in Agenten-Läufe einbinden."
+    },
+    "files": {
+      "title": "Dateien generieren",
+      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen aus einer einzigen Eingabe."
+    },
+    "deploy": {
+      "title": "Überall bereitstellen",
+      "description": "Bereitstellung als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
+    }
+  },
+  "pricing": {
+    "title": "Einfache, transparente Preise",
+    "subtitle": "Kostenlos starten, mit Ihrem Wachstum skalieren. Keine versteckten Kosten.",
+    "free": {
+      "name": "Free",
+      "price": "0 $",
+      "period": "/Monat",
+      "description": "Für Einzelpersonen, die KI-Automatisierung erkunden",
+      "cta": "Kostenlos starten"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "20 $",
+      "period": "/Monat",
+      "description": "Für Profis, die produktionsreife Agenten erstellen",
+      "cta": "Mit Pro starten"
+    },
+    "team": {
+      "name": "Team",
+      "price": "50 $",
+      "period": "/Platz/Monat",
+      "description": "Für Teams, die gemeinsam an KI-Workflows arbeiten",
+      "cta": "Mit Team starten"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "Individuell",
+      "period": "",
+      "description": "Für Organisationen mit erhöhten Sicherheitsanforderungen",
+      "cta": "Vertrieb kontaktieren"
+    }
+  },
+  "testimonials": {
+    "title": "Von Buildern geliebt",
+    "subtitle": "Sehen Sie, was Teams mit Sim erstellen"
+  },
+  "templates": {
+    "title": "Mit einer Vorlage starten",
+    "subtitle": "Vorgefertigte Workflows für gängige Anwendungsfälle. In Minuten bereitgestellt."
+  },
+  "collaboration": {
+    "title": "Für Teams gemacht",
+    "subtitle": "Arbeiten Sie gemeinsam an Workflows, teilen Sie Wissen und stellen Sie gemeinsam bereit."
+  },
+  "footer": {
+    "copyright": "© 2026 Sim Technologies, Inc.",
+    "product": "Produkt",
+    "resources": "Ressourcen",
+    "company": "Unternehmen",
+    "legal": "Rechtliches",
+    "status": "Status",
+    "privacy": "Datenschutzerklärung",
+    "terms": "Nutzungsbedingungen"
+  },
+  "faq": {
+    "title": "Häufig gestellte Fragen"
+  },
+  "contact": {
+    "title": "Kontakt aufnehmen",
+    "subtitle": "Haben Sie Fragen? Wir helfen Ihnen gerne weiter."
+  }
+}

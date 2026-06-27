@@ -1,0 +1,69 @@
+---
+title: People Data Labs
+description: Обогащение и поиск данных о людях и компаниях
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="peopledatalabs"
+  color="#4831C3"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## Описание
+
+[People Data Labs](https://www.peopledatalabs.com/) — это поставщик данных о людях и компаниях с глобальным набором данных, включающим более 3 миллиардов профилей людей и более 25 миллионов записей о компаниях. Блок Sim предоставляет доступ к основным конечным точкам REST, чтобы агенты могли обогащать отдельные контакты, искать информацию о компаниях или выполнять поисковые запросы по всему набору данных.
+
+Используйте этот блок для:
+- **Person Enrich** — определение конкретного человека по email, телефону, URL LinkedIn или имени + компании/местоположению, с получением истории работы, контактной информации и навыков.
+- **Person Search** — выполнение SQL- или Elasticsearch DSL-запросов к набору данных о людях для создания списков потенциальных клиентов или сегментов аудитории.
+- **Company Enrich** — определение конкретной компании по названию, веб-сайту, тикеру, URL LinkedIn или PDL ID, с получением фирмографических данных.
+- **Company Search** — запрос к набору данных о компаниях с использованием SQL или Elasticsearch DSL.
+- **Autocomplete** — получение предлагаемых значений для таких полей, как `title`, `skill`, `industry` или `location`, для построения корректных поисковых запросов.
+
+Аутентификация осуществляется с помощью API-ключа, передаваемого в заголовке `X-Api-Key`. Получите ключ в [PDL dashboard](https://dashboard.peopledatalabs.com/).
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Обогащайте данные об отдельных людях или компаниях с помощью People Data Labs или выполняйте поиск по глобальным наборам данных о людях и компаниях с использованием SQL или Elasticsearch DSL. Полезно для обогащения данных о продажах, поиска контактов и поддержания гигиены CRM.
+
+
+
+## Действия
+
+### `pdl_person_enrich`
+
+
+### `pdl_person_identify`
+
+
+### `pdl_person_search`
+
+
+### `pdl_bulk_person_enrich`
+
+
+### `pdl_company_enrich`
+
+
+### `pdl_company_search`
+
+
+### `pdl_bulk_company_enrich`
+
+
+### `pdl_clean_company`
+
+
+### `pdl_clean_location`
+
+
+### `pdl_clean_school`
+
+
+### `pdl_autocomplete`
+
+

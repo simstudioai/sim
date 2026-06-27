@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript } from 'next-runtime-env'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale, getMessages } from 'next-intl/server'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
@@ -13,6 +15,7 @@ import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
 import { season } from '@/app/_styles/fonts/season/season'
+import { defaultLocale } from '@/lib/i18n/config'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -28,11 +31,13 @@ export const metadata: Metadata = generateBrandedMetadata()
 const GTM_ID = 'GTM-T7PHSRX5' as const
 const GA_ID = 'G-DR7YBE70VS' as const
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const themeCSS = generateThemeCSS()
+  const locale = await getLocale()
+  const messages = await getMessages()
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {isReactScanEnabled && (
           <Script
@@ -249,7 +254,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               <QueryProvider>
                 <SessionProvider>
                   <TooltipProvider>
-                    <BrandedLayout>{children}</BrandedLayout>
+                    <NextIntlClientProvider messages={messages} locale={locale} defaultLocale={defaultLocale}>
+                      <BrandedLayout>{children}</BrandedLayout>
+                    </NextIntlClientProvider>
                   </TooltipProvider>
                 </SessionProvider>
               </QueryProvider>

@@ -1,0 +1,23 @@
+{
+  "general": "Общие",
+  "billing": "Биллинг",
+  "team": "Команда",
+  "apiKeys": "API ключи",
+  "secrets": "Секреты",
+  "byok": "Свои ключи",
+  "connections": "Подключения",
+  "auditLogs": "Журнал аудита",
+  "dangerZone": "Опасная зона",
+  "deleteAccount": "Удалить аккаунт",
+  "deleteAccountWarning": "Это действие нельзя отменить. Все ваши данные будут удалены.",
+  "profile": "Профиль",
+  "name": "Имя",
+  "email": "Email",
+  "changePassword": "Сменить пароль",
+  "appearance": "Оформление",
+  "theme": "Тема",
+  "timezone": "Часовой пояс",
+  "language": "Язык",
+  "notifications": "Уведомления",
+  "emailNotifications": "Email-уведомления"
+}

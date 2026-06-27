@@ -1,0 +1,19 @@
+{
+  "connect": "Connect",
+  "disconnect": "Disconnect",
+  "configure": "Configure",
+  "connected": "Connected",
+  "disconnected": "Disconnected",
+  "apiKey": "API Key",
+  "apiSecret": "API Secret",
+  "accessToken": "Access Token",
+  "webhookUrl": "Webhook URL",
+  "testConnection": "Test Connection",
+  "connectionSuccessful": "Connection successful",
+  "connectionFailed": "Connection failed",
+  "noIntegrations": "No integrations connected",
+  "browseIntegrations": "Browse Integrations",
+  "searchIntegrations": "Search integrations...",
+  "oauth": "OAuth",
+  "customApp": "Custom App"
+}

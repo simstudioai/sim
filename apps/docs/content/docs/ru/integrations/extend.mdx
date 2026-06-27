@@ -1,0 +1,40 @@
+---
+title: Extend
+description: Parse and extract content from documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="extend_v2"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.
+
+
+
+## Actions
+
+### `extend_parser`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | Document to be processed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the parser run |
+| `status` | string | Processing status |
+| `chunks` | json | Parsed document content chunks |
+| `blocks` | json | Block-level document elements with type and content |
+| `pageCount` | number | Number of pages processed |
+| `creditsUsed` | number | API credits consumed |
+
+

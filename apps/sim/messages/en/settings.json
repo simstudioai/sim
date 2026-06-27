@@ -1,0 +1,23 @@
+{
+  "general": "General",
+  "billing": "Billing",
+  "team": "Team",
+  "apiKeys": "API Keys",
+  "secrets": "Secrets",
+  "byok": "Bring Your Own Keys",
+  "connections": "Connections",
+  "auditLogs": "Audit Logs",
+  "dangerZone": "Danger Zone",
+  "deleteAccount": "Delete Account",
+  "deleteAccountWarning": "This action cannot be undone. All your data will be permanently deleted.",
+  "profile": "Profile",
+  "name": "Name",
+  "email": "Email",
+  "changePassword": "Change Password",
+  "appearance": "Appearance",
+  "theme": "Theme",
+  "timezone": "Timezone",
+  "language": "Language",
+  "notifications": "Notifications",
+  "emailNotifications": "Email Notifications"
+}

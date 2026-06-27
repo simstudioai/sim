@@ -1,0 +1,895 @@
+---
+title: Brex
+description: Manage expenses, receipts, transactions, and team data in Brex
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="brex"
+  color="#171717"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Brex](https://www.brex.com/) is the AI-powered spend platform that gives companies corporate cards, expense management, banking, and bill pay in one place. Finance teams use Brex to control spend with budgets and spend limits, automate expense review, and keep every transaction reconciled with receipts and memos.
+
+With the Brex integration in Sim, your agents can work directly with your company's spend data:
+
+- **Expenses**: List and filter expenses by status, owner, or purchase date, fetch full expense details (merchant, amounts, receipts), and update expense memos.
+- **Receipts**: Upload a receipt file straight onto a specific card expense, or let Brex automatically match an uploaded receipt to the right expense.
+- **Transactions and accounts**: Pull settled card transactions, cash account transactions, account balances, and finalized statements for reporting and reconciliation.
+- **Budgets and spend limits**: Read budgets and spend limits — including current period balances — to power utilization reports and proactive alerts.
+- **Team**: Look up users, departments, locations, titles, and cards to enrich spend data with organizational context.
+- **Payments**: Track vendors and money transfers to monitor payment status end to end.
+
+Authentication uses a Brex user token, which you can generate from **Developer → Settings** in your Brex dashboard. The integration is intentionally read-focused: it never moves money, issues cards, or exposes card numbers.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates Brex into the workflow. List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.
+
+
+
+## Actions
+
+### `brex_list_expenses`
+
+List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `userIds` | string | No | Comma-separated user IDs to filter expenses by owner |
+| `statuses` | string | No | Comma-separated expense statuses to filter by: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED |
+| `paymentStatuses` | string | No | Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED |
+| `purchasedAtStart` | string | No | Only include expenses purchased at or after this ISO 8601 timestamp |
+| `purchasedAtEnd` | string | No | Only include expenses purchased at or before this ISO 8601 timestamp |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of expenses to return \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expenses matching the filters |
+|   ↳ `id` | string | Unique expense ID |
+|   ↳ `memo` | string | Memo on the expense |
+|   ↳ `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
+|   ↳ `payment_status` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+|   ↳ `expense_type` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
+|   ↳ `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
+|   ↳ `merchant` | json | Merchant details |
+|     ↳ `raw_descriptor` | string | Raw merchant descriptor |
+|     ↳ `mcc` | string | Merchant category code |
+|     ↳ `country` | string | Merchant country |
+|   ↳ `user` | json | User who made the expense |
+|     ↳ `id` | string | User ID |
+|     ↳ `first_name` | string | First name |
+|     ↳ `last_name` | string | Last name |
+|   ↳ `budget` | json | Budget the expense belongs to |
+|     ↳ `id` | string | Budget ID |
+|     ↳ `name` | string | Budget name |
+|   ↳ `department` | json | Department of the expense owner |
+|     ↳ `id` | string | Department ID |
+|     ↳ `name` | string | Department name |
+|   ↳ `location` | json | Location of the expense owner |
+|     ↳ `id` | string | Location ID |
+|     ↳ `name` | string | Location name |
+|   ↳ `original_amount` | json | Original transaction amount |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `billing_amount` | json | Amount billed to the account |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `purchased_amount` | json | Amount at the time of purchase |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `receipts` | array | Receipts attached to the expense |
+|     ↳ `id` | string | Receipt ID |
+|     ↳ `download_uris` | array | Pre-signed receipt download URLs |
+|   ↳ `purchased_at` | string | Purchase timestamp \(ISO 8601\) |
+|   ↳ `updated_at` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `dashboard_url` | string | Link to the expense in the Brex dashboard |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_expense`
+
+Get a single Brex expense by its ID, including merchant, user, and receipt details
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `expenseId` | string | Yes | ID of the expense to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique expense ID |
+| `memo` | string | Memo on the expense |
+| `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
+| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+| `expenseType` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
+| `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
+| `merchantId` | string | Merchant ID |
+| `merchant` | json | Merchant details \(raw descriptor, MCC, country\) |
+|   ↳ `raw_descriptor` | string | Raw merchant descriptor |
+|   ↳ `mcc` | string | Merchant category code |
+|   ↳ `country` | string | Merchant country |
+| `budgetId` | string | Budget ID |
+| `budget` | json | Budget the expense belongs to |
+|   ↳ `id` | string | Budget ID |
+|   ↳ `name` | string | Budget name |
+| `departmentId` | string | Department ID |
+| `department` | json | Department of the expense owner |
+|   ↳ `id` | string | Department ID |
+|   ↳ `name` | string | Department name |
+| `locationId` | string | Location ID |
+| `location` | json | Location of the expense owner |
+|   ↳ `id` | string | Location ID |
+|   ↳ `name` | string | Location name |
+| `userId` | string | ID of the user who made the expense |
+| `user` | json | User who made the expense |
+|   ↳ `id` | string | User ID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+| `originalAmount` | json | Original transaction amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `billingAmount` | json | Amount billed to the account |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `purchasedAmount` | json | Amount at the time of purchase |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `usdEquivalentAmount` | json | USD equivalent amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `purchasedAt` | string | Purchase timestamp \(ISO 8601\) |
+| `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `paymentPostedAt` | string | Timestamp the payment was posted \(ISO 8601\) |
+| `receipts` | array | Receipts attached to the expense |
+|   ↳ `id` | string | Receipt ID |
+|   ↳ `download_uris` | array | Pre-signed receipt download URLs |
+| `dashboardUrl` | string | Link to the expense in the Brex dashboard |
+
+### `brex_update_expense`
+
+Update the memo of a Brex card expense
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `expenseId` | string | Yes | ID of the card expense to update |
+| `memo` | string | Yes | New memo for the expense |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique expense ID |
+| `memo` | string | Updated memo on the expense |
+| `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
+| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+| `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
+| `merchantId` | string | Merchant ID |
+| `budgetId` | string | Budget ID |
+| `originalAmount` | json | Original transaction amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `billingAmount` | json | Amount billed to the account |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `purchasedAt` | string | Purchase timestamp \(ISO 8601\) |
+| `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+
+### `brex_upload_receipt`
+
+Upload a receipt file and attach it to a specific Brex card expense
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `expenseId` | string | Yes | ID of the card expense to attach the receipt to |
+| `file` | file | Yes | Receipt file to upload \(max 50 MB\) |
+| `receiptName` | string | No | Receipt file name including extension \(defaults to the uploaded file name\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receiptId` | string | Unique identifier of the receipt upload |
+| `receiptName` | string | Name the receipt was uploaded with |
+| `expenseId` | string | ID of the expense the receipt was attached to |
+
+### `brex_match_receipt`
+
+Upload a receipt file and let Brex automatically match it with existing expenses
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `file` | file | Yes | Receipt file to upload \(max 50 MB\) |
+| `receiptName` | string | No | Receipt file name including extension \(defaults to the uploaded file name\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receiptId` | string | Unique identifier of the receipt match request |
+| `receiptName` | string | Name the receipt was uploaded with |
+| `expenseId` | string | Always null for receipt match \(Brex matches the receipt asynchronously\) |
+
+### `brex_list_card_transactions`
+
+List settled card transactions for all Brex card accounts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `userIds` | string | No | Comma-separated user IDs to filter transactions by cardholder |
+| `postedAtStart` | string | No | Only include transactions posted at or after this ISO 8601 timestamp |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of transactions to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Settled card transactions |
+|   ↳ `id` | string | Unique transaction ID |
+|   ↳ `card_id` | string | ID of the card used |
+|   ↳ `description` | string | Transaction description |
+|   ↳ `amount` | json | Transaction amount |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `initiated_at_date` | string | Date the transaction was initiated |
+|   ↳ `posted_at_date` | string | Date the transaction was posted |
+|   ↳ `type` | string | Transaction type \(PURCHASE, REFUND, CHARGEBACK, REWARDS_CREDIT, COLLECTION, BNPL_FEE\) |
+|   ↳ `merchant` | json | Merchant details |
+|     ↳ `raw_descriptor` | string | Raw merchant descriptor |
+|     ↳ `mcc` | string | Merchant category code |
+|     ↳ `country` | string | Merchant country |
+|   ↳ `expense_id` | string | Associated expense ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_cash_transactions`
+
+List transactions for a Brex cash account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `accountId` | string | Yes | ID of the cash account to list transactions for |
+| `postedAtStart` | string | No | Only include transactions posted at or after this ISO 8601 timestamp |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of transactions to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Cash account transactions |
+|   ↳ `id` | string | Unique transaction ID |
+|   ↳ `description` | string | Transaction description |
+|   ↳ `amount` | json | Transaction amount |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `initiated_at_date` | string | Date the transaction was initiated |
+|   ↳ `posted_at_date` | string | Date the transaction was posted |
+|   ↳ `type` | string | Transaction type |
+|   ↳ `transfer_id` | string | Associated transfer ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_card_accounts`
+
+List all Brex card accounts with balances and limits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | array | Card accounts |
+|   ↳ `id` | string | Unique account ID |
+|   ↳ `status` | string | Account status |
+|   ↳ `current_balance` | json | Current balance |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `available_balance` | json | Available balance |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `account_limit` | json | Account limit |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `current_statement_period` | json | Current statement period \(start_date, end_date\) |
+
+### `brex_list_cash_accounts`
+
+List all Brex cash accounts with balances and account details
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of accounts to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Cash accounts |
+|   ↳ `id` | string | Unique account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `status` | string | Account status |
+|   ↳ `current_balance` | json | Current balance |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `available_balance` | json | Available balance |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `account_number` | string | Bank account number |
+|   ↳ `routing_number` | string | Bank routing number |
+|   ↳ `primary` | boolean | Whether this is the primary cash account |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_cash_account`
+
+Get a Brex cash account by ID, or the primary cash account when no ID is provided
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `accountId` | string | No | ID of the cash account \(defaults to the primary cash account\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique account ID |
+| `name` | string | Account name |
+| `status` | string | Account status |
+| `currentBalance` | json | Current balance |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `availableBalance` | json | Available balance |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `accountNumber` | string | Bank account number |
+| `routingNumber` | string | Bank routing number |
+| `primary` | boolean | Whether this is the primary cash account |
+
+### `brex_list_card_statements`
+
+List finalized statements for the primary Brex card account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of statements to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Finalized card account statements |
+|   ↳ `id` | string | Unique statement ID |
+|   ↳ `start_balance` | json | Balance at the start of the period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `end_balance` | json | Balance at the end of the period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `period` | json | Statement period \(start_date, end_date\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_cash_statements`
+
+List finalized statements for a Brex cash account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `accountId` | string | Yes | ID of the cash account to list statements for |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of statements to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Finalized cash account statements |
+|   ↳ `id` | string | Unique statement ID |
+|   ↳ `start_balance` | json | Balance at the start of the period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `end_balance` | json | Balance at the end of the period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `period` | json | Statement period \(start_date, end_date\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_users`
+
+List users in the Brex account, optionally filtered by email
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `email` | string | No | Filter users by exact email address |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of users to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Users in the Brex account |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+|   ↳ `manager_id` | string | ID of the manager |
+|   ↳ `department_id` | string | Department ID |
+|   ↳ `location_id` | string | Location ID |
+|   ↳ `title_id` | string | Title ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_user`
+
+Get a Brex user by their ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `userId` | string | Yes | ID of the user to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique user ID |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Email address |
+| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+| `managerId` | string | ID of the manager |
+| `departmentId` | string | Department ID |
+| `locationId` | string | Location ID |
+| `titleId` | string | Title ID |
+
+### `brex_get_current_user`
+
+Get the Brex user associated with the API token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique user ID |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Email address |
+| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+| `managerId` | string | ID of the manager |
+| `departmentId` | string | Department ID |
+| `locationId` | string | Location ID |
+| `titleId` | string | Title ID |
+
+### `brex_list_departments`
+
+List departments in the Brex account, optionally filtered by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | No | Filter departments by name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of departments to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Departments in the Brex account |
+|   ↳ `id` | string | Unique department ID |
+|   ↳ `name` | string | Department name |
+|   ↳ `description` | string | Department description |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_locations`
+
+List locations in the Brex account, optionally filtered by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | No | Filter locations by name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of locations to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Locations in the Brex account |
+|   ↳ `id` | string | Unique location ID |
+|   ↳ `name` | string | Location name |
+|   ↳ `description` | string | Location description |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_titles`
+
+List job titles in the Brex account, optionally filtered by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | No | Filter titles by name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of titles to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Job titles in the Brex account |
+|   ↳ `id` | string | Unique title ID |
+|   ↳ `name` | string | Title name |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_list_cards`
+
+List cards in the Brex account, optionally filtered by card owner
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `userId` | string | No | Filter cards by the ID of the card owner |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of cards to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Cards in the Brex account |
+|   ↳ `id` | string | Unique card ID |
+|   ↳ `owner` | json | Card owner \(type, user_id\) |
+|   ↳ `status` | string | Card status |
+|   ↳ `last_four` | string | Last four digits of the card number |
+|   ↳ `card_name` | string | Card name |
+|   ↳ `card_type` | string | Card type \(VIRTUAL or PHYSICAL\) |
+|   ↳ `limit_type` | string | Limit type \(CARD or USER\) |
+|   ↳ `spend_controls` | json | Spend controls on the card |
+|   ↳ `billing_address` | json | Billing address of the card |
+|   ↳ `expiration_date` | json | Card expiration date \(month, year\) |
+|   ↳ `budget_id` | string | Associated budget ID |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_company`
+
+Get the Brex company associated with the API token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique company ID |
+| `legalName` | string | Legal name of the company |
+| `mailingAddress` | json | Company mailing address \(line1, line2, city, state, country, postal_code\) |
+| `accountType` | string | Brex account type \(BREX_CLASSIC or BREX_EMPOWER\) |
+
+### `brex_list_budgets`
+
+List budgets in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of budgets to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Budgets in the Brex account |
+|   ↳ `budget_id` | string | Unique budget ID |
+|   ↳ `account_id` | string | Account ID the budget belongs to |
+|   ↳ `name` | string | Budget name |
+|   ↳ `description` | string | Budget description |
+|   ↳ `parent_budget_id` | string | Parent budget ID |
+|   ↳ `owner_user_ids` | array | User IDs of the budget owners |
+|   ↳ `period_recurrence_type` | string | Budget period recurrence \(WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+|   ↳ `start_date` | string | Budget start date |
+|   ↳ `end_date` | string | Budget end date |
+|   ↳ `amount` | json | Budget amount |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `spend_budget_status` | string | Budget status |
+|   ↳ `limit_type` | string | Budget limit type |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_budget`
+
+Get a Brex budget by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `budgetId` | string | Yes | ID of the budget to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budgetId` | string | Unique budget ID |
+| `accountId` | string | Account ID the budget belongs to |
+| `name` | string | Budget name |
+| `description` | string | Budget description |
+| `parentBudgetId` | string | Parent budget ID |
+| `ownerUserIds` | array | User IDs of the budget owners |
+| `periodRecurrenceType` | string | Budget period recurrence \(WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+| `startDate` | string | Budget start date |
+| `endDate` | string | Budget end date |
+| `amount` | json | Budget amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED, EXPIRED\) |
+| `limitType` | string | Budget limit type \(HARD or SOFT\) |
+
+### `brex_list_spend_limits`
+
+List spend limits in the Brex account, optionally filtered by member user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `memberUserIds` | string | No | Comma-separated user IDs to filter spend limits by member |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of spend limits to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Spend limits in the Brex account |
+|   ↳ `id` | string | Unique spend limit ID |
+|   ↳ `account_id` | string | Account ID the spend limit belongs to |
+|   ↳ `name` | string | Spend limit name |
+|   ↳ `description` | string | Spend limit description |
+|   ↳ `parent_budget_id` | string | Parent budget ID |
+|   ↳ `status` | string | Spend limit status |
+|   ↳ `period_recurrence_type` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
+|   ↳ `spend_type` | string | Spend type of the limit |
+|   ↳ `owner_user_ids` | array | User IDs of the spend limit owners |
+|   ↳ `member_user_ids` | array | User IDs of the spend limit members |
+|   ↳ `current_period_balance` | json | Spend and rollover amounts for the current period |
+|     ↳ `start_date` | string | Start date of the current period |
+|     ↳ `end_date` | string | End date of the current period |
+|     ↳ `start_time` | string | Start time of the current period \(ISO 8601\) |
+|     ↳ `end_time` | string | End time of the current period \(ISO 8601\) |
+|     ↳ `amount_spent` | json | Amount spent in the current period |
+|       ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|       ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|     ↳ `rollover_amount` | json | Amount rolled over from previous periods |
+|       ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|       ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_spend_limit`
+
+Get a Brex spend limit by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `spendLimitId` | string | Yes | ID of the spend limit to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique spend limit ID |
+| `accountId` | string | Account ID the spend limit belongs to |
+| `name` | string | Spend limit name |
+| `description` | string | Spend limit description |
+| `parentBudgetId` | string | Parent budget ID |
+| `status` | string | Spend limit status \(ACTIVE, EXPIRED, ARCHIVED, DELETED\) |
+| `periodRecurrenceType` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
+| `spendType` | string | Spend type of the limit |
+| `startDate` | string | Spend limit start date |
+| `endDate` | string | Spend limit end date |
+| `ownerUserIds` | array | User IDs of the spend limit owners |
+| `memberUserIds` | array | User IDs of the spend limit members |
+| `currentPeriodBalance` | json | Spend and rollover amounts for the current period |
+|   ↳ `start_date` | string | Start date of the current period |
+|   ↳ `end_date` | string | End date of the current period |
+|   ↳ `start_time` | string | Start time of the current period \(ISO 8601\) |
+|   ↳ `end_time` | string | End time of the current period \(ISO 8601\) |
+|   ↳ `amount_spent` | json | Amount spent in the current period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `rollover_amount` | json | Amount rolled over from previous periods |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `authorizationSettings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
+
+### `brex_list_vendors`
+
+List vendors in the Brex account, optionally filtered by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `name` | string | No | Filter vendors by name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of vendors to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Vendors in the Brex account |
+|   ↳ `id` | string | Unique vendor ID |
+|   ↳ `company_name` | string | Vendor company name |
+|   ↳ `email` | string | Vendor email address |
+|   ↳ `phone` | string | Vendor phone number |
+|   ↳ `payment_accounts` | array | Payment accounts associated with the vendor |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_vendor`
+
+Get a Brex vendor by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `vendorId` | string | Yes | ID of the vendor to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique vendor ID |
+| `companyName` | string | Vendor company name |
+| `email` | string | Vendor email address |
+| `phone` | string | Vendor phone number |
+| `paymentAccounts` | array | Payment accounts associated with the vendor |
+
+### `brex_list_transfers`
+
+List money transfers in the Brex account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `limit` | string | No | Number of transfers to return \(default 100, max 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Transfers in the Brex account |
+|   ↳ `id` | string | Unique transfer ID |
+|   ↳ `counterparty` | json | Transfer counterparty details |
+|   ↳ `description` | string | Transfer description |
+|   ↳ `payment_type` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN\) |
+|   ↳ `amount` | json | Transfer amount |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `process_date` | string | Date the transfer processes |
+|   ↳ `originating_account` | json | Account the transfer originates from |
+|   ↳ `status` | string | Transfer status \(PROCESSING, SCHEDULED, PENDING_APPROVAL, FAILED, PROCESSED\) |
+|   ↳ `cancellation_reason` | string | Reason the transfer was canceled |
+|   ↳ `estimated_delivery_date` | string | Estimated delivery date |
+|   ↳ `creator_user_id` | string | ID of the user who created the transfer |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `display_name` | string | Transfer display name |
+|   ↳ `external_memo` | string | External memo |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `brex_get_transfer`
+
+Get a Brex money transfer by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Brex user token \(generated from Developer Settings in the Brex dashboard\) |
+| `transferId` | string | Yes | ID of the transfer to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique transfer ID |
+| `counterparty` | json | Transfer counterparty details |
+| `description` | string | Transfer description |
+| `paymentType` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN\) |
+| `amount` | json | Transfer amount |
+|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `processDate` | string | Date the transfer processes |
+| `originatingAccount` | json | Account the transfer originates from |
+| `status` | string | Transfer status \(PROCESSING, SCHEDULED, PENDING_APPROVAL, FAILED, PROCESSED\) |
+| `cancellationReason` | string | Reason the transfer was canceled |
+| `estimatedDeliveryDate` | string | Estimated delivery date |
+| `creatorUserId` | string | ID of the user who created the transfer |
+| `createdAt` | string | Creation timestamp |
+| `displayName` | string | Transfer display name |
+| `externalMemo` | string | External memo |
+
+

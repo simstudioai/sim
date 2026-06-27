@@ -1,0 +1,86 @@
+---
+title: Google Search
+description: Поиск в интернете
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) is the world's most widely used web search engine, making it easy to find information, discover new content, and answer questions in real time.
+
+With the Google Search integration in Sim, you can:
+
+- **Search the web**: Perform queries using Google's Custom Search API and retrieve structured search results with titles, snippets, and URLs
+
+In Sim, the Google Search integration allows your agents to search the web and retrieve live information as part of automated workflows. This enables use cases such as automated research, fact-checking, knowledge synthesis, and dynamic content discovery.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интеграция Google Search в рабочий процесс. Позволяет выполнять поиск в интернете.
+
+
+
+## Действия
+
+### `google_search`
+
+Search the web with the Custom Search API
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Да | The search query to execute |
+| `searchEngineId` | string | Да | Custom Search Engine ID |
+| `num` | string | Нет | Number of results to return \(1-10, default 10\) |
+| `start` | number | Нет | Index of the first result \(1-based, for pagination; start + num must be &lt;= 100\) |
+| `dateRestrict` | string | Нет | Restrict results by recency: d\[n\] days, w\[n\] weeks, m\[n\] months, y\[n\] years |
+| `fileType` | string | Нет | Restrict to a file extension \(e.g., pdf, doc\) |
+| `safe` | string | Нет | SafeSearch level: "active" or "off" \(default off\) |
+| `searchType` | string | Нет | Set to "image" to perform an image search |
+| `siteSearch` | string | Нет | A site to include or exclude from results |
+| `siteSearchFilter` | string | Нет | Whether to include \("i"\) or exclude \("e"\) the siteSearch site |
+| `lr` | string | Нет | Restrict to a language, e.g. "lang_en" |
+| `gl` | string | Нет | Two-letter country code to boost geographically relevant results |
+| `sort` | string | Нет | Sort expression, e.g. "date" |
+| `apiKey` | string | Да | Google API key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `items` | array | Array of search results from Google |
+|   ↳ `title` | string | Title of the search result |
+|   ↳ `htmlTitle` | string | Title of the search result with HTML markup |
+|   ↳ `link` | string | URL of the search result |
+|   ↳ `displayLink` | string | Display URL \(abbreviated form\) |
+|   ↳ `snippet` | string | Snippet or description of the search result |
+|   ↳ `htmlSnippet` | string | Snippet of the search result with HTML markup |
+|   ↳ `formattedUrl` | string | Display URL shown beneath the result |
+|   ↳ `mime` | string | MIME type of the result |
+|   ↳ `fileFormat` | string | File format of the result |
+|   ↳ `cacheId` | string | ID of Google's cached version |
+|   ↳ `pagemap` | object | PageMap information for the result \(structured data\) |
+|   ↳ `image` | object | Image metadata \(present when searchType is image\) |
+|     ↳ `contextLink` | string | URL of the page hosting the image |
+|     ↳ `height` | number | Image height in pixels |
+|     ↳ `width` | number | Image width in pixels |
+|     ↳ `byteSize` | number | Image file size in bytes |
+|     ↳ `thumbnailLink` | string | Thumbnail image URL |
+|     ↳ `thumbnailHeight` | number | Thumbnail height in pixels |
+|     ↳ `thumbnailWidth` | number | Thumbnail width in pixels |
+| `searchInformation` | object | Information about the search query and results |
+|   ↳ `totalResults` | string | Total number of search results available |
+|   ↳ `searchTime` | number | Time taken to perform the search in seconds |
+|   ↳ `formattedSearchTime` | string | Formatted search time for display |
+|   ↳ `formattedTotalResults` | string | Formatted total results count for display |
+| `nextPageStartIndex` | number | Start index for the next page of results \(null if no further results\) |
+
+

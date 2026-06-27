@@ -1,0 +1,118 @@
+---
+title: Granola
+description: Доступ к заметкам и транскриптам встреч из Granola
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="granola"
+  color="#B2C147"
+/>
+
+## Инструкции по использованию
+
+Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.
+
+
+
+## Действия
+
+### `granola_list_notes`
+
+Lists meeting notes from Granola with optional date filters and pagination.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Granola API key |
+| `createdBefore` | string | Нет | Return notes created before this date \(ISO 8601\) |
+| `createdAfter` | string | Нет | Return notes created after this date \(ISO 8601\) |
+| `updatedAfter` | string | Нет | Return notes updated after this date \(ISO 8601\) |
+| `folderId` | string | Нет | Return notes in this folder and its child folders \(e.g., fol_4y6LduVdwSKC27\) |
+| `cursor` | string | Нет | Pagination cursor from a previous response |
+| `pageSize` | number | Нет | Number of notes per page \(1-30, default 10\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `notes` | json | List of meeting notes |
+|   ↳ `id` | string | Note ID |
+|   ↳ `title` | string | Note title |
+|   ↳ `ownerName` | string | Note owner name |
+|   ↳ `ownerEmail` | string | Note owner email |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `hasMore` | boolean | Whether more notes are available |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `granola_get_note`
+
+Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Granola API key |
+| `noteId` | string | Да | The note ID \(e.g., not_1d3tmYTlCICgjy\) |
+| `includeTranscript` | string | Нет | Whether to include the meeting transcript |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Note ID |
+| `title` | string | Note title |
+| `ownerName` | string | Note owner name |
+| `ownerEmail` | string | Note owner email |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `webUrl` | string | URL to view the note in Granola |
+| `summaryText` | string | Plain text summary of the meeting |
+| `summaryMarkdown` | string | Markdown-formatted summary of the meeting |
+| `attendees` | json | Meeting attendees |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email |
+| `folders` | json | Folders the note belongs to |
+|   ↳ `id` | string | Folder ID |
+|   ↳ `name` | string | Folder name |
+| `calendarEventTitle` | string | Calendar event title |
+| `calendarOrganiser` | string | Calendar event organiser email |
+| `calendarEventId` | string | Calendar event ID |
+| `scheduledStartTime` | string | Scheduled start time |
+| `scheduledEndTime` | string | Scheduled end time |
+| `invitees` | json | Calendar event invitee emails |
+| `transcript` | json | Meeting transcript entries \(only if requested\) |
+|   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
+|   ↳ `speakerLabel` | string | Diarization label for the speaker \(e.g., Speaker A\) |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `startTime` | string | Segment start time |
+|   ↳ `endTime` | string | Segment end time |
+
+### `granola_list_folders`
+
+Lists folders from Granola, sorted alphabetically, with pagination.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Granola API key |
+| `cursor` | string | Нет | Pagination cursor from a previous response |
+| `pageSize` | number | Нет | Number of folders per page \(1-30, default 10\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `folders` | json | List of folders |
+|   ↳ `id` | string | Folder ID |
+|   ↳ `name` | string | Folder name |
+|   ↳ `parentFolderId` | string | Parent folder ID, or null for top-level folders |
+| `hasMore` | boolean | Whether more folders are available |
+| `cursor` | string | Pagination cursor for the next page |
+
+

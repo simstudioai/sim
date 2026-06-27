@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import {
   Button,
   Chip,
@@ -513,6 +514,13 @@ export function General() {
                 checked={settings?.showActionBar ?? true}
                 onCheckedChange={handleShowActionBarChange}
               />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <Label>Language</Label>
+              <div className={DROPDOWN_TRIGGER_CLASS}>
+                <LanguageSwitcher />
+              </div>
             </div>
 
             {isTrainingEnabled && (

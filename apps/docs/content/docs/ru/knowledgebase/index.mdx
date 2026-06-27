@@ -1,0 +1,58 @@
+---
+title: Overview
+description: A store of documents your agents can search by meaning.
+pageType: concept
+---
+
+import { Video } from '@/components/ui/video'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { FAQ } from '@/components/ui/faq'
+
+A **knowledge base** is a store of documents your agents can search by meaning. You upload files, Sim splits them into chunks and indexes them, and a [Knowledge block](/knowledgebase/using-in-workflows) retrieves the chunks most relevant to a query. This is how an agent answers from your own content instead of the model's general training.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
+
+## How a document becomes searchable
+
+When you upload a document, Sim processes it in the background:
+
+1. **Extract** the text, with a parser for each file type and OCR for scanned PDFs.
+2. **Chunk** it into passages, with a size and overlap you can tune.
+3. **Embed** each chunk as a vector so it can be matched by meaning, not just keywords.
+
+A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
+
+## What you can upload
+
+Sim accepts PDF, Word, text, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML files, up to 100 MB each (best under 50 MB). Scanned PDFs work too: with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/) configured, Sim extracts text from image-based pages.
+
+## Shaping what a search returns
+
+Two things control retrieval quality, and each has its own page:
+
+- **Chunking** decides how a document is split. Smaller chunks are more precise; larger ones keep more context. See [chunking strategies](/knowledgebase/chunking-strategies).
+- **Tags** label documents so a search can filter to a subset. See [tags and filtering](/knowledgebase/tags).
+
+To keep a base in sync with an outside source like Google Drive, use a [connector](/knowledgebase/connectors).
+
+## Next
+
+<Cards>
+  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="The Knowledge block: search, tags, reranking, and reading the results." />
+  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="How chunk size and boundaries shape retrieval." />
+  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Label documents and narrow a search." />
+  <Card title="Connectors" href="/knowledgebase/connectors" description="Sync documents from an external source." />
+  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
+</Cards>
+
+<FAQ items={[
+  { question: "What file types are supported?", answer: "PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML files." },
+  { question: "Is there a file size limit?", answer: "Files can be up to 100 MB each, with best performance under 50 MB." },
+  { question: "Can I edit chunks after processing?", answer: "Yes. You can view, edit, merge, split, and add metadata to individual chunks once a document is processed." },
+  { question: "How does semantic search work?", answer: "Documents are embedded as vectors. When you search, your query is embedded too and compared against the document vectors to find conceptually similar content, even when the exact keywords don't match." },
+  { question: "Does it support scanned PDFs?", answer: "Yes. With Azure or Mistral OCR configured, Sim extracts text from image-based and scanned PDF pages." },
+  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block searches one knowledge base. Use multiple Knowledge blocks in a workflow to search across several." },
+  { question: "How do I control chunk size?", answer: "When you create a knowledge base, you can set the max chunk size (100 to 4,000 tokens), min chunk size (100 to 2,000 characters), and overlap (0 to 500 tokens). See chunking strategies for details." },
+]} />

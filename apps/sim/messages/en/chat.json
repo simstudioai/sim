@@ -1,0 +1,14 @@
+{
+  "newChat": "New chat",
+  "sendMessage": "Send message",
+  "typeMessage": "Type a message...",
+  "thinking": "Thinking...",
+  "generating": "Generating...",
+  "attachFile": "Attach file",
+  "clearChat": "Clear chat",
+  "regenerate": "Regenerate",
+  "stopGenerating": "Stop generating",
+  "copiedToClipboard": "Copied to clipboard",
+  "noMessages": "No messages",
+  "startConversation": "Start a conversation"
+}

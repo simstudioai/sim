@@ -1,0 +1,402 @@
+---
+title: SendGrid
+description: Отправка писем и управление контактами, списками и шаблонами с SendGrid
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sendgrid"
+  color="#1A82E2"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SendGrid](https://sendgrid.com) is a leading cloud-based email delivery platform trusted by developers and businesses to send reliable transactional and marketing emails at scale. With its robust APIs and powerful tools, SendGrid enables you to manage all aspects of your email communication, from sending notifications and receipts to managing complex marketing campaigns.
+
+SendGrid empowers users with a full suite of email operations, allowing you to automate critical email workflows and closely manage contact lists, templates, and recipient engagement. Its seamless integration with Sim enables agents and workflows to deliver targeted messages, maintain dynamic contact and recipient lists, trigger personalized emails through templates, and track the results in real time.
+
+Key features of SendGrid include:
+
+- **Transactional Email:** Send automated and high-volume transactional emails (like notifications, receipts, and password resets).
+- **Dynamic Templates:** Use rich HTML or text templates with dynamic data for highly personalized communication at scale.
+- **Contact Management:** Add and update marketing contacts, manage recipient lists, and target segments for campaigns.
+- **Attachments Support:** Include one or more file attachments in your emails.
+- **Comprehensive API Coverage:** Programmatically manage emails, contacts, lists, templates, suppression groups, and more.
+
+By connecting SendGrid with Sim, your agents can:
+
+- Send both simple and advanced (templated or multi-recipient) emails as part of any workflow.
+- Manage and segment contacts and lists automatically.
+- Leverage templates for consistency and dynamic personalization.
+- Track and respond to email engagement within your automated processes.
+
+This integration allows you to automate all critical communication flows, ensure messages reach the right audience, and maintain control over your organization’s email strategy, directly from Sim workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте SendGrid в ваш рабочий процесс. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.
+
+
+
+## Действия
+
+### `sendgrid_send_mail`
+
+Отправка письма using SendGrid API
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `from` | string | Да | Sender email address \(must be verified in SendGrid\) |
+| `fromName` | string | Нет | Sender name |
+| `to` | string | Да | Recipient email address |
+| `toName` | string | Нет | Recipient name |
+| `subject` | string | Нет | Email subject \(required unless using a template with pre-defined subject\) |
+| `content` | string | Нет | Email body content \(required unless using a template with pre-defined content\) |
+| `contentType` | string | Нет | Content type \(text/plain or text/html\) |
+| `cc` | string | Нет | CC email address |
+| `bcc` | string | Нет | BCC email address |
+| `replyTo` | string | Нет | Reply-to email address |
+| `replyToName` | string | Нет | Reply-to name |
+| `attachments` | file[] | Нет | Files to attach to the email \(UserFile objects\) |
+| `templateId` | string | Нет | SendGrid template ID to use |
+| `dynamicTemplateData` | json | Нет | JSON object of dynamic template data |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  email was sent successfully |
+| `messageId` | string | SendGrid message ID |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+
+### `sendgrid_add_contact`
+
+Add a new contact to SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `email` | string | Да | Contact email address |
+| `firstName` | string | Нет | Contact first name |
+| `lastName` | string | Нет | Contact last name |
+| `customFields` | json | Нет | JSON object of custom field key-value pairs \(use field IDs like e1_T, e2_N, e3_D, not field names\) |
+| `listIds` | string | Нет | Comma-separated list IDs to add the contact to |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for tracking the async contact creation |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `message` | string | Status message |
+
+### `sendgrid_get_contact`
+
+Получение a specific contact by ID from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `contactId` | string | Да | Contact ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Contact ID |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `listIds` | json | Array of list IDs the contact belongs to |
+| `customFields` | json | Custom field values |
+
+### `sendgrid_search_contacts`
+
+Search for contacts in SendGrid using a query
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `query` | string | Да | Search query (например, \"email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)\"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Array of matching contacts |
+| `contactCount` | number | Total number of contacts found |
+
+### `sendgrid_delete_contacts`
+
+Delete one or more contacts from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `contactIds` | string | Да | Comma-separated contact IDs to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for the deletion request |
+
+### `sendgrid_create_list`
+
+Создание нового contact list in SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `name` | string | Да | Получение списка name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Получение списка ID |
+| `name` | string | Получение списка name |
+| `contactCount` | number | Number of contacts in the list |
+
+### `sendgrid_get_list`
+
+Получение a specific list by ID from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `listId` | string | Да | Получение списка ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Получение списка ID |
+| `name` | string | Получение списка name |
+| `contactCount` | number | Number of contacts in the list |
+
+### `sendgrid_list_all_lists`
+
+Получение all contact lists from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `pageSize` | number | Нет | Number of lists to return per page \(по умолчанию: 100\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | json | Array of lists |
+
+### `sendgrid_delete_list`
+
+Удаление contact list from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `listId` | string | Да | Получение списка ID to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `sendgrid_add_contacts_to_list`
+
+Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `listId` | string | Да | Получение списка ID to add contacts to |
+| `contacts` | json | Да | JSON array of contact objects. Each contact must have at least: email \(or phone_number_id/external_id/anonymous_id\). Example: \[\{"email": "user@example.com", "first_name": "John"\}\] |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for tracking the async operation |
+| `message` | string | Status message |
+
+### `sendgrid_remove_contacts_from_list`
+
+Remove contacts from a specific list in SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `listId` | string | Да | Получение списка ID |
+| `contactIds` | string | Да | Comma-separated contact IDs to remove from the list |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job ID for the request |
+
+### `sendgrid_create_template`
+
+Создание нового email template in SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `name` | string | Да | Template name |
+| `generation` | string | Нет | Template generation type \(legacy or dynamic, по умолчанию: dynamic\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Template ID |
+| `name` | string | Template name |
+| `generation` | string | Template generation |
+| `updatedAt` | string | Last update timestamp |
+| `versions` | json | Array of template versions |
+
+### `sendgrid_get_template`
+
+Получение a specific template by ID from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `templateId` | string | Да | Template ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Template ID |
+| `name` | string | Template name |
+| `generation` | string | Template generation |
+| `updatedAt` | string | Last update timestamp |
+| `versions` | json | Array of template versions |
+
+### `sendgrid_list_templates`
+
+Получение all email templates from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `generations` | string | Нет | Filter by generation \(legacy, dynamic, or both\) |
+| `pageSize` | number | Нет | Number of templates to return per page \(по умолчанию: 20\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templates` | json | Array of templates |
+
+### `sendgrid_delete_template`
+
+Удалениеn email template from SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `templateId` | string | Да | Template ID to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `message` | string | Status or success message |
+| `messageId` | string | Email message ID \(send_mail\) |
+| `to` | string | Recipient email address \(send_mail\) |
+| `subject` | string | Email subject \(send_mail, create_template_version\) |
+| `id` | string | Resource ID |
+| `jobId` | string | Job ID for async operations |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `listIds` | json | Array of list IDs the contact belongs to |
+| `customFields` | json | Custom field values |
+| `contacts` | json | Array of contacts |
+| `contactCount` | number | Number of contacts |
+| `lists` | json | Array of lists |
+| `name` | string | Resource name |
+| `templates` | json | Array of templates |
+| `generation` | string | Template generation |
+| `versions` | json | Array of template versions |
+| `templateId` | string | Template ID |
+| `active` | boolean | Whether template version is active |
+| `htmlContent` | string | HTML content |
+| `plainContent` | string | Plain text content |
+
+### `sendgrid_create_template_version`
+
+Создание нового version of an email template in SendGrid
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | SendGrid Ключ API |
+| `templateId` | string | Да | Template ID |
+| `name` | string | Да | Version name |
+| `subject` | string | Да | Email subject line |
+| `htmlContent` | string | Нет | HTML content of the template |
+| `plainContent` | string | Нет | Plain text content of the template |
+| `active` | boolean | Нет | Whether this version is active \(по умолчанию: true\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Version ID |
+| `templateId` | string | Template ID |
+| `name` | string | Version name |
+| `subject` | string | Email subject |
+| `active` | boolean | Whether this version is active |
+| `htmlContent` | string | HTML content |
+| `plainContent` | string | Plain text content |
+| `updatedAt` | string | Last update timestamp |
+
+

@@ -1,0 +1,19 @@
+{
+  "connect": "Подключить",
+  "disconnect": "Отключить",
+  "configure": "Настроить",
+  "connected": "Подключено",
+  "disconnected": "Отключено",
+  "apiKey": "API ключ",
+  "apiSecret": "API секрет",
+  "accessToken": "Токен доступа",
+  "webhookUrl": "URL вебхука",
+  "testConnection": "Проверить подключение",
+  "connectionSuccessful": "Подключение успешно",
+  "connectionFailed": "Ошибка подключения",
+  "noIntegrations": "Нет подключённых интеграций",
+  "browseIntegrations": "Выбрать интеграции",
+  "searchIntegrations": "Поиск интеграций...",
+  "oauth": "OAuth",
+  "customApp": "Своё приложение"
+}

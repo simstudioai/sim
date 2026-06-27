@@ -1,0 +1,19 @@
+{
+  "connect": "Verbinden",
+  "disconnect": "Trennen",
+  "configure": "Konfigurieren",
+  "connected": "Verbunden",
+  "disconnected": "Getrennt",
+  "apiKey": "API-Schlüssel",
+  "apiSecret": "API-Geheimnis",
+  "accessToken": "Zugriffstoken",
+  "webhookUrl": "Webhook-URL",
+  "testConnection": "Verbindung testen",
+  "connectionSuccessful": "Verbindung erfolgreich",
+  "connectionFailed": "Verbindung fehlgeschlagen",
+  "noIntegrations": "Keine Integrationen verbunden",
+  "browseIntegrations": "Integrationen durchsuchen",
+  "searchIntegrations": "Integrationen suchen...",
+  "oauth": "OAuth",
+  "customApp": "Benutzerdefinierte App"
+}

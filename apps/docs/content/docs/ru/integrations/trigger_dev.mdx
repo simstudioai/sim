@@ -1,0 +1,1917 @@
+---
+title: Trigger.dev
+description: Запуск задач и управление выполнениями и расписаниями
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trigger_dev"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Trigger.dev](https://trigger.dev/) is an open-source platform for running background jobs and AI workloads. You write tasks in plain TypeScript, deploy them to Trigger.dev, and get durable runs with automatic retries, queues, cron schedules, and full observability — no servers or infrastructure to manage.
+
+With Trigger.dev, you can:
+
+- **Trigger tasks on demand**: Start a background task with any JSON payload and get back a run ID to track it
+- **Batch trigger at scale**: Kick off up to 1,000 runs of a task in a single request
+- **Track and control runs**: Получение a run's status, payload, output, and attempts; list and filter runs; cancel, replay, or reschedule them
+- **Run tasks on a schedule**: Create, update, activate, and deactivate cron schedules with timezone support
+- **Manage environment variables**: List, create, read, update, and delete env vars across dev, staging, and prod
+- **Control queues**: Inspect queue depth and concurrency, and pause or resume queues during incidents
+
+In Sim, the Trigger.dev integration lets your agents drive this entire lifecycle. An agent can trigger a deployed task with a payload, poll the run until it completes and use its output downstream, monitor for failed runs and replay the transient ones, manage per-customer cron schedules, and pause a queue when something goes wrong. Connect it with a project-scoped secret Ключ API (starts with `tr_`) — the key determines which environment the runs, schedules, and queues belong to. This makes Sim a natural control plane for the background jobs that power your product.
+
+Note: the environment variable operations (Получение списка Env Vars, Получение Env Var) return variable values in plaintext, and those values appear in workflow outputs and run history. Scope workflows that read environment variables carefully.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Trigger.dev в рабочий процесс. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.
+
+
+
+## Действия
+
+### `trigger_dev_trigger_task`
+
+Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `taskIdentifier` | string | Да | Identifier of the task to trigger (например, "send-welcome-email"\) |
+| `payload` | json | Нет | JSON payload passed to the task run. Example: \{"userId": "user_123"\} |
+| `idempotencyKey` | string | Нет | Idempotency key that ensures the task is only triggered once per key |
+| `queue` | string | Нет | Name of the queue to run the task on |
+| `concurrencyKey` | string | Нет | Key that scopes the queue concurrency limit (например, a user ID\) |
+| `delay` | string | Нет | Delay before the run executes, as a duration \("30m", "1h", "2d"\) or an ISO 8601 date |
+| `ttl` | string | Нет | Time-to-live before an unstarted run expires, as a duration \("1h42m"\) or seconds |
+| `machine` | string | Нет | Machine preset for the run: micro, small-1x, small-2x, medium-1x, medium-2x, large-1x, or large-2x |
+| `tags` | string | Нет | Comma-separated tags to attach to the run \(max 10, each under 128 characters\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the run that was triggered \(starts with run_\) |
+
+### `trigger_dev_batch_trigger_task`
+
+Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `taskIdentifier` | string | Да | Identifier of the task to batch trigger (например, "send-welcome-email"\) |
+| `items` | json | Да | JSON array of batch items \(max 1,000\). Each item is an object with a "payload" and optional "options" \(queue, concurrencyKey, idempotencyKey, ttl, delay, tags, machine\). Example: \[\{"payload": \{"userId": "user_1"\}\}, \{"payload": \{"userId": "user_2"\}, "options": \{"delay": "1h"\}\}\] |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `batchId` | string | ID of the batch that was triggered |
+| `runIds` | array | IDs of the runs created by the batch |
+
+### `trigger_dev_get_batch`
+
+Получение a Trigger.dev batch by its ID, including its status, run IDs, and success and failure counts.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `batchId` | string | Да | ID of the batch to retrieve \(starts with batch_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the batch \(starts with batch_\) |
+| `status` | string | Batch status \(PENDING, PROCESSING, COMPLETED, PARTIAL_FAILED, or ABORTED\) |
+| `idempotencyKey` | string | Idempotency key provided when triggering the batch |
+| `createdAt` | string | ISO timestamp when the batch was created |
+| `updatedAt` | string | ISO timestamp when the batch was last updated |
+| `runCount` | number | Total number of runs in the batch |
+| `runIds` | array | IDs of the runs in the batch |
+| `successfulRunCount` | number | Number of successful runs, populated after completion |
+| `failedRunCount` | number | Number of failed runs, populated after completion |
+| `errors` | array | Error details for failed items, present for PARTIAL_FAILED batches |
+|   ↳ `index` | number | Index of the failed item |
+|   ↳ `taskIdentifier` | string | Task identifier of the failed item |
+|   ↳ `error` | json | Error details |
+|   ↳ `errorCode` | string | Optional error code |
+
+### `trigger_dev_get_batch_results`
+
+Получение the execution results of every run in a Trigger.dev batch, including outputs and error details.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `batchId` | string | Да | ID of the batch to retrieve results for \(starts with batch_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the batch \(starts with batch_\) |
+| `items` | array | Execution results for each run in the batch |
+
+### `trigger_dev_get_run`
+
+Получение a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to retrieve \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_get_run_result`
+
+Получение the result of a Trigger.dev run: whether it succeeded, its output, and error details. Lighter than Получение Run when only the outcome is needed.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to retrieve the result for \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_get_run_events`
+
+Получение the log and span events of a Trigger.dev run, including messages, levels, durations, and error events.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to retrieve events for \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Log and span events recorded during the run |
+|   ↳ `spanId` | string | Span ID of the event |
+|   ↳ `parentId` | string | Parent span ID |
+|   ↳ `runId` | string | Run ID associated with the event |
+|   ↳ `message` | string | Event message |
+|   ↳ `startTime` | string | Start time as a bigint string \(nanoseconds since epoch\) |
+|   ↳ `duration` | number | Duration of the event in nanoseconds |
+|   ↳ `isError` | boolean | Указывает,  event represents an error |
+|   ↳ `isPartial` | boolean | Указывает,  event is still in progress |
+|   ↳ `isCancelled` | boolean | Указывает,  event was cancelled |
+|   ↳ `level` | string | Log level \(TRACE, DEBUG, LOG, INFO, WARN, or ERROR\) |
+|   ↳ `kind` | string | Kind of span event |
+|   ↳ `attemptNumber` | number | Attempt number the event belongs to |
+|   ↳ `taskSlug` | string | Task identifier |
+|   ↳ `events` | array | Span events (например, exceptions\) that occurred during this event |
+|     ↳ `name` | string | Event name |
+|     ↳ `time` | string | When the event occurred |
+
+### `trigger_dev_get_run_trace`
+
+Получение the OpenTelemetry trace of a Trigger.dev run as a tree of spans with timing, errors, and nested children.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to retrieve the trace for \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `traceId` | string | OpenTelemetry trace ID of the run |
+| `rootSpan` | json | Root span of the trace; each span has id, parentId, runId, data \(message, taskSlug, startTime, duration, isError, level, events\), and recursively nested children spans |
+
+### `trigger_dev_list_runs`
+
+Получение списка Trigger.dev runs in the environment of the Ключ API, with optional filters for status, task, version, tags, schedule, and creation time.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `status` | string | Нет | Comma-separated run statuses to filter by: PENDING_VERSION, DELAYED, QUEUED, EXECUTING, REATTEMPTING, FROZEN, COMPLETED, CANCELED, FAILED, CRASHED, INTERRUPTED, SYSTEM_FAILURE |
+| `taskIdentifier` | string | Нет | Comma-separated task identifiers to filter by |
+| `version` | string | Нет | Comma-separated worker versions to filter by (например, "20240101.1"\) |
+| `tag` | string | Нет | Comma-separated tags to filter by |
+| `schedule` | string | Нет | Schedule ID to filter by \(starts with sched_\) |
+| `isTest` | string | Нет | Filter by test runs: "true" for only test runs, "false" to exclude them |
+| `period` | string | Нет | Only return runs created in the given period (например, "1h", "7d"\) |
+| `from` | string | Нет | Only return runs created on or after this ISO 8601 timestamp |
+| `to` | string | Нет | Only return runs created on or before this ISO 8601 timestamp |
+| `pageSize` | number | Нет | Number of runs per page \(max 100, по умолчанию 25\) |
+| `pageAfter` | string | Нет | Run ID to start the page after, for forward pagination |
+| `pageBefore` | string | Нет | Run ID to start the page before, for backward pagination |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runs` | array | Runs matching the filters |
+| `pagination` | object | Cursor pagination details |
+|   ↳ `next` | string | Run ID to start the next page after |
+|   ↳ `previous` | string | Run ID to start the previous page before |
+
+### `trigger_dev_cancel_run`
+
+Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to cancel \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the run that was canceled |
+
+### `trigger_dev_replay_run`
+
+Replay a Trigger.dev run, creating a new run with the same payload and options as the original.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to replay \(starts with run_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the new run created by the replay |
+
+### `trigger_dev_reschedule_run`
+
+Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the delayed run to reschedule \(starts with run_\) |
+| `delay` | string | Да | New delay for the run, as a duration \("30m", "1h", "2d"\) or an ISO 8601 date to delay until |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_add_run_tags`
+
+Add tags to an existing Trigger.dev run. Runs can have up to 10 tags.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to tag \(starts with run_\) |
+| `tags` | string | Да | Comma-separated tags to add to the run \(max 10 total, each under 128 characters\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation message for the added tags |
+
+### `trigger_dev_update_run_metadata`
+
+Replace the metadata of a Trigger.dev run with a new JSON object.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `runId` | string | Да | ID of the run to update \(starts with run_\) |
+| `metadata` | json | Да | JSON object to set as the run metadata. Example: \{"stage": "approved"\} |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | The updated metadata of the run |
+
+### `trigger_dev_create_schedule`
+
+Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `task` | string | Да | Identifier of the task to schedule (например, "daily-report"\) |
+| `cron` | string | Да | Cron expression defining when the task runs (например, "0 0 * * *"\) |
+| `timezone` | string | Нет | IANA timezone the cron expression is evaluated in (например, "America/New_York"\). Defaults to UTC |
+| `externalId` | string | Нет | External identifier to associate with the schedule (например, a user ID\) |
+| `deduplicationKey` | string | Да | Key that prevents duplicate schedules; creating again with the same key updates the existing schedule |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_get_schedule`
+
+Получение a Trigger.dev schedule by its ID.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `scheduleId` | string | Да | ID of the schedule to retrieve \(starts with sched_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_list_schedules`
+
+Получение списка Trigger.dev schedules in the project, with page-based pagination.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `page` | number | Нет | Page number to return \(по умолчанию 1\) |
+| `perPage` | number | Нет | Number of schedules per page |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedules` | array | Schedules in the project |
+|   ↳ `id` | string | Unique ID of the schedule \(starts with sched_\) |
+|   ↳ `task` | string | Identifier of the task the schedule triggers |
+|   ↳ `type` | string | Schedule type \(DECLARATIVE or IMPERATIVE\) |
+|   ↳ `active` | boolean | Указывает,  schedule is active |
+|   ↳ `deduplicationKey` | string | Deduplication key of the schedule |
+|   ↳ `externalId` | string | External ID associated with the schedule |
+|   ↳ `cron` | string | Cron expression of the schedule |
+|   ↳ `cronDescription` | string | Human-readable description of the cron expression |
+|   ↳ `timezone` | string | IANA timezone of the schedule |
+|   ↳ `nextRun` | string | ISO timestamp of the next scheduled run |
+|   ↳ `environments` | array | Environments the schedule runs in |
+|     ↳ `id` | string | Environment ID |
+|     ↳ `type` | string | Environment type |
+|     ↳ `userName` | string | Username for dev environments |
+| `pagination` | object | Page-based pagination details |
+|   ↳ `currentPage` | number | Current page number |
+|   ↳ `totalPages` | number | Total number of pages |
+|   ↳ `count` | number | Total number of schedules |
+
+### `trigger_dev_update_schedule`
+
+Обновление imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `scheduleId` | string | Да | ID of the schedule to update \(starts with sched_\) |
+| `task` | string | Да | Identifier of the task the schedule triggers (например, "daily-report"\) |
+| `cron` | string | Да | Cron expression defining when the task runs (например, "0 0 * * *"\) |
+| `timezone` | string | Нет | IANA timezone the cron expression is evaluated in (например, "America/New_York"\). Defaults to UTC |
+| `externalId` | string | Нет | External identifier to associate with the schedule (например, a user ID\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_delete_schedule`
+
+Удалениеn imperative Trigger.dev schedule by its ID.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `scheduleId` | string | Да | ID of the schedule to delete \(starts with sched_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  schedule was deleted |
+| `scheduleId` | string | ID of the schedule that was deleted |
+
+### `trigger_dev_activate_schedule`
+
+Activate an imperative Trigger.dev schedule so it resumes triggering its task.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `scheduleId` | string | Да | ID of the schedule to activate \(starts with sched_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_deactivate_schedule`
+
+Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `scheduleId` | string | Да | ID of the schedule to deactivate \(starts with sched_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_list_env_vars`
+
+Получение списка the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment to list variables for: dev, staging, or prod |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `variables` | array | Environment variables in the project environment |
+|   ↳ `name` | string | Name of the environment variable |
+|   ↳ `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
+
+### `trigger_dev_create_env_var`
+
+Create an environment variable in a Trigger.dev project environment.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment to create the variable in: dev, staging, or prod |
+| `name` | string | Да | Name of the environment variable (например, "SLACK_API_KEY"\) |
+| `value` | string | Да | Value of the environment variable |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  environment variable was created |
+| `name` | string | Name of the environment variable that was created |
+
+### `trigger_dev_get_env_var`
+
+Получение an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment to read the variable from: dev, staging, or prod |
+| `name` | string | Да | Name of the environment variable (например, "SLACK_API_KEY"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the environment variable |
+| `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
+
+### `trigger_dev_update_env_var`
+
+Update the value of an environment variable in a Trigger.dev project environment.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment the variable belongs to: dev, staging, or prod |
+| `name` | string | Да | Name of the environment variable to update (например, "SLACK_API_KEY"\) |
+| `value` | string | Да | New value of the environment variable |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  environment variable was updated |
+| `name` | string | Name of the environment variable that was updated |
+
+### `trigger_dev_delete_env_var`
+
+Удалениеn environment variable from a Trigger.dev project environment.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment the variable belongs to: dev, staging, or prod |
+| `name` | string | Да | Name of the environment variable to delete (например, "SLACK_API_KEY"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  environment variable was deleted |
+| `name` | string | Name of the environment variable that was deleted |
+
+### `trigger_dev_import_env_vars`
+
+Upload multiple environment variables to a Trigger.dev project environment in one request.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `projectRef` | string | Да | External ref of the project, from the project settings \(starts with proj_\) |
+| `environment` | string | Да | Environment to upload the variables to: dev, staging, or prod |
+| `variables` | json | Да | JSON array of environment variables to upload. Example: \[\{"name": "SLACK_API_KEY", "value": "slack_123"\}\] |
+| `override` | string | Нет | Whether to override existing variables: "true" or "false" \(по умолчанию false\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  environment variables were uploaded |
+| `count` | number | Number of environment variables submitted |
+
+### `trigger_dev_get_queue`
+
+Получение a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `queueName` | string | Да | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
+| `queueType` | string | Нет | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_list_queues`
+
+Получение списка the queues in the environment of the Ключ API, including running and queued counts, with page-based pagination.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `page` | number | Нет | Page number to return \(по умолчанию 1\) |
+| `perPage` | number | Нет | Number of queues per page |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queues` | array | Queues in the environment |
+|   ↳ `id` | string | Unique ID of the queue \(starts with queue_\) |
+|   ↳ `name` | string | Name of the queue |
+|   ↳ `type` | string | Queue type \(task for task-по умолчанию queues, custom for named queues\) |
+|   ↳ `running` | number | Number of runs currently executing |
+|   ↳ `queued` | number | Number of runs waiting in the queue |
+|   ↳ `paused` | boolean | Указывает,  queue is paused |
+|   ↳ `concurrencyLimit` | number | Maximum number of runs that can execute concurrently |
+|   ↳ `concurrency` | object | Concurrency details for the queue |
+|     ↳ `current` | number | Current concurrency limit |
+|     ↳ `base` | number | Base concurrency limit |
+|     ↳ `override` | number | Overridden concurrency limit |
+|     ↳ `overriddenAt` | string | ISO timestamp when the concurrency limit was overridden |
+| `pagination` | object | Page-based pagination details |
+|   ↳ `currentPage` | number | Current page number |
+|   ↳ `totalPages` | number | Total number of pages |
+|   ↳ `count` | number | Total number of queues |
+
+### `trigger_dev_pause_queue`
+
+Pause a Trigger.dev queue so no new runs start. Runs that are currently executing continue to completion.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `queueName` | string | Да | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
+| `queueType` | string | Нет | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_resume_queue`
+
+Resume a paused Trigger.dev queue so new runs can start again.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `queueName` | string | Да | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
+| `queueType` | string | Нет | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_override_queue_concurrency`
+
+Override the concurrency limit of a Trigger.dev queue with a new value.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `queueName` | string | Да | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
+| `queueType` | string | Нет | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
+| `concurrencyLimit` | number | Да | New concurrency limit for the queue \(0 to 100000\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_reset_queue_concurrency`
+
+Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `queueName` | string | Да | Queue ID \(starts with queue_\), task identifier, or custom queue name, depending on the queue type |
+| `queueType` | string | Нет | How to interpret the queue name: "id" \(default\) for a queue ID, "task" for a task identifier, or "custom" for a custom queue name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_list_deployments`
+
+Получение списка Trigger.dev deployments in the environment of the Ключ API, with optional status and creation-time filters.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `status` | string | Нет | Deployment status to filter by: PENDING, BUILDING, DEPLOYING, DEPLOYED, FAILED, CANCELED, or TIMED_OUT |
+| `period` | string | Нет | Only return deployments created in the given period (например, "1h", "7d"\) |
+| `from` | string | Нет | Only return deployments created on or after this ISO 8601 timestamp |
+| `to` | string | Нет | Only return deployments created on or before this ISO 8601 timestamp |
+| `pageSize` | number | Нет | Number of deployments per page \(5 to 100, по умолчанию 20\) |
+| `pageAfter` | string | Нет | Cursor to start the page after, from the previous response pagination |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployments` | array | Deployments matching the filters |
+| `pagination` | object | Cursor pagination details |
+|   ↳ `next` | string | Cursor to pass as the page-after parameter for the next page |
+
+### `trigger_dev_get_deployment`
+
+Получение a Trigger.dev deployment by its ID, including its status, version, and registered tasks.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `deploymentId` | string | Да | ID of the deployment to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_get_latest_deployment`
+
+Получение the latest Trigger.dev deployment in the environment of the Ключ API.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_promote_deployment`
+
+Promote a Trigger.dev deployment version so new runs execute on it (e.g., to roll back to a previous version).
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `version` | string | Да | Deployment version to promote (например, "20250228.1"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the promoted deployment |
+| `version` | string | Version of the promoted deployment |
+| `shortCode` | string | Short code of the promoted deployment |
+
+### `trigger_dev_execute_query`
+
+Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and analytics.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `query` | string | Да | TRQL query to execute (например, "SELECT run_id, status, triggered_at FROM runs WHERE status = \'Failed\' LIMIT 10"\) |
+| `scope` | string | Нет | Scope of data to query: environment \(default\), project, or organization |
+| `period` | string | Нет | Time period shorthand (например, "1h", "7d", "30d"\). Cannot be combined with from/to |
+| `from` | string | Нет | Start of the time range as an ISO 8601 timestamp. Must be used with "to" |
+| `to` | string | Нет | End of the time range as an ISO 8601 timestamp. Must be used with "from" |
+| `format` | string | Нет | Response format: "json" \(default\) for structured rows or "csv" for a CSV string |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `format` | string | Format of the results \(json or csv\) |
+| `results` | json | Query results: an array of row objects for json format, a CSV string for csv |
+
+### `trigger_dev_get_query_schema`
+
+Получение the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Tables that can be queried with TRQL |
+|   ↳ `name` | string | Table name used in TRQL queries |
+|   ↳ `description` | string | Description of the table |
+|   ↳ `timeColumn` | string | Primary time column for the table |
+|   ↳ `columns` | array | Columns of the table |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | ClickHouse data type |
+|     ↳ `description` | string | Column description |
+|     ↳ `example` | string | Example value |
+|     ↳ `allowedValues` | array | Allowed values for enum-like columns |
+|     ↳ `coreColumn` | boolean | Указывает,  column is included in по умолчанию queries |
+
+### `trigger_dev_create_waitpoint_token`
+
+Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval).
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `timeout` | string | Нет | How long before the token times out, as a duration \("30s", "1m", "2h", "3d"\) or an ISO 8601 date |
+| `idempotencyKey` | string | Нет | Idempotency key; passing the same key before it expires returns the original token |
+| `idempotencyKeyTTL` | string | Нет | How long the idempotency key is valid, as a duration \("30s", "1m", "2h", "3d"\) |
+| `tags` | string | Нет | Comma-separated tags to attach to the waitpoint \(max 10, each under 128 characters\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the waitpoint token \(starts with waitpoint_\) |
+| `isCached` | boolean | Whether an existing token was returned because the same idempotency key was reused |
+| `url` | string | HTTP callback URL; a POST request to this URL completes the waitpoint without an Ключ API |
+
+### `trigger_dev_complete_waitpoint_token`
+
+Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `waitpointId` | string | Да | ID of the waitpoint token to complete \(starts with waitpoint_\) |
+| `data` | json | Нет | JSON data passed back to the waiting run as the token result. Example: \{"status": "approved"\} |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  waitpoint token was completed |
+
+### `trigger_dev_get_waitpoint_token`
+
+Получение a Trigger.dev waitpoint token by its ID, including its status, timeout, and completion data.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `waitpointId` | string | Да | ID of the waitpoint token to retrieve \(starts with waitpoint_\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Получение Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Получение Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Получение Batch\) |
+| `errors` | json | Error details for failed batch items \(Получение Batch\) |
+| `items` | json | Execution results for each run in the batch \(Получение Batch Results\) |
+| `status` | string | Run status \(Получение Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Получение Run\) |
+| `createdAt` | string | When the run was created \(Получение Run\) |
+| `startedAt` | string | When the run started \(Получение Run\) |
+| `finishedAt` | string | When the run finished \(Получение Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Получение Run\) |
+| `costInCents` | number | Compute cost in cents \(Получение Run\) |
+| `isTest` | boolean | Указывает,  run is a test run \(Получение Run\) |
+| `tags` | json | Tags attached to the run \(Получение Run\) |
+| `payload` | json | Payload the run was triggered with \(Получение Run\) |
+| `output` | json | Output returned by the run \(Получение Run\) |
+| `attempts` | json | Attempts made for the run \(Получение Run\) |
+| `metadata` | json | Run metadata \(Получение Run, Update Run Metadata\) |
+| `ok` | boolean | Указывает,  run succeeded \(Получение Run Result\) |
+| `outputType` | string | Content type of the run output \(Получение Run Result\) |
+| `error` | json | Error details for a failed run \(Получение Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Получение Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Получение Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Получение Run Trace\) |
+| `runs` | json | Runs matching the filters \(Получение списка Runs\) |
+| `schedules` | json | Schedules in the project \(Получение списка Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Указывает,  schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Указывает,  schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(Получение списка Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Получение Env Var\) |
+| `success` | boolean | Указывает,  operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(Получение списка Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Указывает,  queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(Получение списка Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Получение Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(Получение списка Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(Получение списка Timezones\) |
+
+### `trigger_dev_list_waitpoint_tokens`
+
+Получение списка Trigger.dev waitpoint tokens in the environment of the Ключ API, with optional status, tag, and creation-time filters.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `status` | string | Нет | Waitpoint status to filter by: WAITING, COMPLETED, or TIMED_OUT |
+| `idempotencyKey` | string | Нет | Idempotency key to filter by |
+| `tags` | string | Нет | Comma-separated tags to filter by |
+| `period` | string | Нет | Only return tokens created in the given period (например, "1h", "7d"\) |
+| `from` | string | Нет | Only return tokens created on or after this ISO 8601 timestamp |
+| `to` | string | Нет | Only return tokens created on or before this ISO 8601 timestamp |
+| `pageSize` | number | Нет | Number of tokens per page \(max 100\) |
+| `pageAfter` | string | Нет | Waitpoint ID to start the page after, for forward pagination |
+| `pageBefore` | string | Нет | Waitpoint ID to start the page before, for backward pagination |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tokens` | array | Waitpoint tokens matching the filters |
+| `pagination` | object | Cursor pagination details |
+|   ↳ `next` | string | Waitpoint ID to start the next page after |
+|   ↳ `previous` | string | Waitpoint ID to start the previous page before |
+
+### `trigger_dev_list_timezones`
+
+Получение списка the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Trigger.dev secret Ключ API \(starts with tr_\) |
+| `excludeUtc` | string | Нет | Set to "true" to exclude UTC from the returned timezones |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timezones` | array | IANA timezones supported by schedules |
+
+

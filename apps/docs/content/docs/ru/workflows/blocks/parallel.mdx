@@ -1,0 +1,113 @@
+---
+title: Parallel
+description: The Parallel block is a container that runs the block inside it concurrently — once per item or a fixed number of times.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { WorkflowPreview, PARALLEL_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Parallel block** is a container that runs the block inside it concurrently — once per item in a collection, or a fixed number of times. It is the concurrent counterpart to a [Loop](/workflows/blocks/loop): reach for it when the work is independent and order doesn't matter.
+
+## Parallel Types
+
+<Tabs items={['Count-based', 'Collection-based']}>
+  <Tab>
+    Runs a fixed number of identical instances at once. If the count is larger than the batch size, Sim runs serial batches and preserves the original result order.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/parallel-1.png" alt="Count-based parallel execution" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+  <Tab>
+    Distributes a collection across instances — each one processes a single item as `<parallel.currentItem>`. Large collections run in serial batches, preserving each item's index.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/parallel-2.png" alt="Collection-based parallel execution" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+</Tabs>
+
+## Configuration
+
+Set the parallel type, then the value it needs:
+
+- **Count** — how many instances to run (count-based)
+- **Collection** — the array or object to distribute (collection-based)
+- **Batch size** — how many branches run at once, from 1 to 20 (default 20). Lower it to ease off rate-limited APIs
+
+## Referencing parallel data
+
+References differ inside the parallel and after it.
+
+<Tabs items={['Inside the parallel', 'After the parallel']}>
+  <Tab>
+    Inside, read this instance's context with `<parallel.*>`:
+
+    - `<parallel.index>` — the instance number, starting at 0
+    - `<parallel.currentItem>` — this instance's item (collection-based only)
+    - `<parallel.items>` — the full collection (collection-based only)
+
+    <Callout type="info">
+      These are only available to blocks inside the parallel container.
+    </Callout>
+  </Tab>
+  <Tab>
+    After it finishes, read the collected results by the block's name — not `<parallel.*>`:
+
+    ```javascript
+    // a parallel named "Process Tasks"
+    const all = <processtasks.results>; // [result1, result2, ...]
+    ```
+
+    For large result sets, reference just the entry or field you need, like `<processtasks.results[10][0].id>` — Sim keeps results indexable and hydrates oversized entries only when an indexed path is referenced.
+  </Tab>
+</Tabs>
+
+Each instance runs in isolation: a separate variable scope, no shared state, and a failure in one instance doesn't stop the others.
+
+## Examples
+
+<WorkflowPreview workflow={PARALLEL_WORKFLOW} height={340} />
+
+A collection-based Parallel calls an endpoint for each task at the same time, and a Function aggregates `<parallel.results>` after they finish. The same container holds the block for either type:
+
+- **Batch API processing** — `Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)`
+- **Multi-model processing** — `Parallel (["model-a", "model-b", "model-c"]) → Agent → Evaluator (Select best)`
+
+## Parallel vs Loop
+
+| | Parallel | Loop |
+| --- | --- | --- |
+| **Execution** | Concurrent | Sequential |
+| **Order** | Not guaranteed | Preserved |
+| **Best for** | Independent work | Dependent steps |
+| **Resource use** | Higher | Lower |
+
+## Nesting and limits
+
+<Callout type="info">
+  Containers nest. You can place parallels inside parallels, loops inside parallels, and any combination, to build multi-dimensional workflows.
+</Callout>
+
+A Parallel runs up to **20 branches at a time**. Larger counts or collections run in serial batches once the current batch finishes. Because instances run concurrently, watch for API rate limits and memory use on large datasets.
+
+## Best Practices
+
+- **Use it for independent work only.** Instances can't share state, so each one must stand alone.
+- **Mind rate limits.** Lower the batch size, or add a [Wait](/workflows/blocks/wait), for API-heavy work.
+- **Handle errors per instance.** One failure won't stop the others, so each instance should handle its own.
+- **Add an identifier if order matters.** Results aren't guaranteed to match input order — include an index or id in each instance's output.
+
+<FAQ items={[
+  { question: "What is the maximum number of concurrent instances?", answer: "Twenty at a time. The limit prevents resource exhaustion and keeps execution stable; larger counts run in serial batches." },
+  { question: "Can parallel instances share state with each other?", answer: "No. Each instance runs in isolation with its own variable scope, and one instance cannot read or write another's data during execution." },
+  { question: "What happens if one parallel instance fails?", answer: "Only that instance fails. The others run independently and continue normally." },
+  { question: "Can I nest Parallel blocks inside other Parallel or Loop blocks?", answer: "Yes. Parallels and Loops support nesting in any combination, so you can build multi-dimensional workflows." },
+  { question: "How do I access results after the Parallel block completes?", answer: "Use <blockname.results>, where blockname is the normalized name of the Parallel block (lowercase, no spaces). It returns an array of results from all instances." },
+  { question: "Is the order of results guaranteed?", answer: "No. Because instances run concurrently, result order isn't guaranteed to match input order. If order matters, include an index or identifier in each instance's output." },
+  { question: "What is the difference between count-based and collection-based parallel?", answer: "Count-based runs a fixed number of identical instances. Collection-based distributes items from an array or object, one per instance. Use count-based for repeated work and collection-based for batch processing." },
+]} />

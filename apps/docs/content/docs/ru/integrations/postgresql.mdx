@@ -1,0 +1,190 @@
+---
+title: PostgreSQL
+description: Подключение к базе данных PostgreSQL
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="postgresql"
+  color="#336791"
+/>
+
+## Инструкции по использованию
+
+Интегрируйте PostgreSQL в рабочий процесс. Can query, insert, update, delete, and execute raw SQL.
+
+
+
+## Действия
+
+### `postgresql_query`
+
+Execute a SELECT query on PostgreSQL database
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Да | SQL SELECT query to execute |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `postgresql_insert`
+
+Insert data into PostgreSQL database
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to insert data into |
+| `data` | object | Да | Data object to insert \(key-value pairs\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `rows` | array | Inserted data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows inserted |
+
+### `postgresql_update`
+
+Update data in PostgreSQL database
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to update data in |
+| `data` | object | Да | Data object with fields to update \(key-value pairs\) |
+| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `rows` | array | Updated data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows updated |
+
+### `postgresql_delete`
+
+Delete data from PostgreSQL database
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to delete data from |
+| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `rows` | array | Deleted data \(if RETURNING clause used\) |
+| `rowCount` | number | Number of rows deleted |
+
+### `postgresql_execute`
+
+Execute raw SQL query on PostgreSQL database
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Да | Raw SQL query to execute |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows affected |
+
+### `postgresql_introspect`
+
+Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | PostgreSQL server hostname or IP address |
+| `port` | number | Да | PostgreSQL server port \(по умолчанию: 5432\) |
+| `database` | string | Да | Database name to connect to |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `schema` | string | Нет | Schema to introspect \(по умолчанию: public\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+|   ↳ `name` | string | Table name |
+|   ↳ `schema` | string | Schema name (например, public\) |
+|   ↳ `columns` | array | Table columns |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Data type (например, integer, varchar, timestamp\) |
+|     ↳ `nullable` | boolean | Указывает,  column allows NULL values |
+|     ↳ `default` | string | Default value expression |
+|     ↳ `isPrimaryKey` | boolean | Указывает,  column is part of the primary key |
+|     ↳ `isForeignKey` | boolean | Указывает,  column is a foreign key |
+|     ↳ `references` | object | Foreign key reference information |
+|       ↳ `table` | string | Referenced table name |
+|       ↳ `column` | string | Referenced column name |
+|   ↳ `primaryKey` | array | Primary key column names |
+|   ↳ `foreignKeys` | array | Foreign key constraints |
+|     ↳ `column` | string | Local column name |
+|     ↳ `referencesTable` | string | Referenced table name |
+|     ↳ `referencesColumn` | string | Referenced column name |
+|   ↳ `indexes` | array | Table indexes |
+|     ↳ `name` | string | Index name |
+|     ↳ `columns` | array | Columns included in the index |
+|     ↳ `unique` | boolean | Указывает,  index enforces uniqueness |
+| `schemas` | array | Получение списка of available schemas in the database |
+
+

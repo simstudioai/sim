@@ -1,0 +1,366 @@
+---
+title: Table
+description: Пользовательские таблицы данных
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="table"
+  color="#10B981"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Tables allow you to create and manage custom data tables directly within Sim. Store, query, and manipulate structured data within your workflows without needing external database integrations.
+
+**Why Use Tables?**
+- **No external setup**: Create tables instantly without configuring external databases
+- **Workflow-native**: Data persists across workflow executions and is accessible from any workflow in your workspace
+- **Flexible schema**: Define columns with types (string, number, boolean, date, json) and constraints (required, unique)
+- **Powerful querying**: Filter, sort, and paginate data using MongoDB-style operators
+- **Agent-friendly**: Tables can be used as tools by AI agents for dynamic data storage and retrieval
+
+**Key Features:**
+- Create tables with custom schemas
+- Insert, update, upsert, and delete rows
+- Query with filters and sorting
+- Batch operations for bulk inserts
+- Bulk updates and deletes by filter
+- Up to 10,000 rows per table, 100 tables per workspace
+
+## Creating Tables
+
+Tables are created from the **Tables** section in the sidebar. Each table requires:
+- **Name**: Alphanumeric with underscores (e.g., `customer_leads`)
+- **Description**: Optional description of the table's purpose
+- **Schema**: Define columns with name, type, and optional constraints
+
+### Column Types
+
+| Type | Description | Example Values |
+|------|-------------|----------------|
+| `string` | Text data | `"John Doe"`, `"active"` |
+| `number` | Numeric data | `42`, `99.99` |
+| `boolean` | True/false values | `true`, `false` |
+| `date` | Date/time values | `"2024-01-15T10:30:00Z"` |
+| `json` | Complex nested data | `{"address": {"city": "NYC"}}` |
+
+### Column Constraints
+
+- **Required**: Column must have a value (cannot be null)
+- **Unique**: Values must be unique across all rows (enables upsert matching)
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Create and manage custom data tables. Store, query, and manipulate structured data within workflows.
+
+
+
+## Действия
+
+### `table_insert_row`
+
+Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `data` | object | Да | Row data as JSON object |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was inserted |
+| `row` | json | Inserted row data |
+| `message` | string | Status message |
+
+### `table_batch_insert_rows`
+
+Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `rows` | array | Да | Array of row data objects \(max $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were inserted |
+| `rows` | array | Inserted rows data |
+| `insertedCount` | number | Number of rows inserted |
+| `message` | string | Status message |
+
+### `table_upsert_row`
+
+Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `data` | object | Да | Row data to insert or update |
+| `conflictTarget` | string | Нет | Unique column to match on. Required only when the table has more than one unique column. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was upserted |
+| `row` | json | Upserted row data |
+| `operation` | string | Operation performed: insert or update |
+| `message` | string | Status message |
+
+### `table_update_row`
+
+Обновление existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `rowId` | string | Да | Row ID to update |
+| `data` | object | Да | Updated row data |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was updated |
+| `row` | json | Updated row data |
+| `message` | string | Status message |
+
+### `table_update_rows_by_filter`
+
+Update multiple rows that match filter criteria. Data is merged with existing row data.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `filter` | object | Да | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
+| `data` | object | Да | Fields to update \(merged with existing data\) |
+| `limit` | number | Нет | Maximum number of rows to update \(по умолчанию: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were updated |
+| `updatedCount` | number | Number of rows updated |
+| `updatedRowIds` | array | IDs of updated rows |
+| `message` | string | Status message |
+
+### `table_delete_row`
+
+Удаление row from a table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `rowId` | string | Да | Row ID to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was deleted |
+| `deletedCount` | number | Number of rows deleted |
+| `message` | string | Status message |
+
+### `table_delete_rows_by_filter`
+
+Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `filter` | object | Да | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
+| `limit` | number | Нет | Maximum number of rows to delete \(по умолчанию: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were deleted |
+| `deletedCount` | number | Number of rows deleted |
+| `deletedRowIds` | array | IDs of deleted rows |
+| `message` | string | Status message |
+
+### `table_query_rows`
+
+Query rows from a table with filtering, sorting, and pagination
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `filter` | object | Нет | Filter conditions \(MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty\) |
+| `sort` | object | Нет | Sort order as \{field: "asc"\|"desc"\} |
+| `limit` | number | Нет | Maximum rows to return \(по умолчанию: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT\}, max: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}\) |
+| `offset` | number | Нет | Number of rows to skip \(по умолчанию: 0\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether query succeeded |
+| `rows` | array | Query result rows |
+| `rowCount` | number | Number of rows returned |
+| `totalCount` | number | Total rows matching filter |
+| `limit` | number | Limit used in query |
+| `offset` | number | Offset used in query |
+
+### `table_get_row`
+
+Получение a single row by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+| `rowId` | string | Да | Row ID to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was retrieved |
+| `row` | json | Row data |
+| `message` | string | Status message |
+
+### `table_get_schema`
+
+Получение the schema configuration of a table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Да | Table ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether schema was retrieved |
+| `name` | string | Table name |
+| `columns` | array | Column definitions \(each includes its stable id\) |
+| `columnCount` | number | Number of columns |
+| `rowCount` | number | Number of rows in the table |
+| `maxRows` | number | Max rows per table for the workspace's plan |
+| `message` | string | Status message |
+
+{/* MANUAL-CONTENT-START:notes */}
+## Filter Operators
+
+Filters use MongoDB-style operators for flexible querying:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `$eq` | Equals | `{"status": {"$eq": "active"}}` or `{"status": "active"}` |
+| `$ne` | Not equals | `{"status": {"$ne": "deleted"}}` |
+| `$gt` | Greater than | `{"age": {"$gt": 18}}` |
+| `$gte` | Greater than or equal | `{"score": {"$gte": 80}}` |
+| `$lt` | Less than | `{"price": {"$lt": 100}}` |
+| `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
+| `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
+| `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
+| `$contains` | String contains (case-insensitive) | `{"email": {"$contains": "@gmail.com"}}` |
+| `$ncontains` | Does not contain (case-insensitive; matches empty cells) | `{"email": {"$ncontains": "@spam.com"}}` |
+| `$startsWith` | Starts with (case-insensitive) | `{"name": {"$startsWith": "Dr."}}` |
+| `$endsWith` | Ends with (case-insensitive) | `{"file": {"$endsWith": ".pdf"}}` |
+| `$empty` | Cell is empty (`true`) or non-empty (`false`) | `{"phone": {"$empty": true}}` |
+
+### Combining Filters
+
+Multiple field conditions are combined with AND logic:
+
+```json
+{
+  "status": "active",
+  "age": {"$gte": 18}
+}
+```
+
+Use `$or` for OR logic:
+
+```json
+{
+  "$or": [
+    {"status": "active"},
+    {"status": "pending"}
+  ]
+}
+```
+
+## Sort Specification
+
+Specify sort order with column names and direction:
+
+```json
+{
+  "createdAt": "desc"
+}
+```
+
+Multi-column sorting:
+
+```json
+{
+  "priority": "desc",
+  "name": "asc"
+}
+```
+
+## Built-in Columns
+
+Every row automatically includes:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | string | Unique row identifier |
+| `createdAt` | date | When the row was created |
+| `updatedAt` | date | When the row was last modified |
+
+These can be used in filters and sorting.
+
+## Limits
+
+| Resource | Limit |
+|----------|-------|
+| Tables per workspace | 100 |
+| Rows per table | 10,000 |
+| Columns per table | 50 |
+| Max row size | 100KB |
+| String value length | 10,000 characters |
+| Query limit | 1,000 rows |
+| Batch insert size | 1,000 rows |
+| Bulk update/delete | 1,000 rows |
+
+## Notes
+
+- Category: `blocks`
+- Type: `table`
+- Tables are scoped to workspaces and accessible from any workflow within that workspace
+- Data persists across workflow executions
+- Use unique constraints to enable upsert functionality
+- The visual filter/sort builder provides an easy way to construct queries without writing JSON
+{/* MANUAL-CONTENT-END */}

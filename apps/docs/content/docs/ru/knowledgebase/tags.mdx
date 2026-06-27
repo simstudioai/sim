@@ -1,0 +1,113 @@
+---
+title: Tags and filtering
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Tags let you attach structured metadata to documents so the Knowledge block can filter results precisely — by department, date, priority, status, or any dimension you define.
+
+## How Tags Work
+
+Tags have two layers:
+
+1. **Tag definitions** — created at the knowledge base level. A definition has a name (e.g., "Department") and a type (Text, Number, Date, or Boolean). Definitions are shared across all documents.
+2. **Tag values** — set per document. Once a definition exists, you assign a value to it on each document that needs it (e.g., `Department = "engineering"`).
+
+## Tag Slots
+
+Each knowledge base has **17 tag slots** distributed across four types:
+
+| Type | Slots | Accepted values |
+|------|-------|-----------------|
+| **Text** | 7 | Any string — matching is case-insensitive |
+| **Number** | 5 | Any valid number |
+| **Date** | 2 | `YYYY-MM-DD` format |
+| **Boolean** | 3 | `true` or `false` |
+
+The type dropdown in the creation form shows current slot usage for each type (e.g., `Text (0/7)` means none of the 7 text slots are in use yet).
+
+<Callout type="info">
+  Slots are shared across all documents and connectors in a knowledge base. Connectors that auto-populate metadata tags draw from the same pool. Plan your schema with that in mind.
+</Callout>
+
+## Defining Tags
+
+Tag definitions live at the knowledge base level. To manage them, click the knowledge base name in the header to open the context menu and select **Tags**:
+
+<Image src="/static/tags/tags-kb-menu.png" alt="Knowledge base header showing the dropdown menu with Rename, Tags, and Delete options" width={700} height={400} />
+
+This opens the Tags modal, which lists all defined tags and shows how many documents each one is assigned to. Click **Add Tag** to define a new one:
+
+<Image src="/static/tags/tags-create.png" alt="Tags modal showing 0 defined tags, a Tag Name input field, and a Type dropdown set to Text (0/7), with Cancel and Create Tag buttons" width={700} height={450} />
+
+Enter a **Tag Name** and pick a **Type**, then click **Create Tag**. The name must be unique within the knowledge base. The type dropdown only shows types that still have available slots. Press Enter to submit or Escape to cancel.
+
+To delete a tag definition, click the trash icon next to it. Deleting a definition removes the tag value from every document it was assigned to — the modal shows you which documents are affected before you confirm.
+
+Clicking any existing tag definition opens a dialog showing all documents that have a value set for it, along with their current tag values.
+
+## Setting Tag Values on Documents
+
+Once a definition exists, you assign values document by document. Right-click any document (or click the `…` menu) to open the document context menu, then select **Tags**:
+
+This opens the tag panel for that document where you can set a value for each defined tag.
+
+## Viewing Tags in the Document List
+
+The **Tags** column in the document list shows the current tag values for each document at a glance. Documents with no tags assigned show `– – –`:
+
+<Image src="/static/tags/tags-document-list.png" alt="Knowledge base document list showing Name, Size, Tokens, Chunks, Uploaded, Status, and Tags columns — Document1.txt shows no tags (– – –) while Document2.txt shows the value 'Waleed'" width={900} height={200} />
+
+Use the **Filter** and **Sort** controls in the top right to narrow the list by tag values or sort by them.
+
+## Using Tags in the Knowledge Block
+
+In a workflow, open the Knowledge block and configure **Tag Filters** to restrict which documents are searched:
+
+<Image src="/static/tags/tags-knowledge-block.png" alt="Knowledge block editor showing Operation: search, Knowledge Base: test, Search Query field (optional), Number of Results, and a Tag Filters section with Filter 1 containing Tag: Name, Operator: equals, and a Value field" width={900} height={500} />
+
+Each filter has three parts:
+- **Tag** — select a tag definition from the knowledge base
+- **Operator** — depends on the tag type (see below)
+- **Value** — the value to match against
+
+Add as many filters as you need with the **+** button. Multiple filters are combined with AND logic — a document must match all filters to be included in the search.
+
+### Operators by Type
+
+| Type | Available operators |
+|------|-------------------|
+| **Text** | `equals`, `not equals`, `contains`, `does not contain`, `starts with`, `ends with` |
+| **Number** | `equals`, `not equals`, `greater than`, `greater than or equal`, `less than`, `less than or equal`, `between` |
+| **Date** | `equals`, `after`, `on or after`, `before`, `on or before`, `between` |
+| **Boolean** | `is`, `is not` |
+
+Tag values in filter fields can be static strings or workflow variable references (e.g., `<start.department>`), so filtering can adapt dynamically at runtime.
+
+## Search Modes
+
+The Knowledge block behaves differently depending on what you provide:
+
+| What you provide | Behaviour |
+|-----------------|-----------|
+| **Tags only** (no search query) | Fetches all documents that match the tag filters — pure tag matching, no vector search |
+| **Query only** (no tag filters) | Semantic vector search across all documents in the knowledge base |
+| **Both tags and query** | Tag filters run first to narrow the document set, then vector search runs within that subset |
+
+The combined mode is the most precise — tag filtering cuts down the candidate set cheaply before the more expensive vector similarity comparison runs.
+
+## Connector-Populated Tags
+
+Connectors can auto-populate tags with metadata from the source. A Notion connector might set **Last Modified** and **Labels**; a GitHub connector might set **Repository** and **File Path**. These work exactly like manually defined tags and are available in Knowledge block filters.
+
+You can disable specific metadata tag types during connector setup or in connector settings to free up slots for manual use. See [Connectors](/knowledgebase/connectors) for details.
+
+<FAQ items={[
+  { question: "How many tag slots are available?", answer: "17 total: 7 text, 5 number, 2 date, 3 boolean. These are shared across all documents and connectors in a knowledge base." },
+  { question: "Can I rename a tag definition?", answer: "No. Tag definitions cannot be renamed after creation. Delete the old definition and create a new one with the correct name. Deleting will remove the tag value from all documents it was assigned to." },
+  { question: "Is tag matching case-sensitive?", answer: "No. Text tag matching is case-insensitive — 'Engineering' and 'engineering' are treated the same." },
+  { question: "Can tag filter values come from workflow variables?", answer: "Yes. Enter a variable reference like <start.department> as the filter value. It resolves to the actual value at runtime, so a single workflow can filter different documents on each run." },
+  { question: "What happens to tag values when I delete a tag definition?", answer: "Deleting a definition removes the tag value from every document it was assigned to and frees the slot. The modal shows you which documents are affected before you confirm." },
+]} />

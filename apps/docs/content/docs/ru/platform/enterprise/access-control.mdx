@@ -1,0 +1,246 @@
+---
+title: Access Control
+description: Restrict which models, blocks, and platform features each group of users can access
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Access Control lets organization admins define permission groups that restrict what each set of users can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization**. The organization's **default group** governs everyone org-wide; every other group targets a **specific set of workspaces** and, by default, governs **all members of those workspaces** (including external members) — or only specific members once you add them. A user is governed by exactly one group in any given workspace. Restrictions are enforced both in the workflow executor and in Mothership, based on the organization that owns the workflow's workspace.
+
+---
+
+## How it works
+
+Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal workspaces that do not belong to an organization have no permission groups.
+
+Sim resolves the governing group for a user in a workspace deterministically:
+
+1. a non-default group targeting that workspace that the user is an **explicit member** of takes precedence; otherwise
+2. a non-default group targeting that workspace that has **no members** (so it governs all members of the workspace, including external members) applies; otherwise
+3. the organization's **default group** applies (if one is set); otherwise
+4. no restrictions apply.
+
+Assignment-time checks keep this unambiguous: a workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace.
+
+When a user runs a workflow or uses Mothership, Sim reads the resolved group's configuration and applies it:
+
+- **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
+- **In Mothership:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Mothership attempts to use them.
+
+---
+
+## Setup
+
+### 1. Open Access Control settings
+
+Go to **Settings → Enterprise → Access Control** from any workspace in your organization. Permission groups are defined once at the organization level and apply to every workspace under it. Only organization owners and admins can manage them.
+
+<Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={500} />
+
+### 2. Create a permission group
+
+Click **+ Create** and enter a name (required) and optional description. A group either targets a **specific set of workspaces** (pick them from the multi-select) or is the **organization default group**. A workspace-scoped group applies to **all members** of its workspaces by default, including external members — you can narrow it to specific people later. Marking the group as the **default** makes it govern every workspace in the organization and every member not covered by another group (including external members); only one group per organization can be the default, and the default always applies to all workspaces.
+
+### 3. Configure permissions
+
+Click **Details** on a group, then open **Configure Permissions**. Non-default groups have a **Members** tab plus three restriction tabs; the default group has only the restriction tabs.
+
+#### Members
+
+A workspace-scoped group with **no members** applies to everyone in its workspaces (including external members). Add members here — searching your organization by name or email — to restrict the group to only those people; removing every member returns it to governing everyone. The default group ignores members and has no Members tab.
+
+#### Model Providers
+
+Controls which AI model providers members of this group can use.
+
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={500} /> The list shows all providers available in Sim.
+
+- **All checked (default):** All providers are allowed.
+- **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
+
+#### Blocks
+
+Controls which workflow blocks members can place and execute.
+
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, A2A, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+
+- **All checked (default):** All blocks are allowed.
+- **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
+
+<Callout type="info">
+  The `start_trigger` block (the entry point of every workflow) is always allowed and cannot be restricted.
+</Callout>
+
+#### Platform
+
+Controls visibility of platform features and modules.
+
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables, Templates), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={500} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
+
+**Sidebar**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Knowledge Base | Hides the Knowledge Base section from the sidebar |
+| Tables | Hides the Tables section from the sidebar |
+| Templates | Hides the Templates section from the sidebar |
+
+**Workflow Panel**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Copilot | Hides the Copilot panel inside the workflow editor |
+
+**Settings Tabs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Integrations | Hides the Integrations tab in Settings |
+| Secrets | Hides the Secrets tab in Settings |
+| API Keys | Hides the Sim Keys tab in Settings |
+| Files | Hides the Files tab in Settings |
+
+**Tools**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| MCP Tools | Disables the use of MCP tools in workflows and agents |
+| Custom Tools | Disables the use of custom tools in workflows and agents |
+| Skills | Disables the use of Sim Skills in workflows and agents |
+
+**Deploy Tabs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| API | Hides the API deployment tab |
+| MCP | Hides the MCP deployment tab |
+| A2A | Hides the A2A deployment tab |
+| Chat | Hides the Chat deployment tab |
+| Template | Hides the Template deployment tab |
+
+**Features**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Sim Mailer | Hides the Sim Mailer (Inbox) feature |
+| Public API | Disables public API access for deployed workflows |
+
+**Logs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Trace Spans | Hides trace span details in execution logs |
+
+**Collaboration**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Invitations | Disables the ability to invite new members to the workspace |
+
+### 4. Choose who it applies to
+
+A workspace-scoped group applies to **all members of its workspaces by default** — including external members. To restrict it to specific people instead, open **Configure Permissions → Members** and add members by searching your organization by name or email. Removing every member returns the group to governing everyone in its workspaces.
+
+A user is governed by one group per workspace, so adding a user is rejected when it would conflict with another of their groups on a shared workspace (skipped rather than added in bulk). The default group ignores members entirely — it always governs everyone not covered by a workspace group.
+
+Manage which workspaces a group governs from the **Workspaces** list in the group's **Details** view (Add and Remove). A non-default group is created targeting at least one workspace, but you can later remove all of them — a group with no workspaces simply governs nothing until you add one back.
+
+External workspace members (people who have access to a workspace but belong to a different organization) can't be added as named members, but a workspace-scoped group with no members — and the organization default group — still governs them.
+
+---
+
+## Enforcement
+
+### Workflow execution
+
+Restrictions are enforced at the point of execution, not at save time. If a group's configuration changes after a workflow is built:
+
+- **Block restrictions:** Any workflow run that reaches a disallowed block halts immediately with an error. The workflow is not modified — only execution is blocked.
+- **Model provider restrictions:** Any block or agent that uses a disallowed provider halts immediately with an error.
+- **Tool restrictions (MCP, custom tools, skills):** Agents that use a disallowed tool type halt immediately with an error.
+
+This applies regardless of how the workflow is triggered — manually, via API, via schedule, or via webhook.
+
+### Mothership
+
+When a user opens Mothership, their permission group is read before any block or tool suggestions are made:
+
+- Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
+- If Mothership generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
+
+---
+
+## User membership rules
+
+- A user can belong to **multiple** permission groups, but **at most one** group governs them in any given workspace.
+- For a given workspace, a non-default group the user is an **explicit member** of takes precedence over a non-default **all-members** group (one with no members) targeting that workspace, which takes precedence over the organization's **default group**.
+- A workspace has **at most one all-members group**, and a user is an explicit member of **at most one** group per workspace. Adding a user, adding a workspace, or removing a group's last member is rejected when it would violate this — memberships and scopes are never silently moved.
+- A workspace-scoped group with **no members** governs everyone in its workspaces (including external members); add members to narrow it to specific people.
+- Users not covered by any workspace group fall under the organization's **default group** if one is set; otherwise no restrictions are applied to them.
+- Only one group per organization can be the **default group**; it always applies to all workspaces, ignores members, and also governs external workspace members.
+- Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can create and manage permission groups?",
+    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. The organization must be on the Enterprise plan."
+  },
+  {
+    question: "What happens to a workflow that was built before a block was restricted?",
+    answer: "The workflow is not modified — it still exists and can be edited. However, any run that reaches a disallowed block will halt immediately with an error. The block must be removed or the user's group configuration must be updated before the workflow can run successfully."
+  },
+  {
+    question: "Can a user be in multiple permission groups?",
+    answer: "Yes. A user can belong to multiple permission groups, but only one governs them in any given workspace. A group they're an explicit member of takes precedence over an all-members group (one with no members) on that workspace, which takes precedence over the organization's default group. A workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace."
+  },
+  {
+    question: "Does a permission group apply to everyone in its workspaces, or specific people?",
+    answer: "By default, a workspace-scoped group applies to all members of its workspaces, including external members. To restrict it to specific people, open Configure Permissions → Members and add them; the group then governs only those members. Removing every member returns it to governing everyone in its workspaces."
+  },
+  {
+    question: "Can a permission group apply to only some workspaces?",
+    answer: "Every non-default group targets a specific set of workspaces — choose them when you create the group or from the Workspaces list in its Details view. Only the organization default group is org-wide."
+  },
+  {
+    question: "What governs a user who has no permission group assigned?",
+    answer: "In a workspace targeted by an all-members group (one with no members), that group governs them. Otherwise the organization's default group governs them if one is set. If neither applies, they have no restrictions — all blocks, model providers, and platform features are available."
+  },
+  {
+    question: "Does Mothership respect the same restrictions as the executor?",
+    answer: "Yes. Mothership reads the user's permission group for the workspace's organization before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+  },
+  {
+    question: "Can I apply different restrictions to different people or workspaces?",
+    answer: "Yes. Scope each group to the workspaces it should govern, and either let it apply to everyone there or add members to target specific people. A workspace can have one all-members group plus additional groups that target specific people, who are governed by their own group instead. Who can access a given workspace is still controlled separately by workspace invitations and permissions."
+  },
+  {
+    question: "What is the default group?",
+    answer: "The default group is the single org-wide group that governs everyone not covered by a workspace group, including external workspace members. It always applies to all workspaces and ignores members. Only one per organization; if none is set, ungrouped users have no restrictions."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+ACCESS_CONTROL_ENABLED=true
+NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
+```
+
+You can also set a server-level block allowlist using the `ALLOWED_INTEGRATIONS` environment variable. This is applied as an additional constraint on top of any permission group configuration — a block must be allowed by both the environment allowlist and the user's group to be usable.
+
+```bash
+# Only these block types are available across the entire instance
+ALLOWED_INTEGRATIONS=slack,gmail,agent,function,condition
+```
+
+Once enabled, permission groups are managed through **Settings → Enterprise → Access Control** the same way as Sim Cloud.

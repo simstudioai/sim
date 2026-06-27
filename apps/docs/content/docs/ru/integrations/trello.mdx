@@ -1,0 +1,254 @@
+---
+title: Trello
+description: Управление списками, карточками и активностью Trello
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="trello"
+  color="#0052CC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) is a visual collaboration tool that helps you organize projects, tasks, and workflows using boards, lists, and cards.
+
+With Trello in Sim, you can:
+
+- **Получение списка boards and lists**: View the boards you have access to and their associated lists.
+- **Получение списка and search cards**: Получение all cards on a board or filter by list to see their content and status.
+- **Create cards**: Add new cards to a Trello list, including descriptions, labels, and due dates.
+- **Обновлениеd move cards**: Edit card properties, move cards across lists, and set due dates or labels.
+- **Получение recent activity**: Получение actions and activity history for boards and cards.
+- **Comment on cards**: Add comments to cards for collaboration and tracking.
+
+Integrating Trello with Sim empowers your agents to manage your team’s tasks, boards, and projects programmatically. Automate project management workflows, keep task lists up-to-date, synchronize with other tools, or trigger intelligent workflows in response to Trello events—all through your AI agents.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+{/* MANUAL-CONTENT-START:usage */}
+### Trello OAuth Setup
+
+Before connecting Trello in Sim, add your Sim app origin to the **Allowed Origins** list for your Trello Ключ API in the Trello Power-Up admin settings.
+
+Trello's authorization flow redirects back to Sim using a `return_url`. If your Sim origin is not whitelisted in Trello, Trello will block the redirect and the connection flow will fail before Sim can save the token.
+{/* MANUAL-CONTENT-END */}
+
+
+Интегрируйте with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.
+
+
+
+## Действия
+
+### `trello_list_lists`
+
+Получение списка lists on a Trello board
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Да | Trello board ID \(24-character hex string\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Lists on the selected board |
+|   ↳ `id` | string | Получение списка ID |
+|   ↳ `name` | string | Получение списка name |
+|   ↳ `closed` | boolean | Указывает,  list is archived |
+|   ↳ `pos` | number | Получение списка position on the board |
+|   ↳ `idBoard` | string | Board ID containing the list |
+| `count` | number | Number of lists returned |
+
+### `trello_list_cards`
+
+Получение списка cards from a Trello board or list
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Нет | Trello board ID to list open cards from. Provide either boardId or listId |
+| `listId` | string | Нет | Trello list ID to list cards from. Provide either boardId or listId |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cards` | array | Cards returned from the selected Trello board or list |
+|   ↳ `id` | string | Card ID |
+|   ↳ `name` | string | Card name |
+|   ↳ `desc` | string | Card description |
+|   ↳ `url` | string | Full card URL |
+|   ↳ `idBoard` | string | Board ID containing the card |
+|   ↳ `idList` | string | Получение списка ID containing the card |
+|   ↳ `closed` | boolean | Указывает,  card is archived |
+|   ↳ `labelIds` | array | Label IDs applied to the card |
+|   ↳ `labels` | array | Labels applied to the card |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color |
+|   ↳ `due` | string | Card due date in ISO 8601 format |
+|   ↳ `dueComplete` | boolean | Указывает,  due date is complete |
+| `count` | number | Number of cards returned |
+
+### `trello_create_card`
+
+Создание нового card in a Trello list
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Да | Trello list ID \(24-character hex string\) |
+| `name` | string | Да | Name/title of the card |
+| `desc` | string | Нет | Description of the card |
+| `pos` | string | Нет | Position of the card \(top, bottom, or positive float\) |
+| `due` | string | Нет | Due date \(ISO 8601 format\) |
+| `dueComplete` | boolean | Нет | Указывает,  due date should be marked complete |
+| `labelIds` | array | Нет | Label IDs to attach to the card |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `card` | json | Created card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+|   ↳ `id` | string | Card ID |
+|   ↳ `name` | string | Card name |
+|   ↳ `desc` | string | Card description |
+|   ↳ `url` | string | Full card URL |
+|   ↳ `idBoard` | string | Board ID containing the card |
+|   ↳ `idList` | string | Получение списка ID containing the card |
+|   ↳ `closed` | boolean | Указывает,  card is archived |
+|   ↳ `labelIds` | array | Label IDs applied to the card |
+|   ↳ `labels` | array | Labels applied to the card |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color |
+|   ↳ `due` | string | Card due date in ISO 8601 format |
+|   ↳ `dueComplete` | boolean | Указывает,  due date is complete |
+
+### `trello_update_card`
+
+Обновление existing card on Trello
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Да | Trello card ID \(24-character hex string\) |
+| `name` | string | Нет | New name/title of the card |
+| `desc` | string | Нет | New description of the card |
+| `closed` | boolean | Нет | Archive/close the card \(true\) or reopen it \(false\) |
+| `idList` | string | Нет | Trello list ID to move card to \(24-character hex string\) |
+| `due` | string | Нет | Due date \(ISO 8601 format\) |
+| `dueComplete` | boolean | Нет | Mark the due date as complete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `card` | json | Updated card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+|   ↳ `id` | string | Card ID |
+|   ↳ `name` | string | Card name |
+|   ↳ `desc` | string | Card description |
+|   ↳ `url` | string | Full card URL |
+|   ↳ `idBoard` | string | Board ID containing the card |
+|   ↳ `idList` | string | Получение списка ID containing the card |
+|   ↳ `closed` | boolean | Указывает,  card is archived |
+|   ↳ `labelIds` | array | Label IDs applied to the card |
+|   ↳ `labels` | array | Labels applied to the card |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color |
+|   ↳ `due` | string | Card due date in ISO 8601 format |
+|   ↳ `dueComplete` | boolean | Указывает,  due date is complete |
+
+### `trello_get_actions`
+
+Получение activity/actions from a board or card
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Нет | Trello board ID \(24-character hex string\). Either boardId or cardId required |
+| `cardId` | string | Нет | Trello card ID \(24-character hex string\). Either boardId or cardId required |
+| `filter` | string | Нет | Filter actions by type (например, "commentCard,updateCard,createCard" or "all"\) |
+| `limit` | number | Нет | Maximum number of board actions to return |
+| `page` | number | Нет | Page number for action results |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actions` | array | Action items \(id, type, date, idMemberCreator, text, memberCreator, card, board, list\) |
+|   ↳ `id` | string | Action ID |
+|   ↳ `type` | string | Action type |
+|   ↳ `date` | string | Action timestamp |
+|   ↳ `idMemberCreator` | string | ID of the member who created the action |
+|   ↳ `text` | string | Comment text when present |
+|   ↳ `memberCreator` | object | Member who created the action |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
+|   ↳ `card` | object | Card referenced by the action |
+|     ↳ `id` | string | Card ID |
+|     ↳ `name` | string | Card name |
+|     ↳ `shortLink` | string | Short card link |
+|     ↳ `idShort` | number | Board-local card number |
+|     ↳ `due` | string | Card due date |
+|   ↳ `board` | object | Board referenced by the action |
+|     ↳ `id` | string | Board ID |
+|     ↳ `name` | string | Board name |
+|     ↳ `shortLink` | string | Short board link |
+|   ↳ `list` | object | Получение списка referenced by the action |
+|     ↳ `id` | string | Получение списка ID |
+|     ↳ `name` | string | Получение списка name |
+| `count` | number | Number of actions returned |
+
+### `trello_add_comment`
+
+Add a comment to a Trello card
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Да | Trello card ID \(24-character hex string\) |
+| `text` | string | Да | Comment text |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | json | Created comment action \(id, type, date, idMemberCreator, text, memberCreator, card, board, list\) |
+|   ↳ `id` | string | Action ID |
+|   ↳ `type` | string | Action type |
+|   ↳ `date` | string | Action timestamp |
+|   ↳ `idMemberCreator` | string | ID of the member who created the comment |
+|   ↳ `text` | string | Comment text |
+|   ↳ `memberCreator` | object | Member who created the comment |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
+|   ↳ `card` | object | Card referenced by the comment |
+|     ↳ `id` | string | Card ID |
+|     ↳ `name` | string | Card name |
+|     ↳ `shortLink` | string | Short card link |
+|     ↳ `idShort` | number | Board-local card number |
+|     ↳ `due` | string | Card due date |
+|   ↳ `board` | object | Board referenced by the comment |
+|     ↳ `id` | string | Board ID |
+|     ↳ `name` | string | Board name |
+|     ↳ `shortLink` | string | Short board link |
+|   ↳ `list` | object | Получение списка referenced by the comment |
+|     ↳ `id` | string | Получение списка ID |
+|     ↳ `name` | string | Получение списка name |
+
+

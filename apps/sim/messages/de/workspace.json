@@ -1,0 +1,16 @@
+{
+  "create": "Arbeitsbereich erstellen",
+  "name": "Name des Arbeitsbereichs",
+  "members": "Mitglieder",
+  "invite": "Einladen",
+  "noWorkflows": "Noch keine Workflows",
+  "createFirst": "Erstellen Sie Ihren ersten Workflow",
+  "switch": "Arbeitsbereich wechseln",
+  "leave": "Arbeitsbereich verlassen",
+  "delete": "Arbeitsbereich löschen",
+  "owner": "Eigentümer",
+  "admin": "Administrator",
+  "member": "Mitglied",
+  "role": "Rolle",
+  "transferOwnership": "Eigentum übertragen"
+}

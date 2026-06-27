@@ -1,0 +1,639 @@
+---
+title: Polymarket
+description: Доступ к данным рынков прогнозов Polymarket
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="polymarket"
+  color="#4C82FB"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Polymarket](https://polymarket.com) is a decentralized prediction markets platform where users can trade on the outcome of future events using blockchain technology. Polymarket provides a comprehensive API, enabling developers and agents to access live market data, event listings, price information, and orderbook statistics to power data-driven workflows and AI automations.
+
+With Polymarket’s API and Sim integration, you can enable agents to programmatically retrieve prediction market information, explore open markets and associated events, analyze historical price data, and access orderbooks and market midpoints. This creates new possibilities for research, automated analysis, and developing intelligent agents that react to real-time event probabilities derived from market prices.
+
+Key features of the Polymarket integration include:
+
+- **Market Listing & Filtering:** Получение списка current or historical prediction markets, filter by tag, sort, and paginate through results.
+- **Market Detail:** Получение details for a single market by market ID or slug, including its outcomes and status.
+- **Event Listings:** Access lists of Polymarket events and detailed event information.
+- **Orderbook & Price Data:** Analyze the orderbook, get the latest market prices, view the midpoint, or obtain historical price information for any market.
+- **Automation Ready:** Build agents or tools that react programmatically to market developments, changing odds, or specific event outcomes.
+
+By using these documented API endpoints, you can seamlessly integrate Polymarket’s rich on-chain prediction market data into your own AI workflows, dashboards, research tools, and trading automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Polymarket prediction markets в рабочий процесс. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.
+
+
+
+## Действия
+
+### `polymarket_get_markets`
+
+Получение a list of prediction markets from Polymarket with optional filtering
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `closed` | string | Нет | Filter by closed status \(true/false\). Use false for open markets only. |
+| `order` | string | Нет | Sort field (например, volumeNum, liquidityNum, startDate, endDate, createdAt\) |
+| `ascending` | string | Нет | Sort direction \(true for ascending, false for descending\) |
+| `tagId` | string | Нет | Filter by tag ID |
+| `limit` | string | Нет | Number of results per page (например, "25"\). Max: 50. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "50"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markets` | array | Array of market objects |
+|   ↳ `id` | string | Market ID |
+|   ↳ `question` | string | Market question |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Market image URL |
+|   ↳ `outcomes` | string | Outcomes JSON string |
+|   ↳ `outcomePrices` | string | Outcome prices JSON string |
+|   ↳ `volume` | string | Total volume |
+|   ↳ `liquidity` | string | Total liquidity |
+|   ↳ `active` | boolean | Whether market is active |
+|   ↳ `closed` | boolean | Whether market is closed |
+|   ↳ `volumeNum` | number | Volume as number |
+|   ↳ `liquidityNum` | number | Liquidity as number |
+|   ↳ `clobTokenIds` | array | CLOB token IDs |
+
+### `polymarket_get_market`
+
+Получение details of a specific prediction market by ID or slug
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `marketId` | string | Нет | The numeric market ID (например, "253591"\). Required if slug is not provided. Not the condition ID. |
+| `slug` | string | Нет | The market slug (например, "will-trump-win"\). URL-friendly identifier. Required if marketId is not provided. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `market` | object | Market object with details |
+|   ↳ `id` | string | Market ID |
+|   ↳ `question` | string | Market question |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `resolutionSource` | string | Resolution source |
+|   ↳ `endDate` | string | End date |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `image` | string | Market image URL |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `description` | string | Market description |
+|   ↳ `outcomes` | string | Outcomes JSON string |
+|   ↳ `outcomePrices` | string | Outcome prices JSON string |
+|   ↳ `volume` | string | Total volume |
+|   ↳ `liquidity` | string | Total liquidity |
+|   ↳ `active` | boolean | Whether market is active |
+|   ↳ `closed` | boolean | Whether market is closed |
+|   ↳ `archived` | boolean | Whether market is archived |
+|   ↳ `volumeNum` | number | Volume as number |
+|   ↳ `liquidityNum` | number | Liquidity as number |
+|   ↳ `clobTokenIds` | array | CLOB token IDs |
+|   ↳ `acceptingOrders` | boolean | Whether accepting orders |
+|   ↳ `negRisk` | boolean | Whether negative risk |
+
+### `polymarket_get_events`
+
+Получение a list of events from Polymarket with optional filtering
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `closed` | string | Нет | Filter by closed status \(true/false\). Use false for open events only. |
+| `order` | string | Нет | Sort field (например, volume, liquidity, startDate, endDate, createdAt\) |
+| `ascending` | string | Нет | Sort direction \(true for ascending, false for descending\) |
+| `tagId` | string | Нет | Filter by tag ID |
+| `limit` | string | Нет | Number of results per page (например, "25"\). Max: 50. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "50"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Array of event objects |
+|   ↳ `id` | string | Event ID |
+|   ↳ `ticker` | string | Event ticker |
+|   ↳ `slug` | string | Event slug |
+|   ↳ `title` | string | Event title |
+|   ↳ `description` | string | Event description |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Event image URL |
+|   ↳ `icon` | string | Event icon URL |
+|   ↳ `active` | boolean | Whether event is active |
+|   ↳ `closed` | boolean | Whether event is closed |
+|   ↳ `archived` | boolean | Whether event is archived |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `markets` | array | Array of markets in this event |
+
+### `polymarket_get_event`
+
+Получение details of a specific event by ID or slug
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Нет | The numeric event ID (например, "12345"\). Required if slug is not provided. |
+| `slug` | string | Нет | The event slug (например, "2024-presidential-election"\). URL-friendly identifier. Required if eventId is not provided. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Event object with details |
+|   ↳ `id` | string | Event ID |
+|   ↳ `ticker` | string | Event ticker |
+|   ↳ `slug` | string | Event slug |
+|   ↳ `title` | string | Event title |
+|   ↳ `description` | string | Event description |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `creationDate` | string | Creation date |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Event image URL |
+|   ↳ `icon` | string | Event icon URL |
+|   ↳ `active` | boolean | Whether event is active |
+|   ↳ `closed` | boolean | Whether event is closed |
+|   ↳ `archived` | boolean | Whether event is archived |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `openInterest` | number | Open interest |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `markets` | array | Array of markets in this event |
+
+### `polymarket_get_tags`
+
+Получение available tags for filtering markets from Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | Нет | Number of results per page (например, "25"\). Max: 50. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "50"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Array of tag objects |
+|   ↳ `id` | string | Tag ID |
+|   ↳ `label` | string | Tag label |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `polymarket_search`
+
+Search for markets, events, and profiles on Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Да | Search query term (например, "presidential election", "bitcoin price"\). |
+| `limit` | string | Нет | Maximum number of results per type \(events, tags, profiles\). По умолчанию: 50. |
+| `page` | string | Нет | Page number for pagination (например, "2"\). 1-indexed. |
+| `cache` | string | Нет | Enable caching \(true/false\) |
+| `eventsStatus` | string | Нет | Filter events by status |
+| `eventsTag` | string | Нет | Filter by event tags \(comma-separated\) |
+| `sort` | string | Нет | Sort field |
+| `ascending` | string | Нет | Sort direction \(true for ascending, false for descending\) |
+| `searchTags` | string | Нет | Include tags in search results \(true/false\) |
+| `searchProfiles` | string | Нет | Include profiles in search results \(true/false\) |
+| `recurrence` | string | Нет | Filter by recurrence type |
+| `excludeTagId` | string | Нет | Exclude events with these tag IDs \(comma-separated\) |
+| `keepClosedMarkets` | string | Нет | Include closed markets in results \(0 or 1\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | object | Search results containing events, tags, and profiles arrays |
+|   ↳ `events` | array | Array of matching event objects \(markets nested\) |
+|   ↳ `tags` | array | Array of matching tag objects |
+|   ↳ `profiles` | array | Array of matching profile objects |
+
+### `polymarket_get_series`
+
+Получение series (related market groups) from Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | Нет | Number of results per page (например, "25"\). Max: 50. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "50"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Array of series objects |
+|   ↳ `id` | string | Series ID |
+|   ↳ `ticker` | string | Series ticker |
+|   ↳ `slug` | string | Series slug |
+|   ↳ `title` | string | Series title |
+|   ↳ `seriesType` | string | Series type |
+|   ↳ `recurrence` | string | Recurrence pattern |
+|   ↳ `image` | string | Series image URL |
+|   ↳ `icon` | string | Series icon URL |
+|   ↳ `active` | boolean | Whether series is active |
+|   ↳ `closed` | boolean | Whether series is closed |
+|   ↳ `archived` | boolean | Whether series is archived |
+|   ↳ `featured` | boolean | Whether series is featured |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `eventCount` | number | Number of events in series |
+
+### `polymarket_get_series_by_id`
+
+Получение a specific series (related market group) by ID from Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `seriesId` | string | Да | The numeric series ID (например, "12345"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | object | Series object with details |
+|   ↳ `id` | string | Series ID |
+|   ↳ `ticker` | string | Series ticker |
+|   ↳ `slug` | string | Series slug |
+|   ↳ `title` | string | Series title |
+|   ↳ `seriesType` | string | Series type |
+|   ↳ `recurrence` | string | Recurrence pattern |
+|   ↳ `image` | string | Series image URL |
+|   ↳ `icon` | string | Series icon URL |
+|   ↳ `active` | boolean | Whether series is active |
+|   ↳ `closed` | boolean | Whether series is closed |
+|   ↳ `archived` | boolean | Whether series is archived |
+|   ↳ `featured` | boolean | Whether series is featured |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `eventCount` | number | Number of events in series |
+|   ↳ `events` | array | Array of events in this series |
+
+### `polymarket_get_orderbook`
+
+Получение the order book summary for a specific token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orderbook` | object | Order book with bids and asks arrays |
+|   ↳ `market` | string | Market identifier |
+|   ↳ `asset_id` | string | Asset token ID |
+|   ↳ `hash` | string | Order book hash |
+|   ↳ `timestamp` | string | Timestamp |
+|   ↳ `bids` | array | Bid orders |
+|     ↳ `price` | string | Bid price |
+|     ↳ `size` | string | Bid size |
+|   ↳ `asks` | array | Ask orders |
+|     ↳ `price` | string | Ask price |
+|     ↳ `size` | string | Ask size |
+|   ↳ `min_order_size` | string | Minimum order size |
+|   ↳ `tick_size` | string | Tick size |
+|   ↳ `neg_risk` | boolean | Whether negative risk |
+|   ↳ `last_trade_price` | string | Last trade price |
+
+### `polymarket_get_price`
+
+Получение the market price for a specific token and side
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+| `side` | string | Да | Order side: "buy" or "sell". |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `price` | string | Market price |
+
+### `polymarket_get_midpoint`
+
+Получение the midpoint price for a specific token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `midpoint` | string | Midpoint price |
+
+### `polymarket_get_price_history`
+
+Получение historical price data for a specific market token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+| `interval` | string | Нет | Duration ending at current time \(1m, 1h, 6h, 1d, 1w, max\). Mutually exclusive with startTs/endTs. |
+| `fidelity` | number | Нет | Data resolution in minutes (например, 60 for hourly\) |
+| `startTs` | number | Нет | Start timestamp \(Unix seconds UTC\) |
+| `endTs` | number | Нет | End timestamp \(Unix seconds UTC\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `history` | array | Array of price history entries |
+|   ↳ `t` | number | Unix timestamp |
+|   ↳ `p` | number | Price at timestamp |
+
+### `polymarket_get_last_trade_price`
+
+Получение the last trade price for a specific token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `price` | string | Last trade price |
+| `side` | string | Side of the last trade \(BUY or SELL\) |
+
+### `polymarket_get_spread`
+
+Получение the bid-ask spread for a specific token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spread` | object | Spread value between bid and ask |
+|   ↳ `spread` | string | The spread value |
+
+### `polymarket_get_tick_size`
+
+Получение the minimum tick size for a specific token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tokenId` | string | Да | The CLOB token ID from market clobTokenIds array (например, "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tickSize` | string | Minimum tick size |
+
+### `polymarket_get_positions`
+
+Получение user positions from Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Да | User wallet address |
+| `market` | string | Нет | Condition IDs to filter positions (например, "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
+| `eventId` | string | Нет | Event ID to filter positions (например, "12345"\). Mutually exclusive with market. |
+| `sizeThreshold` | string | Нет | Minimum position size threshold \(по умолчанию: 1\) |
+| `redeemable` | string | Нет | Filter for redeemable positions only \(true/false\) |
+| `mergeable` | string | Нет | Filter for mergeable positions only \(true/false\) |
+| `sortBy` | string | Нет | Sort field \(TOKENS, CURRENT, INITIAL, CASHPNL, PERCENTPNL, TITLE, RESOLVING, PRICE, AVGPRICE\) |
+| `sortDirection` | string | Нет | Sort direction \(ASC or DESC\) |
+| `title` | string | Нет | Search filter by title |
+| `limit` | string | Нет | Number of results per page (например, "25"\). |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "50"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `positions` | array | Array of position objects |
+|   ↳ `proxyWallet` | string | Proxy wallet address |
+|   ↳ `asset` | string | Asset token ID |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `size` | number | Position size |
+|   ↳ `avgPrice` | number | Average price |
+|   ↳ `initialValue` | number | Initial value |
+|   ↳ `currentValue` | number | Current value |
+|   ↳ `cashPnl` | number | Cash profit/loss |
+|   ↳ `percentPnl` | number | Percent profit/loss |
+|   ↳ `totalBought` | number | Total bought |
+|   ↳ `realizedPnl` | number | Realized profit/loss |
+|   ↳ `percentRealizedPnl` | number | Percent realized profit/loss |
+|   ↳ `curPrice` | number | Current price |
+|   ↳ `redeemable` | boolean | Whether position is redeemable |
+|   ↳ `mergeable` | boolean | Whether position is mergeable |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `oppositeOutcome` | string | Opposite outcome name |
+|   ↳ `oppositeAsset` | string | Opposite asset token ID |
+|   ↳ `endDate` | string | End date |
+|   ↳ `negativeRisk` | boolean | Whether negative risk |
+
+### `polymarket_get_trades`
+
+Получение trade history from Polymarket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Нет | User wallet address to filter trades |
+| `market` | string | Нет | Market/condition ID to filter trades (например, "0x1234...abcd"\). Mutually exclusive with eventId. |
+| `eventId` | string | Нет | Event ID to filter trades (например, "12345"\). Mutually exclusive with market. |
+| `side` | string | Нет | Trade direction filter \(BUY or SELL\) |
+| `takerOnly` | string | Нет | Filter for taker trades only \(true/false, по умолчанию: true\) |
+| `filterType` | string | Нет | Filter type \(CASH or TOKENS\) - requires filterAmount |
+| `filterAmount` | string | Нет | Filter amount threshold - requires filterType |
+| `limit` | string | Нет | Number of results per page (например, "50"\). По умолчанию: 100, max: 10000. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "100"\). |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trades` | array | Array of trade objects |
+|   ↳ `proxyWallet` | string | Proxy wallet address |
+|   ↳ `side` | string | Trade side \(BUY or SELL\) |
+|   ↳ `asset` | string | Asset token ID |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `size` | number | Trade size |
+|   ↳ `price` | number | Trade price |
+|   ↳ `timestamp` | number | Unix timestamp |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `name` | string | Trader name |
+|   ↳ `pseudonym` | string | Trader pseudonym |
+|   ↳ `bio` | string | Trader bio |
+|   ↳ `profileImage` | string | Profile image URL |
+|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
+|   ↳ `transactionHash` | string | Transaction hash |
+
+### `polymarket_get_activity`
+
+Получение on-chain activity for a user including trades, splits, merges, redemptions, rewards, and conversions
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Да | User wallet address \(0x-prefixed\) |
+| `limit` | string | Нет | Maximum results to return (например, "50"\). По умолчанию: 100, max: 500. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "100"\). По умолчанию: 0, max: 10000. |
+| `market` | string | Нет | Comma-separated condition IDs (например, "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
+| `eventId` | string | Нет | Comma-separated event IDs (например, "12345,67890"\). Mutually exclusive with market. |
+| `type` | string | Нет | Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE, REFERRAL_REWARD |
+| `start` | number | Нет | Start timestamp \(Unix seconds\) |
+| `end` | number | Нет | End timestamp \(Unix seconds\) |
+| `sortBy` | string | Нет | Sort field: TIMESTAMP, TOKENS, or CASH \(по умолчанию: TIMESTAMP\) |
+| `sortDirection` | string | Нет | Sort direction: ASC or DESC \(по умолчанию: DESC\) |
+| `side` | string | Нет | Trade side filter: BUY or SELL \(only applies to trades\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | array | Array of activity entries |
+|   ↳ `proxyWallet` | string | User proxy wallet address |
+|   ↳ `timestamp` | number | Unix timestamp of activity |
+|   ↳ `conditionId` | string | Market condition ID |
+|   ↳ `type` | string | Activity type \(TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION\) |
+|   ↳ `size` | number | Size in tokens |
+|   ↳ `usdcSize` | number | Size in USDC |
+|   ↳ `transactionHash` | string | Blockchain transaction hash |
+|   ↳ `price` | number | Price \(for trades\) |
+|   ↳ `asset` | string | Asset/token ID |
+|   ↳ `side` | string | Trade side \(BUY/SELL\) |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `name` | string | User display name |
+|   ↳ `pseudonym` | string | User pseudonym |
+|   ↳ `bio` | string | User bio |
+|   ↳ `profileImage` | string | User profile image URL |
+|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
+
+### `polymarket_get_leaderboard`
+
+Получение trader leaderboard rankings by profit/loss or volume
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | Нет | Category filter: OVERALL, POLITICS, SPORTS, CRYPTO, CULTURE, MENTIONS, WEATHER, ECONOMICS, TECH, FINANCE \(по умолчанию: OVERALL\) |
+| `timePeriod` | string | Нет | Time period: DAY, WEEK, MONTH, ALL \(по умолчанию: DAY\) |
+| `orderBy` | string | Нет | Order by: PNL or VOL \(по умолчанию: PNL\) |
+| `limit` | string | Нет | Number of results to return (например, "10"\). Range: 1-50, по умолчанию: 25. |
+| `offset` | string | Нет | Number of results to skip for pagination (например, "25"\). Range: 0-1000, по умолчанию: 0. |
+| `user` | string | Нет | Filter by specific user wallet address |
+| `userName` | string | Нет | Filter by username |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leaderboard` | array | Array of leaderboard entries |
+|   ↳ `rank` | string | Leaderboard rank position |
+|   ↳ `proxyWallet` | string | User proxy wallet address |
+|   ↳ `userName` | string | User display name |
+|   ↳ `vol` | number | Trading volume |
+|   ↳ `pnl` | number | Profit and loss |
+|   ↳ `profileImage` | string | User profile image URL |
+|   ↳ `xUsername` | string | Twitter/X username |
+|   ↳ `verifiedBadge` | boolean | Whether user has verified badge |
+
+### `polymarket_get_holders`
+
+Получение top holders of a specific market token
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | Да | Comma-separated list of condition IDs (например, "0x1234...abcd" or "0x1234...abcd,0x5678...efgh"\). |
+| `limit` | string | Нет | Number of holders to return (например, "10"\). Range: 0-20, по умолчанию: 20. |
+| `minBalance` | string | Нет | Minimum balance threshold \(по умолчанию: 1\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `holders` | array | Array of market holder groups by token |
+|   ↳ `token` | string | Token/asset ID |
+|   ↳ `holders` | array | Array of holders for this token |
+|     ↳ `proxyWallet` | string | Holder wallet address |
+|     ↳ `bio` | string | Holder bio |
+|     ↳ `asset` | string | Asset ID |
+|     ↳ `pseudonym` | string | Holder pseudonym |
+|     ↳ `amount` | number | Amount held |
+|     ↳ `displayUsernamePublic` | boolean | Whether username is publicly displayed |
+|     ↳ `outcomeIndex` | number | Outcome index |
+|     ↳ `name` | string | Holder display name |
+|     ↳ `profileImage` | string | Profile image URL |
+|     ↳ `profileImageOptimized` | string | Optimized profile image URL |
+|     ↳ `verified` | boolean | Указывает,  holder is verified |
+
+

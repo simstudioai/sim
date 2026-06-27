@@ -1,0 +1,84 @@
+---
+title: Overview
+description: How a workflow becomes an operational system that outside callers can run, with versioned snapshots and rollback.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+A deployment is a published version of a [workflow](/workflows) that outside callers can run. While you build, a workflow lives on your canvas as a draft only you can run. Deploying publishes a fixed copy of that draft and gives it an address: a REST endpoint, a chat page, a set of [MCP](/workflows/deployment/mcp) tools, or an [A2A](/workflows/deployment/api) agent. Each is a **surface**, a channel callers reach the same published workflow through.
+
+Like publishing a book, building and deploying are separate acts. You draft and revise freely on the canvas. When you click **Deploy**, Sim prints a fixed edition. Readers get that edition, not your latest draft, until you publish a new one. You can always go back to an earlier printing.
+
+{/* VISUAL: lifecycle diagram. Draft (canvas, editable) → Deploy → v1 (live snapshot) → edit canvas → Update → v2 (live) → Promote to live → v1 (live again). Show the snapshot is frozen while the draft keeps moving. */}
+
+## The deployment model
+
+### Snapshot
+
+A **snapshot** is an immutable copy of your workflow taken at the moment you deploy. It is frozen: editing the canvas afterward changes your draft, not the snapshot. Every call to your deployment runs against the snapshot, so a half-finished edit on the canvas never reaches a live caller. Publishing again takes a fresh snapshot of the current draft.
+
+### Version
+
+Each snapshot is recorded as a numbered **version** (v1, v2, and so on) in the Versions table, tagged with who deployed it and when. Versions are independent: one is live at a time, marked with a green dot, and the rest stay available to rename, describe, load back to the canvas, or promote. You publish v1 with **Deploy** and every later **Update** adds the next version.
+
+{/* VISUAL: Versions table. Rows v2 (live, green dot) and v1, with the context menu (⋮) open showing Rename, Add description, Promote to live, Load deployment. */}
+
+### Live version
+
+The **live version** is the one snapshot currently exposed through every surface. The General tab shows it as **Live Workflow**, a read-only minimap of exactly what callers run. Only one version is live at a time. Promoting a different version, or updating to a new one, swaps which snapshot is live without affecting the others.
+
+### Update
+
+After you change the canvas on a deployed workflow, an **Update deployment** badge appears in the toolbar to flag that your live version is behind your draft. Clicking **Update** takes a new snapshot, records it as the next version, and makes it live, all without reopening the deploy modal.
+
+### Promote to live
+
+**Promote to live** makes an earlier version the live one again. It is the fast path for rollback: if a new deployment misbehaves, promote the last known-good version to restore it instantly. Promoting reuses an existing snapshot, so it does not create a new version.
+
+<Callout type="info">
+Editing the canvas never changes what is live. The live snapshot only moves when you click **Update** (publish a new version) or **Promote to live** (restore an earlier one), and both of those are deliberate actions you take.
+</Callout>
+
+## The surfaces
+
+Every surface runs the same live snapshot. You manage them from the tabs of the deploy modal.
+
+The most common surface is the **API**. Once deployed, your workflow answers at:
+
+```
+POST https://sim.ai/api/workflows/{workflow-id}/execute
+```
+
+Send an object in the request body matching the workflow's [Input Format](/workflows/triggers/start). The response is an object holding the [block outputs](/workflows#blocks) and execution metadata.
+
+```bash
+curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "input": "Refund request from customer #4821" }'
+```
+
+{/* VISUAL: deploy modal tab bar. General · API · MCP · A2A · Chat. */}
+
+<Cards>
+  <Card title="API" href="/workflows/deployment/api" description="A REST endpoint any application can call, with sync, streaming, and async modes." />
+  <Card title="Chat" href="/workflows/deployment/chat" description="A shareable conversational page that keeps conversation history." />
+  <Card title="MCP" href="/workflows/deployment/mcp" description="Expose the workflow as tools an external AI assistant can call." />
+  <Card title="A2A" href="/workflows/deployment/api" description="Let other AI agents discover and call the workflow as a tool." />
+</Cards>
+
+## Versioning in practice
+
+Treat the live version as production and the canvas as staging. Run the workflow on the canvas until it behaves, then **Deploy** or **Update** to publish. Callers keep hitting the previous snapshot until the new version goes live, so there is no half-deployed state. If a new version causes trouble, **Promote to live** the previous one to roll back at once, then fix the draft and update again when it is ready. The [logs](/logs-debugging) record every run against every version, so you can confirm which snapshot a given execution used.
+
+## Next
+
+<Cards>
+  <Card title="Deploy as API" href="/workflows/deployment/api" description="Endpoint, auth, execution modes, and version control." />
+  <Card title="Deploy as Chat" href="/workflows/deployment/chat" description="A conversational interface for your workflow." />
+  <Card title="Deploy as MCP" href="/workflows/deployment/mcp" description="Make your workflow a tool for external AI assistants." />
+  <Card title="Triggers" href="/workflows/triggers/start" description="Define the input a deployed workflow expects." />
+  <Card title="Logs & debugging" href="/logs-debugging" description="Trace every run, block by block." />
+</Cards>

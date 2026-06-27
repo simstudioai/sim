@@ -1,0 +1,18 @@
+{
+  "workflowCreated": "Воркфлоу создан",
+  "workflowDeleted": "Воркфлоу удалён",
+  "workflowUpdated": "Воркфлоу обновлён",
+  "workflowDuplicated": "Воркфлоу дублирован",
+  "executionStarted": "Запуск начат",
+  "executionCompleted": "Запуск завершён",
+  "executionFailed": "Запуск завершился с ошибкой",
+  "invitationSent": "Приглашение отправлено",
+  "memberAdded": "Участник добавлен",
+  "memberRemoved": "Участник удалён",
+  "settingsSaved": "Настройки сохранены",
+  "fileUploaded": "Файл загружен",
+  "fileDeleted": "Файл удалён",
+  "integrationConnected": "Интеграция подключена",
+  "integrationDisconnected": "Интеграция отключена",
+  "knowledgeSynced": "База знаний синхронизирована"
+}

@@ -1,0 +1,382 @@
+---
+title: SSH
+description: Подключение к удалённым серверам через SSH
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssh"
+  color="#000000"
+/>
+
+## Инструкции по использованию
+
+Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.
+
+
+
+## Действия
+
+### `ssh_execute_command`
+
+Execute a shell command on a remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `command` | string | Да | Shell command to execute on the remote server |
+| `workingDirectory` | string | Нет | Working directory for command execution |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standard output from command |
+| `stderr` | string | Standard error output |
+| `exitCode` | number | Command exit code |
+| `success` | boolean | Whether command succeeded \(exit code 0\) |
+| `message` | string | Статус операции message |
+
+### `ssh_execute_script`
+
+Upload and execute a multi-line script on a remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `script` | string | Да | Script content to execute \(bash, python, etc.\) |
+| `interpreter` | string | Нет | Script interpreter \(по умолчанию: /bin/bash\) |
+| `workingDirectory` | string | Нет | Working directory for script execution |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stdout` | string | Standard output from script |
+| `stderr` | string | Standard error output |
+| `exitCode` | number | Script exit code |
+| `success` | boolean | Whether script succeeded \(exit code 0\) |
+| `scriptPath` | string | Temporary path where script was uploaded |
+| `message` | string | Статус операции message |
+
+### `ssh_check_command_exists`
+
+Check if a command/program exists on the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `commandName` | string | Да | Command name to check (например, docker, git, python3\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandExists` | boolean | Указывает,  command exists |
+| `commandPath` | string | Full path to the command \(if found\) |
+| `version` | string | Command version output \(if applicable\) |
+| `message` | string | Статус операции message |
+
+### `ssh_upload_file`
+
+Upload a file to a remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `fileContent` | string | Да | File content to upload \(base64 encoded for binary files\) |
+| `fileName` | string | Да | Name of the file being uploaded |
+| `remotePath` | string | Да | Destination path on the remote server |
+| `permissions` | string | Нет | File permissions (например, 0644\) |
+| `overwrite` | boolean | Нет | Whether to overwrite existing files \(по умолчанию: true\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uploaded` | boolean | Указывает,  file was uploaded successfully |
+| `remotePath` | string | Final path on the remote server |
+| `size` | number | File size in bytes |
+| `message` | string | Статус операции message |
+
+### `ssh_download_file`
+
+Download a file from a remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `remotePath` | string | Да | Path of the file on the remote server |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `downloaded` | boolean | Указывает,  file was downloaded successfully |
+| `file` | file | Downloaded file stored in execution files |
+| `fileContent` | string | File content \(base64 encoded for binary files\) |
+| `fileName` | string | Name of the downloaded file |
+| `remotePath` | string | Source path on the remote server |
+| `size` | number | File size in bytes |
+| `message` | string | Статус операции message |
+
+### `ssh_list_directory`
+
+Получение списка files and directories in a remote directory
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Remote directory path to list |
+| `detailed` | boolean | Нет | Include file details \(size, permissions, modified date\) |
+| `recursive` | boolean | Нет | Получение списка subdirectories recursively \(по умолчанию: false\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | Array of file and directory entries |
+|   ↳ `name` | string | File or directory name |
+|   ↳ `type` | string | Entry type \(file, directory, symlink\) |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `permissions` | string | File permissions |
+|   ↳ `modified` | string | Last modified timestamp |
+| `totalFiles` | number | Total number of files |
+| `totalDirectories` | number | Total number of directories |
+| `message` | string | Статус операции message |
+
+### `ssh_check_file_exists`
+
+Check if a file or directory exists on the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Remote file or directory path to check |
+| `type` | string | Нет | Expected type: file, directory, or any \(по умолчанию: any\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exists` | boolean | Указывает,  path exists |
+| `type` | string | Type of path \(file, directory, symlink, not_found\) |
+| `size` | number | File size if it is a file |
+| `permissions` | string | File permissions (например, 0755\) |
+| `modified` | string | Last modified timestamp |
+| `message` | string | Статус операции message |
+
+### `ssh_create_directory`
+
+Create a directory on the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Directory path to create |
+| `recursive` | boolean | Нет | Create parent directories if they do not exist \(по умолчанию: true\) |
+| `permissions` | string | Нет | Directory permissions \(по умолчанию: 0755\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `created` | boolean | Указывает,  directory was created successfully |
+| `remotePath` | string | Created directory path |
+| `alreadyExists` | boolean | Указывает,  directory already existed |
+| `message` | string | Статус операции message |
+
+### `ssh_delete_file`
+
+Удаление file or directory from the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Path to delete |
+| `recursive` | boolean | Нет | Recursively delete directories \(по умолчанию: false\) |
+| `force` | boolean | Нет | Force deletion without confirmation \(по умолчанию: false\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  path was deleted successfully |
+| `remotePath` | string | Deleted path |
+| `message` | string | Статус операции message |
+
+### `ssh_move_rename`
+
+Move or rename a file or directory on the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `sourcePath` | string | Да | Current path of the file or directory |
+| `destinationPath` | string | Да | New path for the file or directory |
+| `overwrite` | boolean | Нет | Overwrite destination if it exists \(по умолчанию: false\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `moved` | boolean | Указывает,  operation was successful |
+| `sourcePath` | string | Original path |
+| `destinationPath` | string | New path |
+| `message` | string | Статус операции message |
+
+### `ssh_get_system_info`
+
+Получение system information from the remote SSH server
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hostname` | string | Server hostname |
+| `os` | string | Operating system (например, Linux, Darwin\) |
+| `architecture` | string | CPU architecture (например, x64, arm64\) |
+| `uptime` | number | System uptime in seconds |
+| `memory` | json | Memory information \(total, free, used\) |
+| `diskSpace` | json | Disk space information \(total, free, used\) |
+| `message` | string | Статус операции message |
+
+### `ssh_read_file_content`
+
+Read the contents of a remote file
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Remote file path to read |
+| `encoding` | string | Нет | File encoding \(по умолчанию: utf-8\) |
+| `maxSize` | number | Нет | Maximum file size to read in MB \(по умолчанию: 10\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | File content as string |
+| `size` | number | File size in bytes |
+| `lines` | number | Number of lines in file |
+| `remotePath` | string | Remote file path |
+| `message` | string | Статус операции message |
+
+### `ssh_write_file_content`
+
+Write or append content to a remote file
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | SSH server hostname or IP address |
+| `port` | number | Да | SSH server port \(по умолчанию: 22\) |
+| `username` | string | Да | SSH username |
+| `password` | string | Нет | Password for authentication \(if not using private key\) |
+| `privateKey` | string | Нет | Private key for authentication \(OpenSSH format\) |
+| `passphrase` | string | Нет | Passphrase for encrypted private key |
+| `path` | string | Да | Remote file path to write to |
+| `content` | string | Да | Content to write to the file |
+| `mode` | string | Нет | Write mode: overwrite, append, or create \(по умолчанию: overwrite\) |
+| `permissions` | string | Нет | File permissions (например, 0644\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `written` | boolean | Указывает,  file was written successfully |
+| `remotePath` | string | File path |
+| `size` | number | Final file size in bytes |
+| `message` | string | Статус операции message |
+
+

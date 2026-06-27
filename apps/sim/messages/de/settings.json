@@ -1,0 +1,23 @@
+{
+  "general": "Allgemein",
+  "billing": "Abrechnung",
+  "team": "Team",
+  "apiKeys": "API-Schlüssel",
+  "secrets": "Geheimnisse",
+  "byok": "Eigene Schlüssel verwenden",
+  "connections": "Verbindungen",
+  "auditLogs": "Audit-Protokolle",
+  "dangerZone": "Gefahrenzone",
+  "deleteAccount": "Konto löschen",
+  "deleteAccountWarning": "Diese Aktion kann nicht rückgängig gemacht werden. Alle Ihre Daten werden dauerhaft gelöscht.",
+  "profile": "Profil",
+  "name": "Name",
+  "email": "E-Mail",
+  "changePassword": "Passwort ändern",
+  "appearance": "Darstellung",
+  "theme": "Design",
+  "timezone": "Zeitzone",
+  "language": "Sprache",
+  "notifications": "Benachrichtigungen",
+  "emailNotifications": "E-Mail-Benachrichtigungen"
+}

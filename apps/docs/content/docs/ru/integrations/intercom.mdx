@@ -1,0 +1,1242 @@
+---
+title: Intercom
+description: Управление контактами, компаниями, беседами, тикетами и сообщениями в Intercom
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="intercom_v2"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your customer communications and relationship management with [Intercom](https://www.intercom.com/) – the all-in-one messaging platform for engaging, supporting, and retaining your customers. Integrate Intercom into your workflows to centralize conversations, contacts, support tickets, and more, all seamlessly accessible via automation.
+
+With the Intercom tool, you can:
+
+- **Create and manage contacts**: Easily add, update, search, list, and delete contacts to maintain a clean, actionable customer database. 
+- **Organize companies**: Create, get, and list companies to understand and support your customer organizations at scale.
+- **Centralize customer conversations**: Retrieve, list, reply to, and search customer conversations to ensure no message slips through the cracks and support responses are always timely.
+- **Manage tickets and messages**: Create and fetch tickets, as well as compose outbound messages, to deliver proactive, high-quality support experiences.
+- **Automate and extend workflows**: Connect Intercom operations with your automations to trigger follow-ups, orchestrate customer journeys, and sync data with your stack.
+
+Intercom empowers sales, support, and success teams to deliver personalized, efficient, and scalable customer experiences—whether you need to onboard new users, troubleshoot issues, or engage your customer base in real time.
+
+Drive deeper relationships, faster response times, and smarter workflows by integrating Intercom with your automated processes today.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.
+
+
+
+## Действия
+
+### `intercom_create_contact`
+
+Create a new contact in Intercom with email, external_id, or role. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | Нет | The role of the contact. Accepts 'user' or 'lead'. Defaults to 'lead' if not specified. |
+| `email` | string | Нет | The contact's email address |
+| `external_id` | string | Нет | A unique identifier for the contact provided by the client |
+| `phone` | string | Нет | The contact's phone number |
+| `name` | string | Нет | The contact's name |
+| `avatar` | string | Нет | An avatar image URL for the contact |
+| `signed_up_at` | number | Нет | The time the user signed up as a Unix timestamp |
+| `last_seen_at` | number | Нет | The time the user was last seen as a Unix timestamp |
+| `owner_id` | string | Нет | The id of an admin that has been assigned account ownership of the contact |
+| `unsubscribed_from_emails` | boolean | Нет | Whether the contact is unsubscribed from emails |
+| `custom_attributes` | string | Нет | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+| `company_id` | string | Нет | Company ID to associate the contact with during creation |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contact` | object | Created contact object |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `avatar` | string | Avatar URL of the contact |
+|   ↳ `owner_id` | string | ID of the admin assigned to this contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `signed_up_at` | number | Unix timestamp when user signed up |
+|   ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|     ↳ `type` | string | List type |
+|     ↳ `url` | string | URL to fetch tags |
+|     ↳ `data` | array | Array of tag objects |
+|     ↳ `has_more` | boolean | Whether there are more tags |
+|     ↳ `total_count` | number | Total number of tags |
+|   ↳ `notes` | object | Notes associated with the contact |
+|     ↳ `type` | string | List type |
+|     ↳ `url` | string | URL to fetch notes |
+|     ↳ `data` | array | Array of note objects |
+|     ↳ `has_more` | boolean | Whether there are more notes |
+|     ↳ `total_count` | number | Total number of notes |
+|   ↳ `companies` | object | Companies associated with the contact |
+|     ↳ `type` | string | List type |
+|     ↳ `url` | string | URL to fetch companies |
+|     ↳ `data` | array | Array of company objects |
+|     ↳ `has_more` | boolean | Whether there are more companies |
+|     ↳ `total_count` | number | Total number of companies |
+|   ↳ `location` | object | Location information for the contact |
+|     ↳ `type` | string | Location type |
+|     ↳ `city` | string | City |
+|     ↳ `region` | string | Region/State |
+|     ↳ `country` | string | Country |
+|     ↳ `country_code` | string | Country code |
+|     ↳ `continent_code` | string | Continent code |
+|   ↳ `social_profiles` | object | Social profiles of the contact |
+|     ↳ `type` | string | List type |
+|     ↳ `data` | array | Array of social profile objects |
+|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `contactId` | string | ID of the created contact |
+
+### `intercom_get_contact`
+
+Get a single contact by ID from Intercom. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | Contact ID to retrieve |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contact` | object | Contact object |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `email_domain` | string | Email domain of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `avatar` | string | Avatar URL of the contact |
+|   ↳ `owner_id` | string | ID of the admin assigned account ownership |
+|   ↳ `external_id` | string | External identifier provided by the client |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `signed_up_at` | number | Unix timestamp when user signed up |
+|   ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
+|   ↳ `last_contacted_at` | number | Unix timestamp when contact was last contacted |
+|   ↳ `last_replied_at` | number | Unix timestamp when contact last replied |
+|   ↳ `last_email_opened_at` | number | Unix timestamp when contact last opened an email |
+|   ↳ `last_email_clicked_at` | number | Unix timestamp when contact last clicked an email link |
+|   ↳ `has_hard_bounced` | boolean | Whether email to this contact has hard bounced |
+|   ↳ `marked_email_as_spam` | boolean | Whether contact marked email as spam |
+|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+|   ↳ `browser` | string | Browser used by contact |
+|   ↳ `browser_version` | string | Browser version |
+|   ↳ `browser_language` | string | Browser language setting |
+|   ↳ `os` | string | Operating system |
+|   ↳ `language_override` | string | Language override setting |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
+|     ↳ `url` | string | URL to fetch full list |
+|     ↳ `data` | array | Array of objects \(up to 10\) |
+|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
+|     ↳ `total_count` | number | Total number of items |
+|   ↳ `notes` | object | Notes associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
+|     ↳ `url` | string | URL to fetch full list |
+|     ↳ `data` | array | Array of objects \(up to 10\) |
+|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
+|     ↳ `total_count` | number | Total number of items |
+|   ↳ `companies` | object | Companies associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
+|     ↳ `url` | string | URL to fetch full list |
+|     ↳ `data` | array | Array of objects \(up to 10\) |
+|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
+|     ↳ `total_count` | number | Total number of items |
+|   ↳ `location` | object | Location information for the contact |
+|     ↳ `type` | string | Object type \(location\) |
+|     ↳ `city` | string | City name |
+|     ↳ `region` | string | Region or state name |
+|     ↳ `country` | string | Country name |
+|     ↳ `country_code` | string | ISO country code |
+|     ↳ `continent_code` | string | Continent code |
+|   ↳ `social_profiles` | object | Social profiles of the contact |
+|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
+|     ↳ `name` | string | Social network name |
+|     ↳ `url` | string | Profile URL |
+|     ↳ `username` | string | Username on the social network |
+|     ↳ `id` | string | User ID on the social network |
+
+### `intercom_update_contact`
+
+Update an existing contact in Intercom. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | Contact ID to update |
+| `role` | string | Нет | The role of the contact. Accepts 'user' or 'lead'. |
+| `external_id` | string | Нет | A unique identifier for the contact provided by the client |
+| `email` | string | Нет | The contact's email address |
+| `phone` | string | Нет | The contact's phone number |
+| `name` | string | Нет | The contact's name |
+| `avatar` | string | Нет | An avatar image URL for the contact |
+| `signed_up_at` | number | Нет | The time the user signed up as a Unix timestamp |
+| `last_seen_at` | number | Нет | The time the user was last seen as a Unix timestamp |
+| `owner_id` | string | Нет | The id of an admin that has been assigned account ownership of the contact |
+| `unsubscribed_from_emails` | boolean | Нет | Whether the contact is unsubscribed from emails |
+| `custom_attributes` | string | Нет | Custom attributes as JSON object \(e.g., \{"attribute_name": "value"\}\) |
+| `company_id` | string | Нет | Company ID to associate the contact with |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contact` | object | Updated contact object |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `avatar` | string | Avatar URL of the contact |
+|   ↳ `owner_id` | string | ID of the admin assigned to this contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `notes` | object | Notes associated with the contact |
+|   ↳ `companies` | object | Companies associated with the contact |
+|   ↳ `location` | object | Location information for the contact |
+|   ↳ `social_profiles` | object | Social profiles of the contact |
+|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `contactId` | string | ID of the updated contact |
+
+### `intercom_list_contacts`
+
+List all contacts from Intercom with pagination support
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | Нет | Number of results per page \(max: 150\) |
+| `starting_after` | string | Нет | Cursor for pagination - ID to start after |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contacts` | array | Array of contact objects |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `companies` | object | Companies associated with the contact |
+| `pages` | object | Pagination information |
+|   ↳ `type` | string | Pages type identifier |
+|   ↳ `page` | number | Current page number |
+|   ↳ `per_page` | number | Number of results per page |
+|   ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of contacts |
+
+### `intercom_search_contacts`
+
+Search for contacts in Intercom using a query
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Да | Search query \(e.g., \{"field":"email","operator":"=","value":"user@example.com"\}\) |
+| `per_page` | number | Нет | Number of results per page \(max: 150\) |
+| `starting_after` | string | Нет | Cursor for pagination |
+| `sort_field` | string | Нет | Field to sort by \(e.g., "name", "created_at", "last_seen_at"\) |
+| `sort_order` | string | Нет | Sort order: "ascending" or "descending" |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contacts` | array | Array of matching contact objects |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
+|   ↳ `role` | string | Role of the contact \(user or lead\) |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `phone` | string | Phone number of the contact |
+|   ↳ `name` | string | Name of the contact |
+|   ↳ `avatar` | string | Avatar URL of the contact |
+|   ↳ `owner_id` | string | ID of the admin assigned to this contact |
+|   ↳ `external_id` | string | External identifier for the contact |
+|   ↳ `created_at` | number | Unix timestamp when contact was created |
+|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
+|   ↳ `signed_up_at` | number | Unix timestamp when user signed up |
+|   ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
+|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
+|   ↳ `custom_attributes` | object | Custom attributes set on the contact |
+|   ↳ `tags` | object | Tags associated with the contact |
+|   ↳ `notes` | object | Notes associated with the contact |
+|   ↳ `companies` | object | Companies associated with the contact |
+|   ↳ `location` | object | Location information for the contact |
+|   ↳ `social_profiles` | object | Social profiles of the contact |
+|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
+| `pages` | object | Pagination information |
+|   ↳ `type` | string | Pages type identifier |
+|   ↳ `page` | number | Current page number |
+|   ↳ `per_page` | number | Number of results per page |
+|   ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of matching contacts |
+
+### `intercom_delete_contact`
+
+Delete a contact from Intercom by ID. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | Contact ID to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | ID of deleted contact |
+| `deleted` | boolean | Whether the contact was deleted |
+
+### `intercom_create_company`
+
+Create or update a company in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `company_id` | string | Да | Your unique identifier for the company |
+| `name` | string | Нет | The name of the company |
+| `website` | string | Нет | The company website |
+| `plan` | string | Нет | The company plan name |
+| `size` | number | Нет | The number of employees in the company |
+| `industry` | string | Нет | The industry the company operates in |
+| `monthly_spend` | number | Нет | How much revenue the company generates for your business. Note: This field truncates floats to whole integers \(e.g., 155.98 becomes 155\) |
+| `custom_attributes` | string | Нет | Custom attributes as JSON object |
+| `remote_created_at` | number | Нет | The time the company was created by you as a Unix timestamp |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `company` | object | Created or updated company object |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `app_id` | string | Intercom app ID |
+|   ↳ `company_id` | string | Your unique identifier for the company |
+|   ↳ `name` | string | Name of the company |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `plan` | object | Company plan information |
+|   ↳ `size` | number | Number of employees |
+|   ↳ `industry` | string | Industry the company operates in |
+|   ↳ `monthly_spend` | number | Monthly revenue from this company |
+|   ↳ `session_count` | number | Number of sessions |
+|   ↳ `user_count` | number | Number of users in the company |
+|   ↳ `created_at` | number | Unix timestamp when company was created |
+|   ↳ `updated_at` | number | Unix timestamp when company was last updated |
+|   ↳ `remote_created_at` | number | Unix timestamp when company was created by you |
+|   ↳ `custom_attributes` | object | Custom attributes set on the company |
+|   ↳ `tags` | object | Tags associated with the company |
+|     ↳ `type` | string | Tag list type |
+|     ↳ `tags` | array | Array of tag objects |
+|   ↳ `segments` | object | Segments the company belongs to |
+|     ↳ `type` | string | Segment list type |
+|     ↳ `segments` | array | Array of segment objects |
+| `companyId` | string | ID of the created/updated company |
+
+### `intercom_get_company`
+
+Retrieve a single company by ID from Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Да | Company ID to retrieve |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `company` | object | Company object |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `app_id` | string | Intercom app ID |
+|   ↳ `company_id` | string | Your unique identifier for the company |
+|   ↳ `name` | string | Name of the company |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `plan` | object | Company plan information |
+|   ↳ `size` | number | Number of employees |
+|   ↳ `industry` | string | Industry the company operates in |
+|   ↳ `monthly_spend` | number | Monthly revenue from this company |
+|   ↳ `session_count` | number | Number of sessions |
+|   ↳ `user_count` | number | Number of users in the company |
+|   ↳ `created_at` | number | Unix timestamp when company was created |
+|   ↳ `updated_at` | number | Unix timestamp when company was last updated |
+|   ↳ `custom_attributes` | object | Custom attributes set on the company |
+|   ↳ `tags` | object | Tags associated with the company |
+|   ↳ `segments` | object | Segments the company belongs to |
+
+### `intercom_list_companies`
+
+List all companies from Intercom with pagination support. Note: This endpoint has a limit of 10,000 companies that can be returned using pagination. For datasets larger than 10,000 companies, use the Scroll API instead.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | Нет | Number of results per page |
+| `page` | number | Нет | Page number |
+| `starting_after` | string | Нет | Cursor for pagination \(preferred over page-based pagination\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `companies` | array | Array of company objects |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `app_id` | string | Intercom app ID |
+|   ↳ `company_id` | string | Your unique identifier for the company |
+|   ↳ `name` | string | Name of the company |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `plan` | object | Company plan information |
+|   ↳ `monthly_spend` | number | Monthly revenue from this company |
+|   ↳ `session_count` | number | Number of sessions |
+|   ↳ `user_count` | number | Number of users in the company |
+|   ↳ `created_at` | number | Unix timestamp when company was created |
+|   ↳ `updated_at` | number | Unix timestamp when company was last updated |
+|   ↳ `custom_attributes` | object | Custom attributes set on the company |
+|   ↳ `tags` | object | Tags associated with the company |
+|   ↳ `segments` | object | Segments the company belongs to |
+| `pages` | object | Pagination information |
+|   ↳ `type` | string | Pages type identifier |
+|   ↳ `page` | number | Current page number |
+|   ↳ `per_page` | number | Number of results per page |
+|   ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of companies |
+| `success` | boolean | Operation success status |
+
+### `intercom_get_conversation`
+
+Retrieve a single conversation by ID from Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | Conversation ID to retrieve |
+| `display_as` | string | Нет | Set to "plaintext" to retrieve messages in plain text |
+| `include_translations` | boolean | Нет | When true, conversation parts will be translated to the detected language of the conversation |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | Conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `snoozed_until` | number | Unix timestamp when snooze ends |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+|   ↳ `teammates` | object | Teammates in the conversation |
+|   ↳ `conversation_parts` | object | Parts of the conversation |
+|   ↳ `statistics` | object | Conversation statistics |
+| `success` | boolean | Operation success status |
+
+### `intercom_list_conversations`
+
+List all conversations from Intercom with pagination support
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `per_page` | number | Нет | Number of results per page \(max: 150\) |
+| `starting_after` | string | Нет | Cursor for pagination |
+| `sort` | string | Нет | Field to sort by \(e.g., "waiting_since", "updated_at", "created_at"\) |
+| `order` | string | Нет | Sort order: "asc" \(ascending\) or "desc" \(descending\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversations` | array | Array of conversation objects |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+| `pages` | object | Pagination information |
+|   ↳ `type` | string | Pages type identifier |
+|   ↳ `page` | number | Current page number |
+|   ↳ `per_page` | number | Number of results per page |
+|   ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of conversations |
+| `success` | boolean | Operation success status |
+
+### `intercom_reply_conversation`
+
+Reply to a conversation as an admin in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | Conversation ID to reply to |
+| `message_type` | string | Да | Message type: "comment" or "note" |
+| `body` | string | Да | The text body of the reply |
+| `admin_id` | string | Нет | The ID of the admin authoring the reply. If not provided, a default admin \(Operator/Fin\) will be used. |
+| `attachment_urls` | string | Нет | Comma-separated list of image URLs \(max 10\) |
+| `created_at` | number | Нет | Unix timestamp for when the reply was created. If not provided, current time is used. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | Updated conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+|   ↳ `conversation_parts` | object | Parts of the conversation |
+| `conversationId` | string | ID of the conversation |
+| `success` | boolean | Operation success status |
+
+### `intercom_search_conversations`
+
+Search for conversations in Intercom using a query. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Да | Search query as JSON object |
+| `per_page` | number | Нет | Number of results per page \(max: 150\) |
+| `starting_after` | string | Нет | Cursor for pagination |
+| `sort_field` | string | Нет | Field to sort by \(e.g., "created_at", "updated_at"\) |
+| `sort_order` | string | Нет | Sort order: "ascending" or "descending" |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversations` | array | Array of matching conversation objects |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `title` | string | Title of the conversation |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+|   ↳ `waiting_since` | number | Unix timestamp when waiting for reply |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `priority` | string | Priority of the conversation |
+|   ↳ `admin_assignee_id` | number | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `tags` | object | Tags on the conversation |
+|   ↳ `source` | object | Source of the conversation |
+|   ↳ `contacts` | object | Contacts in the conversation |
+| `pages` | object | Pagination information |
+|   ↳ `type` | string | Pages type identifier |
+|   ↳ `page` | number | Current page number |
+|   ↳ `per_page` | number | Number of results per page |
+|   ↳ `total_pages` | number | Total number of pages |
+| `total_count` | number | Total number of matching conversations |
+| `success` | boolean | Operation success status |
+
+### `intercom_create_ticket`
+
+Create a new ticket in Intercom. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `ticket_type_id` | string | Да | The ID of the ticket type |
+| `contacts` | string | Да | JSON array of contact identifiers \(e.g., \[\{"id": "contact_id"\}\]\) |
+| `ticket_attributes` | string | Да | JSON object with ticket attributes including _default_title_ and _default_description_ |
+| `company_id` | string | Нет | Company ID to associate the ticket with |
+| `created_at` | number | Нет | Unix timestamp for when the ticket was created. If not provided, current time is used. |
+| `conversation_to_link_id` | string | Нет | ID of an existing conversation to link to this ticket |
+| `disable_notifications` | boolean | Нет | When true, suppresses notifications when the ticket is created |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `ticket` | object | Created ticket object |
+|   ↳ `id` | string | Unique identifier for the ticket |
+|   ↳ `type` | string | Object type \(ticket\) |
+|   ↳ `ticket_id` | string | Ticket ID |
+|   ↳ `ticket_type` | object | Type of the ticket |
+|   ↳ `ticket_attributes` | object | Attributes of the ticket |
+|   ↳ `ticket_state` | string | State of the ticket |
+|   ↳ `ticket_state_internal_label` | string | Internal label for ticket state |
+|   ↳ `ticket_state_external_label` | string | External label for ticket state |
+|   ↳ `created_at` | number | Unix timestamp when ticket was created |
+|   ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+|   ↳ `contacts` | object | Contacts associated with the ticket |
+|   ↳ `admin_assignee_id` | string | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `is_shared` | boolean | Whether the ticket is shared |
+|   ↳ `open` | boolean | Whether the ticket is open |
+| `ticketId` | string | ID of the created ticket |
+| `success` | boolean | Operation success status |
+
+### `intercom_get_ticket`
+
+Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Да | Ticket ID to retrieve |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `ticket` | object | Ticket object |
+|   ↳ `id` | string | Unique identifier for the ticket |
+|   ↳ `type` | string | Object type \(ticket\) |
+|   ↳ `ticket_id` | string | Ticket ID |
+|   ↳ `ticket_type` | object | Type of the ticket |
+|   ↳ `ticket_attributes` | object | Attributes of the ticket |
+|   ↳ `ticket_state` | string | State of the ticket |
+|   ↳ `ticket_state_internal_label` | string | Internal label for ticket state |
+|   ↳ `ticket_state_external_label` | string | External label for ticket state |
+|   ↳ `created_at` | number | Unix timestamp when ticket was created |
+|   ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+|   ↳ `contacts` | object | Contacts associated with the ticket |
+|   ↳ `admin_assignee_id` | string | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `is_shared` | boolean | Whether the ticket is shared |
+|   ↳ `open` | boolean | Whether the ticket is open |
+| `ticketId` | string | ID of the retrieved ticket |
+| `success` | boolean | Operation success status |
+
+### `intercom_update_ticket`
+
+Update a ticket in Intercom (change state, assignment, attributes)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Да | The ID of the ticket to update |
+| `ticket_attributes` | string | Нет | JSON object with ticket attributes \(e.g., \{"_default_title_":"New Title","_default_description_":"Updated description"\}\) |
+| `open` | boolean | Нет | Set to false to close the ticket, true to keep it open |
+| `is_shared` | boolean | Нет | Whether the ticket is visible to users |
+| `snoozed_until` | number | Нет | Unix timestamp for when the ticket should reopen |
+| `admin_id` | string | Нет | The ID of the admin performing the update \(needed for workflows and attribution\) |
+| `assignee_id` | string | Нет | The ID of the admin or team to assign the ticket to. Set to "0" to unassign. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `ticket` | object | The updated ticket object |
+|   ↳ `id` | string | Unique identifier for the ticket |
+|   ↳ `type` | string | Object type \(ticket\) |
+|   ↳ `ticket_id` | string | Ticket ID shown in Intercom UI |
+|   ↳ `ticket_state` | string | State of the ticket |
+|   ↳ `ticket_attributes` | object | Attributes of the ticket |
+|   ↳ `open` | boolean | Whether the ticket is open |
+|   ↳ `is_shared` | boolean | Whether the ticket is visible to users |
+|   ↳ `snoozed_until` | number | Unix timestamp when ticket will reopen |
+|   ↳ `admin_assignee_id` | string | ID of assigned admin |
+|   ↳ `team_assignee_id` | string | ID of assigned team |
+|   ↳ `created_at` | number | Unix timestamp when ticket was created |
+|   ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+| `ticketId` | string | ID of the updated ticket |
+| `ticket_state` | string | Current state of the ticket |
+
+### `intercom_create_message`
+
+Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `message_type` | string | Да | Message type: "inapp" for in-app messages or "email" for email messages |
+| `template` | string | Да | Message template style: "plain" for plain text or "personal" for personalized style |
+| `subject` | string | Нет | The subject of the message \(for email type\) |
+| `body` | string | Да | The body of the message |
+| `from_type` | string | Да | Sender type: "admin" |
+| `from_id` | string | Да | The ID of the admin sending the message |
+| `to_type` | string | Да | Recipient type: "contact" |
+| `to_id` | string | Да | The ID of the contact receiving the message |
+| `created_at` | number | Нет | Unix timestamp for when the message was created. If not provided, current time is used. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | object | Created message object |
+|   ↳ `id` | string | Unique identifier for the message |
+|   ↳ `type` | string | Object type \(message\) |
+|   ↳ `created_at` | number | Unix timestamp when message was created |
+|   ↳ `body` | string | Body of the message |
+|   ↳ `message_type` | string | Type of the message \(in_app or email\) |
+|   ↳ `conversation_id` | string | ID of the conversation created |
+|   ↳ `owner` | object | Owner of the message |
+| `messageId` | string | ID of the created message |
+| `success` | boolean | Operation success status |
+
+### `intercom_list_admins`
+
+Fetch a list of all admins for the workspace
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `admins` | array | Array of admin objects |
+|   ↳ `id` | string | Unique identifier for the admin |
+|   ↳ `type` | string | Object type \(admin\) |
+|   ↳ `name` | string | Name of the admin |
+|   ↳ `email` | string | Email of the admin |
+|   ↳ `job_title` | string | Job title of the admin |
+|   ↳ `away_mode_enabled` | boolean | Whether admin is in away mode |
+|   ↳ `away_mode_reassign` | boolean | Whether to reassign conversations when away |
+|   ↳ `has_inbox_seat` | boolean | Whether admin has a paid inbox seat |
+|   ↳ `team_ids` | array | List of team IDs the admin belongs to |
+|   ↳ `avatar` | object | Avatar information |
+|   ↳ `email_verified` | boolean | Whether email is verified |
+| `type` | string | Object type \(admin.list\) |
+
+### `intercom_close_conversation`
+
+Close a conversation in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | The ID of the conversation to close |
+| `admin_id` | string | Да | The ID of the admin performing the action |
+| `body` | string | Нет | Optional closing message to add to the conversation |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | The closed conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `state` | string | State of the conversation \(closed\) |
+|   ↳ `open` | boolean | Whether the conversation is open \(false\) |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the closed conversation |
+| `state` | string | State of the conversation \(closed\) |
+
+### `intercom_open_conversation`
+
+Open a closed or snoozed conversation in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | The ID of the conversation to open |
+| `admin_id` | string | Да | The ID of the admin performing the action |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | The opened conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `state` | string | State of the conversation \(open\) |
+|   ↳ `open` | boolean | Whether the conversation is open \(true\) |
+|   ↳ `read` | boolean | Whether the conversation has been read |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the opened conversation |
+| `state` | string | State of the conversation \(open\) |
+
+### `intercom_snooze_conversation`
+
+Snooze a conversation to reopen at a future time
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | The ID of the conversation to snooze |
+| `admin_id` | string | Да | The ID of the admin performing the action |
+| `snoozed_until` | number | Да | Unix timestamp for when the conversation should reopen |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | The snoozed conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `state` | string | State of the conversation \(snoozed\) |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `snoozed_until` | number | Unix timestamp when conversation will reopen |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the snoozed conversation |
+| `state` | string | State of the conversation \(snoozed\) |
+| `snoozed_until` | number | Unix timestamp when conversation will reopen |
+
+### `intercom_assign_conversation`
+
+Assign a conversation to an admin or team in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | The ID of the conversation to assign |
+| `admin_id` | string | Да | The ID of the admin performing the assignment |
+| `assignee_id` | string | Да | The ID of the admin or team to assign the conversation to. Set to "0" to unassign. |
+| `body` | string | Нет | Optional message to add when assigning \(e.g., "Passing to the support team"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `conversation` | object | The assigned conversation object |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `type` | string | Object type \(conversation\) |
+|   ↳ `state` | string | State of the conversation |
+|   ↳ `open` | boolean | Whether the conversation is open |
+|   ↳ `admin_assignee_id` | number | ID of the assigned admin |
+|   ↳ `team_assignee_id` | string | ID of the assigned team |
+|   ↳ `created_at` | number | Unix timestamp when conversation was created |
+|   ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the assigned conversation |
+| `admin_assignee_id` | number | ID of the assigned admin |
+| `team_assignee_id` | string | ID of the assigned team |
+
+### `intercom_list_tags`
+
+Fetch a list of all tags in the workspace
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `tags` | array | Array of tag objects |
+|   ↳ `id` | string | Unique identifier for the tag |
+|   ↳ `type` | string | Object type \(tag\) |
+|   ↳ `name` | string | Name of the tag |
+| `type` | string | Object type \(list\) |
+
+### `intercom_create_tag`
+
+Create a new tag or update an existing tag name
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Да | The name of the tag. Will create a new tag if not found, or update the name if id is provided. |
+| `id` | string | Нет | The ID of an existing tag to update. Omit to create a new tag. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_tag_contact`
+
+Add a tag to a specific contact
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The ID of the contact to tag |
+| `tagId` | string | Да | The ID of the tag to apply |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_untag_contact`
+
+Remove a tag from a specific contact
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The ID of the contact to untag |
+| `tagId` | string | Да | The ID of the tag to remove |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag that was removed |
+| `name` | string | Name of the tag that was removed |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_tag_conversation`
+
+Add a tag to a specific conversation
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Да | The ID of the conversation to tag |
+| `tagId` | string | Да | The ID of the tag to apply |
+| `admin_id` | string | Да | The ID of the admin applying the tag |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_create_note`
+
+Add a note to a specific contact
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The ID of the contact to add the note to |
+| `body` | string | Да | The text content of the note |
+| `admin_id` | string | Нет | The ID of the admin creating the note |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the note |
+| `body` | string | The text content of the note |
+| `created_at` | number | Unix timestamp when the note was created |
+| `type` | string | Object type \(note\) |
+| `author` | object | The admin who created the note |
+|   ↳ `type` | string | Author type \(admin\) |
+|   ↳ `id` | string | Author ID |
+|   ↳ `name` | string | Author name |
+|   ↳ `email` | string | Author email |
+| `contact` | object | The contact the note was created for |
+|   ↳ `type` | string | Contact type |
+|   ↳ `id` | string | Contact ID |
+
+### `intercom_create_event`
+
+Track a custom event for a contact in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | Да | The name of the event \(e.g., "order-completed"\). Use past-tense verb-noun format for readability. |
+| `created_at` | number | Нет | Unix timestamp for when the event occurred. Strongly recommended for uniqueness. |
+| `user_id` | string | Нет | Your identifier for the user \(external_id\) |
+| `email` | string | Нет | Email address of the user. Use only if your app uses email to uniquely identify users. |
+| `id` | string | Нет | The Intercom contact ID |
+| `metadata` | string | Нет | JSON object with up to 10 metadata key-value pairs about the event \(e.g., \{"order_value": 99.99\}\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the event was accepted \(202 Accepted\) |
+
+### `intercom_attach_contact_to_company`
+
+Attach a contact to a company in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The ID of the contact to attach to the company |
+| `companyId` | string | Да | The ID of the company to attach the contact to |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `company` | object | The company object the contact was attached to |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `company_id` | string | The company_id you defined |
+|   ↳ `name` | string | Name of the company |
+|   ↳ `created_at` | number | Unix timestamp when company was created |
+|   ↳ `updated_at` | number | Unix timestamp when company was updated |
+|   ↳ `user_count` | number | Number of users in the company |
+|   ↳ `session_count` | number | Number of sessions |
+|   ↳ `monthly_spend` | number | Monthly spend amount |
+|   ↳ `plan` | object | Company plan details |
+| `companyId` | string | ID of the company |
+| `name` | string | Name of the company |
+
+### `intercom_detach_contact_from_company`
+
+Remove a contact from a company in Intercom
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The ID of the contact to detach from the company |
+| `companyId` | string | Да | The ID of the company to detach the contact from |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `company` | object | The company object the contact was detached from |
+|   ↳ `id` | string | Unique identifier for the company |
+|   ↳ `type` | string | Object type \(company\) |
+|   ↳ `company_id` | string | The company_id you defined |
+|   ↳ `name` | string | Name of the company |
+| `companyId` | string | ID of the company |
+| `name` | string | Name of the company |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Intercom Contact Created
+
+Trigger workflow when a new lead is created in Intercom
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Closed
+
+Trigger workflow when a conversation is closed in Intercom
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Created
+
+Trigger workflow when a new conversation is created in Intercom
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Reply
+
+Trigger workflow when someone replies to an Intercom conversation
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom User Created
+
+Trigger workflow when a new user is created in Intercom
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Webhook (All Events)
+
+Trigger workflow on any Intercom webhook event
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | Your app |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+

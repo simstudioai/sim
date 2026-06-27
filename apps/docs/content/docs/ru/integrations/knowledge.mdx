@@ -1,0 +1,434 @@
+---
+title: Knowledge
+description: Использование векторного поиска
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="knowledge"
+  color="#00B0B0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Sim's Knowledge Base is a native feature that enables you to create, manage, and query custom knowledge bases directly within the platform. Using advanced AI embeddings and vector search, the Knowledge Base block allows you to build intelligent search capabilities into your workflows.
+
+With the Knowledge Base in Sim, you can:
+
+- **Search knowledge**: Perform semantic searches across your custom knowledge bases using AI-powered vector similarity matching
+- **Upload chunks**: Add text chunks with metadata to a knowledge base for indexing
+- **Create documents**: Add new documents to a knowledge base for searchable content
+
+In Sim, the Knowledge Base block enables your agents to perform intelligent semantic searches across your organizational knowledge as part of automated workflows. This is ideal for information retrieval, content recommendations, FAQ automation, and grounding agent responses in your own data.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.
+
+
+
+## Действия
+
+### `knowledge_search`
+
+Search for similar content in a knowledge base using vector similarity
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base to search in |
+| `query` | string | Нет | Search query text \(optional when using tag filters\) |
+| `topK` | number | Нет | Number of most similar results to return \(1-100\) |
+| `tagFilters` | array | Нет | Array of tag filters with tagName and tagValue properties |
+| `rerankerEnabled` | boolean | Нет | Whether to apply Cohere reranking to vector search results |
+| `rerankerModel` | string | Нет | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |
+| `rerankerInputCount` | number | Нет | Number of vector results sent to the Cohere reranker \(1–100\). Defaults to topK × 4 capped at 100. |
+| `apiKey` | string | Нет | Cohere API key for reranker \(self-hosted deployments only\) |
+| `tagFilters` | string | Нет | No description |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search results from the knowledge base |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `sourceUrl` | string | URL to the original source document \(e.g., Confluence page, Google Doc, Notion page\). Null for documents without an external source. |
+|   ↳ `content` | string | Content of the result |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `similarity` | number | Similarity score of the result |
+|   ↳ `metadata` | object | Metadata of the result, including tags |
+| `query` | string | The search query that was executed |
+| `totalResults` | number | Total number of results found |
+| `cost` | object | Cost information for the search operation |
+
+### `knowledge_upload_chunk`
+
+Upload a new chunk to a document in a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base containing the document |
+| `documentId` | string | Да | ID of the document to upload the chunk to |
+| `content` | string | Да | Content of the chunk to upload |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `data` | object | Information about the uploaded chunk |
+|   ↳ `chunkId` | string | Chunk ID |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `content` | string | Content of the chunk |
+|   ↳ `contentLength` | number | Length of the content in characters |
+|   ↳ `tokenCount` | number | Number of tokens in the chunk |
+|   ↳ `enabled` | boolean | Whether the chunk is enabled |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the document the chunk was added to |
+| `documentName` | string | Name of the document the chunk was added to |
+| `cost` | object | Cost information for the upload operation |
+
+### `knowledge_create_document`
+
+Create a new document in a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base containing the document |
+| `name` | string | Да | Name of the document |
+| `content` | string | Да | Content of the document |
+| `documentTags` | object | Нет | Document tags |
+| `documentTags` | string | Нет | No description |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `data` | object | Information about the created document |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `type` | string | Document type |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the created document |
+
+### `knowledge_upsert_document`
+
+Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base containing the document |
+| `documentId` | string | Нет | Optional ID of an existing document to update. If not provided, lookup is done by filename. |
+| `name` | string | Да | Name of the document |
+| `content` | string | Да | Content of the document |
+| `documentTags` | json | Нет | Document tags |
+| `documentTags` | string | Нет | No description |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `data` | object | Information about the upserted document |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `type` | string | Document type |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `isUpdate` | boolean | Whether an existing document was replaced |
+|   ↳ `previousDocumentId` | string | ID of the document that was replaced, if any |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the upserted document |
+
+### `knowledge_list_tags`
+
+List all tag definitions for a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base to list tags for |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `tags` | array | Array of tag definitions for the knowledge base |
+|   ↳ `id` | string | Tag definition ID |
+|   ↳ `tagSlot` | string | Internal tag slot \(e.g. tag1, number1\) |
+|   ↳ `displayName` | string | Human-readable tag name |
+|   ↳ `fieldType` | string | Tag field type \(text, number, date, boolean\) |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalTags` | number | Total number of tag definitions |
+
+### `knowledge_list_documents`
+
+List documents in a knowledge base with optional filtering, search, and pagination
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base to list documents from |
+| `search` | string | Нет | Search query to filter documents by filename |
+| `enabledFilter` | string | Нет | Filter by enabled status: "all", "enabled", or "disabled" |
+| `limit` | number | Нет | Maximum number of documents to return \(default: 50\) |
+| `offset` | number | Нет | Number of documents to skip for pagination \(default: 0\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documents` | array | Array of documents in the knowledge base |
+|   ↳ `id` | string | Document ID |
+|   ↳ `filename` | string | Document filename |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `mimeType` | string | MIME type of the document |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `processingStatus` | string | Processing status \(pending, processing, completed, failed\) |
+|   ↳ `chunkCount` | number | Number of chunks in the document |
+|   ↳ `tokenCount` | number | Total token count across chunks |
+|   ↳ `uploadedAt` | string | Upload timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `connectorId` | string | Connector ID if document was synced from an external source |
+|   ↳ `connectorType` | string | Connector type \(e.g. notion, github, confluence\) if synced |
+|   ↳ `sourceUrl` | string | Original URL in the source system if synced from a connector |
+| `totalDocuments` | number | Total number of documents matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_get_document`
+
+Get full details of a single document including tags, connector metadata, and processing status
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base the document belongs to |
+| `documentId` | string | Да | ID of the document to retrieve |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Document ID |
+| `filename` | string | Document filename |
+| `fileSize` | number | File size in bytes |
+| `mimeType` | string | MIME type of the document |
+| `enabled` | boolean | Whether the document is enabled |
+| `processingStatus` | string | Processing status \(pending, processing, completed, failed\) |
+| `processingError` | string | Error message if processing failed |
+| `chunkCount` | number | Number of chunks in the document |
+| `tokenCount` | number | Total token count across chunks |
+| `characterCount` | number | Total character count |
+| `uploadedAt` | string | Upload timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `connectorId` | string | Connector ID if document was synced from an external source |
+| `sourceUrl` | string | Original URL in the source system if synced from a connector |
+| `externalId` | string | External ID from the source system |
+| `tags` | object | Tag values keyed by tag slot \(tag1-7, number1-5, date1-2, boolean1-3\) |
+
+### `knowledge_delete_document`
+
+Delete a document from a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base containing the document |
+| `documentId` | string | Да | ID of the document to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the deleted document |
+| `message` | string | Confirmation message |
+
+### `knowledge_list_chunks`
+
+List chunks for a document in a knowledge base with optional filtering and pagination
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base |
+| `documentId` | string | Да | ID of the document to list chunks from |
+| `search` | string | Нет | Search query to filter chunks by content |
+| `enabled` | string | Нет | Filter by enabled status: "true", "false", or "all" \(default: "all"\) |
+| `limit` | number | Нет | Maximum number of chunks to return \(1-100, default: 50\) |
+| `offset` | number | Нет | Number of chunks to skip for pagination \(default: 0\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documentId` | string | ID of the document |
+| `chunks` | array | Array of chunks in the document |
+|   ↳ `id` | string | Chunk ID |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `content` | string | Chunk text content |
+|   ↳ `contentLength` | number | Content length in characters |
+|   ↳ `tokenCount` | number | Token count for the chunk |
+|   ↳ `enabled` | boolean | Whether the chunk is enabled |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalChunks` | number | Total number of chunks matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_update_chunk`
+
+Update the content or enabled status of a chunk in a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base |
+| `documentId` | string | Да | ID of the document containing the chunk |
+| `chunkId` | string | Да | ID of the chunk to update |
+| `content` | string | Нет | New content for the chunk |
+| `enabled` | boolean | Нет | Whether the chunk should be enabled or disabled |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the parent document |
+| `id` | string | Chunk ID |
+| `chunkIndex` | number | Index of the chunk within the document |
+| `content` | string | Updated chunk content |
+| `contentLength` | number | Content length in characters |
+| `tokenCount` | number | Token count for the chunk |
+| `enabled` | boolean | Whether the chunk is enabled |
+| `updatedAt` | string | Last update timestamp |
+
+### `knowledge_delete_chunk`
+
+Delete a chunk from a document in a knowledge base
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base |
+| `documentId` | string | Да | ID of the document containing the chunk |
+| `chunkId` | string | Да | ID of the chunk to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `chunkId` | string | ID of the deleted chunk |
+| `documentId` | string | ID of the parent document |
+| `message` | string | Confirmation message |
+
+### `knowledge_list_connectors`
+
+List all connectors for a knowledge base, showing sync status, type, and document counts
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base to list connectors for |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `connectors` | array | Array of connectors for the knowledge base |
+|   ↳ `id` | string | Connector ID |
+|   ↳ `connectorType` | string | Type of connector \(e.g. notion, github, confluence\) |
+|   ↳ `status` | string | Connector status \(active, paused, syncing\) |
+|   ↳ `syncIntervalMinutes` | number | Sync interval in minutes \(0 = manual only\) |
+|   ↳ `lastSyncAt` | string | Timestamp of last sync |
+|   ↳ `lastSyncError` | string | Error from last sync if failed |
+|   ↳ `lastSyncDocCount` | number | Number of documents synced in last sync |
+|   ↳ `nextSyncAt` | string | Timestamp of next scheduled sync |
+|   ↳ `consecutiveFailures` | number | Number of consecutive sync failures |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalConnectors` | number | Total number of connectors |
+
+### `knowledge_get_connector`
+
+Get detailed connector information including recent sync logs for monitoring sync health
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base the connector belongs to |
+| `connectorId` | string | Да | ID of the connector to retrieve |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `connector` | object | Connector details |
+|   ↳ `id` | string | Connector ID |
+|   ↳ `connectorType` | string | Type of connector |
+|   ↳ `status` | string | Connector status \(active, paused, syncing\) |
+|   ↳ `syncIntervalMinutes` | number | Sync interval in minutes |
+|   ↳ `lastSyncAt` | string | Timestamp of last sync |
+|   ↳ `lastSyncError` | string | Error from last sync if failed |
+|   ↳ `lastSyncDocCount` | number | Docs synced in last sync |
+|   ↳ `nextSyncAt` | string | Next scheduled sync timestamp |
+|   ↳ `consecutiveFailures` | number | Consecutive sync failures |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `syncLogs` | array | Recent sync log entries |
+|   ↳ `id` | string | Sync log ID |
+|   ↳ `status` | string | Sync status |
+|   ↳ `startedAt` | string | Sync start time |
+|   ↳ `completedAt` | string | Sync completion time |
+|   ↳ `docsAdded` | number | Documents added |
+|   ↳ `docsUpdated` | number | Documents updated |
+|   ↳ `docsDeleted` | number | Documents deleted |
+|   ↳ `docsUnchanged` | number | Documents unchanged |
+|   ↳ `errorMessage` | string | Error message if sync failed |
+
+### `knowledge_trigger_sync`
+
+Trigger a manual sync for a knowledge base connector
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Да | ID of the knowledge base the connector belongs to |
+| `connectorId` | string | Да | ID of the connector to trigger sync for |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `connectorId` | string | ID of the connector that was synced |
+| `message` | string | Status message from the sync trigger |
+
+

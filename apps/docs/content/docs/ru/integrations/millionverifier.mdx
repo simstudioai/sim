@@ -1,0 +1,65 @@
+---
+title: MillionVerifier
+description: Проверка доставляемости email и проверка кредитов аккаунта
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="millionverifier"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+MillionVerifier is a high-volume, low-cost email verification service. Use this integration to verify an individual email in real time — it returns ok, catch-all, unknown, invalid, disposable, or unverified along with role-account and free-provider flags — and to check the verification credits remaining on your account. It's a cost-efficient choice for cleaning large lists before a campaign.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.
+
+
+
+## Действия
+
+### `millionverifier_verify_email`
+
+Verify the deliverability of an email address. Uses one verification credit.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Да | Email address to verify \(e.g., john@example.com\) |
+| `apiKey` | string | Да | MillionVerifier API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `email` | string | The verified email address |
+| `status` | string | Verification status \(valid, invalid, catch_all, disposable, unknown, unverified\) |
+| `deliverable` | boolean | Whether the email is valid and safe to send |
+| `freeEmail` | boolean | Whether the address is on a free email provider |
+| `roleAccount` | boolean | Whether the address is a role account \(e.g., info@, sales@\) |
+| `didYouMean` | string | Suggested correction for a likely typo |
+| `subResult` | string | Additional MillionVerifier classification detail |
+
+### `millionverifier_get_credits`
+
+Retrieve the remaining verification credits for the authenticated account.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | MillionVerifier API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `credits` | number | Remaining verification credits |
+
+

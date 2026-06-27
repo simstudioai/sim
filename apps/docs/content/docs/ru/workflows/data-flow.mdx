@@ -1,0 +1,78 @@
+---
+title: Как блоки передают данные
+description: Что такое output блока, как блоки ссылаются на предыдущие output'ы и с какими типами данных вы будете работать.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, OutputBundle, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
+
+Большинству блоков нужно значение, которое произвёл предыдущий блок. Блок получает его, ссылаясь на output этого блока по имени. На этой странице рассматриваются три вещи: что такое output и где он находится, как блок ссылается на него и какие типы значений вы в нём найдёте.
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} />
+
+В этом воркфлоу Classify читает сообщение из Start, а Reply читает классификацию из Classify.
+
+## Что такое output
+
+Когда блок выполняется, Sim сохраняет его результат под именем блока до конца запуска. Этот сохранённый результат является **output'ом** блока, и любой последующий блок может его прочитать.
+
+Output обычно представляет собой набор именованных значений, а не одну сущность. Вы читаете одно значение по его ключу: `<classify.content>` — это значение `content` блока с именем `classify`.
+
+<OutputBundle
+  blockName="classify"
+  blockType="agent"
+  blockColor="#33C482"
+  duration="2.1s"
+  values={[
+    { key: 'content', type: 'string', value: '"Billing · high urgency"', highlight: true },
+    { key: 'model', type: 'string', value: '"claude-sonnet-4-6"', expanded: false },
+    {
+      key: 'tokens', type: 'object',
+      children: [
+        { key: 'input', type: 'number', value: '412' },
+        { key: 'output', type: 'number', value: '38' },
+        { key: 'total', type: 'number', value: '450' },
+      ],
+    },
+  ]}
+/>
+
+Разные блоки производят разные значения. [Agent](/workflows/blocks/agent) хранит свой `content`; [API](/workflows/blocks/api) хранит полученные `data`; блок Table хранит `rowCount` и прочитанные строки, доступные через `<table1.rowCount>`.
+
+<Callout type="info">
+Output блока — это не то же самое, что output **воркфлоу**. У каждого блока он свой и хранится под своим именем. Output воркфлоу — это просто один из них: то, что произвёл последний блок.
+</Callout>
+
+## Как блок ссылается на output
+
+Входные данные блока — это его **параметры**: поля, которые вы заполняете, такие как модель и промпт у Agent. В любом параметре вы можете вставить **тег соединения**, чтобы подставить более ранний output вместо фиксированного значения. `<start.input>` в промпте Classify означает «использовать здесь то, что получил Start».
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} highlightBlock="reply" />
+
+Блок может ссылаться на любой output, который уже существует к моменту его выполнения, то есть на любой блок, находящийся перед ним на его пути (см. [как выполняются воркфлоу](/workflows/how-it-runs)). Вы редко вводите тег вручную: везде, где параметр принимает тег, построитель показывает список доступных output'ов, и вы выбираете нужное значение.
+
+## Типы данных
+
+Каждое значение внутри output'а имеет тип, отображаемый рядом с ним на панели output'а. Тип подсказывает, что вы можете делать со значением: индексировать массив, читать поле объекта, сравнивать число.
+
+| Тип | Что это | Пример |
+| --- | --- | --- |
+| `string` | Текст | `"Проблема с оплатой"` |
+| `number` | Числовое значение | `248` |
+| `boolean` | `true` или `false` | `true` |
+| `object` | Набор именованных полей | `{ category: "billing", urgency: "high" }` |
+| `array` | Упорядоченный список значений | `["billing", "urgent"]` |
+| `null` | Отсутствие значения | `null` |
+
+Файл отображается как `object`, содержащий детали файла, такие как его имя и URL. Когда значение не того типа, который нужен следующему шагу, преобразуйте его в блоке [Function](/workflows/blocks/function), который выполняет небольшой фрагмент кода и сохраняет результат как свой собственный output.
+
+## Далее
+
+<Cards>
+  <Card title="Как выполняются воркфлоу" href="/workflows/how-it-runs" description="Порядок выполнения, параллелизм и ветвления." />
+  <Card title="Теги соединений" href="/workflows/connections" description="Полный синтаксис ссылок." />
+  <Card title="Блоки" href="/workflows#blocks" description="Что выводит каждый блок." />
+  <Card title="Логи и отладка" href="/logs-debugging" description="Проверьте, что каждый блок получил и вернул." />
+</Cards>

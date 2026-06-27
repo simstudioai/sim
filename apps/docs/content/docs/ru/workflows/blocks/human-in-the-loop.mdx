@@ -1,0 +1,287 @@
+---
+title: Human in the Loop
+description: Блок Human in the Loop приостанавливает запуск для подтверждения человеком, затем возобновляется с его вводом.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  HITL_APPROVAL_WORKFLOW,
+  HITL_MULTISTAGE_WORKFLOW,
+  HITL_VALIDATE_WORKFLOW,
+} from '@/components/workflow-preview'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+**Блок Human in the Loop** приостанавливает запуск и ждёт человека перед продолжением. Используйте его для шлюзов подтверждения, сбора обратной связи или получения ввода в точке принятия решения. Запуск остаётся приостановленным — без тайм-аута — пока кто-то не ответит через портал подтверждения, API или webhook.
+
+<BlockPreview type="human_in_the_loop" />
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Портал подтверждения Human in the Loop"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Конфигурация
+
+### Display Data
+
+Что видит утверждающий — контекст, показанный в портале для помощи в принятии решения. Соберите его по полям или как JSON, ссылаясь на предыдущие output'ы через `<имяБлока.output>`.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Notification
+
+Как утверждающие оповещаются о том, что решение ожидает. Включите URL подтверждения (`<blockId.url>`) в сообщение, чтобы они могли открыть портал. Доступные каналы:
+
+- **Slack** — сообщение в канал или личное сообщение
+- **Gmail** — письмо со ссылкой подтверждения
+- **Microsoft Teams** — уведомление в канал
+- **SMS** — текстовое оповещение через Twilio
+- **Webhook** — запрос в вашу собственную систему уведомлений
+
+### Resume Form
+
+Поля, которые утверждающий заполняет при ответе. Каждое становится доступным для последующих блоков после возобновления запуска.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Одобрить или отклонить этот запрос"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Дополнительная обратная связь или объяснение"
+  }
+}
+```
+
+Доступ к данным возобновления в последующих блоках через `<blockId.fieldName>`.
+
+## Методы подтверждения
+
+<Tabs items={['Approval Portal', 'API', 'Webhook']}>
+  <Tab>
+    ### Портал подтверждения
+    
+    Каждый блок генерирует уникальный URL портала (`<blockId.url>`) с визуальным интерфейсом, показывающим все приостановленные выходные данные и поля формы для ввода при возобновлении. Адаптивный для мобильных устройств и безопасный.
+    
+    Отправьте этот URL в уведомлениях, чтобы утверждающие могли просмотреть и ответить.
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    Программное возобновление воркфлоу через эндпоинт resume. `contextId` доступен из output'а `resumeEndpoint` блока или из объекта `_resume` в ответе приостановленного выполнения.
+    
+    ```bash
+    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    Content-Type: application/json
+    X-API-Key: your-api-key
+    
+    {
+      "input": {
+        "approved": true,
+        "comments": "Выглядит хорошо, можно продолжать"
+      }
+    }
+    ```
+    
+    Эндпоинт resume автоматически учитывает режим выполнения, использованный в исходном вызове execute:
+    
+    - **Режим Sync** (по умолчанию) — Ответ ждёт завершения оставшегося воркфлоу и возвращает полный результат:
+    
+    ```json
+    {
+      "success": true,
+      "status": "completed",
+      "executionId": "<resumeExecutionId>",
+      "output": { ... },
+      "metadata": { "duration": 1234, "startTime": "...", "endTime": "..." }
+    }
+    ```
+    
+    Если возобновлённый воркфлоу достигает другого блока HITL, ответ возвращает `"status": "paused"` с новыми URL `_resume` в выводе.
+    
+    - **Режим Stream** (`stream: true` в исходном вызове execute) — Ответ resume передаёт события SSE с фрагментами `selectedOutputs`, как и исходное выполнение.
+    
+    - **Режим Async** (`X-Execution-Mode: async` в исходном вызове execute) — Resume отправляет выполнение фоновому обработчику и немедленно возвращает `202` с `jobId` и `statusUrl` для опроса:
+    
+    ```json
+    {
+      "success": true,
+      "async": true,
+      "jobId": "<jobId>",
+      "executionId": "<resumeExecutionId>",
+      "message": "Resume execution queued",
+      "statusUrl": "/api/jobs/<jobId>"
+    }
+    ```
+    
+    #### Опрос статуса выполнения
+    
+    Опрашивайте `statusUrl` из асинхронного ответа для проверки завершения resume:
+    
+    ```bash
+    GET /api/jobs/{jobId}
+    X-API-Key: your-api-key
+    ```
+    
+    Возвращает статус задачи и, по завершении, полный вывод воркфлоу.
+    
+    Для проверки точек паузы приостановленного выполнения и ссылок resume:
+    
+    ```bash
+    GET /api/resume/{workflowId}/{executionId}
+    X-API-Key: your-api-key
+    ```
+    
+    Возвращает детали приостановленного выполнения со всеми точками паузы, их статусами и ссылками resume. Возвращает `404`, когда выполнение завершено и больше не приостановлено.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Добавьте инструмент webhook в раздел Notification для отправки запросов подтверждения во внешние системы. Интегрируйтесь с тикет-системами, такими как Jira или ServiceNow.
+  </Tab>
+</Tabs>
+
+## Поведение API Execute
+
+При запуске воркфлоу через API execute (`POST /api/workflows/{id}/execute`) блоки HITL вызывают приостановку выполнения и возвращают данные `_resume` в ответе:
+
+<Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
+  <Tab>
+    Ответ включает полные данные паузы с URL resume:
+    
+    ```json
+    {
+      "success": true,
+      "executionId": "<executionId>",
+      "output": {
+        "data": {
+          "operation": "human",
+          "_resume": {
+            "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
+            "uiUrl": "/resume/{workflowId}/{executionId}",
+            "contextId": "<contextId>",
+            "executionId": "<executionId>",
+            "workflowId": "<workflowId>"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab>
+    Блоки до HITL передают свои `selectedOutputs` в обычном режиме. Когда выполнение приостанавливается, финальное событие SSE включает `status: "paused"` и данные `_resume`:
+    
+    ```
+    data: {"blockId":"agent1","chunk":"потоковый контент..."}
+    data: {"event":"final","data":{"success":true,"output":{...,"_resume":{...}},"status":"paused"}}
+    data: "[DONE]"
+    ```
+    
+    При возобновлении блоки после HITL передают свои `selectedOutputs` таким же образом.
+    
+    <Callout type="info">
+      Блоки HITL автоматически исключаются из выпадающего списка `selectedOutputs`, поскольку их данные всегда включены в ответ паузы.
+    </Callout>
+  </Tab>
+  <Tab>
+    Немедленно возвращает `202`. Используйте эндпоинт опроса для проверки, когда выполнение приостановится.
+  </Tab>
+</Tabs>
+
+## Примеры
+
+### Подтверждение контента перед публикацией
+
+<WorkflowPreview workflow={HITL_APPROVAL_WORKFLOW} />
+
+Запуск приостанавливается на блоке Human in the Loop, пока кто-то не подтвердит; при возобновлении API публикует. Тот же шлюз работает перед любым действием, например, отправкой email клиенту.
+
+### Цепочка из нескольких подтверждений
+
+<WorkflowPreview workflow={HITL_MULTISTAGE_WORKFLOW} />
+
+Для критически важных изменений объедините два шага подтверждения — менеджер, затем директор — перед выполнением воркфлоу.
+
+### Проверка извлечённых данных
+
+<WorkflowPreview workflow={HITL_VALIDATE_WORKFLOW} />
+
+Проверяющий изучает данные, извлечённые агентом, перед тем как Function их обработает.
+
+## Output'ы
+
+| Output | Что это |
+| --- | --- |
+| `url` | URL портала подтверждения |
+| `resumeEndpoint` | Эндпоинт API resume |
+| `response` | Данные, показанные утверждающему |
+| `submission` | Отправленная утверждающим форма |
+| `submittedAt` | ISO-временная метка возобновления запуска |
+| `<fieldName>` | Каждое поле формы Resume Form, по имени, после возобновления запуска |
+
+Читайте их дальше как `<имяБлока.output>` — для блока с именем `approval` это `<approval.approved>`.
+
+## Портал подтверждения
+
+**Paused Output:**
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Resume Input:**
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Использование дальше по цепочке:**
+```javascript
+// Блок Condition
+<approval1.approved> === true
+```
+Пример ниже показывает портал подтверждения, каким его видит утверждающий после приостановки воркфлоу. Утверждающие могут просмотреть данные и предоставить ввод для возобновления воркфлоу. Доступ к порталу подтверждения осуществляется напрямую через уникальный URL, `<blockId.url>`.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
+
+## Связанные блоки
+
+- **[Condition](/workflows/blocks/condition)** — Ветвление на основе решений подтверждения
+- **[Variables](/workflows/blocks/variables)** — Хранение истории подтверждений и метаданных
+- **[Response](/workflows/blocks/response)** — Возврат результатов воркфлоу вызывающим через API
+
+<FAQ items={[
+  { question: "Как долго воркфлоу остаётся приостановленным?", answer: "Воркфлоу приостанавливается на неопределённый срок, пока человек не предоставит ввод через портал подтверждения, REST API или webhook. Автоматического тайм-аута нет — он будет ждать, пока кто-то не ответит." },
+  { question: "Какие каналы уведомлений можно использовать для оповещения утверждающих?", answer: "Вы можете настроить уведомления через Slack, Gmail, Microsoft Teams, SMS (через Twilio) или пользовательские webhook. Включите URL подтверждения в сообщение уведомления, чтобы утверждающие могли напрямую открыть портал." },
+  { question: "Как получить доступ к вводу утверждающего в последующих блоках?", answer: "Используйте синтаксис <blockId.fieldName> для ссылки на конкретные поля формы resume. Например, если ваш блок называется 'approval1', а форма имеет поле 'approved', используйте <approval1.approved>." },
+  { question: "Можно ли объединить несколько блоков Human in the Loop для многоэтапных подтверждений?", answer: "Да. Вы можете разместить несколько блоков Human in the Loop последовательно для создания многоэтапных воркфлоу подтверждения. Каждый блок приостанавливается независимо и может иметь собственную конфигурацию уведомлений и поля формы resume." },
+  { question: "Можно ли возобновить воркфлоу программно без портала?", answer: "Да. Каждый блок предоставляет эндпоинт API resume, который можно вызвать POST-запросом с данными формы в формате JSON. Это позволяет создавать пользовательские интерфейсы подтверждения или интегрироваться с существующими системами, такими как Jira или ServiceNow." },
+  { question: "Какие output'ы доступны после возобновления воркфлоу?", answer: "Блок выводит: URL портала подтверждения, URL эндпоинта API resume, данные, показанные утверждающему, данные отправки формы, сырой ввод resume и ISO-временную метку возобновления воркфлоу." },
+]} />

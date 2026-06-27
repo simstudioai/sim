@@ -1,0 +1,181 @@
+---
+title: CloudFormation
+description: Управление и инспектирование стеков, ресурсов и дрейфа AWS CloudFormation
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudformation"
+  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudFormation](https://aws.amazon.com/cloudformation/) — это сервис «инфраструктура как код», который позволяет моделировать, развёртывать и управлять ресурсами AWS, рассматривая инфраструктуру как код. CloudFormation использует шаблоны для описания необходимых ресурсов и их зависимостей, чтобы вы могли запускать и настраивать их вместе как стек.
+
+С помощью интеграции CloudFormation вы можете:
+
+- **Описывать стеки**: получать список всех стеков в регионе или детальную информацию о конкретном стеке, включая его статус, выходные данные, теги и информацию о дрейфе
+- **Получать список ресурсов стека**: перечислять каждый ресурс в стеке с его логическим ID, физическим ID, типом, статусом и статусом дрейфа
+- **Описывать события стека**: просматривать полную историю событий стека, чтобы понять, что происходило во время операций создания, обновления или удаления
+- **Обнаруживать дрейф стека**: инициировать обнаружение дрейфа для проверки, были ли какие-либо ресурсы в стеке изменены вне CloudFormation
+- **Статус обнаружения дрейфа**: опрашивать результаты операции обнаружения дрейфа, чтобы увидеть, какие ресурсы отклонились и насколько
+- **Получать шаблон**: извлекать исходное тело шаблона (JSON или YAML), использованное для создания или обновления стека
+- **Проверять шаблон**: проверять шаблон CloudFormation на синтаксические ошибки, необходимые возможности, параметры и объявленные преобразования перед развёртыванием
+
+В Sim интеграция с CloudFormation позволяет вашим агентам отслеживать состояние инфраструктуры, обнаруживать дрейф конфигурации, аудитировать ресурсы стека и проверять шаблоны в рамках автоматизированных рабочих процессов SRE и DevOps. Это особенно эффективно в сочетании с CloudWatch для наблюдаемости и SNS для оповещений, создавая сквозные конвейеры мониторинга инфраструктуры.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте AWS CloudFormation в рабочие процессы. Описывайте стеки, получайте список ресурсов, обнаруживайте дрейф, просматривайте события стека, извлекайте шаблоны и проверяйте шаблоны. Требует AWS access key и secret access key.
+
+
+
+## Действия
+
+### `cloudformation_describe_stacks`
+
+Выводит список и описывает стеки CloudFormation
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | No | Имя или ID стека для описания \(опустите, чтобы вывести список всех стеков\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stacks` | array | Список стеков CloudFormation со статусом, выходными данными и тегами |
+
+### `cloudformation_list_stack_resources`
+
+Выводит список всех ресурсов в стеке CloudFormation
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Имя или ID стека |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resources` | array | Список ресурсов стека с типом, статусом и информацией о дрейфе |
+
+### `cloudformation_detect_stack_drift`
+
+Инициирует обнаружение дрейфа в стеке CloudFormation
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Имя или ID стека для обнаружения дрейфа |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackDriftDetectionId` | string | ID для использования с Describe Stack Drift Detection Status для проверки результатов |
+
+### `cloudformation_describe_stack_drift_detection_status`
+
+Проверяет статус операции обнаружения дрейфа стека
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackDriftDetectionId` | string | Yes | ID обнаружения дрейфа, возвращённый Detect Stack Drift |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackId` | string | ID стека |
+| `stackDriftDetectionId` | string | ID обнаружения дрейфа |
+| `stackDriftStatus` | string | Статус дрейфа \(DRIFTED, IN_SYNC, NOT_CHECKED\) |
+| `detectionStatus` | string | Статус обнаружения \(DETECTION_IN_PROGRESS, DETECTION_COMPLETE, DETECTION_FAILED\) |
+| `detectionStatusReason` | string | Причина, если обнаружение не удалось |
+| `driftedStackResourceCount` | number | Количество ресурсов, которые отклонились |
+| `timestamp` | number | Временная метка обнаружения |
+
+### `cloudformation_describe_stack_events`
+
+Получает историю событий для стека CloudFormation
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Имя или ID стека |
+| `limit` | number | No | Максимальное количество возвращаемых событий \(по умолчанию: 50\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Список событий стека со статусом ресурсов и временными метками |
+
+### `cloudformation_get_template`
+
+Извлекает тело шаблона для стека CloudFormation
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Имя или ID стека |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templateBody` | string | Тело шаблона в виде строки JSON или YAML |
+| `stagesAvailable` | array | Доступные стадии шаблона |
+
+### `cloudformation_validate_template`
+
+Проверяет шаблон CloudFormation на синтаксическую и структурную корректность
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | Регион AWS \(например, us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `templateBody` | string | Yes | Тело шаблона CloudFormation \(JSON или YAML\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `description` | string | Описание шаблона |
+| `parameters` | array | Параметры шаблона со значениями по умолчанию и описаниями |
+| `capabilities` | array | Необходимые возможности \(например, CAPABILITY_IAM\) |
+| `capabilitiesReason` | string | Причина, почему требуются возможности |
+| `declaredTransforms` | array | Преобразования, используемые в шаблоне \(например, AWS::Serverless-2016-10-31\) |

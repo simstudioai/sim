@@ -1,0 +1,70 @@
+---
+title: IMAP
+description: Триггеры IMAP для автоматизации рабочих процессов
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="imap"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The IMAP Email trigger allows your Sim workflows to start automatically whenever a new email is received in any mailbox that supports the IMAP protocol. This works with Gmail, Outlook, Yahoo, and most other email providers.
+
+With the IMAP trigger, you can:
+
+- **Automate email processing**: Start workflows in real time when new messages arrive in your inbox.
+- **Filter by sender, subject, or folder**: Configure your trigger to react only to emails that match certain conditions.
+- **Extract and process attachments**: Automatically download and use file attachments in your automated flows.
+- **Parse and use email content**: Access the subject, sender, recipients, full body, and other metadata in downstream workflow steps.
+- **Integrate with any email provider**: Works with any service that provides standard IMAP access, without vendor lock-in.
+- **Trigger on unread, flagged, or custom criteria**: Set up advanced filters for the kinds of emails that start your workflows.
+
+With Sim, the IMAP integration gives you the power to turn email into an actionable source of automation. Respond to customer inquiries, process notifications, kick off data pipelines, and more—directly from your email inbox, with no manual intervention.
+{/* MANUAL-CONTENT-END */}
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+
+### IMAP Email Trigger
+
+Triggers when new emails are received via IMAP (works with any email provider)
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | IMAP server hostname \(e.g., imap.gmail.com, outlook.office365.com\) |
+| `port` | string | Да | IMAP port \(993 for SSL/TLS, 143 for STARTTLS\) |
+| `secure` | boolean | Нет | Enable SSL/TLS encryption \(recommended for port 993\) |
+| `username` | string | Да | Email address or username for authentication |
+| `password` | string | Да | Password or app-specific password \(for Gmail, use an App Password\) |
+| `mailbox` | string | Нет | Choose which mailbox/folder\(s\) to monitor for new emails. Leave empty to monitor INBOX. |
+| `searchCriteria` | string | Нет | ImapFlow search criteria as JSON object. Default: unseen messages only. |
+| `markAsRead` | boolean | Нет | Automatically mark emails as read \(SEEN\) after processing |
+| `includeAttachments` | boolean | Нет | Download and include email attachments in the trigger payload |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `email` | object | email output from the tool |
+|   ↳ `messageId` | string | RFC Message-ID header |
+|   ↳ `subject` | string | Email subject line |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | string | Recipient email address |
+|   ↳ `cc` | string | CC recipients |
+|   ↳ `date` | string | Email date in ISO format |
+|   ↳ `bodyText` | string | Plain text email body |
+|   ↳ `bodyHtml` | string | HTML email body |
+|   ↳ `mailbox` | string | Mailbox/folder where email was received |
+|   ↳ `hasAttachments` | boolean | Whether email has attachments |
+|   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+| `timestamp` | string | Event timestamp |
+

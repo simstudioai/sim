@@ -1,0 +1,1390 @@
+---
+title: incident.io
+description: Управление инцидентами с помощью incident.io
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="incidentio"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your incident management with [incident.io](https://incident.io) – the leading platform for orchestrating incidents, streamlining response processes, and tracking action items all in one place. Seamlessly integrate incident.io into your automated workflows to take command of incident creation, real-time collaboration, follow-ups, scheduling, escalations, and much more.
+
+With the incident.io tool, you can:
+
+- **List and search incidents**: Quickly retrieve a list of ongoing or historical incidents, complete with metadata such as severity, status, and timestamps, using `incidentio_incidents_list`.
+- **Create new incidents**: Trigger new incident creation programmatically via `incidentio_incidents_create`, specifying severity, name, type, and custom details to ensure nothing slows your response down.
+- **Automate incident follow-ups**: Leverage incident.io’s powerful automation to ensure important action items and learnings aren't missed, helping teams resolve issues and improve processes.
+- **Customize workflows**: Integrate bespoke incident types, severities, and custom fields tailored to your organization’s needs.
+- **Enforce best practices with schedules & escalations**: Streamline on-call and incident management by automatically assigning, notifying, and escalating as situations evolve.
+
+incident.io empowers modern organizations to respond faster, coordinate teams, and capture learnings for continuous improvement. Whether you manage SRE, DevOps, Security, or IT incidents, incident.io brings centralized, best-in-class incident response programmatically to your agent workflows.
+
+**Key operations available**:
+- `incidentio_incidents_list`: List, paginate and filter incidents with full detail.
+- `incidentio_incidents_create`: Programmatically open new incidents with custom attributes and control over duplication (idempotency).
+- ...and more to come!
+
+Enhance your reliability, accountability, and operational excellence by integrating incident.io with your workflow automations today.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.
+
+
+
+## Действия
+
+### `incidentio_incidents_list`
+
+List incidents from incident.io. Returns a list of incidents with their details including severity, status, and timestamps.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `page_size` | number | Нет | Number of incidents to return per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | Нет | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `sort_by` | string | Нет | Sort order for incidents: created_at_newest_first or created_at_oldest_first |
+| `filter_mode` | string | Нет | How to combine filters: all or any |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `name` | string | Incident name/title |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `description` | string | Incident description |
+|   ↳ `mode` | string | Incident mode \(standard, retrospective, test\) |
+|   ↳ `call_url` | string | Video call URL |
+|   ↳ `severity` | object | Incident severity |
+|     ↳ `id` | string | Severity ID |
+|     ↳ `name` | string | Severity name \(e.g., Critical, Major, Minor\) |
+|     ↳ `description` | string | Severity description |
+|     ↳ `rank` | number | Severity rank \(lower = more severe\) |
+|   ↳ `status` | object | Current incident status |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name |
+|     ↳ `description` | string | Status description |
+|     ↳ `category` | string | Status category \(triage, active, post-incident, closed\) |
+|   ↳ `incident_type` | object | Incident type |
+|     ↳ `id` | string | Incident type ID |
+|     ↳ `name` | string | Incident type name |
+|     ↳ `description` | string | Incident type description |
+|     ↳ `is_default` | boolean | Whether this is the default incident type |
+|   ↳ `created_at` | string | When the incident was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the incident was last updated \(ISO 8601\) |
+|   ↳ `incident_url` | string | URL to the incident page |
+|   ↳ `slack_channel_id` | string | Slack channel ID |
+|   ↳ `slack_channel_name` | string | Slack channel name |
+|   ↳ `visibility` | string | Incident visibility \(public, private\) |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of items per page |
+|   ↳ `total_record_count` | number | Total number of records |
+
+### `incidentio_incidents_create`
+
+Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `idempotency_key` | string | Да | Unique identifier to prevent duplicate incident creation. Use a UUID or unique string. |
+| `name` | string | Нет | Name of the incident \(e.g., "Database connection issues"\) |
+| `summary` | string | Нет | Brief summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
+| `severity_id` | string | Да | ID of the severity level \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_type_id` | string | Нет | ID of the incident type |
+| `incident_status_id` | string | Нет | ID of the initial incident status |
+| `visibility` | string | Да | Visibility of the incident: "public" or "private" \(required\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident` | object | The created incident object |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `name` | string | Incident name |
+|   ↳ `summary` | string | Brief summary of the incident |
+|   ↳ `description` | string | Detailed description of the incident |
+|   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+|   ↳ `call_url` | string | URL for the incident call/bridge |
+|   ↳ `severity` | object | Severity of the incident |
+|     ↳ `id` | string | Severity ID |
+|     ↳ `name` | string | Severity name |
+|     ↳ `rank` | number | Severity rank |
+|   ↳ `status` | object | Current status of the incident |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name |
+|     ↳ `category` | string | Status category |
+|   ↳ `incident_type` | object | Type of the incident |
+|     ↳ `id` | string | Type ID |
+|     ↳ `name` | string | Type name |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `slack_channel_id` | string | Associated Slack channel ID |
+|   ↳ `slack_channel_name` | string | Associated Slack channel name |
+|   ↳ `visibility` | string | Incident visibility |
+
+### `incidentio_incidents_show`
+
+Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | ID of the incident to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident` | object | Detailed incident information |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `name` | string | Incident name |
+|   ↳ `summary` | string | Brief summary of the incident |
+|   ↳ `description` | string | Detailed description of the incident |
+|   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+|   ↳ `call_url` | string | URL for the incident call/bridge |
+|   ↳ `permalink` | string | Permanent link to the incident |
+|   ↳ `severity` | object | Severity of the incident |
+|     ↳ `id` | string | Severity ID |
+|     ↳ `name` | string | Severity name |
+|     ↳ `rank` | number | Severity rank |
+|   ↳ `status` | object | Current status of the incident |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name |
+|     ↳ `category` | string | Status category |
+|   ↳ `incident_type` | object | Type of the incident |
+|     ↳ `id` | string | Type ID |
+|     ↳ `name` | string | Type name |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `slack_channel_id` | string | Associated Slack channel ID |
+|   ↳ `slack_channel_name` | string | Associated Slack channel name |
+|   ↳ `visibility` | string | Incident visibility |
+|   ↳ `custom_field_entries` | array | Custom field values for the incident |
+|   ↳ `incident_role_assignments` | array | Role assignments for the incident |
+
+### `incidentio_incidents_update`
+
+Update an existing incident in incident.io. Can update name, summary, severity, status, or type.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | ID of the incident to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Нет | Updated name of the incident \(e.g., "Database connection issues"\) |
+| `summary` | string | Нет | Updated summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
+| `severity_id` | string | Нет | Updated severity ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_status_id` | string | Нет | Updated status ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_type_id` | string | Нет | Updated incident type ID |
+| `notify_incident_channel` | boolean | Да | Whether to notify the incident channel about this update |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident` | object | The updated incident object |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `name` | string | Incident name |
+|   ↳ `summary` | string | Brief summary of the incident |
+|   ↳ `description` | string | Detailed description of the incident |
+|   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
+|   ↳ `call_url` | string | URL for the incident call/bridge |
+|   ↳ `severity` | object | Severity of the incident |
+|     ↳ `id` | string | Severity ID |
+|     ↳ `name` | string | Severity name |
+|     ↳ `rank` | number | Severity rank |
+|   ↳ `status` | object | Current status of the incident |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name |
+|     ↳ `category` | string | Status category |
+|   ↳ `incident_type` | object | Type of the incident |
+|     ↳ `id` | string | Type ID |
+|     ↳ `name` | string | Type name |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `slack_channel_id` | string | Associated Slack channel ID |
+|   ↳ `slack_channel_name` | string | Associated Slack channel name |
+|   ↳ `visibility` | string | Incident visibility |
+
+### `incidentio_actions_list`
+
+List actions from incident.io. Optionally filter by incident ID.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `incident_id` | string | Нет | Filter actions by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_mode` | string | Нет | Filter actions by incident mode \(standard, retrospective, test, tutorial, or stream\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `actions` | array | List of actions |
+|   ↳ `id` | string | Action ID |
+|   ↳ `description` | string | Action description |
+|   ↳ `assignee` | object | Assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `status` | string | Action status |
+|   ↳ `due_at` | string | Due date/time |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the action |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|     ↳ `issue_name` | string | Issue identifier |
+|     ↳ `issue_permalink` | string | URL to the external issue |
+
+### `incidentio_actions_show`
+
+Get detailed information about a specific action from incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | Action ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `action` | object | Action details |
+|   ↳ `id` | string | Action ID |
+|   ↳ `description` | string | Action description |
+|   ↳ `assignee` | object | Assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `status` | string | Action status |
+|   ↳ `due_at` | string | Due date/time |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the action |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|     ↳ `issue_name` | string | Issue identifier |
+|     ↳ `issue_permalink` | string | URL to the external issue |
+
+### `incidentio_follow_ups_list`
+
+List follow-ups from incident.io. Optionally filter by incident ID.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `incident_id` | string | Нет | Filter follow-ups by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_mode` | string | Нет | Filter follow-ups by incident mode \(standard, retrospective, test, tutorial, or stream\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `follow_ups` | array | List of follow-ups |
+|   ↳ `id` | string | Follow-up ID |
+|   ↳ `title` | string | Follow-up title |
+|   ↳ `description` | string | Follow-up description |
+|   ↳ `assignee` | object | Assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `status` | string | Follow-up status |
+|   ↳ `priority` | object | Follow-up priority |
+|     ↳ `id` | string | Priority ID |
+|     ↳ `name` | string | Priority name |
+|     ↳ `description` | string | Priority description |
+|     ↳ `rank` | number | Priority rank |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the follow-up |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `labels` | array | Labels associated with the follow-up |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|     ↳ `provider` | string | External provider name |
+|     ↳ `issue_name` | string | External issue name or ID |
+|     ↳ `issue_permalink` | string | Permalink to external issue |
+
+### `incidentio_follow_ups_show`
+
+Get detailed information about a specific follow-up from incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | Follow-up ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `follow_up` | object | Follow-up details |
+|   ↳ `id` | string | Follow-up ID |
+|   ↳ `title` | string | Follow-up title |
+|   ↳ `description` | string | Follow-up description |
+|   ↳ `assignee` | object | Assigned user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `status` | string | Follow-up status |
+|   ↳ `priority` | object | Follow-up priority |
+|     ↳ `id` | string | Priority ID |
+|     ↳ `name` | string | Priority name |
+|     ↳ `description` | string | Priority description |
+|     ↳ `rank` | number | Priority rank |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `incident_id` | string | Associated incident ID |
+|   ↳ `creator` | object | User who created the follow-up |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `completed_at` | string | Completion timestamp |
+|   ↳ `labels` | array | Labels associated with the follow-up |
+|   ↳ `external_issue_reference` | object | External issue tracking reference |
+|     ↳ `provider` | string | External provider name |
+|     ↳ `issue_name` | string | External issue name or ID |
+|     ↳ `issue_permalink` | string | Permalink to external issue |
+
+### `incidentio_users_list`
+
+List all users in your Incident.io workspace. Returns user details including id, name, email, and role.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Incident.io API Key |
+| `page_size` | number | Нет | Number of results to return per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | Нет | Pagination cursor to fetch the next page of results |
+| `email` | string | Нет | Filter users by email address |
+| `slack_user_id` | string | Нет | Filter users by Slack user ID |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `users` | array | List of users in the workspace |
+|   ↳ `id` | string | Unique identifier for the user |
+|   ↳ `name` | string | Full name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Role of the user in the workspace |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of items per page |
+|   ↳ `total_record_count` | number | Total number of records |
+
+### `incidentio_users_show`
+
+Get detailed information about a specific user in your Incident.io workspace by their ID.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Incident.io API Key |
+| `id` | string | Да | The unique identifier of the user to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `user` | object | Details of the requested user |
+|   ↳ `id` | string | Unique identifier for the user |
+|   ↳ `name` | string | Full name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Role of the user in the workspace |
+
+### `incidentio_workflows_list`
+
+List all workflows in your incident.io workspace.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `workflows` | array | List of workflows |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
+
+### `incidentio_workflows_create`
+
+Create a new workflow in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `name` | string | Да | Name of the workflow \(e.g., "Notify on Critical Incidents"\) |
+| `folder` | string | Нет | Folder to organize the workflow in |
+| `state` | string | Нет | State of the workflow \(active, draft, or disabled\) |
+| `trigger` | string | Нет | Trigger type for the workflow \(e.g., "incident.updated", "incident.created"\) |
+| `steps` | string | Нет | Array of workflow steps as JSON string. Example: \[\{"label": "Notify team", "name": "slack.post_message"\}\] |
+| `condition_groups` | string | Нет | Array of condition groups as JSON string to control when the workflow runs. Example: \[\{"conditions": \[\{"operation": "one_of", "param_bindings": \[\], "subject": "incident.severity"\}\]\}\] |
+| `runs_on_incidents` | string | Нет | When to run the workflow: "newly_created" \(only new incidents\), "newly_created_and_active" \(new and active incidents\), "active" \(only active incidents\), or "all" \(all incidents\) |
+| `runs_on_incident_modes` | string | Нет | Array of incident modes to run on as JSON string. Example: \["standard", "retrospective"\] |
+| `include_private_incidents` | boolean | Нет | Whether to include private incidents |
+| `continue_on_step_error` | boolean | Нет | Whether to continue executing subsequent steps if a step fails |
+| `once_for` | string | Нет | Array of fields to ensure the workflow runs only once per unique combination of these fields, as JSON string. Example: \["incident.id"\] |
+| `expressions` | string | Нет | Array of workflow expressions as JSON string for advanced workflow logic. Example: \[\{"label": "My expression", "operations": \[\]\}\] |
+| `delay` | string | Нет | Delay configuration as JSON string. Example: \{"for_seconds": 60, "conditions_apply_over_delay": false\} |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `workflow` | object | The created workflow |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
+| `management_meta` | json | Workflow management metadata |
+
+### `incidentio_workflows_show`
+
+Get details of a specific workflow in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the workflow to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `skip_step_upgrades` | boolean | Нет | Skip workflow step upgrades when existing workflow step parameters changed |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `workflow` | object | The workflow details |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
+| `management_meta` | json | Workflow management metadata |
+
+### `incidentio_workflows_update`
+
+Update an existing workflow in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the workflow to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Да | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
+| `steps` | string | Да | Complete array of workflow steps as a JSON string |
+| `condition_groups` | string | Да | Complete array of workflow condition groups as a JSON string |
+| `runs_on_incidents` | string | Да | When to run the workflow: newly_created, newly_created_and_active, active, or all |
+| `runs_on_incident_modes` | string | Да | Complete array of incident modes to run on as a JSON string |
+| `include_private_incidents` | boolean | Да | Whether to include private incidents |
+| `continue_on_step_error` | boolean | Да | Whether to continue executing subsequent steps if a step fails |
+| `once_for` | string | Да | Complete array of fields that make the workflow run once as a JSON string |
+| `expressions` | string | Да | Complete array of workflow expressions as a JSON string |
+| `state` | string | Нет | New state for the workflow \(active, draft, or disabled\) |
+| `folder` | string | Нет | New folder for the workflow |
+| `delay` | string | Нет | Delay configuration as a JSON string |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `workflow` | object | The updated workflow |
+|   ↳ `id` | string | Workflow ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `trigger` | string | Workflow trigger |
+|   ↳ `once_for` | array | Fields that make the workflow run once |
+|   ↳ `version` | number | Workflow version |
+|   ↳ `expressions` | array | Workflow expressions |
+|   ↳ `condition_groups` | array | Workflow condition groups |
+|   ↳ `steps` | array | Workflow steps |
+|   ↳ `include_private_incidents` | boolean | Whether the workflow includes private incidents |
+|   ↳ `include_private_escalations` | boolean | Whether the workflow includes private escalations |
+|   ↳ `runs_on_incident_modes` | array | Incident modes the workflow runs on |
+|   ↳ `continue_on_step_error` | boolean | Whether execution continues after a step error |
+|   ↳ `runs_on_incidents` | string | Incident lifecycle filter |
+|   ↳ `state` | string | Workflow state \(active, draft, disabled\) |
+|   ↳ `delay` | object | Workflow delay configuration |
+|   ↳ `folder` | string | Workflow folder |
+|   ↳ `runs_from` | string | When the workflow runs from |
+|   ↳ `shortform` | string | Workflow shortform identifier |
+| `management_meta` | json | Workflow management metadata |
+
+### `incidentio_workflows_delete`
+
+Delete a workflow in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the workflow to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_schedules_list`
+
+List all schedules in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `page_size` | number | Нет | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | Нет | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `schedules` | array | List of schedules |
+|   ↳ `id` | string | The schedule ID |
+|   ↳ `name` | string | The schedule name |
+|   ↳ `timezone` | string | The schedule timezone |
+|   ↳ `created_at` | string | When the schedule was created |
+|   ↳ `updated_at` | string | When the schedule was last updated |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### `incidentio_schedules_create`
+
+Create a new schedule in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `name` | string | Да | Name of the schedule \(e.g., "Primary On-Call"\) |
+| `timezone` | string | Да | Timezone for the schedule \(e.g., America/New_York\) |
+| `config` | string | Да | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `schedule` | object | The created schedule |
+|   ↳ `id` | string | The schedule ID |
+|   ↳ `name` | string | The schedule name |
+|   ↳ `timezone` | string | The schedule timezone |
+|   ↳ `created_at` | string | When the schedule was created |
+|   ↳ `updated_at` | string | When the schedule was last updated |
+
+### `incidentio_schedules_show`
+
+Get details of a specific schedule in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `schedule` | object | The schedule details |
+|   ↳ `id` | string | The schedule ID |
+|   ↳ `name` | string | The schedule name |
+|   ↳ `timezone` | string | The schedule timezone |
+|   ↳ `created_at` | string | When the schedule was created |
+|   ↳ `updated_at` | string | When the schedule was last updated |
+
+### `incidentio_schedules_update`
+
+Update an existing schedule in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the schedule to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Нет | New name for the schedule \(e.g., "Primary On-Call"\) |
+| `timezone` | string | Нет | New timezone for the schedule \(e.g., America/New_York\) |
+| `config` | string | Нет | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `schedule` | object | The updated schedule |
+|   ↳ `id` | string | The schedule ID |
+|   ↳ `name` | string | The schedule name |
+|   ↳ `timezone` | string | The schedule timezone |
+|   ↳ `created_at` | string | When the schedule was created |
+|   ↳ `updated_at` | string | When the schedule was last updated |
+
+### `incidentio_schedules_delete`
+
+Delete a schedule in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the schedule to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_escalations_list`
+
+List all escalation policies in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `page_size` | number | Нет | Number of escalations to return per page |
+| `after` | string | Нет | Pagination cursor to fetch the next page of results |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalations` | array | List of escalation policies |
+|   ↳ `id` | string | The escalation policy ID |
+|   ↳ `name` | string | The escalation policy name |
+|   ↳ `created_at` | string | When the escalation policy was created |
+|   ↳ `updated_at` | string | When the escalation policy was last updated |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### `incidentio_escalations_create`
+
+Create a new escalation policy in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `idempotency_key` | string | Да | Unique identifier to prevent duplicate escalation creation. Use a UUID or unique string. |
+| `title` | string | Да | Title of the escalation \(e.g., "Database Critical Alert"\) |
+| `escalation_path_id` | string | Нет | ID of the escalation path to use \(required if user_ids not provided\) |
+| `user_ids` | string | Нет | Comma-separated list of user IDs to notify \(required if escalation_path_id not provided\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation` | object | The created escalation policy |
+|   ↳ `id` | string | The escalation policy ID |
+|   ↳ `name` | string | The escalation policy name |
+|   ↳ `created_at` | string | When the escalation policy was created |
+|   ↳ `updated_at` | string | When the escalation policy was last updated |
+
+### `incidentio_escalations_show`
+
+Get details of a specific escalation policy in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the escalation policy \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation` | object | The escalation policy details |
+|   ↳ `id` | string | The escalation policy ID |
+|   ↳ `name` | string | The escalation policy name |
+|   ↳ `created_at` | string | When the escalation policy was created |
+|   ↳ `updated_at` | string | When the escalation policy was last updated |
+
+### `incidentio_custom_fields_list`
+
+List all custom fields from incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `custom_fields` | array | List of custom fields |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `description` | string | Custom field description |
+|   ↳ `field_type` | string | Custom field type |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+
+### `incidentio_custom_fields_create`
+
+Create a new custom field in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `name` | string | Да | Name of the custom field \(e.g., "Affected Service"\) |
+| `description` | string | Да | Description of the custom field \(required\) |
+| `field_type` | string | Да | Type of the custom field \(e.g., text, single_select, multi_select, numeric, datetime, link, user, team\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Created custom field |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `description` | string | Custom field description |
+|   ↳ `field_type` | string | Custom field type |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+
+### `incidentio_custom_fields_show`
+
+Get detailed information about a specific custom field from incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Custom field details |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `description` | string | Custom field description |
+|   ↳ `field_type` | string | Custom field type |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+
+### `incidentio_custom_fields_update`
+
+Update an existing custom field in incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Да | New name for the custom field \(e.g., "Affected Service"\) |
+| `description` | string | Да | New description for the custom field \(required\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `custom_field` | object | Updated custom field |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `description` | string | Custom field description |
+|   ↳ `field_type` | string | Custom field type |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+
+### `incidentio_custom_fields_delete`
+
+Delete a custom field from incident.io.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_severities_list`
+
+List all severity levels configured in your Incident.io workspace. Returns severity details including id, name, description, and rank.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `severities` | array | List of severity levels |
+|   ↳ `id` | string | Unique identifier for the severity level |
+|   ↳ `name` | string | Name of the severity level |
+|   ↳ `description` | string | Description of the severity level |
+|   ↳ `rank` | number | Rank/order of the severity level |
+
+### `incidentio_incident_statuses_list`
+
+List all incident statuses configured in your Incident.io workspace. Returns status details including id, name, description, and category.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_statuses` | array | List of incident statuses |
+|   ↳ `id` | string | Unique identifier for the incident status |
+|   ↳ `name` | string | Name of the incident status |
+|   ↳ `description` | string | Description of the incident status |
+|   ↳ `category` | string | Category of the incident status |
+
+### `incidentio_incident_types_list`
+
+List all incident types configured in your Incident.io workspace. Returns type details including id, name, description, and default flag.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_types` | array | List of incident types |
+|   ↳ `id` | string | Unique identifier for the incident type |
+|   ↳ `name` | string | Name of the incident type |
+|   ↳ `description` | string | Description of the incident type |
+|   ↳ `is_default` | boolean | Whether this is the default incident type |
+
+### `incidentio_incident_roles_list`
+
+List all incident roles in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_roles` | array | List of incident roles |
+|   ↳ `id` | string | The incident role ID |
+|   ↳ `name` | string | The incident role name |
+|   ↳ `description` | string | The incident role description |
+|   ↳ `instructions` | string | Instructions for the role |
+|   ↳ `shortform` | string | Short form abbreviation of the role |
+|   ↳ `role_type` | string | The type of role |
+|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `created_at` | string | When the role was created |
+|   ↳ `updated_at` | string | When the role was last updated |
+
+### `incidentio_incident_roles_create`
+
+Create a new incident role in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `name` | string | Да | Name of the incident role \(e.g., "Incident Commander"\) |
+| `description` | string | Да | Description of the incident role |
+| `instructions` | string | Да | Instructions for the incident role |
+| `shortform` | string | Да | Short form abbreviation for the role |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_role` | object | The created incident role |
+|   ↳ `id` | string | The incident role ID |
+|   ↳ `name` | string | The incident role name |
+|   ↳ `description` | string | The incident role description |
+|   ↳ `instructions` | string | Instructions for the role |
+|   ↳ `shortform` | string | Short form abbreviation of the role |
+|   ↳ `role_type` | string | The type of role |
+|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `created_at` | string | When the role was created |
+|   ↳ `updated_at` | string | When the role was last updated |
+
+### `incidentio_incident_roles_show`
+
+Get details of a specific incident role in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the incident role \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_role` | object | The incident role details |
+|   ↳ `id` | string | The incident role ID |
+|   ↳ `name` | string | The incident role name |
+|   ↳ `description` | string | The incident role description |
+|   ↳ `instructions` | string | Instructions for the role |
+|   ↳ `shortform` | string | Short form abbreviation of the role |
+|   ↳ `role_type` | string | The type of role |
+|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `created_at` | string | When the role was created |
+|   ↳ `updated_at` | string | When the role was last updated |
+
+### `incidentio_incident_roles_update`
+
+Update an existing incident role in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the incident role to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Да | Name of the incident role \(e.g., "Incident Commander"\) |
+| `description` | string | Да | Description of the incident role |
+| `instructions` | string | Да | Instructions for the incident role |
+| `shortform` | string | Да | Short form abbreviation for the role |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_role` | object | The updated incident role |
+|   ↳ `id` | string | The incident role ID |
+|   ↳ `name` | string | The incident role name |
+|   ↳ `description` | string | The incident role description |
+|   ↳ `instructions` | string | Instructions for the role |
+|   ↳ `shortform` | string | Short form abbreviation of the role |
+|   ↳ `role_type` | string | The type of role |
+|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `created_at` | string | When the role was created |
+|   ↳ `updated_at` | string | When the role was last updated |
+
+### `incidentio_incident_roles_delete`
+
+Delete an incident role in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the incident role to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+### `incidentio_incident_timestamps_list`
+
+List all incident timestamp definitions in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_timestamps` | array | List of incident timestamp definitions |
+|   ↳ `id` | string | The timestamp ID |
+|   ↳ `name` | string | The timestamp name |
+|   ↳ `rank` | number | The rank/order of the timestamp |
+|   ↳ `created_at` | string | When the timestamp was created |
+|   ↳ `updated_at` | string | When the timestamp was last updated |
+
+### `incidentio_incident_timestamps_show`
+
+Get details of a specific incident timestamp definition in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the incident timestamp \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_timestamp` | object | The incident timestamp details |
+|   ↳ `id` | string | The timestamp ID |
+|   ↳ `name` | string | The timestamp name |
+|   ↳ `rank` | number | The rank/order of the timestamp |
+|   ↳ `created_at` | string | When the timestamp was created |
+|   ↳ `updated_at` | string | When the timestamp was last updated |
+
+### `incidentio_incident_updates_list`
+
+List all updates for a specific incident in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `incident_id` | string | Нет | The ID of the incident to get updates for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\). If not provided, returns all updates |
+| `page_size` | number | Нет | Number of results to return per page \(e.g., 10, 25, 50\) |
+| `after` | string | Нет | Cursor for pagination \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `incident_updates` | array | List of incident updates |
+|   ↳ `id` | string | The update ID |
+|   ↳ `incident_id` | string | The incident ID |
+|   ↳ `message` | string | The update message |
+|   ↳ `new_severity` | object | New severity if changed |
+|     ↳ `id` | string | Severity ID |
+|     ↳ `name` | string | Severity name |
+|     ↳ `rank` | number | Severity rank |
+|   ↳ `new_status` | object | New status if changed |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name |
+|     ↳ `category` | string | Status category |
+|   ↳ `updater` | object | User who created the update |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `created_at` | string | When the update was created |
+|   ↳ `updated_at` | string | When the update was last modified |
+| `pagination_meta` | object | Pagination information |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### `incidentio_schedule_entries_list`
+
+List all entries for a specific schedule in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `schedule_id` | string | Да | The ID of the schedule to get entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `entry_window_start` | string | Нет | Start date/time to filter entries in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
+| `entry_window_end` | string | Нет | End date/time to filter entries in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `schedule_entries` | object | Schedule entries grouped by final, overrides, and scheduled entries |
+|   ↳ `final` | array | Final computed schedule entries |
+|   ↳ `overrides` | array | Override schedule entries |
+|   ↳ `scheduled` | array | Scheduled entries before overrides are applied |
+| `pagination_meta` | object | Pagination information |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `after_url` | string | URL for next page |
+
+### `incidentio_schedule_overrides_create`
+
+Create a new schedule override in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `rotation_id` | string | Да | The ID of the rotation to override \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `layer_id` | string | Да | The ID of the layer this override applies to |
+| `schedule_id` | string | Да | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `user_id` | string | Нет | The ID of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
+| `user_email` | string | Нет | The email of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
+| `user_slack_id` | string | Нет | The Slack ID of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
+| `start_at` | string | Да | When the override starts in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
+| `end_at` | string | Да | When the override ends in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `override` | object | The created schedule override |
+|   ↳ `id` | string | The override ID |
+|   ↳ `layer_id` | string | The schedule layer ID |
+|   ↳ `rotation_id` | string | The rotation ID |
+|   ↳ `schedule_id` | string | The schedule ID |
+|   ↳ `user` | object | User assigned to this override |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `start_at` | string | When the override starts |
+|   ↳ `end_at` | string | When the override ends |
+|   ↳ `created_at` | string | When the override was created |
+|   ↳ `updated_at` | string | When the override was last updated |
+
+### `incidentio_escalation_paths_list`
+
+List escalation paths in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `page_size` | number | Нет | Number of escalation paths to return per page |
+| `after` | string | Нет | Pagination cursor to fetch the next page of results |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation_paths` | array | List of escalation paths |
+|   ↳ `id` | string | The escalation path ID |
+|   ↳ `name` | string | The escalation path name |
+|   ↳ `path` | array | Array of escalation levels |
+|   ↳ `working_hours` | array | Working hours configuration |
+| `pagination_meta` | object | Pagination metadata |
+|   ↳ `after` | string | Cursor for next page |
+|   ↳ `page_size` | number | Number of results per page |
+
+### `incidentio_escalation_paths_create`
+
+Create a new escalation path in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `name` | string | Да | Name of the escalation path \(e.g., "Critical Incident Path"\) |
+| `path` | json | Да | Array of escalation levels with targets and time to acknowledge in seconds. Each level should have: targets \(array of \{id, type, schedule_id?, user_id?, urgency\}\) and time_to_ack_seconds \(number\) |
+| `working_hours` | json | Нет | Optional working hours configuration. Array of \{weekday, start_time, end_time\} |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | The created escalation path |
+|   ↳ `id` | string | The escalation path ID |
+|   ↳ `name` | string | The escalation path name |
+|   ↳ `path` | array | Array of escalation levels |
+|     ↳ `targets` | array | Targets for this level |
+|       ↳ `id` | string | Target ID |
+|       ↳ `type` | string | Target type |
+|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|       ↳ `user_id` | string | User ID if type is user |
+|       ↳ `urgency` | string | Urgency level |
+|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+|   ↳ `working_hours` | array | Working hours configuration |
+|     ↳ `weekday` | string | Day of week |
+|     ↳ `start_time` | string | Start time |
+|     ↳ `end_time` | string | End time |
+
+### `incidentio_escalation_paths_show`
+
+Get details of a specific escalation path in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the escalation path \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | The escalation path details |
+|   ↳ `id` | string | The escalation path ID |
+|   ↳ `name` | string | The escalation path name |
+|   ↳ `path` | array | Array of escalation levels |
+|     ↳ `targets` | array | Targets for this level |
+|       ↳ `id` | string | Target ID |
+|       ↳ `type` | string | Target type |
+|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|       ↳ `user_id` | string | User ID if type is user |
+|       ↳ `urgency` | string | Urgency level |
+|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+|   ↳ `working_hours` | array | Working hours configuration |
+|     ↳ `weekday` | string | Day of week |
+|     ↳ `start_time` | string | Start time |
+|     ↳ `end_time` | string | End time |
+
+### `incidentio_escalation_paths_update`
+
+Update an existing escalation path in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the escalation path to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Да | New name for the escalation path \(e.g., "Critical Incident Path"\) |
+| `path` | json | Да | New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds |
+| `working_hours` | json | Нет | New working hours configuration. Array of \{weekday, start_time, end_time\} |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `escalation_path` | object | The updated escalation path |
+|   ↳ `id` | string | The escalation path ID |
+|   ↳ `name` | string | The escalation path name |
+|   ↳ `path` | array | Array of escalation levels |
+|     ↳ `targets` | array | Targets for this level |
+|       ↳ `id` | string | Target ID |
+|       ↳ `type` | string | Target type |
+|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
+|       ↳ `user_id` | string | User ID if type is user |
+|       ↳ `urgency` | string | Urgency level |
+|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
+|   ↳ `working_hours` | array | Working hours configuration |
+|     ↳ `weekday` | string | Day of week |
+|     ↳ `start_time` | string | Start time |
+|     ↳ `end_time` | string | End time |
+
+### `incidentio_escalation_paths_delete`
+
+Delete an escalation path in incident.io
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | incident.io API Key |
+| `id` | string | Да | The ID of the escalation path to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Success message |
+
+

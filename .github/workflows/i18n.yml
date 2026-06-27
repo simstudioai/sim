@@ -142,7 +142,7 @@ jobs:
 
       - name: Build documentation to verify translations
         env:
-          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+          DATABASE_URL: postgresql://dummy:dummy@localhost:12002/dummy
         run: |
           cd apps/docs
           bun run build

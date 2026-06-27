@@ -1,0 +1,18 @@
+{
+  "workflowCreated": "Workflow erstellt",
+  "workflowDeleted": "Workflow gelöscht",
+  "workflowUpdated": "Workflow aktualisiert",
+  "workflowDuplicated": "Workflow dupliziert",
+  "executionStarted": "Ausführung gestartet",
+  "executionCompleted": "Ausführung abgeschlossen",
+  "executionFailed": "Ausführung fehlgeschlagen",
+  "invitationSent": "Einladung gesendet",
+  "memberAdded": "Mitglied hinzugefügt",
+  "memberRemoved": "Mitglied entfernt",
+  "settingsSaved": "Einstellungen gespeichert",
+  "fileUploaded": "Datei hochgeladen",
+  "fileDeleted": "Datei gelöscht",
+  "integrationConnected": "Integration verbunden",
+  "integrationDisconnected": "Integration getrennt",
+  "knowledgeSynced": "Wissensdatenbank synchronisiert"
+}

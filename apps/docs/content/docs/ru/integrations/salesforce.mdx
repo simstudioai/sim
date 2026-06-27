@@ -1,0 +1,1373 @@
+---
+title: Salesforce
+description: Взаимодействие с Salesforce CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="salesforce"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The [Salesforce](https://www.salesforce.com/) tool enables you to connect directly to your Salesforce CRM and perform a wide range of customer relationship management operations within your agentic workflows. With seamless and secure integration, you can efficiently access and automate key business processes across your sales, support, and marketing data.
+
+With the Salesforce tool, you can:
+
+- **Получение accounts**: Use the `salesforce_get_accounts` operation to fetch Accounts from Salesforce with custom filters, sorting, and field selection.
+- **Create accounts**: Automatically add new Accounts to Salesforce using the `salesforce_create_account` operation, specifying details like name, industry, and billing address.
+- **Manage contacts**: (If provided, similar tooling available for Contacts—add, update, or fetch contacts as needed.)
+- **Handle leads & opportunities**: Интегрируйте lead and opportunity management в ваш рабочий процесс, letting your agents capture, qualify, and update sales pipeline data.
+- **Track cases & tasks**: Automate customer support and follow-up activities by interacting with Cases and Tasks within Salesforce.
+
+The Salesforce tool is ideal for workflows where your agents need to streamline sales, account management, lead generation, and support operations. Whether your agents are syncing data across platforms, providing real-time customer insights, or automating routine CRM updates, the Salesforce tool brings the full power and extensibility of Salesforce into your programmatic, agent-driven processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Salesforce в ваш рабочий процесс. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
+
+
+
+## Действия
+
+### `salesforce_get_accounts`
+
+Получение accounts from Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | The ID token from Salesforce OAuth \(contains instance URL\) |
+| `instanceUrl` | string | Нет | The Salesforce instance URL |
+| `limit` | string | Нет | Maximum number of results \(по умолчанию: 100, max: 2000\) |
+| `fields` | string | Нет | Comma-separated field API names (например, "Id,Name,Industry,Phone"\) |
+| `orderBy` | string | Нет | Field and direction for sorting (например, "Name ASC" or "CreatedDate DESC"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Accounts data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `accounts` | array | Array of account objects |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_create_account`
+
+Создание нового account in Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `name` | string | Да | Account name \(required\) |
+| `type` | string | Нет | Account type (например, Customer, Partner, Prospect\) |
+| `industry` | string | Нет | Industry (например, Technology, Healthcare, Finance\) |
+| `phone` | string | Нет | Phone number |
+| `website` | string | Нет | Website URL |
+| `billingStreet` | string | Нет | Billing street address |
+| `billingCity` | string | Нет | Billing city |
+| `billingState` | string | Нет | Billing state/province |
+| `billingPostalCode` | string | Нет | Billing postal code |
+| `billingCountry` | string | Нет | Billing country |
+| `description` | string | Нет | Account description |
+| `annualRevenue` | string | Нет | Annual revenue as a number |
+| `numberOfEmployees` | string | Нет | Number of employees as an integer |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created account data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_account`
+
+Обновление existing account in Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `accountId` | string | Да | Salesforce Account ID to update \(18-character string starting with 001\) |
+| `name` | string | Нет | Account name |
+| `type` | string | Нет | Account type (например, Customer, Partner, Prospect\) |
+| `industry` | string | Нет | Industry (например, Technology, Healthcare, Finance\) |
+| `phone` | string | Нет | Phone number |
+| `website` | string | Нет | Website URL |
+| `billingStreet` | string | Нет | Billing street address |
+| `billingCity` | string | Нет | Billing city |
+| `billingState` | string | Нет | Billing state/province |
+| `billingPostalCode` | string | Нет | Billing postal code |
+| `billingCountry` | string | Нет | Billing country |
+| `description` | string | Нет | Account description |
+| `annualRevenue` | string | Нет | Annual revenue as a number |
+| `numberOfEmployees` | string | Нет | Number of employees as an integer |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated account data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_account`
+
+Удалениеn account from Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `accountId` | string | Да | Salesforce Account ID to delete \(18-character string starting with 001\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted account data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_get_contacts`
+
+Получение contact(s) from Salesforce - single contact if ID provided, or list if not
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `contactId` | string | Нет | Salesforce Contact ID \(18-character string starting with 003\) to get a single contact |
+| `limit` | string | Нет | Maximum number of results \(по умолчанию: 100, max: 2000\). Only for list query. |
+| `fields` | string | Нет | Comma-separated field API names (например, "Id,FirstName,LastName,Email,Phone"\) |
+| `orderBy` | string | Нет | Field and direction for sorting (например, "LastName ASC"\). Only for list query. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Contact\(s\) data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `contacts` | array | Array of contacts \(list query\) |
+|   ↳ `contact` | object | Single contact \(by ID\) |
+|   ↳ `singleContact` | boolean | Whether single contact was returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_create_contact`
+
+Создание нового contact in Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `lastName` | string | Да | Last name \(required\) |
+| `firstName` | string | Нет | First name |
+| `email` | string | Нет | Email address |
+| `phone` | string | Нет | Phone number |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `title` | string | Нет | No description |
+| `department` | string | Нет | Department |
+| `mailingStreet` | string | Нет | Mailing street |
+| `mailingCity` | string | Нет | Mailing city |
+| `mailingState` | string | Нет | Mailing state |
+| `mailingPostalCode` | string | Нет | Mailing postal code |
+| `mailingCountry` | string | Нет | Mailing country |
+| `description` | string | Нет | Contact description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created contact data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_contact`
+
+Обновление existing contact in Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `contactId` | string | Да | Salesforce Contact ID to update \(18-character string starting with 003\) |
+| `lastName` | string | Нет | Last name |
+| `firstName` | string | Нет | First name |
+| `email` | string | Нет | Email address |
+| `phone` | string | Нет | Phone number |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `title` | string | Нет | No description |
+| `department` | string | Нет | Department |
+| `mailingStreet` | string | Нет | Mailing street |
+| `mailingCity` | string | Нет | Mailing city |
+| `mailingState` | string | Нет | Mailing state |
+| `mailingPostalCode` | string | Нет | Mailing postal code |
+| `mailingCountry` | string | Нет | Mailing country |
+| `description` | string | Нет | Contact description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated contact data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_contact`
+
+Удаление contact from Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `contactId` | string | Да | Salesforce Contact ID to delete \(18-character string starting with 003\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted contact data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_get_leads`
+
+Получение lead(s) from Salesforce CRM
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `leadId` | string | Нет | Salesforce Lead ID \(18-character string starting with 00Q\) to get a single lead |
+| `limit` | string | Нет | Maximum number of results to return \(по умолчанию: 100\) |
+| `fields` | string | Нет | Comma-separated list of field API names to return |
+| `orderBy` | string | Нет | Field and direction for sorting (например, LastName ASC\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Lead data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `lead` | object | Single lead object \(when leadId provided\) |
+|   ↳ `leads` | array | Array of lead objects \(when listing\) |
+|   ↳ `singleLead` | boolean | Whether single lead was returned |
+|   ↳ `success` | boolean | Operation статус успешности |
+
+### `salesforce_create_lead`
+
+Создание нового lead
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `lastName` | string | Да | Last name \(required\) |
+| `company` | string | Да | Company name \(required\) |
+| `firstName` | string | Нет | First name |
+| `email` | string | Нет | Email address |
+| `phone` | string | Нет | Phone number |
+| `status` | string | Нет | Lead status (например, Open, Working, Closed\) |
+| `leadSource` | string | Нет | Lead source (например, Web, Referral, Campaign\) |
+| `title` | string | Нет | No description |
+| `description` | string | Нет | Lead description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created lead data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_lead`
+
+Обновление existing lead
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `leadId` | string | Да | Salesforce Lead ID to update \(18-character string starting with 00Q\) |
+| `lastName` | string | Нет | Last name |
+| `company` | string | Нет | Company name |
+| `firstName` | string | Нет | First name |
+| `email` | string | Нет | Email address |
+| `phone` | string | Нет | Phone number |
+| `status` | string | Нет | Lead status (например, Open, Working, Closed\) |
+| `leadSource` | string | Нет | Lead source (например, Web, Referral, Campaign\) |
+| `title` | string | Нет | No description |
+| `description` | string | Нет | Lead description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated lead data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_lead`
+
+Удаление lead
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `leadId` | string | Да | Salesforce Lead ID to delete \(18-character string starting with 00Q\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted lead data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_get_opportunities`
+
+Получение opportunity(ies) from Salesforce
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `opportunityId` | string | Нет | Salesforce Opportunity ID \(18-character string starting with 006\) to get a single opportunity |
+| `limit` | string | Нет | Maximum number of results to return \(по умолчанию: 100\) |
+| `fields` | string | Нет | Comma-separated list of field API names to return |
+| `orderBy` | string | Нет | Field and direction for sorting (например, CloseDate DESC\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Opportunity data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `opportunity` | object | Single opportunity object \(when opportunityId provided\) |
+|   ↳ `opportunities` | array | Array of opportunity objects \(when listing\) |
+|   ↳ `success` | boolean | Operation статус успешности |
+
+### `salesforce_create_opportunity`
+
+Создание нового opportunity
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `name` | string | Да | Opportunity name \(required\) |
+| `stageName` | string | Да | Stage name \(required, e.g., Prospecting, Qualification, Closed Won\) |
+| `closeDate` | string | Да | Close date in YYYY-MM-DD format \(required\) |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `amount` | string | Нет | Deal amount as a number |
+| `probability` | string | Нет | Win probability as integer \(0-100\) |
+| `description` | string | Нет | Opportunity description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created opportunity data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_opportunity`
+
+Обновление existing opportunity
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `opportunityId` | string | Да | Salesforce Opportunity ID to update \(18-character string starting with 006\) |
+| `name` | string | Нет | Opportunity name |
+| `stageName` | string | Нет | Stage name (например, Prospecting, Qualification, Closed Won\) |
+| `closeDate` | string | Нет | Close date in YYYY-MM-DD format |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `amount` | string | Нет | Deal amount as a number |
+| `probability` | string | Нет | Win probability as integer \(0-100\) |
+| `description` | string | Нет | Opportunity description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated opportunity data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_opportunity`
+
+Удалениеn opportunity
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `opportunityId` | string | Да | Salesforce Opportunity ID to delete \(18-character string starting with 006\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted opportunity data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_get_cases`
+
+Получение case(s) from Salesforce
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `caseId` | string | Нет | Salesforce Case ID \(18-character string starting with 500\) to get a single case |
+| `limit` | string | Нет | Maximum number of results to return \(по умолчанию: 100\) |
+| `fields` | string | Нет | Comma-separated list of field API names to return |
+| `orderBy` | string | Нет | Field and direction for sorting (например, CreatedDate DESC\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Case data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `case` | object | Single case object \(when caseId provided\) |
+|   ↳ `cases` | array | Array of case objects \(when listing\) |
+|   ↳ `success` | boolean | Operation статус успешности |
+
+### `salesforce_create_case`
+
+Создание нового case
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `subject` | string | Да | Case subject \(required\) |
+| `status` | string | Нет | Status (например, New, Working, Escalated\) |
+| `priority` | string | Нет | Priority (например, Low, Medium, High\) |
+| `origin` | string | Нет | Origin (например, Phone, Email, Web\) |
+| `contactId` | string | Нет | Salesforce Contact ID \(18-character string starting with 003\) |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `description` | string | Нет | Case description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created case data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_case`
+
+Обновление existing case
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `caseId` | string | Да | Salesforce Case ID to update \(18-character string starting with 500\) |
+| `subject` | string | Нет | Case subject |
+| `status` | string | Нет | Status (например, New, Working, Escalated, Closed\) |
+| `priority` | string | Нет | Priority (например, Low, Medium, High\) |
+| `origin` | string | Нет | Origin (например, Phone, Email, Web\) |
+| `contactId` | string | Нет | Salesforce Contact ID \(18-character string starting with 003\) |
+| `accountId` | string | Нет | Salesforce Account ID \(18-character string starting with 001\) |
+| `description` | string | Нет | Case description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated case data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_case`
+
+Удаление case
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `caseId` | string | Да | Salesforce Case ID to delete \(18-character string starting with 500\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted case data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_get_tasks`
+
+Получение task(s) from Salesforce
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `taskId` | string | Нет | Salesforce Task ID \(18-character string starting with 00T\) to get a single task |
+| `limit` | string | Нет | Maximum number of results to return \(по умолчанию: 100\) |
+| `fields` | string | Нет | Comma-separated list of field API names to return |
+| `orderBy` | string | Нет | Field and direction for sorting (например, ActivityDate DESC\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Task data |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `task` | object | Single task object \(when taskId provided\) |
+|   ↳ `tasks` | array | Array of task objects \(when listing\) |
+|   ↳ `success` | boolean | Operation статус успешности |
+
+### `salesforce_create_task`
+
+Создание нового task
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `subject` | string | Да | Task subject \(required\) |
+| `status` | string | Нет | Status (например, Not Started, In Progress, Completed\) |
+| `priority` | string | Нет | Priority (например, Low, Normal, High\) |
+| `activityDate` | string | Нет | Due date in YYYY-MM-DD format |
+| `whoId` | string | Нет | Related Contact ID \(003...\) or Lead ID \(00Q...\) |
+| `whatId` | string | Нет | Related Account ID \(001...\) or Opportunity ID \(006...\) |
+| `description` | string | Нет | Task description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created task data |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  record was created \(always true on success\) |
+
+### `salesforce_update_task`
+
+Обновление existing task
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `taskId` | string | Да | Salesforce Task ID to update \(18-character string starting with 00T\) |
+| `subject` | string | Нет | Task subject |
+| `status` | string | Нет | Status (например, Not Started, In Progress, Completed\) |
+| `priority` | string | Нет | Priority (например, Low, Normal, High\) |
+| `activityDate` | string | Нет | Due date in YYYY-MM-DD format |
+| `whoId` | string | Нет | Related Contact ID \(003...\) or Lead ID \(00Q...\) |
+| `whatId` | string | Нет | Related Account ID \(001...\) or Opportunity ID \(006...\) |
+| `description` | string | Нет | Task description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated task data |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Указывает,  record was updated \(always true on success\) |
+
+### `salesforce_delete_task`
+
+Удаление task
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `taskId` | string | Да | Salesforce Task ID to delete \(18-character string starting with 00T\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted task data |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Указывает,  record was deleted \(always true on success\) |
+
+### `salesforce_list_reports`
+
+Получение a list of up to 200 recently viewed reports for the current user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `searchTerm` | string | Нет | Filter reports by name \(case-insensitive partial match\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Reports data |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `reports` | array | Array of report objects |
+
+### `salesforce_get_report`
+
+Получение the describe (definition and metadata) for a specific report
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `reportId` | string | Да | Salesforce Report ID \(18-character string starting with 00O\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Report metadata |
+|   ↳ `report` | object | Report metadata object |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_run_report`
+
+Execute a report and retrieve the results
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `reportId` | string | Да | Salesforce Report ID \(18-character string starting with 00O\) |
+| `includeDetails` | string | Нет | Include detail rows \(true/false, по умолчанию: true\) |
+| `filters` | string | Нет | JSON array of report filter objects to apply |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Report results |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `reportMetadata` | object | Report metadata including name, format, and filter definitions |
+|   ↳ `reportExtendedMetadata` | object | Extended metadata for aggregate columns and groupings |
+|   ↳ `factMap` | object | Report data organized by groupings with aggregates and row data |
+|   ↳ `groupingsDown` | object | Row grouping hierarchy and values |
+|   ↳ `groupingsAcross` | object | Column grouping hierarchy and values |
+|   ↳ `hasDetailRows` | boolean | Указывает,  report includes detail-level row data |
+|   ↳ `allData` | boolean | Whether all data is returned \(false if truncated due to size limits\) |
+|   ↳ `reportName` | string | Display name of the report |
+|   ↳ `reportFormat` | string | Report format type \(TABULAR, SUMMARY, MATRIX, JOINED\) |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_list_report_types`
+
+Получение a list of available report types
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Report types data |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `reportTypes` | array | Array of report type objects |
+
+### `salesforce_list_dashboards`
+
+Получение a list of recently used dashboards for the current user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Dashboards data |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `dashboards` | array | Array of dashboard objects |
+
+### `salesforce_get_dashboard`
+
+Получение details and results for a specific dashboard
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `dashboardId` | string | Да | Salesforce Dashboard ID \(18-character string starting with 01Z\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Dashboard data |
+|   ↳ `dashboard` | object | Full dashboard details object |
+|   ↳ `dashboardId` | string | Dashboard ID |
+|   ↳ `components` | array | Array of dashboard component data with visualizations and filters |
+|   ↳ `dashboardName` | string | Display name of the dashboard |
+|   ↳ `dashboardMetadata` | object | Structured dashboard metadata \(attributes, component definitions, layout\) |
+|   ↳ `runningUser` | object | User context under which the dashboard data was retrieved |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_refresh_dashboard`
+
+Refresh a dashboard to get the latest data
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `dashboardId` | string | Да | Salesforce Dashboard ID \(18-character string starting with 01Z\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Refreshed dashboard data |
+|   ↳ `dashboard` | object | Full dashboard details object |
+|   ↳ `dashboardId` | string | Dashboard ID |
+|   ↳ `components` | array | Array of dashboard component data with fresh visualizations |
+|   ↳ `status` | object | Dashboard refresh status \(dashboardStatus\), when returned by the refresh |
+|   ↳ `statusUrl` | string | URL of the status resource to poll for refresh completion |
+|   ↳ `dashboardName` | string | Display name of the dashboard |
+|   ↳ `dashboardMetadata` | object | Structured dashboard metadata \(attributes, component definitions, layout\) |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_query`
+
+Execute a custom SOQL query to retrieve data from Salesforce
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `query` | string | Да | SOQL query to execute (например, SELECT Id, Name FROM Account LIMIT 10\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Query results |
+|   ↳ `records` | array | Array of sObject records matching the query |
+|   ↳ `query` | string | The executed SOQL query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_query_more`
+
+Получение additional query results using the nextRecordsUrl from a previous query
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `nextRecordsUrl` | string | Да | The nextRecordsUrl value from a previous query response (например, /services/data/v59.0/query/01g...\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Query results |
+|   ↳ `records` | array | Array of sObject records matching the query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_describe_object`
+
+Получение metadata and field information for a Salesforce object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `objectName` | string | Да | Salesforce object API name (например, Account, Contact, Lead, Custom_Object__c\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Object metadata |
+|   ↳ `objectName` | string | API name of the object (например, Account, Contact\) |
+|   ↳ `label` | string | Human-readable singular label for the object |
+|   ↳ `labelPlural` | string | Human-readable plural label for the object |
+|   ↳ `fields` | array | Array of field metadata objects |
+|     ↳ `name` | string | API name of the field |
+|     ↳ `label` | string | Display label of the field |
+|     ↳ `type` | string | Field data type \(string, boolean, int, double, date, etc.\) |
+|     ↳ `length` | number | Maximum length for text fields |
+|     ↳ `precision` | number | Precision for numeric fields |
+|     ↳ `scale` | number | Scale for numeric fields |
+|     ↳ `nillable` | boolean | Указывает,  field can be null |
+|     ↳ `unique` | boolean | Whether values must be unique |
+|     ↳ `createable` | boolean | Whether field can be set on create |
+|     ↳ `updateable` | boolean | Whether field can be updated |
+|     ↳ `defaultedOnCreate` | boolean | Whether field has по умолчанию value on create |
+|     ↳ `calculated` | boolean | Whether field is a formula field |
+|     ↳ `autoNumber` | boolean | Whether field is auto-number |
+|     ↳ `externalId` | boolean | Whether field is an external ID |
+|     ↳ `idLookup` | boolean | Whether field can be used in ID lookup |
+|     ↳ `inlineHelpText` | string | Help text for the field |
+|     ↳ `picklistValues` | array | Available picklist values for picklist fields |
+|     ↳ `referenceTo` | array | Objects this field can reference \(for lookup fields\) |
+|     ↳ `relationshipName` | string | Relationship name for lookup fields |
+|     ↳ `custom` | boolean | Whether this is a custom field |
+|     ↳ `filterable` | boolean | Whether field can be used in SOQL filter |
+|     ↳ `groupable` | boolean | Whether field can be used in GROUP BY |
+|     ↳ `sortable` | boolean | Whether field can be used in ORDER BY |
+|   ↳ `keyPrefix` | string | Three-character prefix used in record IDs (например, "001" for Account\) |
+|   ↳ `queryable` | boolean | Указывает,  object can be queried via SOQL |
+|   ↳ `createable` | boolean | Whether records can be created for this object |
+|   ↳ `updateable` | boolean | Whether records can be updated for this object |
+|   ↳ `deletable` | boolean | Whether records can be deleted for this object |
+|   ↳ `childRelationships` | array | Array of child relationship metadata for related objects |
+|   ↳ `recordTypeInfos` | array | Array of record type information for the object |
+|   ↳ `fieldCount` | number | Total number of fields on the object |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_list_objects`
+
+Получение a list of all available Salesforce objects
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Objects list |
+|   ↳ `objects` | array | Array of sObject metadata |
+|     ↳ `name` | string | API name of the object |
+|     ↳ `label` | string | Display label of the object |
+|     ↳ `labelPlural` | string | Plural display label |
+|     ↳ `keyPrefix` | string | Three-character ID prefix |
+|     ↳ `custom` | boolean | Whether this is a custom object |
+|     ↳ `queryable` | boolean | Whether object can be queried |
+|     ↳ `createable` | boolean | Whether records can be created |
+|     ↳ `updateable` | boolean | Whether records can be updated |
+|     ↳ `deletable` | boolean | Whether records can be deleted |
+|     ↳ `searchable` | boolean | Whether object is searchable |
+|     ↳ `triggerable` | boolean | Whether triggers are supported |
+|     ↳ `layoutable` | boolean | Whether page layouts are supported |
+|     ↳ `replicateable` | boolean | Whether object can be replicated |
+|     ↳ `retrieveable` | boolean | Whether records can be retrieved |
+|     ↳ `undeletable` | boolean | Whether records can be undeleted |
+|     ↳ `urls` | object | URLs for accessing object resources |
+|   ↳ `encoding` | string | Character encoding for the organization (например, UTF-8\) |
+|   ↳ `maxBatchSize` | number | Maximum number of records that can be returned in a single query batch \(typically 200\) |
+|   ↳ `totalReturned` | number | Number of objects returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+### `salesforce_create_custom_field`
+
+Create a custom field on a Salesforce object (e.g., Account) using the Tooling API
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `objectName` | string | Да | API name of the object to add the field to (например, Account, Contact, Lead, MyObject__c\) |
+| `fieldName` | string | Да | API name of the new field; the __c suffix is added automatically (например, Region\) |
+| `label` | string | Нет | Display label shown in the UI \(defaults to the field name when omitted\) |
+| `fieldType` | string | Да | Field data type: Text, TextArea, LongTextArea, Html, Number, Currency, Percent, Checkbox, Date, DateTime, Time, Phone, Email, Url, Picklist, or MultiselectPicklist |
+| `length` | number | Нет | Maximum length for Text \(1-255\), LongTextArea, Html, or MultiselectPicklist fields |
+| `precision` | number | Нет | Total number of digits for Number, Currency, or Percent fields \(1-18\) |
+| `scale` | number | Нет | Number of digits to the right of the decimal for numeric fields |
+| `visibleLines` | number | Нет | Number of visible lines for LongTextArea, Html, or MultiselectPicklist fields |
+| `required` | boolean | Нет | Указывает,  field is required on record create/edit |
+| `unique` | boolean | Нет | Указывает,  field enforces unique values |
+| `externalId` | boolean | Нет | Указывает,  field is an external ID \(for Text, Number, or Email fields\) |
+| `defaultValue` | string | Нет | Default value; for Checkbox fields use true or false |
+| `description` | string | Нет | Internal description of the field |
+| `inlineHelpText` | string | Нет | Help text shown next to the field in the UI |
+| `picklistValues` | string | Нет | Comma-separated values for Picklist or MultiselectPicklist fields |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the newly created custom field |
+|   ↳ `fullName` | string | Full API name of the field, including object (например, Account.Region__c\) |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  field was created \(always true on success\) |
+
+### `salesforce_update_custom_field`
+
+Обновление existing custom field on a Salesforce object using the Tooling API
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `fieldId` | string | Да | Tooling API Id of the custom field to update \(find it via the Tooling Query tool\) |
+| `label` | string | Нет | Display label shown in the UI |
+| `length` | number | Нет | Maximum length for Text, LongTextArea, Html, or MultiselectPicklist fields |
+| `precision` | number | Нет | Total number of digits for Number, Currency, or Percent fields |
+| `scale` | number | Нет | Number of digits to the right of the decimal for numeric fields |
+| `visibleLines` | number | Нет | Number of visible lines for LongTextArea, Html, or MultiselectPicklist fields |
+| `required` | boolean | Нет | Указывает,  field is required on record create/edit |
+| `unique` | boolean | Нет | Указывает,  field enforces unique values |
+| `externalId` | boolean | Нет | Указывает,  field is an external ID |
+| `defaultValue` | string | Нет | Default value; for Checkbox fields use true or false |
+| `description` | string | Нет | Internal description of the field |
+| `inlineHelpText` | string | Нет | Help text shown next to the field in the UI |
+| `picklistValues` | string | Нет | Comma-separated values to add to a Picklist or MultiselectPicklist field \(existing values are kept\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Updated custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the updated custom field |
+|   ↳ `updated` | boolean | Указывает,  field was updated \(always true on success\) |
+
+### `salesforce_delete_custom_field`
+
+Удаление custom field from a Salesforce object using the Tooling API
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `fieldId` | string | Да | Tooling API Id of the custom field to delete \(find it via the Tooling Query tool\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Deleted custom field metadata |
+|   ↳ `id` | string | Tooling API Id of the deleted custom field |
+|   ↳ `deleted` | boolean | Указывает,  field was deleted \(always true on success\) |
+
+### `salesforce_create_custom_object`
+
+Create a custom object in Salesforce using the Tooling API
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `objectName` | string | Да | API name of the new object; the __c suffix is added automatically (например, Project\) |
+| `label` | string | Да | Singular display label for the object (например, Project\) |
+| `pluralLabel` | string | Да | Plural display label for the object (например, Projects\) |
+| `nameFieldLabel` | string | Нет | Label for the standard Name field \(defaults to "&lt;label&gt; Name"\) |
+| `description` | string | Нет | Internal description of the object |
+| `sharingModel` | string | Нет | Org-wide sharing model: ReadWrite, Read, Private, or ControlledByParent \(по умолчанию ReadWrite\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Created custom object metadata |
+|   ↳ `id` | string | Tooling API Id of the newly created custom object |
+|   ↳ `fullName` | string | Full API name of the object (например, Project__c\) |
+|   ↳ `success` | boolean | Указывает,  create operation was successful |
+|   ↳ `created` | boolean | Указывает,  object was created \(always true on success\) |
+
+### `salesforce_tooling_query`
+
+Execute a SOQL query against the Tooling API to inspect metadata objects
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `idToken` | string | Нет | No description |
+| `instanceUrl` | string | Нет | No description |
+| `query` | string | Да | Tooling SOQL query (например, SELECT Id, DeveloperName FROM CustomField WHERE TableEnumOrId = 'Account'\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation статус успешности |
+| `output` | object | Tooling query results |
+|   ↳ `records` | array | Array of Tooling API records matching the query |
+|   ↳ `query` | string | The executed Tooling SOQL query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `success` | boolean | Salesforce operation success |
+
+
+
+## Триггеры
+
+**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+
+### Salesforce Case Status Changed
+
+Запуск рабочего процесса when a case status changes
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Case\) |
+| `recordId` | string | Case ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Case ID |
+|   ↳ `Subject` | string | Case subject |
+|   ↳ `Status` | string | Current case status |
+|   ↳ `Priority` | string | Case priority |
+|   ↳ `CaseNumber` | string | Case number |
+|   ↳ `AccountId` | string | Related Account ID |
+|   ↳ `ContactId` | string | Related Contact ID |
+|   ↳ `OwnerId` | string | Case owner ID |
+| `previousStatus` | string | Previous case status |
+| `newStatus` | string | New case status |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Opportunity Stage Changed
+
+Запуск рабочего процесса when an opportunity stage changes
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Opportunity\) |
+| `recordId` | string | Opportunity ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Opportunity ID |
+|   ↳ `Name` | string | Opportunity name |
+|   ↳ `StageName` | string | Current stage name |
+|   ↳ `Amount` | string | Deal amount |
+|   ↳ `CloseDate` | string | Expected close date |
+|   ↳ `Probability` | string | Win probability |
+|   ↳ `AccountId` | string | Related Account ID \(standard Opportunity field\) |
+|   ↳ `OwnerId` | string | Opportunity owner ID |
+| `previousStage` | string | Previous stage name |
+| `newStage` | string | New stage name |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Created
+
+Запуск рабочего процесса when a Salesforce record is created
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | Нет | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event (например, created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type (например, Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Deleted
+
+Запуск рабочего процесса when a Salesforce record is deleted
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | Нет | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event (например, created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type (например, Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Updated
+
+Запуск рабочего процесса when a Salesforce record is updated
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | Нет | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event (например, created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type (например, Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Webhook (All Events)
+
+Запуск рабочего процесса on any Salesforce webhook event
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Да | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | Нет | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | json | Full record data |
+| `payload` | json | Full webhook payload |
+

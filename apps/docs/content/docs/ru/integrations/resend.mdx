@@ -1,0 +1,470 @@
+---
+title: Resend
+description: Отправка писем и управление контактами с Resend.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="resend"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Resend](https://resend.com/) is a modern email service designed for developers to send transactional and marketing emails with ease. It provides a simple, reliable API and dashboard for managing email delivery, templates, and analytics, making it a popular choice for integrating email functionality into applications and workflows.
+
+With Resend, you can:
+
+- **Send transactional emails**: Deliver password resets, notifications, confirmations, and more with high deliverability
+- **Manage templates**: Create and update email templates for consistent branding and messaging
+- **Track analytics**: Monitor delivery, open, and click rates to optimize your email performance
+- **Интегрируйте easily**: Use a straightforward API and SDKs for seamless integration with your applications
+- **Ensure security**: Benefit from robust authentication and domain verification to protect your email reputation
+
+In Sim, the Resend integration allows your agents to programmatically send emails as part of your automated workflows. This enables use cases such as sending notifications, alerts, or custom messages directly from your Sim-powered agents. By connecting Sim with Resend, you can automate communication tasks, ensuring timely and reliable email delivery without manual intervention. The integration leverages your Resend Ключ API, keeping your credentials secure while enabling powerful email automation scenarios.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Resend в ваш рабочий процесс. Send emails, retrieve email status, manage contacts, and view domains. Requires Ключ API.
+
+
+
+## Действия
+
+### `resend_send`
+
+Отправка письма using your own Resend Ключ API and from address
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `fromAddress` | string | Да | Email address to send from (например, "sender@example.com" or "Sender Name &lt;sender@example.com&gt;"\) |
+| `to` | string | Да | Recipient email address (например, "recipient@example.com" or "Recipient Name &lt;recipient@example.com&gt;"\) |
+| `subject` | string | Да | Email subject line |
+| `body` | string | Да | Email body content \(plain text or HTML based on contentType\) |
+| `contentType` | string | Нет | Content type for the email body: "text" for plain text or "html" for HTML content |
+| `cc` | string | Нет | Carbon copy recipient email address |
+| `bcc` | string | Нет | Blind carbon copy recipient email address |
+| `replyTo` | string | Нет | Reply-to email address |
+| `scheduledAt` | string | Нет | Schedule email to be sent later in ISO 8601 format |
+| `tags` | string | Нет | Comma-separated key:value pairs for email tags (например, "category:welcome,type:onboarding"\) |
+| `resendApiKey` | string | Да | Resend Ключ API for sending emails |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  email was sent successfully |
+| `id` | string | Email ID returned by Resend |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+| `body` | string | Email body content |
+
+### `resend_get_email`
+
+Получение details of a previously sent email by its ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `emailId` | string | Да | The ID of the email to retrieve |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Email ID |
+| `from` | string | Sender email address |
+| `to` | array | Recipient email addresses |
+| `subject` | string | Email subject |
+| `html` | string | HTML email content |
+| `text` | string | Plain text email content |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `replyTo` | array | Reply-to email addresses |
+| `lastEvent` | string | Last event status (например, delivered, bounced\) |
+| `createdAt` | string | Email creation timestamp |
+| `scheduledAt` | string | Scheduled send timestamp |
+| `tags` | array | Email tags as name-value pairs |
+|   ↳ `name` | string | Tag name |
+|   ↳ `value` | string | Tag value |
+
+### `resend_create_contact`
+
+Создание нового contact in Resend
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Да | Email address of the contact |
+| `firstName` | string | Нет | First name of the contact |
+| `lastName` | string | Нет | Last name of the contact |
+| `unsubscribed` | boolean | Нет | Указывает,  contact is unsubscribed from all broadcasts |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created contact ID |
+
+### `resend_list_contacts`
+
+Получение списка contacts in Resend
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Array of contacts |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `first_name` | string | Contact first name |
+|   ↳ `last_name` | string | Contact last name |
+|   ↳ `created_at` | string | Contact creation timestamp |
+|   ↳ `unsubscribed` | boolean | Указывает,  contact is unsubscribed |
+| `hasMore` | boolean | Указывает, re are more contacts to retrieve |
+
+### `resend_get_contact`
+
+Получение details of a contact by ID or email
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The contact ID or email address to retrieve |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Contact ID |
+| `email` | string | Contact email address |
+| `firstName` | string | Contact first name |
+| `lastName` | string | Contact last name |
+| `createdAt` | string | Contact creation timestamp |
+| `unsubscribed` | boolean | Указывает,  contact is unsubscribed |
+
+### `resend_update_contact`
+
+Обновление existing contact in Resend
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The contact ID or email address to update |
+| `firstName` | string | Нет | Updated first name |
+| `lastName` | string | Нет | Updated last name |
+| `unsubscribed` | boolean | Нет | Указывает,  contact should be unsubscribed from all broadcasts |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Updated contact ID |
+
+### `resend_delete_contact`
+
+Удаление contact from Resend by ID or email
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Да | The contact ID or email address to delete |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deleted contact ID |
+| `deleted` | boolean | Указывает,  contact was successfully deleted |
+
+### `resend_list_domains`
+
+Получение списка verified domains in your Resend account
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `resendApiKey` | string | Да | Resend Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | array | Array of domains |
+|   ↳ `id` | string | Domain ID |
+|   ↳ `name` | string | Domain name |
+|   ↳ `status` | string | Domain verification status |
+|   ↳ `region` | string | Region the domain is configured in |
+|   ↳ `createdAt` | string | Domain creation timestamp |
+| `hasMore` | boolean | Указывает, re are more domains to retrieve |
+
+
+
+## Триггеры
+
+**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+
+### Resend Email Bounced
+
+Запуск рабочего процесса when an email bounces
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `bounceType` | string | Bounce type (например, Permanent\) |
+| `bounceSubType` | string | Bounce sub-type (например, Suppressed\) |
+| `bounceMessage` | string | Bounce error message |
+
+
+---
+
+### Resend Email Clicked
+
+Запуск рабочего процесса when a link in an email is clicked
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `clickIpAddress` | string | IP address of the click |
+| `clickLink` | string | URL that was clicked |
+| `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
+| `clickUserAgent` | string | Browser user agent string |
+
+
+---
+
+### Resend Email Complained
+
+Запуск рабочего процесса when an email is marked as spam
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Delivered
+
+Запуск рабочего процесса when an email is delivered
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Failed
+
+Запуск рабочего процесса when an email fails to send
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Opened
+
+Запуск рабочего процесса when an email is opened
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Sent
+
+Запуск рабочего процесса when an email is sent
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Webhook (All Events)
+
+Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Resend. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type (например, email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `bounceType` | string | Bounce type (например, Permanent\) |
+| `bounceSubType` | string | Bounce sub-type (например, Suppressed\) |
+| `bounceMessage` | string | Bounce error message |
+| `clickIpAddress` | string | IP address of the click |
+| `clickLink` | string | URL that was clicked |
+| `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
+| `clickUserAgent` | string | Browser user agent string |
+

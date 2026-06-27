@@ -1,0 +1,667 @@
+---
+title: ClickHouse
+description: Connect to a ClickHouse database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clickhouse"
+  color="#f9ff69"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ClickHouse](https://clickhouse.com) is an open-source, column-oriented database management system for online analytical processing (OLAP). It is built for speed at scale — running aggregations and analytical queries over billions of rows in real time.
+
+The ClickHouse block connects to any ClickHouse deployment (ClickHouse Cloud or self-hosted) over the [HTTP interface](https://clickhouse.com/docs/interfaces/http). Use it to run analytical queries, stream rows into tables, manage schemas, inspect system state, and execute arbitrary SQL — all from within a workflow.
+
+**Connection details**
+
+- **Host** — your ClickHouse hostname (e.g. `your-instance.clickhouse.cloud` or your server address).
+- **Port** — the HTTP interface port. Use `8443` for HTTPS (ClickHouse Cloud) or `8123` for plain HTTP (self-hosted).
+- **Database** / **Username** — default to `default` if not specified.
+- **Password** — optional for unauthenticated local instances.
+- **Use HTTPS** — keep enabled for any remote or Cloud instance.
+
+**Things to know**
+
+- `UPDATE` and `DELETE` are implemented as ClickHouse [mutations](https://clickhouse.com/docs/sql-reference/statements/alter/update) (`ALTER TABLE ... UPDATE/DELETE`). Mutations run **asynchronously** in the background, so the affected row count is not returned immediately.
+- ClickHouse is optimized for bulk inserts. Prefer batching many rows per insert over many single-row inserts.
+- The connection host is validated to block private/internal addresses, so the block cannot reach `localhost` or internal-only hosts.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.
+
+
+
+## Actions
+
+### `clickhouse_query`
+
+Execute a SELECT query on a ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `query` | string | Yes | SQL SELECT query to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_execute`
+
+Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `query` | string | Yes | Raw SQL statement to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the statement |
+| `rowCount` | number | Number of rows returned or affected |
+
+### `clickhouse_insert`
+
+Insert a row into a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to insert data into |
+| `data` | object | Yes | Data object to insert \(key-value pairs mapping column names to values\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
+| `rowCount` | number | Number of rows inserted |
+
+### `clickhouse_insert_rows`
+
+Insert multiple rows into a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table to insert into |
+| `rows` | json | Yes | Array of row objects to insert, e.g. \[\{"id":1,"name":"a"\},\{"id":2,"name":"b"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
+| `rowCount` | number | Number of rows inserted |
+
+### `clickhouse_update`
+
+Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to update data in |
+| `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
+| `where` | string | Yes | WHERE clause condition \(without the WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Updated rows \(empty for ClickHouse mutations\) |
+| `rowCount` | number | Number of rows written by the mutation |
+
+### `clickhouse_delete`
+
+Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to delete data from |
+| `where` | string | Yes | WHERE clause condition \(without the WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Deleted rows \(empty for ClickHouse mutations\) |
+| `rowCount` | number | Number of rows affected by the mutation |
+
+### `clickhouse_list_databases`
+
+List all databases on a ClickHouse server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | List of databases with engine and comment |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_list_tables`
+
+List tables in the connected ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_describe_table`
+
+Describe the columns of a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to describe |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_show_create_table`
+
+Get the CREATE TABLE statement (DDL) for a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to get the CREATE statement for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `ddl` | string | The CREATE TABLE statement |
+
+### `clickhouse_count_rows`
+
+Count rows in a ClickHouse table, optionally filtered
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to count rows in |
+| `where` | string | No | Optional WHERE clause condition without the WHERE keyword |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `count` | number | Number of rows |
+
+### `clickhouse_introspect`
+
+Introspect a ClickHouse database to retrieve table structures, columns, and engines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to introspect |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns and engines |
+|   ↳ `name` | string | Table name |
+|   ↳ `database` | string | Database the table belongs to |
+|   ↳ `engine` | string | Table engine \(e.g., MergeTree, Log\) |
+|   ↳ `totalRows` | number | Approximate total number of rows in the table |
+|   ↳ `columns` | array | Table columns |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | ClickHouse data type \(e.g., UInt32, String, DateTime\) |
+|     ↳ `defaultKind` | string | Kind of default expression \(DEFAULT, MATERIALIZED, ALIAS\) |
+|     ↳ `defaultExpression` | string | Default value expression for the column |
+|     ↳ `isInPrimaryKey` | boolean | Whether the column is part of the primary key |
+|     ↳ `isInSortingKey` | boolean | Whether the column is part of the sorting key |
+
+### `clickhouse_create_database`
+
+Create a new database on a ClickHouse server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `name` | string | Yes | Name of the database to create |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_drop_database`
+
+Drop a database from a ClickHouse server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `name` | string | Yes | Name of the database to drop |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_create_table`
+
+Create a new MergeTree-family table in ClickHouse
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Name of the table to create |
+| `columns` | json | Yes | Array of column definitions, each an object with name and type, e.g. \[\{"name":"id","type":"UInt64"\},\{"name":"ts","type":"DateTime"\}\] |
+| `engine` | string | No | Table engine \(default MergeTree\) |
+| `orderBy` | string | Yes | ORDER BY expression, e.g. "id" or "\(id, ts\)" |
+| `partitionBy` | string | No | Optional PARTITION BY expression, e.g. toYYYYMM\(ts\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_drop_table`
+
+Drop a table from a ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to drop |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_truncate_table`
+
+Remove all rows from a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to truncate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_rename_table`
+
+Rename a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Current table name |
+| `newTable` | string | Yes | New table name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_optimize_table`
+
+Trigger a merge of table parts via OPTIMIZE TABLE
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table to optimize |
+| `final` | boolean | No | Force a merge to a single part using FINAL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_list_partitions`
+
+List active partitions for a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to inspect partitions for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_drop_partition`
+
+Drop a partition from a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name |
+| `partition` | string | Yes | Partition expression, e.g. '2024-01' or 202401 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `clickhouse_list_mutations`
+
+List mutations (async ALTER UPDATE/DELETE) for the connected database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | No | Optional table name to filter mutations |
+| `onlyRunning` | boolean | No | Only show mutations that are still running |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of mutation rows |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_list_running_queries`
+
+List currently running queries on a ClickHouse server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_kill_query`
+
+Kill a running query by its query ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `queryId` | string | Yes | The query_id of the running query to kill |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Kill status rows |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_table_stats`
+
+Get row counts and on-disk size for tables in the connected database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | No | Optional table name to get stats for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of table stats rows |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_list_clusters`
+
+List configured clusters, shards, and replicas
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of cluster node rows |
+| `rowCount` | number | Number of rows returned |
+
+

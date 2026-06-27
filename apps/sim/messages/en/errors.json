@@ -1,0 +1,11 @@
+{
+  "unknown": "An unknown error occurred",
+  "network": "Network error. Check your connection",
+  "unauthorized": "Authorization required",
+  "forbidden": "Access denied",
+  "notFound": "Not found",
+  "rateLimit": "Too many requests. Try again later",
+  "timeout": "Request timed out",
+  "validation": "Please check your input",
+  "serverError": "Server error. Try again later"
+}

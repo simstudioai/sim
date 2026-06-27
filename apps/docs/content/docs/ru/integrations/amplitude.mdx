@@ -1,0 +1,312 @@
+---
+title: Amplitude
+description: Отслеживание событий и запрос аналитики из Amplitude
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="amplitude"
+  color="#1B1F3B"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amplitude](https://amplitude.com/) — это ведущая платформа цифровой аналитики, которая помогает командам понимать поведение пользователей, измерять производительность продукта и принимать решения на основе данных в масштабе.
+
+Интеграция Amplitude в Sim соединяется с API Amplitude HTTP и Dashboard REST, используя аутентификацию по API-ключу и секретному ключу, что позволяет вашим агентам отслеживать события, управлять свойствами пользователей и программно запрашивать аналитические данные. Этот подход на основе API обеспечивает безопасный доступ ко всем аналитическим возможностям Amplitude.
+
+С помощью интеграции Amplitude ваши агенты могут:
+
+- **Отслеживать события**: Отправлять пользовательские события в Amplitude с расширенными свойствами, данными о доходе и пользовательским контекстом непосредственно из ваших рабочих процессов
+- **Идентифицировать пользователей**: Устанавливать и обновлять свойства пользователей с помощью операций, таких как $set, $setOnce, $add, $append и $unset, для ведения подробных профилей пользователей
+- **Искать пользователей**: Находить пользователей по User ID, Device ID или Amplitude ID для получения информации профиля и метаданных
+- **Запрашивать аналитику событий**: Выполнять запросы сегментации событий с группировкой, пользовательскими метриками (уникальные, итоговые, средние, проценты DAU) и гибкими диапазонами дат
+- **Отслеживать активность пользователей**: Получать потоки событий для конкретных пользователей, чтобы понимать индивидуальные пользовательские пути и паттерны поведения
+- **Анализировать активных пользователей**: Получать количество активных или новых пользователей с течением времени с дневной, недельной или месячной детализацией
+- **Отслеживать доход**: Получать доступ к метрикам LTV дохода, включая ARPU, ARPPU, общий доход и количество платящих пользователей
+
+В Sim интеграция Amplitude обеспечивает мощные сценарии автоматизации аналитики. Ваши агенты могут отслеживать события продукта в реальном времени на основе триггеров рабочих процессов, обогащать профили пользователей по мере поступления новых данных, запрашивать данные сегментации для принятия последующих решений или создавать рабочие процессы мониторинга, которые оповещают об изменениях ключевых метрик. Подключая Sim к Amplitude, вы можете создавать интеллектуальных агентов, которые соединяют аналитические инсайты и автоматизированные действия, обеспечивая рабочие процессы на основе данных, реагирующие на паттерны поведения пользователей и тенденции производительности продукта.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Интегрируйте Amplitude в ваш рабочий процесс для отслеживания событий, идентификации пользователей и групп, поиска пользователей, запроса аналитики и получения данных о доходе.
+
+
+
+## Actions
+
+### `amplitude_send_event`
+
+Отследить событие в Amplitude с использованием HTTP V2 API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `userId` | string | No | ID пользователя \(обязателен, если нет device_id\) |
+| `deviceId` | string | No | ID устройства \(обязателен, если нет user_id\) |
+| `eventType` | string | Yes | Название события \(например, \"page_view\", \"purchase\"\) |
+| `eventProperties` | string | No | JSON-объект пользовательских свойств события |
+| `userProperties` | string | No | JSON-объект свойств пользователя для установки \(поддерживает $set, $setOnce, $add, $append, $unset\) |
+| `time` | string | No | Метка времени события в миллисекундах с начала эпохи |
+| `sessionId` | string | No | Время начала сессии в миллисекундах с начала эпохи |
+| `insertId` | string | No | Уникальный ID для дедупликации \(в пределах 7-дневного окна\) |
+| `appVersion` | string | No | Строка версии приложения |
+| `platform` | string | No | Платформа \(например, \"Web\", \"iOS\", \"Android\"\) |
+| `country` | string | No | Двухбуквенный код страны |
+| `language` | string | No | Код языка \(например, \"en\"\) |
+| `ip` | string | No | IP-адрес для геолокации |
+| `price` | string | No | Цена приобретённого товара |
+| `quantity` | string | No | Количество приобретённых товаров |
+| `revenue` | string | No | Сумма дохода |
+| `productId` | string | No | Идентификатор продукта |
+| `revenueType` | string | No | Тип дохода \(например, \"purchase\", \"refund\"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | Код ответа \(200 при успехе\) |
+| `eventsIngested` | number | Количество принятых событий |
+| `payloadSizeBytes` | number | Размер данных в байтах |
+| `serverUploadTime` | number | Метка времени загрузки на сервер |
+
+### `amplitude_identify_user`
+
+Установить свойства пользователя в Amplitude с помощью Identify API. Поддерживает операции $set, $setOnce, $add, $append, $unset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `userId` | string | No | ID пользователя \(обязателен, если нет device_id\) |
+| `deviceId` | string | No | ID устройства \(обязателен, если нет user_id\) |
+| `userProperties` | string | Yes | JSON-объект свойств пользователя. Используйте операции, такие как $set, $setOnce, $add, $append, $unset. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | Код статуса HTTP-ответа |
+| `message` | string | Сообщение ответа |
+
+### `amplitude_group_identify`
+
+Установить свойства на уровне группы в Amplitude. Поддерживает операции $set, $setOnce, $add, $append, $unset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `groupType` | string | Yes | Классификация группы \(например, \"company\", \"org_id\"\) |
+| `groupValue` | string | Yes | Конкретный идентификатор группы \(например, \"Acme Corp\"\) |
+| `groupProperties` | string | Yes | JSON-объект свойств группы. Используйте операции, такие как $set, $setOnce, $add, $append, $unset. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | number | Код статуса HTTP-ответа |
+| `message` | string | Сообщение ответа |
+
+### `amplitude_user_search`
+
+Поиск пользователя по User ID, Device ID или Amplitude ID с использованием Dashboard REST API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `user` | string | Yes | User ID, Device ID или Amplitude ID для поиска |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Список совпадающих пользователей |
+|   ↳ `amplitudeId` | number | Внутренний ID пользователя Amplitude |
+|   ↳ `userId` | string | Внешний ID пользователя |
+| `type` | string | Тип совпадения \(например, match_user_or_device_id\) |
+
+### `amplitude_user_activity`
+
+Получить поток событий для конкретного пользователя по его Amplitude ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `amplitudeId` | string | Yes | Внутренний ID пользователя Amplitude |
+| `offset` | string | No | Смещение для пагинации \(по умолчанию 0\) |
+| `limit` | string | No | Максимальное количество возвращаемых событий \(по умолчанию 1000, макс. 1000\) |
+| `direction` | string | No | Направление сортировки: \"latest\" или \"earliest\" \(по умолчанию: latest\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Список событий пользователя |
+|   ↳ `eventType` | string | Тип события |
+|   ↳ `eventTime` | string | Метка времени события |
+|   ↳ `eventProperties` | json | Пользовательские свойства события |
+|   ↳ `userProperties` | json | Свойства пользователя на момент события |
+|   ↳ `sessionId` | number | ID сессии |
+|   ↳ `platform` | string | Платформа |
+|   ↳ `country` | string | Страна |
+|   ↳ `city` | string | Город |
+| `userData` | json | Метаданные пользователя |
+|   ↳ `userId` | string | Внешний ID пользователя |
+|   ↳ `canonicalAmplitudeId` | number | Канонический Amplitude ID |
+|   ↳ `numEvents` | number | Общее количество событий |
+|   ↳ `numSessions` | number | Общее количество сессий |
+|   ↳ `platform` | string | Основная платформа |
+|   ↳ `country` | string | Страна |
+
+### `amplitude_user_profile`
+
+Получить профиль пользователя, включая свойства, членство в когортах и вычисляемые свойства.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `userId` | string | No | Внешний ID пользователя \(обязателен, если нет device_id\) |
+| `deviceId` | string | No | ID устройства \(обязателен, если нет user_id\) |
+| `getAmpProps` | string | No | Включить свойства пользователя Amplitude \(true/false, по умолчанию: false\) |
+| `getCohortIds` | string | No | Включить ID когорт, к которым принадлежит пользователь \(true/false, по умолчанию: false\) |
+| `getComputations` | string | No | Включить вычисляемые свойства пользователя \(true/false, по умолчанию: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Внешний ID пользователя |
+| `deviceId` | string | ID устройства |
+| `ampProps` | json | Свойства пользователя Amplitude \(library, first_used, last_used, пользовательские свойства\) |
+| `cohortIds` | array | Список ID когорт, к которым принадлежит пользователь |
+| `computations` | json | Вычисляемые свойства пользователя |
+
+### `amplitude_event_segmentation`
+
+Запросить данные аналитики событий с сегментацией. Получить количество событий, уникальные значения, средние и многое другое.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `eventType` | string | Yes | Имя типа события для анализа |
+| `start` | string | Yes | Начальная дата в формате YYYYMMDD |
+| `end` | string | Yes | Конечная дата в формате YYYYMMDD |
+| `metric` | string | No | Тип метрики: uniques, totals, pct_dau, average, histogram, sums, value_avg или formula \(по умолчанию: uniques\) |
+| `interval` | string | No | Временной интервал: 1 \(дневной\), 7 \(недельный\) или 30 \(месячный\) |
+| `groupBy` | string | No | Имя свойства для группировки \(префикс пользовательских свойств с "gp:"\) |
+| `limit` | string | No | Максимальное количество значений группировки \(макс. 1000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Массивы данных временных рядов, индексированные по сериям |
+| `seriesLabels` | array | Метки для каждой серии данных |
+| `seriesCollapsed` | json | Свёрнутые агрегированные итоги по сериям |
+| `xValues` | array | Значения дат для оси X |
+
+### `amplitude_get_active_users`
+
+Получить количество активных или новых пользователей за диапазон дат из Dashboard REST API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `start` | string | Yes | Начальная дата в формате YYYYMMDD |
+| `end` | string | Yes | Конечная дата в формате YYYYMMDD |
+| `metric` | string | No | Тип метрики: "active" или "new" \(по умолчанию: active\) |
+| `interval` | string | No | Временной интервал: 1 \(дневной\), 7 \(недельный\) или 30 \(месячный\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Массив серий данных с количеством пользователей за временной интервал |
+| `seriesMeta` | array | Метки метаданных для каждой серии данных \(например, имена сегментов\) |
+| `xValues` | array | Значения дат для оси X |
+
+### `amplitude_realtime_active_users`
+
+Получить количество активных пользователей в реальном времени с 5-минутной детализацией за последние 2 дня.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Массив серий данных с количеством активных пользователей с 5-минутными интервалами |
+| `seriesLabels` | array | Метки для каждой серии \(например, "Today", "Yesterday"\) |
+| `xValues` | array | Значения времени для оси X \(например, "15:00", "15:05"\) |
+
+### `amplitude_list_events`
+
+Показать все типы событий в проекте Amplitude с их недельными итогами и количеством уникальных.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Список типов событий в проекте |
+|   ↳ `value` | string | Имя типа события |
+|   ↳ `displayName` | string | Отображаемое имя события |
+|   ↳ `totals` | number | Недельное общее количество |
+|   ↳ `hidden` | boolean | Скрыто ли событие |
+|   ↳ `deleted` | boolean | Удалено ли событие |
+
+### `amplitude_get_revenue`
+
+Получить данные о доходе LTV, включая ARPU, ARPPU, общий доход и количество платящих пользователей.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Amplitude |
+| `secretKey` | string | Yes | Секретный ключ Amplitude |
+| `start` | string | Yes | Начальная дата в формате YYYYMMDD |
+| `end` | string | Yes | Конечная дата в формате YYYYMMDD |
+| `metric` | string | No | Метрика: 0 \(ARPU\), 1 \(ARPPU\), 2 \(Общий доход\), 3 \(Платящие пользователи\) |
+| `interval` | string | No | Временной интервал: 1 \(дневной\), 7 \(недельный\) или 30 \(месячный\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | json | Массив серий данных о доходе |
+| `seriesLabels` | array | Метки для каждой серии данных |
+| `xValues` | array | Значения дат для оси X |
+

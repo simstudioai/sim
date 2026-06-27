@@ -1,0 +1,915 @@
+---
+title: UptimeRobot
+description: Мониторинг доступности, управление инцидентами, окнами обслуживания и страницами статуса
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="uptimerobot"
+  color="#111921"
+/>
+
+## Инструкции по использованию
+
+Интегрируйте UptimeRobot в ваш рабочий процесс. Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.
+
+
+
+## Действия
+
+### `uptimerobot_list_monitors`
+
+Получение списка monitors in your UptimeRobot account, with optional filters and pagination
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `limit` | number | Нет | Number of monitors per page \(1-200, по умолчанию 50\) |
+| `status` | string | Нет | Comma-separated statuses to filter by \(PAUSED, STARTED, UP, LOOKS_DOWN, DOWN\) |
+| `name` | string | Нет | Partial friendly-name filter |
+| `url` | string | Нет | Partial URL filter |
+| `tags` | string | Нет | Comma-separated tags to filter by \(case-sensitive, OR logic\) |
+| `groupId` | number | Нет | Monitor group ID to filter by |
+| `cursor` | number | Нет | Pagination cursor returned by a previous request |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitors` | array | Получение списка of monitors |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+| `nextLink` | string | URL for the next page of results, or null on the last page |
+
+### `uptimerobot_get_monitor`
+
+Получение the details of a single UptimeRobot monitor by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Да | ID of the monitor to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The monitor details |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+
+### `uptimerobot_create_monitor`
+
+Создание нового monitor in UptimeRobot
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `friendlyName` | string | Да | Friendly name of the monitor |
+| `type` | string | Да | Monitor type: HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, or UDP |
+| `url` | string | Нет | URL or host to monitor \(not required for Heartbeat monitors\) |
+| `interval` | number | Да | Check interval in seconds \(minimum 30\) |
+| `timeout` | number | Нет | Check timeout in seconds, 0-60 \(HTTP, Keyword and Port monitors only\) |
+| `port` | number | Нет | Port to check, 1-65535 \(required for Port and UDP monitors\) |
+| `keywordType` | string | Нет | Keyword match type for Keyword monitors: ALERT_EXISTS or ALERT_NOT_EXISTS |
+| `keywordValue` | string | Нет | Keyword to look for \(Keyword monitors only\) |
+| `keywordCaseType` | number | Нет | Keyword case sensitivity: 0 \(case-sensitive\) or 1 \(case-insensitive\) |
+| `httpMethodType` | string | Нет | HTTP method: HEAD, GET, POST, PUT, PATCH, DELETE, or OPTIONS \(defaults to HEAD\) |
+| `authType` | string | Нет | HTTP authentication: NONE, HTTP_BASIC, DIGEST, or BEARER |
+| `httpUsername` | string | Нет | Username for HTTP authentication |
+| `httpPassword` | string | Нет | Password for HTTP authentication |
+| `gracePeriod` | number | Нет | Grace period in seconds, 0-86400 \(Heartbeat monitors only\) |
+| `successHttpResponseCodes` | string | Нет | Comma-separated success HTTP response codes (например, "2xx,3xx"\) |
+| `checkSSLErrors` | boolean | Нет | Whether to check for SSL and domain expiration errors |
+| `followRedirections` | boolean | Нет | Whether to follow redirects |
+| `sslExpirationReminder` | boolean | Нет | Whether to send SSL certificate expiration reminders |
+| `domainExpirationReminder` | boolean | Нет | Whether to send domain expiration reminders |
+| `responseTimeThreshold` | number | Нет | Response time threshold in milliseconds, 0-60000 |
+| `tagNames` | string | Нет | Comma-separated tag names to assign to the monitor |
+| `assignedAlertContacts` | string | Нет | JSON array of alert-contact assignments, e.g. \[\{"alertContactId":123,"threshold":0,"recurrence":0\}\] |
+| `customHttpHeaders` | string | Нет | JSON object of custom HTTP headers to send with the request |
+| `groupId` | number | Нет | Monitor group ID to assign the monitor to \(0 for no group\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The created monitor |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+
+### `uptimerobot_update_monitor`
+
+Обновление existing UptimeRobot monitor. Only the provided fields are changed.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Да | ID of the monitor to update |
+| `friendlyName` | string | Нет | New friendly name |
+| `url` | string | Нет | New URL or host to monitor |
+| `interval` | number | Нет | New check interval in seconds \(minimum 30\) |
+| `timeout` | number | Нет | New check timeout in seconds, 0-60 |
+| `port` | number | Нет | New port, 1-65535 \(Port and UDP monitors\) |
+| `keywordType` | string | Нет | Keyword match type: ALERT_EXISTS or ALERT_NOT_EXISTS |
+| `keywordValue` | string | Нет | New keyword to look for |
+| `httpMethodType` | string | Нет | HTTP method: HEAD, GET, POST, PUT, PATCH, DELETE, or OPTIONS |
+| `authType` | string | Нет | HTTP authentication: NONE, HTTP_BASIC, DIGEST, or BEARER |
+| `httpUsername` | string | Нет | Username for HTTP authentication |
+| `httpPassword` | string | Нет | Password for HTTP authentication |
+| `successHttpResponseCodes` | string | Нет | Comma-separated success HTTP response codes (например, "2xx,3xx"\) |
+| `checkSSLErrors` | boolean | Нет | Whether to check for SSL and domain expiration errors |
+| `followRedirections` | boolean | Нет | Whether to follow redirects |
+| `sslExpirationReminder` | boolean | Нет | Whether to send SSL certificate expiration reminders |
+| `domainExpirationReminder` | boolean | Нет | Whether to send domain expiration reminders |
+| `responseTimeThreshold` | number | Нет | Response time threshold in milliseconds, 0-60000 |
+| `tagNames` | string | Нет | Comma-separated tag names to assign to the monitor |
+| `assignedAlertContacts` | string | Нет | JSON array of alert-contact assignments, e.g. \[\{"alertContactId":123,"threshold":0,"recurrence":0\}\] |
+| `customHttpHeaders` | string | Нет | JSON object of custom HTTP headers to send with the request |
+| `groupId` | number | Нет | Monitor group ID to assign the monitor to \(0 for no group\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The updated monitor |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+
+### `uptimerobot_delete_monitor`
+
+Permanently delete an UptimeRobot monitor by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Да | ID of the monitor to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  monitor was deleted |
+| `id` | number | ID of the deleted monitor |
+
+### `uptimerobot_pause_monitor`
+
+Pause an UptimeRobot monitor so it stops running checks
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Да | ID of the monitor to pause |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The paused monitor |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+
+### `uptimerobot_start_monitor`
+
+Resume a paused UptimeRobot monitor so it starts running checks again
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Да | ID of the monitor to start |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The started monitor |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `friendlyName` | string | Friendly name of the monitor |
+|   ↳ `url` | string | Monitored URL or host |
+|   ↳ `type` | string | Monitor type \(HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, UDP\) |
+|   ↳ `status` | string | Current status \(UP, DOWN, PAUSED, etc.\) |
+|   ↳ `interval` | number | Check interval in seconds |
+|   ↳ `timeout` | number | Check timeout in seconds |
+|   ↳ `port` | number | Port for Port/UDP monitors |
+|   ↳ `keywordType` | string | Keyword match type for Keyword monitors |
+|   ↳ `keywordValue` | string | Keyword to match for Keyword monitors |
+|   ↳ `httpMethodType` | string | HTTP method used for the check |
+|   ↳ `authType` | string | HTTP authentication method |
+|   ↳ `successHttpResponseCodes` | array | HTTP response codes treated as success |
+|   ↳ `checkSSLErrors` | boolean | Whether SSL/domain expiration errors are checked |
+|   ↳ `followRedirections` | boolean | Whether redirects are followed |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+|   ↳ `domainExpirationReminder` | boolean | Whether domain expiration reminders are enabled |
+|   ↳ `responseTimeThreshold` | number | Response time threshold in milliseconds |
+|   ↳ `currentStateDuration` | number | Seconds spent in the current state |
+|   ↳ `lastIncidentId` | string | ID of the most recent incident |
+|   ↳ `groupId` | number | Monitor group ID \(0 if ungrouped\) |
+|   ↳ `createDateTime` | string | When the monitor was created |
+|   ↳ `tags` | array | Tags assigned to the monitor |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `assignedAlertContacts` | array | Alert contacts assigned to the monitor |
+|     ↳ `alertContactId` | number | Alert contact ID |
+|     ↳ `threshold` | number | Notification delay threshold in minutes |
+|     ↳ `recurrence` | number | Repeat notification interval in minutes |
+|   ↳ `lastIncident` | object | Details of the most recent incident |
+|     ↳ `id` | string | Incident ID |
+|     ↳ `status` | string | Incident status |
+|     ↳ `cause` | number | Incident cause code |
+|     ↳ `reason` | string | Incident reason |
+|     ↳ `startedAt` | string | When the incident started |
+|     ↳ `duration` | number | Incident duration in seconds |
+
+### `uptimerobot_list_incidents`
+
+Получение списка incidents across your UptimeRobot account (last 24 hours by default), with optional filters
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `monitorId` | number | Нет | Filter incidents by monitor ID |
+| `monitorName` | string | Нет | Filter incidents by monitor name |
+| `startedAfter` | string | Нет | Only include incidents started after this ISO 8601 timestamp |
+| `startedBefore` | string | Нет | Only include incidents started before this ISO 8601 timestamp |
+| `cursor` | string | Нет | Pagination cursor \(incident ID\) returned by a previous request |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | Получение списка of incidents |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `status` | string | Incident status |
+|   ↳ `type` | string | Incident type |
+|   ↳ `cause` | number | Incident cause code |
+|   ↳ `reason` | string | Incident reason |
+|   ↳ `monitorId` | number | Affected monitor ID |
+|   ↳ `monitorName` | string | Affected monitor name |
+|   ↳ `commentsCount` | number | Number of comments |
+|   ↳ `startedAt` | string | When the incident started |
+|   ↳ `resolvedAt` | string | When the incident resolved |
+|   ↳ `duration` | number | Incident duration in seconds |
+|   ↳ `includeInReports` | boolean | Указывает,  incident is included in reports |
+| `nextLink` | string | URL for the next page of results, or null on the last page |
+
+### `uptimerobot_get_incident`
+
+Получение the details of a single UptimeRobot incident by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `incidentId` | string | Да | ID of the incident to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident details |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `status` | string | Incident status |
+|   ↳ `cause` | number | Incident cause code |
+|   ↳ `reason` | string | Incident reason |
+|   ↳ `duration` | number | Incident duration in seconds |
+|   ↳ `startedAt` | string | When the incident started |
+|   ↳ `resolvedAt` | string | When the incident resolved |
+|   ↳ `rootCause` | object | Root cause details for the incident |
+|     ↳ `url` | string | Checked URL |
+|     ↳ `httpResponseCode` | number | HTTP response code observed |
+|     ↳ `responseDownloadUrl` | string | URL to download the captured response body |
+
+### `uptimerobot_list_maintenance_windows`
+
+Получение списка maintenance windows in your UptimeRobot account
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `cursor` | string | Нет | Pagination cursor returned by a previous request |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWindows` | array | Получение списка of maintenance windows |
+|   ↳ `id` | number | Maintenance window ID |
+|   ↳ `userId` | number | Owner user ID |
+|   ↳ `name` | string | Maintenance window name |
+|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `monitorIds` | array | Assigned monitor IDs |
+|   ↳ `days` | array | Days for weekly/monthly recurrence |
+|   ↳ `status` | string | Status \(active or paused\) |
+|   ↳ `created` | string | When the maintenance window was created |
+| `nextLink` | string | URL for the next page of results, or null on the last page |
+
+### `uptimerobot_get_maintenance_window`
+
+Получение the details of a single UptimeRobot maintenance window by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `maintenanceWindowId` | number | Да | ID of the maintenance window to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWindow` | object | The maintenance window details |
+|   ↳ `id` | number | Maintenance window ID |
+|   ↳ `userId` | number | Owner user ID |
+|   ↳ `name` | string | Maintenance window name |
+|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `monitorIds` | array | Assigned monitor IDs |
+|   ↳ `days` | array | Days for weekly/monthly recurrence |
+|   ↳ `status` | string | Status \(active or paused\) |
+|   ↳ `created` | string | When the maintenance window was created |
+
+### `uptimerobot_create_maintenance_window`
+
+Создание нового maintenance window to suppress alerts during planned downtime
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `name` | string | Да | Name of the maintenance window |
+| `interval` | string | Да | Recurrence interval: once, daily, weekly, or monthly |
+| `date` | string | Да | Start date in YYYY-MM-DD format |
+| `time` | string | Да | Start time in HH:mm:ss format |
+| `duration` | number | Да | Duration in minutes \(minimum 1\) |
+| `autoAddMonitors` | boolean | Нет | Whether to automatically add all monitors to this window |
+| `days` | string | Нет | Comma-separated days for weekly \(1-7\) or monthly \(day-of-month, -1 for last day\) windows |
+| `monitorIds` | string | Нет | Comma-separated monitor IDs to assign to the window |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWindow` | object | The created maintenance window |
+|   ↳ `id` | number | Maintenance window ID |
+|   ↳ `userId` | number | Owner user ID |
+|   ↳ `name` | string | Maintenance window name |
+|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `monitorIds` | array | Assigned monitor IDs |
+|   ↳ `days` | array | Days for weekly/monthly recurrence |
+|   ↳ `status` | string | Status \(active or paused\) |
+|   ↳ `created` | string | When the maintenance window was created |
+
+### `uptimerobot_update_maintenance_window`
+
+Обновление existing maintenance window. Only the provided fields are changed.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `maintenanceWindowId` | number | Да | ID of the maintenance window to update |
+| `name` | string | Нет | New name of the maintenance window |
+| `interval` | string | Нет | Recurrence interval: once, daily, weekly, or monthly |
+| `date` | string | Нет | Start date in YYYY-MM-DD format |
+| `time` | string | Нет | Start time in HH:mm:ss format |
+| `duration` | number | Нет | Duration in minutes \(minimum 1\) |
+| `autoAddMonitors` | boolean | Нет | Whether to automatically add all monitors to this window |
+| `days` | string | Нет | Comma-separated days for weekly \(1-7\) or monthly \(day-of-month, -1 for last day\) windows |
+| `monitorIds` | string | Нет | Comma-separated monitor IDs to assign to the window |
+| `status` | string | Нет | Set to "active" to enable or "paused" to disable the maintenance window |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWindow` | object | The updated maintenance window |
+|   ↳ `id` | number | Maintenance window ID |
+|   ↳ `userId` | number | Owner user ID |
+|   ↳ `name` | string | Maintenance window name |
+|   ↳ `interval` | string | Recurrence interval \(once, daily, weekly, monthly\) |
+|   ↳ `date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `time` | string | Start time \(HH:mm:ss\) |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `autoAddMonitors` | boolean | Whether all monitors are auto-added |
+|   ↳ `monitorIds` | array | Assigned monitor IDs |
+|   ↳ `days` | array | Days for weekly/monthly recurrence |
+|   ↳ `status` | string | Status \(active or paused\) |
+|   ↳ `created` | string | When the maintenance window was created |
+
+### `uptimerobot_delete_maintenance_window`
+
+Permanently delete an UptimeRobot maintenance window by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `maintenanceWindowId` | number | Да | ID of the maintenance window to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  maintenance window was deleted |
+| `id` | number | ID of the deleted maintenance window |
+
+### `uptimerobot_list_alert_contacts`
+
+Получение списка the personal alert contacts in your UptimeRobot account
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `cursor` | number | Нет | Pagination cursor returned by a previous request |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alertContacts` | array | Получение списка of alert contacts |
+|   ↳ `id` | number | Alert contact ID |
+|   ↳ `friendlyName` | string | Display name |
+|   ↳ `type` | string | Alert contact type |
+|   ↳ `value` | string | Contact value (например, email address\) |
+|   ↳ `customValue` | string | Custom value for webhook-style contacts |
+|   ↳ `status` | string | Activation status |
+|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+| `nextLink` | string | URL for the next page of results, or null on the last page |
+
+### `uptimerobot_get_alert_contact`
+
+Получение the details of a single UptimeRobot alert contact by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `alertContactId` | number | Да | ID of the alert contact to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alertContact` | object | The alert contact details |
+|   ↳ `id` | number | Alert contact ID |
+|   ↳ `friendlyName` | string | Display name |
+|   ↳ `type` | string | Alert contact type |
+|   ↳ `value` | string | Contact value (например, email address\) |
+|   ↳ `customValue` | string | Custom value for webhook-style contacts |
+|   ↳ `status` | string | Activation status |
+|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+
+### `uptimerobot_create_alert_contact`
+
+Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `value` | string | Да | Email address for the alert contact |
+| `friendlyName` | string | Нет | Display name for the alert contact |
+| `enableNotificationsFor` | number | Нет | Which monitor events to notify for: 0, 1, 2, or 3 |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alertContact` | object | The created alert contact |
+|   ↳ `id` | number | Alert contact ID |
+|   ↳ `friendlyName` | string | Display name |
+|   ↳ `type` | string | Alert contact type |
+|   ↳ `value` | string | Contact value (например, email address\) |
+|   ↳ `customValue` | string | Custom value for webhook-style contacts |
+|   ↳ `status` | string | Activation status |
+|   ↳ `enableNotificationsFor` | string | Which monitor events trigger notifications |
+|   ↳ `sslExpirationReminder` | boolean | Whether SSL expiration reminders are enabled |
+
+### `uptimerobot_delete_alert_contact`
+
+Permanently delete an UptimeRobot alert contact by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `alertContactId` | number | Да | ID of the alert contact to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  alert contact was deleted |
+| `id` | number | ID of the deleted alert contact |
+
+### `uptimerobot_list_psps`
+
+Получение списка the public status pages in your UptimeRobot account
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `cursor` | number | Нет | Pagination cursor returned by a previous request |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `psps` | array | Получение списка of public status pages |
+|   ↳ `id` | number | Public status page ID |
+|   ↳ `friendlyName` | string | Status page name |
+|   ↳ `customDomain` | string | Custom domain |
+|   ↳ `isPasswordSet` | boolean | Указывает,  page is password protected |
+|   ↳ `monitorIds` | array | Monitor IDs shown on the page |
+|   ↳ `tagIds` | array | Tag IDs shown on the page |
+|   ↳ `monitorsCount` | number | Number of monitors on the page |
+|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string | Public URL key |
+|   ↳ `homepageLink` | string | Homepage link target |
+|   ↳ `gaCode` | string | Google Analytics code |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `logo` | string | Logo URL |
+|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean | Указывает,  "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean | Указывает,  subscribe feature is enabled |
+| `nextLink` | string | URL for the next page of results, or null on the last page |
+
+### `uptimerobot_get_psp`
+
+Получение the details of a single UptimeRobot public status page by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `pspId` | number | Да | ID of the status page to retrieve |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `psp` | object | The status page details |
+|   ↳ `id` | number | Public status page ID |
+|   ↳ `friendlyName` | string | Status page name |
+|   ↳ `customDomain` | string | Custom domain |
+|   ↳ `isPasswordSet` | boolean | Указывает,  page is password protected |
+|   ↳ `monitorIds` | array | Monitor IDs shown on the page |
+|   ↳ `tagIds` | array | Tag IDs shown on the page |
+|   ↳ `monitorsCount` | number | Number of monitors on the page |
+|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string | Public URL key |
+|   ↳ `homepageLink` | string | Homepage link target |
+|   ↳ `gaCode` | string | Google Analytics code |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `logo` | string | Logo URL |
+|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean | Указывает,  "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean | Указывает,  subscribe feature is enabled |
+
+### `uptimerobot_create_psp`
+
+Create a public status page in UptimeRobot, optionally with a logo and icon image
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `friendlyName` | string | Да | Name of the public status page |
+| `monitorIds` | string | Нет | Comma-separated monitor IDs to display on the page |
+| `status` | string | Нет | Status of the page: ENABLED \(published\) or PAUSED \(unpublished\) |
+| `password` | string | Нет | Optional password protection for the page |
+| `customDomain` | string | Нет | Custom domain for the page (например, status.your-domain.com\) |
+| `hideUrlLinks` | boolean | Нет | Whether to hide the "Powered by UptimeRobot" footer link |
+| `noIndex` | boolean | Нет | Whether to prevent search engines from indexing the page |
+| `logo` | file | Нет | Logo image \(JPG/JPEG/PNG, max 150 KB\) |
+| `icon` | file | Нет | Icon image \(JPG/JPEG/PNG, max 150 KB\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `psp` | object | The created status page |
+|   ↳ `id` | number | Public status page ID |
+|   ↳ `friendlyName` | string | Status page name |
+|   ↳ `customDomain` | string | Custom domain |
+|   ↳ `isPasswordSet` | boolean | Указывает,  page is password protected |
+|   ↳ `monitorIds` | array | Monitor IDs shown on the page |
+|   ↳ `tagIds` | array | Tag IDs shown on the page |
+|   ↳ `monitorsCount` | number | Number of monitors on the page |
+|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string | Public URL key |
+|   ↳ `homepageLink` | string | Homepage link target |
+|   ↳ `gaCode` | string | Google Analytics code |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `logo` | string | Logo URL |
+|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean | Указывает,  "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean | Указывает,  subscribe feature is enabled |
+
+### `uptimerobot_update_psp`
+
+Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `pspId` | number | Да | ID of the status page to update |
+| `friendlyName` | string | Нет | New name of the public status page |
+| `monitorIds` | string | Нет | Comma-separated monitor IDs to display on the page |
+| `status` | string | Нет | Status of the page: ENABLED \(published\) or PAUSED \(unpublished\) |
+| `password` | string | Нет | Optional password protection for the page |
+| `customDomain` | string | Нет | Custom domain for the page (например, status.your-domain.com\) |
+| `hideUrlLinks` | boolean | Нет | Whether to hide the "Powered by UptimeRobot" footer link |
+| `noIndex` | boolean | Нет | Whether to prevent search engines from indexing the page |
+| `logo` | file | Нет | Logo image \(JPG/JPEG/PNG, max 150 KB\) |
+| `icon` | file | Нет | Icon image \(JPG/JPEG/PNG, max 150 KB\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `psp` | object | The updated status page |
+|   ↳ `id` | number | Public status page ID |
+|   ↳ `friendlyName` | string | Status page name |
+|   ↳ `customDomain` | string | Custom domain |
+|   ↳ `isPasswordSet` | boolean | Указывает,  page is password protected |
+|   ↳ `monitorIds` | array | Monitor IDs shown on the page |
+|   ↳ `tagIds` | array | Tag IDs shown on the page |
+|   ↳ `monitorsCount` | number | Number of monitors on the page |
+|   ↳ `status` | string | Status \(ENABLED or PAUSED\) |
+|   ↳ `urlKey` | string | Public URL key |
+|   ↳ `homepageLink` | string | Homepage link target |
+|   ↳ `gaCode` | string | Google Analytics code |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `logo` | string | Logo URL |
+|   ↳ `noIndex` | boolean | Whether search engine indexing is disabled |
+|   ↳ `hideUrlLinks` | boolean | Указывает,  "Powered by" footer link is hidden |
+|   ↳ `subscription` | boolean | Указывает,  subscribe feature is enabled |
+
+### `uptimerobot_delete_psp`
+
+Permanently delete an UptimeRobot public status page by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+| `pspId` | number | Да | ID of the status page to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  status page was deleted |
+| `id` | number | ID of the deleted status page |
+
+### `uptimerobot_get_account`
+
+Получение details about the authenticated UptimeRobot account, including plan and limits
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | UptimeRobot Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The account details |
+|   ↳ `email` | string | Account email |
+|   ↳ `fullName` | string | Account holder name |
+|   ↳ `monitorsCount` | number | Number of monitors in the account |
+|   ↳ `monitorLimit` | number | Maximum number of monitors allowed |
+|   ↳ `smsCredits` | number | Remaining SMS credits |
+|   ↳ `plan` | string | Subscription plan name |
+|   ↳ `subscriptionStatus` | string | Subscription status |
+|   ↳ `subscriptionExpiresAt` | string | Subscription expiration date |
+
+

@@ -1,0 +1,265 @@
+---
+title: Webflow
+description: Управление коллекциями Webflow CMS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="webflow"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Webflow](https://webflow.com/) is a powerful visual web design platform that enables you to build responsive websites without writing code. It combines a visual design interface with a robust CMS (Content Management System) that allows you to create, manage, and publish dynamic content for your websites.
+
+With Webflow, you can:
+
+- **Design visually**: Create custom websites with a visual editor that generates clean, semantic HTML/CSS code
+- **Manage content dynamically**: Use the CMS to create collections of structured content like blog posts, products, team members, or any custom data
+- **Publish instantly**: Deploy your sites to Webflow's hosting or export the code for custom hosting
+- **Create responsive designs**: Build sites that work seamlessly across desktop, tablet, and mobile devices
+- **Customize collections**: Define custom fields and data structures for your content types
+- **Automate content updates**: Programmatically manage your CMS content through APIs
+
+In Sim, the Webflow integration enables your agents to seamlessly interact with your Webflow CMS collections through API authentication. This allows for powerful automation scenarios such as automatically creating blog posts from AI-generated content, updating product information, managing team member profiles, and retrieving CMS items for dynamic content generation. Your agents can list existing items to browse your content, retrieve specific items by ID, create new entries to add fresh content, update existing items to keep information current, and delete outdated content. This integration bridges the gap between your AI workflows and your Webflow CMS, enabling automated content management, dynamic website updates, and streamlined content workflows that keep your sites fresh and up-to-date without manual intervention.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrates Webflow CMS в рабочий процесс. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.
+
+
+
+## Действия
+
+### `webflow_list_items`
+
+Получение списка items from a Webflow CMS collection
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Да | ID of the Webflow site (например, "580e63e98c9a982ac9b8b741"\) |
+| `collectionId` | string | Да | ID of the collection (например, "580e63fc8c9a982ac9b8b745"\) |
+| `offset` | number | Нет | Offset for pagination (например, 0, 100, 200\) |
+| `limit` | number | Нет | Maximum number of items to return (например, 10, 50, 100; по умолчанию: 100\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of collection items |
+|   ↳ `id` | string | Unique item ID |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published date \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Last updated date \(ISO 8601\) |
+|   ↳ `createdOn` | string | Creation date \(ISO 8601\) |
+|   ↳ `isArchived` | boolean | Указывает,  item is archived |
+|   ↳ `isDraft` | boolean | Указывает,  item is a draft |
+|   ↳ `fieldData` | object | Collection-specific field data \(varies by collection schema\) |
+| `metadata` | object | Metadata about the query |
+|   ↳ `itemCount` | number | Number of items returned |
+|   ↳ `offset` | number | Pagination offset |
+|   ↳ `limit` | number | Maximum items per page |
+
+### `webflow_get_item`
+
+Получение a single item from a Webflow CMS collection
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Да | ID of the Webflow site (например, "580e63e98c9a982ac9b8b741"\) |
+| `collectionId` | string | Да | ID of the collection (например, "580e63fc8c9a982ac9b8b745"\) |
+| `itemId` | string | Да | ID of the item to retrieve (например, "580e64008c9a982ac9b8b754"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The retrieved item object |
+| `metadata` | json | Metadata about the retrieved item |
+
+### `webflow_create_item`
+
+Создание нового item in a Webflow CMS collection
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Да | ID of the Webflow site (например, "580e63e98c9a982ac9b8b741"\) |
+| `collectionId` | string | Да | ID of the collection (например, "580e63fc8c9a982ac9b8b745"\) |
+| `fieldData` | json | Да | Field data for the new item as a JSON object. Keys should match collection field names. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The created item object |
+| `metadata` | json | Metadata about the created item |
+
+### `webflow_update_item`
+
+Обновление existing item in a Webflow CMS collection
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Да | ID of the Webflow site (например, "580e63e98c9a982ac9b8b741"\) |
+| `collectionId` | string | Да | ID of the collection (например, "580e63fc8c9a982ac9b8b745"\) |
+| `itemId` | string | Да | ID of the item to update (например, "580e64008c9a982ac9b8b754"\) |
+| `fieldData` | json | Да | Field data to update as a JSON object. Only include fields you want to change. |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The updated item object |
+| `metadata` | json | Metadata about the updated item |
+
+### `webflow_delete_item`
+
+Удалениеn item from a Webflow CMS collection
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Да | ID of the Webflow site (например, "580e63e98c9a982ac9b8b741"\) |
+| `collectionId` | string | Да | ID of the collection (например, "580e63fc8c9a982ac9b8b745"\) |
+| `itemId` | string | Да | ID of the item to delete (например, "580e64008c9a982ac9b8b754"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  deletion was successful |
+| `metadata` | json | Metadata about the deletion |
+
+
+
+## Триггеры
+
+**Триггер** — это блок, который запускает рабочий процесс при наступлении события в этом сервисе.
+
+### Collection Item Changed
+
+Запуск рабочего процесса when an item is updated in a Webflow CMS collection (requires Webflow credentials)
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Да | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | string | Да | The Webflow site to monitor |
+| `triggerCollectionId` | string | Нет | Optionally filter to monitor only a specific collection |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was changed |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the changed item |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published timestamp |
+|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `createdOn` | string | Timestamp when the item was created |
+|   ↳ `isArchived` | boolean | Указывает,  item is archived |
+|   ↳ `isDraft` | boolean | Указывает,  item is a draft |
+|   ↳ `fieldData` | object | The updated field data of the item |
+
+
+---
+
+### Collection Item Created
+
+Запуск рабочего процесса when a new item is created in a Webflow CMS collection (requires Webflow credentials)
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Да | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | string | Да | The Webflow site to monitor |
+| `triggerCollectionId` | string | Нет | Optionally filter to monitor only a specific collection |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was created |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the created item |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published timestamp |
+|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `createdOn` | string | Timestamp when the item was created |
+|   ↳ `isArchived` | boolean | Указывает,  item is archived |
+|   ↳ `isDraft` | boolean | Указывает,  item is a draft |
+|   ↳ `fieldData` | object | The field data of the item |
+
+
+---
+
+### Collection Item Deleted
+
+Запуск рабочего процесса when an item is deleted from a Webflow CMS collection (requires Webflow credentials)
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Да | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | string | Да | The Webflow site to monitor |
+| `triggerCollectionId` | string | Нет | Optionally filter to monitor only a specific collection |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was deleted |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the deleted item |
+|   ↳ `deletedOn` | string | Timestamp when the item was deleted |
+
+
+---
+
+### Form Submission
+
+Запуск рабочего процесса when a form is submitted on a Webflow site (requires Webflow credentials)
+
+#### Конфигурация
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Да | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | string | Да | The Webflow site to monitor |
+| `formName` | string | Нет | The name of the specific form to monitor \(optional - leave empty for all forms\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `siteId` | string | The site ID where the form was submitted |
+| `formId` | string | The form ID |
+| `name` | string | The name of the form |
+| `id` | string | The unique ID of the form submission |
+| `submittedAt` | string | Timestamp when the form was submitted |
+| `data` | object | The form submission field data \(keys are field names, values are submitted data\) |
+| `schema` | array | Form schema describing each field |
+|   ↳ `fieldName` | string | Name of the form field |
+|   ↳ `fieldType` | string | Type of input (например, FormTextInput, FormEmail\) |
+|   ↳ `fieldElementId` | string | Уникальный идентификатор for the form element \(UUID\) |
+| `formElementId` | string | The form element ID |
+

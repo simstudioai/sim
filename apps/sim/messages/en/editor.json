@@ -1,0 +1,18 @@
+{
+  "undo": "Undo",
+  "redo": "Redo",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out",
+  "fitToScreen": "Fit to screen",
+  "miniMap": "Minimap",
+  "snapToGrid": "Snap to grid",
+  "autoConnect": "Auto-connect",
+  "addNote": "Add note",
+  "group": "Group",
+  "ungroup": "Ungroup",
+  "alignLeft": "Align left",
+  "alignCenter": "Align center",
+  "alignRight": "Align right",
+  "distributeHorizontal": "Distribute horizontally",
+  "distributeVertical": "Distribute vertically"
+}

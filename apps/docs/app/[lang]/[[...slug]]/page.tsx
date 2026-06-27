@@ -30,6 +30,7 @@ const OG_LOCALE_MAP: Record<string, string> = {
   de: 'de_DE',
   ja: 'ja_JP',
   zh: 'zh_CN',
+  ru: 'ru_RU',
 }
 
 function resolveLangAndSlug(params: { slug?: string[]; lang: string }) {
@@ -349,6 +350,7 @@ export async function generateMetadata(props: {
         de: `${BASE_URL}/de${page.url.replace(`/${lang}`, '')}`,
         ja: `${BASE_URL}/ja${page.url.replace(`/${lang}`, '')}`,
         zh: `${BASE_URL}/zh${page.url.replace(`/${lang}`, '')}`,
+        ru: `${BASE_URL}/ru${page.url.replace(`/${lang}`, '')}`,
       },
     },
   }

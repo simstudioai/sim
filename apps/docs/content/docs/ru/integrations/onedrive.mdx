@@ -1,0 +1,136 @@
+---
+title: OneDrive
+description: Создание, загрузка, скачивание, просмотр и удаление файлов
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="onedrive"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OneDrive](https://onedrive.live.com) is Microsoft’s cloud storage and file synchronization service that allows users to securely store, access, and share files across devices. Integrated deeply into the Microsoft 365 ecosystem, OneDrive supports seamless collaboration, version control, and real-time access to content across teams and organizations.
+
+Learn how to integrate the OneDrive tool in Sim to automatically pull, manage, and organize your cloud files within your workflows. This tutorial walks you through connecting OneDrive, setting up file access, and using stored content to power automation. Ideal for syncing essential documents and media with your agents in real time.
+
+With OneDrive, you can:
+
+- **Store files securely in the cloud**: Upload and access documents, images, and other files from any device
+- **Organize your content**: Create structured folders and manage file versions with ease
+- **Collaborate in real time**: Share files, edit them simultaneously with others, and track changes
+- **Access across devices**: Use OneDrive from desktop, mobile, and web platforms
+- **Integrate with Microsoft 365**: Work seamlessly with Word, Excel, PowerPoint, and Teams
+- **Control permissions**: Share files and folders with custom access settings and expiration controls
+
+In Sim, the OneDrive integration enables your agents to directly interact with your cloud storage. Agents can upload new files to specific folders, retrieve and read existing files, and list folder contents to dynamically organize and access information. This integration allows your agents to incorporate file operations into intelligent workflows — automating document intake, content analysis, and structured storage management. By connecting Sim with OneDrive, you empower your agents to manage and use cloud documents programmatically, eliminating manual steps and enhancing automation with secure, real-time file access.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.
+
+
+
+## Действия
+
+### `onedrive_upload`
+
+Upload a file to OneDrive
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Да | The name of the file to upload \(e.g., "report.pdf", "data.xlsx"\) |
+| `file` | file | Нет | The file to upload \(binary\) |
+| `content` | string | Нет | The text content to upload \(if no file is provided\) |
+| `mimeType` | string | Нет | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
+| `folderSelector` | string | Нет | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `manualFolderId` | string | Нет | Manually entered folder ID \(advanced mode\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the file was uploaded successfully |
+| `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
+
+### `onedrive_create_folder`
+
+Create a new folder in OneDrive
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `folderName` | string | Да | Name of the folder to create \(e.g., "My Documents", "Project Files"\) |
+| `folderSelector` | string | Нет | Parent folder ID to create the folder in \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `manualFolderId` | string | Нет | Manually entered parent folder ID \(advanced mode\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the folder was created successfully |
+| `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
+
+### `onedrive_download`
+
+Download a file from OneDrive
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Да | The ID of the file to download \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `fileName` | string | Нет | Optional filename override \(e.g., "report.pdf", "data.xlsx"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### `onedrive_list`
+
+List files and folders in OneDrive
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | Нет | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `manualFolderId` | string | Нет | The manually entered folder ID \(advanced mode\) |
+| `query` | string | Нет | Filter files by name prefix \(e.g., "report", "invoice_2024"\) |
+| `pageSize` | number | Нет | Maximum number of files to return \(e.g., 10, 50, 100\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether files were listed successfully |
+| `files` | array | Array of file and folder objects with metadata |
+| `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
+
+### `onedrive_delete`
+
+Delete a file or folder from OneDrive
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Да | The ID of the file or folder to delete \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the file was deleted successfully |
+| `deleted` | boolean | Confirmation that the file was deleted |
+| `fileId` | string | The ID of the deleted file |
+
+

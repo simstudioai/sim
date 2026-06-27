@@ -1,0 +1,161 @@
+---
+title: Workflow columns
+description: A column backed by a workflow that runs once per row, reading chosen columns as inputs and writing its results back into result columns.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+A [table](/tables) is a grid of typed columns. Usually you type a column's values in. A **workflow column** is different: its values come from a [workflow](/workflows) that runs once per row. For each row, the workflow reads the columns you choose as input, runs its blocks, and writes its results back into columns on that same row.
+
+This is what makes a table active. Instead of running a workflow by hand and pasting the results in, you attach the workflow to the table and it fills each row on its own — a bit like a spreadsheet macro that runs on every row, except each step is a full workflow.
+
+The running example is a table of AI startups, `ai_startup_customers`. The company is typed in; three workflow groups fill everything else:
+
+<Image
+  src="/static/tables/workflow-columns/table-groups.png"
+  alt="The ai_startup_customers table with three workflow groups — Company Domain, Company Info, and Lead Score Enrichment — filling their output columns per row, 21 rows running"
+  width={900}
+  height={467}
+/>
+
+- **Company Domain** finds each company's `domain`.
+- **Company Info** reads the domain and fills `employee_count` and `description`.
+- **Lead Score Enrichment** runs the lead-scoring workflow and writes `lead_score`, `priority`, and `score_reasoning`.
+
+Each group's header spans the columns it owns, every row has a run button (▷), and the toolbar shows the work in flight: here, **21 running**, with **Stop all** beside it.
+
+```
+domain            │ employee_count │ lead_score │ priority
+──────────────────┼────────────────┼────────────┼─────────
+openai.com        │ 5K-10K         │ 75         │ Warm
+gominimal.ai      │ Not found      │ 92         │ Hot
+genspark.net      │ 51-250         │ 20         │ Cold
+```
+
+## Two kinds of groups
+
+The unit you configure is a **group**: something that runs once per row, fed by input columns, writing output columns. There are two kinds, and the **+ New column** menu offers both — **Enrichments** above the plain column types, **Workflow** below them. They share all the run machinery that follows.
+
+<Image
+  src="/static/tables/workflow-columns/new-column-menu.png"
+  alt="The New column menu: Enrichments at the top, the plain column types, and Workflow at the bottom"
+  width={340}
+  height={351}
+/>
+
+### Enrichments
+
+An **enrichment** is a built-in lookup that Sim provides and maintains — browse the **Enrichments** panel for what's available. Pick one, bind its inputs to columns, and name the columns its outputs should fill; there's no workflow to build. Under the hood an enrichment tries a cascade of data providers in order, which is why a cell can come back **Not found**: every provider ran and none had the answer.
+
+### Workflow groups
+
+A **workflow group** runs one of your own [workflows](/workflows) per row — use it when the per-row work is something you've built, like the lead scorer. Its **Configure workflow** panel holds everything that defines it, with a preview of the workflow it will run:
+
+<Image
+  src="/static/tables/workflow-columns/configure-workflow.png"
+  alt="The Configure workflow panel for Lead Score Enrichment: a preview of the LeadScorer workflow, the workflow picker, three output columns selected, Auto-run on, and six Run after dependencies"
+  width={400}
+  height={634}
+/>
+
+- **Workflow** picks which workflow runs per row; here, *Lead Score Enrichment*.
+- **Add column inputs** maps columns to the workflow's inputs, which arrive at its [Start](/workflows/triggers/start) trigger.
+- **Output columns** picks which workflow outputs to write back; here, 3 are selected.
+- **Auto-run workflow** and **Run after** control when rows run (both below).
+
+One group can produce several result columns from a single run per row: Lead Score Enrichment fills `lead_score`, `priority`, and `score_reasoning` together.
+
+## How groups run
+
+Everything from here applies to both kinds. A group's configuration is a set of bindings: each input is bound to a column, and each output is bound to the column name it writes. Here, Company Info's required `Company domain` input reads the `domain` column, and its outputs write `employee_count_0` and `description`:
+
+<Image
+  src="/static/tables/workflow-columns/column-mapping.png"
+  alt="A group's bindings: the required Company domain input bound to the domain column, and the employee count and description outputs bound to their column names"
+  width={380}
+  height={499}
+/>
+
+When a group runs a row, the bound column values become its inputs; it only sees the columns you mapped, the rest of the row is untouched, and inputs are read-only during the run. Every output you selected is written to its column, and outputs you didn't select are discarded.
+
+### Run after
+
+**Run after** is the set of columns that must be filled before the group runs on a row. Company Info runs after `domain`: a row with an empty `domain` waits, and the moment Company Domain fills it, that row becomes eligible. Lead Score Enrichment runs after the info columns, the six dependencies in the panel above.
+
+A dependency can be a typed column or another group's output column. That second case is what makes cascades work (below). At least one dependency is required when auto-run is on.
+
+### Auto-run
+
+**Auto-run** decides whether a group fires on its own. With auto-run on, a group runs a row as soon as that row's Run-after columns are filled, no click needed; that's how 21 rows end up running at once in the example. With it off, you trigger it yourself.
+
+You trigger a group by hand from its column header menu:
+
+- **Run this row** runs the one row.
+- **Run all rows** runs every row, and re-runs rows that already finished.
+- **Run empty rows** runs only rows whose output columns are still empty.
+- **Run selected rows** runs the rows you've checked.
+
+Auto-run only ever runs rows it hasn't attempted yet. To re-run a single row, use **Re-run cell** from the cell's menu; to re-run everything, use **Run all rows**.
+
+### Execution status
+
+While a group works a row, its output cells show their state instead of a value:
+
+| State | Meaning |
+| --- | --- |
+| **Pending** | Waiting on a Run-after column that isn't filled yet. |
+| **Queued** | Eligible and waiting to start. |
+| **Running** | The workflow is executing for this row. |
+| **Error** | A block failed. The cell links to which block and why. |
+| **Cancelled** | The run was stopped before it finished. |
+| **Not found** | An enrichment finished but matched nothing for this row. |
+
+When a value arrives, it replaces the badge, and cells that finish stay filled even while other columns on the row are still running. You can see this in the example table: most rows are fully scored, while a few show **Not found** where an enrichment came up empty. The lead scorer still ran on those rows, working with what it had.
+
+<Callout type="info">
+On error, the row stays in the **Error** state. Auto-run skips errored rows, so a failure doesn't loop. To retry, fix the input and re-run the cell. A row is only ever worked by one run at a time, so re-running doesn't race.
+</Callout>
+
+### Inspecting a row's run
+
+Every value in a workflow column comes from a real workflow run, and each one is inspectable. Open a cell's menu to act on that row:
+
+<Image
+  src="/static/tables/workflow-columns/cell-menu.png"
+  alt="A lead_score cell's menu: View execution, Re-run cell, insert and duplicate row actions, and Delete row"
+  width={800}
+  height={369}
+/>
+
+**View execution** opens the run's trace: each block with its status, timing, and credit cost, the same view as the [Logs](/logs-debugging) page. Here, the row's score came from a 1.86s run of the LeadScorer workflow:
+
+<Image
+  src="/static/tables/workflow-columns/row-trace.png"
+  alt="The Log Details trace for one row's run: Workflow Execution at 1.86s with Start and LeadScorer spans, marked Success"
+  width={650}
+  height={386}
+/>
+
+**Re-run cell** runs the group again for just that row, replacing its values when the run finishes.
+
+## Cascades
+
+Because a group can run after another group's output column, you can chain groups across the table — enrichments and workflow groups freely mixed. The example is a three-stage **cascade**: Company Domain fills `domain` from the company name, Company Info runs after `domain` and fills the info columns, and the Lead Score workflow group runs after those and writes the score. Each row advances through the stages independently: the moment its own Run-after columns are filled, it becomes eligible for the next group. That's why some rows in the screenshot are fully scored while others are still mid-pipeline.
+
+## When to use a workflow column
+
+Reach for a workflow column when you have a row-by-row job: enrich each record, classify each entry, score each lead. The work is the same shape on every row, and you want the results to live next to the source data.
+
+Use a [workflow on its own](/workflows) instead when the job isn't per-row: a one-off transform, an aggregation across many rows, or a real-time decision tied to a single request. To pull table data into a workflow rather than push workflow results into a table, see [using tables in workflows](/tables/using-in-workflows).
+
+## Next
+
+<Cards>
+  <Card title="Tables overview" href="/tables" description="Typed columns, schemas, filtering, and the Tables API." />
+  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write table rows from inside a workflow." />
+  <Card title="Workflows" href="/workflows" description="What a workflow is and the blocks it's built from." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the values a workflow produces." />
+</Cards>

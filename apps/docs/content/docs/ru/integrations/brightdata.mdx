@@ -1,0 +1,199 @@
+---
+title: Bright Data
+description: Сбор данных с веб-сайтов, поисковых систем и извлечение структурированной информации
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="brightdata"
+  color="#FFFFFF"
+/>
+
+## Инструкции по использованию
+
+Интегрируйте Bright Data в рабочий процесс. Собирайте данные с любого URL с помощью Web Unlocker, выполняйте поиск в Google и других поисковых системах через SERP API, находите веб-контент с ранжированием по намерению или запускайте готовые сборщики для извлечения структурированных данных.
+
+
+
+## Действия
+
+### `brightdata_scrape_url`
+
+Получает содержимое любого URL с помощью Bright Data Web Unlocker. Автоматически обходит антибот-защиту, CAPTCHA и IP-блокировки.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `zone` | string | Yes | Имя зоны Web Unlocker из панели управления Bright Data \(например, "web_unlocker1"\) |
+| `url` | string | Yes | URL для сбора данных \(например, "https://example.com/page"\) |
+| `format` | string | No | Формат ответа: "raw" для HTML или "json" для обработанного содержимого. По умолчанию "raw" |
+| `country` | string | No | Двухбуквенный код страны для геотаргетинга \(например, "us", "gb"\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Содержимое собранной страницы \(HTML или JSON в зависимости от формата\) |
+| `url` | string | URL, с которого были собраны данные |
+| `statusCode` | number | HTTP-код статуса ответа |
+
+### `brightdata_serp_search`
+
+Выполняет поиск в Google, Bing, DuckDuckGo или Yandex и возвращает структурированные результаты с помощью Bright Data SERP API.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `zone` | string | Yes | Имя зоны SERP API из панели управления Bright Data \(например, "serp_api1"\) |
+| `query` | string | Yes | Поисковый запрос \(например, "лучшие инструменты управления проектами"\) |
+| `searchEngine` | string | No | Поисковая система: "google", "bing", "duckduckgo" или "yandex". По умолчанию "google" |
+| `country` | string | No | Двухбуквенный код страны для локализованных результатов \(например, "us", "gb"\) |
+| `language` | string | No | Двухбуквенный код языка \(например, "en", "es"\) |
+| `numResults` | number | No | Количество возвращаемых результатов \(например, 10, 20\). По умолчанию 10 |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Массив результатов поиска |
+|   ↳ `title` | string | Заголовок результата поиска |
+|   ↳ `url` | string | URL результата поиска |
+|   ↳ `description` | string | Сниппет или описание результата |
+|   ↳ `rank` | number | Позиция в результатах поиска |
+| `query` | string | Выполненный поисковый запрос |
+| `searchEngine` | string | Использованная поисковая система |
+
+### `brightdata_discover`
+
+Поиск веб-контента на основе ИИ, который находит и ранжирует результаты по намерению. Возвращает до 1 000 результатов с опциональным очищенным содержимым страниц для RAG и верификации.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `query` | string | Yes | Поисковый запрос \(например, "изменение цен конкурентов корпоративный тариф"\) |
+| `numResults` | number | No | Количество возвращаемых результатов, до 1000. По умолчанию 10 |
+| `intent` | string | No | Описывает, что агент пытается достичь; используется для ранжирования результатов по релевантности \(например, "найти официальные страницы цен и примечания к изменениям"\) |
+| `includeContent` | boolean | No | Включать ли очищенное содержимое страниц в результаты |
+| `format` | string | No | Формат ответа: "json" или "markdown". По умолчанию "json" |
+| `language` | string | No | Код языка поиска \(например, "en", "es", "fr"\). По умолчанию "en" |
+| `country` | string | No | Двухбуквенный код страны ISO для локализованных результатов \(например, "us", "gb"\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Массив найденных веб-результатов, ранжированных по релевантности намерению |
+|   ↳ `url` | string | URL найденной страницы |
+|   ↳ `title` | string | Заголовок страницы |
+|   ↳ `description` | string | Описание или сниппет страницы |
+|   ↳ `relevanceScore` | number | Оценка релевантности, рассчитанная ИИ для ранжирования по намерению |
+|   ↳ `content` | string | Очищенное содержимое страницы в запрошенном формате \(когда includeContent = true\) |
+| `query` | string | Выполненный поисковый запрос |
+| `totalResults` | number | Общее количество возвращённых результатов |
+
+### `brightdata_sync_scrape`
+
+Синхронно собирает данные с URL, используя готовый сборщик Bright Data, и возвращает структурированные результаты напрямую. Поддерживает до 20 URL с таймаутом в 1 минуту.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `datasetId` | string | Yes | Идентификатор сборщика набора данных из панели управления Bright Data \(например, "gd_l1viktl72bvl7bjuj0"\) |
+| `urls` | string | Yes | JSON-массив объектов URL для сбора, до 20 \(например, \[\{"url": "https://example.com/product"\}\]\) |
+| `format` | string | No | Формат вывода: "json", "ndjson" или "csv". По умолчанию "json" |
+| `includeErrors` | boolean | No | Включать ли отчёты об ошибках в результаты |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Массив объектов с собранными результатами, поля зависят от использованного сборщика |
+| `snapshotId` | string | Идентификатор снимка, возвращаемый, если запрос превысил таймаут в 1 минуту и переключился на асинхронную обработку |
+| `isAsync` | boolean | Переключился ли запрос в асинхронный режим \(true означает, что нужно использовать snapshotId для получения результатов\) |
+
+### `brightdata_scrape_dataset`
+
+Запускает готовый сборщик Bright Data для извлечения структурированных данных с URL. Поддерживает более 660 сборщиков для таких платформ, как Amazon, LinkedIn, Instagram и других.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `datasetId` | string | Yes | Идентификатор сборщика набора данных из панели управления Bright Data \(например, "gd_l1viktl72bvl7bjuj0"\) |
+| `urls` | string | Yes | JSON-массив объектов URL для сбора \(например, \[\{"url": "https://example.com/product"\}\]\) |
+| `format` | string | No | Формат вывода: "json" или "csv". По умолчанию "json" |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | Идентификатор снимка для последующего получения результатов |
+| `status` | string | Статус задачи сбора данных \(например, "triggered", "running"\) |
+
+### `brightdata_snapshot_status`
+
+Проверяет прогресс асинхронной задачи сбора данных Bright Data. Возвращает статус: starting, running, ready или failed.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `snapshotId` | string | Yes | Идентификатор снимка, возвращённый при запуске сбора \(например, "s_m4x7enmven8djfqak"\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | Запрошенный идентификатор снимка |
+| `datasetId` | string | Идентификатор набора данных, связанного с этим снимком |
+| `status` | string | Текущий статус снимка: "starting", "running", "ready" или "failed" |
+
+### `brightdata_download_snapshot`
+
+Загружает результаты завершённой задачи сбора данных Bright Data по идентификатору снимка. Снимок должен иметь статус ready.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `snapshotId` | string | Yes | Идентификатор снимка, возвращённый при запуске сбора \(например, "s_m4x7enmven8djfqak"\) |
+| `format` | string | No | Формат вывода: "json", "ndjson", "jsonl" или "csv". По умолчанию "json" |
+| `compress` | boolean | No | Сжимать ли результаты |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Массив записей с собранными результатами |
+| `format` | string | Тип содержимого загруженных данных |
+| `snapshotId` | string | Загруженный идентификатор снимка |
+
+### `brightdata_cancel_snapshot`
+
+Отменяет активную задачу сбора данных Bright Data по идентификатору снимка. Прерывает текущий сбор данных.
+
+#### Входные параметры
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Токен API Bright Data |
+| `snapshotId` | string | Yes | Идентификатор снимка для отмены \(например, "s_m4x7enmven8djfqak"\) |
+
+#### Выходные параметры
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | Идентификатор отменённого снимка |
+| `cancelled` | boolean | Успешно ли выполнена отмена |

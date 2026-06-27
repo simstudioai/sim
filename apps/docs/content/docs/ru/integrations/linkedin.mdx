@@ -1,0 +1,82 @@
+---
+title: LinkedIn
+description: Публикация постов и управление присутствием в LinkedIn
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LinkedIn](https://www.linkedin.com) is the world’s largest professional networking platform, empowering users to build their careers, connect with their network, and share professional content. LinkedIn is widely used by professionals across industries for personal branding, recruiting, job search, and business development.
+
+With LinkedIn, you can easily share posts to your personal feed to engage with your network, and access information about your profile to highlight your professional achievements. Automated integration with Sim allows you to leverage LinkedIn functionality programmatically—enabling agents and workflows to post updates, report on your professional presence, and keep your feed active without manual effort.
+
+Key LinkedIn features available through this integration include:
+
+- **Share Posts:** Automatically publish professional updates, articles, or announcements to your LinkedIn personal feed.
+- **Profile Information:** Retrieve detailed information about your LinkedIn profile to monitor or use in downstream tasks within your workflows.
+
+These capabilities make it easy to keep your LinkedIn network engaged and to extend your professional reach efficiently as part of your AI or workflow automation strategy.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.
+
+
+
+## Действия
+
+### `linkedin_share_post`
+
+Share a post to your personal LinkedIn feed
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Да | The text content of your LinkedIn post |
+| `visibility` | string | Нет | Who can see this post: "PUBLIC" or "CONNECTIONS" \(default: "PUBLIC"\) |
+| `request` | string | Нет | No description |
+| `output` | string | Нет | No description |
+| `output` | string | Нет | No description |
+| `specificContent` | string | Нет | No description |
+| `visibility` | string | Нет | No description |
+| `headers` | string | Нет | No description |
+| `output` | string | Нет | No description |
+| `output` | string | Нет | No description |
+| `output` | string | Нет | No description |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `postId` | string | Created post ID |
+| `profile` | json | LinkedIn profile information |
+| `error` | string | Error message if operation failed |
+
+### `linkedin_get_profile`
+
+Retrieve your LinkedIn profile information
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `postId` | string | Created post ID |
+| `profile` | json | LinkedIn profile information |
+| `error` | string | Error message if operation failed |
+
+

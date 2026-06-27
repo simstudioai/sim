@@ -50,6 +50,19 @@ const { provider } = defineI18nUI(i18n, {
     zh: {
       displayName: '简体中文',
     },
+    ru: {
+      displayName: 'Русский',
+      search: 'Поиск',
+      searchNoResult: 'Ничего не найдено',
+      toc: 'Содержание',
+      tocNoHeadings: 'Без заголовков',
+      lastUpdate: 'Обновлено',
+      previousPage: 'Предыдущая',
+      nextPage: 'Следующая',
+      chooseLanguage: 'Язык',
+      chooseTheme: 'Тема',
+      editOnGithub: 'Редактировать на GitHub',
+    },
   },
 })
 

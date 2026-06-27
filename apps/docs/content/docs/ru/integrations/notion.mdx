@@ -1,0 +1,596 @@
+---
+title: Notion
+description: Управление страницами Notion
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="notion_v2"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The Notion tool integration enables your agents to read, create, and manage Notion pages and databases directly within your workflows. This allows you to automate the retrieval and updating of structured content, notes, documents, and more from your Notion workspace.
+
+With the Notion tool, you can:
+
+- **Read pages or databases**: Extract rich content or metadata from specified Notion pages or entire databases
+- **Create new content**: Programmatically create new pages or databases for dynamic content generation
+- **Append content**: Add new blocks or properties to existing pages and databases
+- **Query databases**: Run advanced filters and searches on structured Notion data for custom workflows
+- **Search your workspace**: Locate pages and databases across your Notion workspace automatically
+
+This tool is ideal for scenarios where agents need to synchronize information, generate reports, or maintain structured notes within Notion. By bringing Notion's capabilities into automated workflows, you empower your agents to interface with knowledge, documentation, and project management data programmatically and seamlessly.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.
+
+
+
+## Действия
+
+### `notion_read`
+
+Read content from a Notion page
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Да | The UUID of the Notion page to read |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `content` | string | Page content in markdown format |
+| `title` | string | Page title |
+
+### `notion_read_database`
+
+Read database information and structure from Notion
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Да | The UUID of the Notion database to read |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Database UUID |
+| `url` | string | Notion database URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `properties` | object | Database properties schema |
+| `title` | string | Database title |
+
+### `notion_write`
+
+Append content to a Notion page
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Да | The UUID of the Notion page to append content to |
+| `content` | string | Да | The content to append to the page |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `appended` | boolean | Whether content was successfully appended |
+
+### `notion_create_page`
+
+Create a new page in Notion
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Да | The UUID of the parent Notion page where this page will be created |
+| `title` | string | Нет | Title of the new page |
+| `content` | string | Нет | Optional content to add to the page upon creation |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `title` | string | Page title |
+
+### `notion_update_page`
+
+Update properties of a Notion page
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Да | The UUID of the Notion page to update |
+| `properties` | json | Да | JSON object of properties to update |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `title` | string | Page title |
+
+### `notion_query_database`
+
+Query and filter Notion database entries with advanced filtering
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Да | The UUID of the Notion database to query |
+| `filter` | string | Нет | Filter conditions as JSON \(optional\) |
+| `sorts` | string | Нет | Sort criteria as JSON array \(optional\) |
+| `pageSize` | number | Нет | Number of results to return \(default: 100, max: 100\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `results` | array | Array of page objects from the database |
+|   ↳ `object` | string | Always "page" |
+|   ↳ `id` | string | Page UUID |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the page is archived |
+|   ↳ `in_trash` | boolean | Whether the page is in trash |
+|   ↳ `url` | string | Notion page URL |
+|   ↳ `public_url` | string | Public web URL if shared, null otherwise |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `icon` | object | Page/database icon \(emoji, custom_emoji, or file\) |
+|     ↳ `url` | string | Authenticated URL valid for one hour |
+|     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|   ↳ `cover` | object | Page/database cover image |
+|     ↳ `type` | string | File type: "file", "file_upload", or "external" |
+|     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |
+|       ↳ `url` | string | Authenticated URL valid for one hour |
+|       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `file_upload` | object | API-uploaded file object \(when type is "file_upload"\) |
+|       ↳ `id` | string | File upload UUID |
+|     ↳ `external` | object | External file object \(when type is "external"\) |
+|       ↳ `url` | string | External file URL \(never expires\) |
+|   ↳ `properties` | object | Page property values \(structure depends on parent type - database properties or title only\) |
+| `has_more` | boolean | Whether more results are available |
+| `next_cursor` | string | Cursor for next page of results |
+| `total_results` | number | Number of results returned |
+
+### `notion_search`
+
+Search across all pages and databases in Notion workspace
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Нет | Search terms to find pages and databases \(leave empty to get all pages\) |
+| `filterType` | string | Нет | Filter by object type: "page", "database", or leave empty for all |
+| `pageSize` | number | Нет | Number of results to return \(default: 100, max: 100\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search results \(pages and/or databases\) |
+|   ↳ `object` | string | Object type: "page" or "database" |
+|   ↳ `id` | string | Object UUID |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the object is archived |
+|   ↳ `in_trash` | boolean | Whether the object is in trash |
+|   ↳ `url` | string | Object URL |
+|   ↳ `public_url` | string | Public web URL if shared |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `properties` | object | Object properties |
+| `has_more` | boolean | Whether more results are available |
+| `next_cursor` | string | Cursor for next page of results |
+| `total_results` | number | Number of results returned |
+
+### `notion_create_database`
+
+Create a new database in Notion with custom properties
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `parentId` | string | Да | ID of the parent page where the database will be created |
+| `title` | string | Да | Title for the new database |
+| `properties` | json | Нет | Database properties as JSON object \(optional, will create a default "Name" property if empty\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Database UUID |
+| `url` | string | Notion database URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `properties` | object | Database properties schema |
+| `title` | string | Database title |
+
+### `notion_add_database_row`
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `databaseId` | string | Да | ID of the database to add the row to |
+| `properties` | json | Да | Row properties as JSON object matching the database schema \(e.g., \{"Name": \{"title": \[\{"text": \{"content": "Task 1"\}\}\]\}, "Status": \{"select": \{"name": "Done"\}\}\}\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `title` | string | Row title |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Notion Comment Created
+
+Trigger workflow when a comment or suggested edit is added in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `entity` | object | entity output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `entity_type` | string | Entity type \(comment\) |
+| `data` | object | data output from the tool |
+|   ↳ `page_id` | string | Page ID that owns the comment thread |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page or block ID |
+|     ↳ `parent_type` | string | Parent type \(page or block\) |
+
+
+---
+
+### Notion Database Created
+
+Trigger workflow when a new database is created in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Database Deleted
+
+Trigger workflow when a database is deleted in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Database Schema Updated
+
+Trigger workflow when a database schema is modified in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Content Updated
+
+Trigger workflow when page content is changed in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Created
+
+Trigger workflow when a new page is created in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Deleted
+
+Trigger workflow when a page is deleted in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Properties Updated
+
+Trigger workflow when page properties are modified in Notion
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Webhook (All Events)
+
+Trigger workflow on any Notion webhook event
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Нет | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent entity ID, when provided by Notion |
+|     ↳ `parent_type` | string | Parent type \(`page`, `database`, `block`, `workspace`, `space`, …\), when present |
+|   ↳ `page_id` | string | Page ID related to the event, when present |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
+

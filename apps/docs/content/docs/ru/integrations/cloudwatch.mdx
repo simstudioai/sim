@@ -1,0 +1,308 @@
+---
+title: CloudWatch
+description: Query and monitor AWS CloudWatch logs, metrics, and alarms
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudwatch"
+  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudWatch](https://aws.amazon.com/cloudwatch/) is a monitoring and observability service that provides data and actionable insights for AWS resources, applications, and services. CloudWatch collects monitoring and operational data in the form of logs, metrics, and events, giving you a unified view of your AWS environment.
+
+With the CloudWatch integration, you can:
+
+- **Query Logs (Insights)**: Run CloudWatch Log Insights queries against one or more log groups to analyze log data with a powerful query language
+- **Describe Log Groups**: List available CloudWatch log groups in your account, optionally filtered by name prefix
+- **Get Log Events**: Retrieve log events from a specific log stream within a log group
+- **Describe Log Streams**: List log streams within a log group, ordered by last event time or filtered by name prefix
+- **List Metrics**: Browse available CloudWatch metrics, optionally filtered by namespace, metric name, or recent activity
+- **Get Metric Statistics**: Retrieve statistical data for a metric over a specified time range with configurable granularity
+- **Publish Metric**: Publish custom metric data points to CloudWatch for your own application monitoring
+- **Describe Alarms**: List and filter CloudWatch alarms by name prefix, state, or alarm type
+
+In Sim, the CloudWatch integration enables your agents to monitor AWS infrastructure, analyze application logs, track custom metrics, and respond to alarm states as part of automated DevOps and SRE workflows. This is especially powerful when combined with other AWS integrations like CloudFormation and SNS for end-to-end infrastructure management.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
+
+
+
+## Actions
+
+### `cloudwatch_query_logs`
+
+Run a CloudWatch Log Insights query against one or more log groups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupNames` | array | Yes | Log group names to query |
+| `queryString` | string | Yes | CloudWatch Log Insights query string |
+| `startTime` | number | Yes | Start time as Unix epoch seconds |
+| `endTime` | number | Yes | End time as Unix epoch seconds |
+| `limit` | number | No | Maximum number of results to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Query result rows \(each row is a key/value map of field name to value\) |
+| `statistics` | object | Query statistics |
+|   ↳ `bytesScanned` | number | Total bytes of log data scanned |
+|   ↳ `recordsMatched` | number | Number of log records that matched the query |
+|   ↳ `recordsScanned` | number | Total log records scanned |
+| `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
+
+### `cloudwatch_describe_log_groups`
+
+List available CloudWatch log groups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `prefix` | string | No | Filter log groups by name prefix |
+| `limit` | number | No | Maximum number of log groups to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logGroups` | array | List of CloudWatch log groups with metadata |
+|   ↳ `logGroupName` | string | Log group name |
+|   ↳ `arn` | string | Log group ARN |
+|   ↳ `storedBytes` | number | Total stored bytes |
+|   ↳ `retentionInDays` | number | Retention period in days \(if set\) |
+|   ↳ `creationTime` | number | Creation time in epoch milliseconds |
+
+### `cloudwatch_get_log_events`
+
+Retrieve log events from a specific CloudWatch log stream
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name |
+| `logStreamName` | string | Yes | CloudWatch log stream name |
+| `startTime` | number | No | Start time as Unix epoch seconds |
+| `endTime` | number | No | End time as Unix epoch seconds |
+| `limit` | number | No | Maximum number of events to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Log events with timestamp, message, and ingestion time |
+|   ↳ `timestamp` | number | Event timestamp in epoch milliseconds |
+|   ↳ `message` | string | Log event message |
+|   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
+
+### `cloudwatch_describe_log_streams`
+
+List log streams within a CloudWatch log group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name |
+| `prefix` | string | No | Filter log streams by name prefix |
+| `limit` | number | No | Maximum number of log streams to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logStreams` | array | List of log streams with metadata, sorted by last event time \(most recent first\) unless a prefix filter is applied |
+|   ↳ `logStreamName` | string | Log stream name |
+|   ↳ `lastEventTimestamp` | number | Timestamp of the last log event in epoch milliseconds |
+|   ↳ `firstEventTimestamp` | number | Timestamp of the first log event in epoch milliseconds |
+|   ↳ `creationTime` | number | Stream creation time in epoch milliseconds |
+|   ↳ `storedBytes` | number | Total stored bytes |
+
+### `cloudwatch_list_metrics`
+
+List available CloudWatch metrics
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | No | Filter by namespace \(e.g., AWS/EC2, AWS/Lambda\) |
+| `metricName` | string | No | Filter by metric name |
+| `recentlyActive` | boolean | No | Only show metrics active in the last 3 hours |
+| `limit` | number | No | Maximum number of metrics to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metrics` | array | List of metrics with namespace, name, and dimensions |
+|   ↳ `namespace` | string | Metric namespace \(e.g., AWS/EC2\) |
+|   ↳ `metricName` | string | Metric name \(e.g., CPUUtilization\) |
+|   ↳ `dimensions` | array | Array of name/value dimension pairs |
+
+### `cloudwatch_get_metric_statistics`
+
+Get statistics for a CloudWatch metric over a time range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | Yes | Metric namespace \(e.g., AWS/EC2, AWS/Lambda\) |
+| `metricName` | string | Yes | Metric name \(e.g., CPUUtilization, Invocations\) |
+| `startTime` | number | Yes | Start time as Unix epoch seconds |
+| `endTime` | number | Yes | End time as Unix epoch seconds |
+| `period` | number | Yes | Granularity in seconds \(e.g., 60, 300, 3600\) |
+| `statistics` | array | Yes | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\) |
+| `dimensions` | string | No | Dimensions as JSON \(e.g., \{"InstanceId": "i-1234"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | string | Metric label returned by CloudWatch |
+| `datapoints` | array | Datapoints sorted by timestamp with statistics values |
+|   ↳ `timestamp` | number | Datapoint timestamp in epoch milliseconds |
+|   ↳ `average` | number | Average statistic value |
+|   ↳ `sum` | number | Sum statistic value |
+|   ↳ `minimum` | number | Minimum statistic value |
+|   ↳ `maximum` | number | Maximum statistic value |
+|   ↳ `sampleCount` | number | Sample count statistic value |
+|   ↳ `unit` | string | Unit of the metric |
+
+### `cloudwatch_put_metric_data`
+
+Publish a custom metric data point to CloudWatch
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | Yes | Metric namespace \(e.g., Custom/MyApp\) |
+| `metricName` | string | Yes | Name of the metric |
+| `value` | number | Yes | Metric value to publish |
+| `unit` | string | No | Unit of the metric \(e.g., Count, Seconds, Bytes\) |
+| `dimensions` | string | No | JSON string of dimension name/value pairs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the metric was published successfully |
+| `namespace` | string | Metric namespace |
+| `metricName` | string | Metric name |
+| `value` | number | Published metric value |
+| `unit` | string | Metric unit |
+| `timestamp` | string | Timestamp when the metric was published |
+
+### `cloudwatch_describe_alarms`
+
+List and filter CloudWatch alarms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `alarmNamePrefix` | string | No | Filter alarms by name prefix |
+| `stateValue` | string | No | Filter by alarm state \(OK, ALARM, INSUFFICIENT_DATA\) |
+| `alarmType` | string | No | Filter by alarm type \(MetricAlarm, CompositeAlarm\) |
+| `limit` | number | No | Maximum number of alarms to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alarms` | array | List of CloudWatch alarms with state and configuration |
+|   ↳ `alarmName` | string | Alarm name |
+|   ↳ `alarmArn` | string | Alarm ARN |
+|   ↳ `stateValue` | string | Current state \(OK, ALARM, INSUFFICIENT_DATA\) |
+|   ↳ `stateReason` | string | Human-readable reason for the state |
+|   ↳ `metricName` | string | Metric name \(MetricAlarm only\) |
+|   ↳ `namespace` | string | Metric namespace \(MetricAlarm only\) |
+|   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
+|   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
+
+### `cloudwatch_mute_alarm`
+
+Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `muteRuleName` | string | Yes | Unique name for the mute rule \(used later to unmute\) |
+| `alarmNames` | array | Yes | Names of the CloudWatch alarms this mute rule targets |
+| `durationValue` | number | Yes | How long the mute lasts \(paired with durationUnit\) |
+| `durationUnit` | string | Yes | Unit for durationValue: minutes, hours, or days |
+| `description` | string | No | Optional description of why the alarms are being muted |
+| `startDate` | number | No | When the mute window begins as Unix epoch seconds. Defaults to now \(mute starts immediately\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mute rule was created successfully |
+| `muteRuleName` | string | Name of the mute rule that was created |
+| `alarmNames` | array | Names of the alarms this rule mutes |
+| `expression` | string | Schedule expression used by the mute rule |
+| `duration` | string | ISO 8601 duration of the mute window |
+
+### `cloudwatch_unmute_alarm`
+
+Delete a CloudWatch alarm mute rule, restoring alarm notifications
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `muteRuleName` | string | Yes | Name of the mute rule to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the mute rule was deleted successfully |
+| `muteRuleName` | string | Name of the mute rule that was deleted |
+
+

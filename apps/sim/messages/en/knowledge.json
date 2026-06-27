@@ -1,0 +1,20 @@
+{
+  "create": "Create Knowledge Base",
+  "upload": "Upload Document",
+  "sync": "Sync",
+  "status": "Status",
+  "documents": "Documents",
+  "noDocuments": "No documents",
+  "syncing": "Syncing...",
+  "synced": "Synced",
+  "failed": "Sync failed",
+  "delete": "Delete Knowledge Base",
+  "search": "Search knowledge...",
+  "source": "Source",
+  "file": "File",
+  "url": "URL",
+  "text": "Text",
+  "chunkSize": "Chunk size",
+  "chunkOverlap": "Chunk overlap",
+  "embeddingModel": "Embedding model"
+}

@@ -1,0 +1,20 @@
+{
+  "create": "Wissensdatenbank erstellen",
+  "upload": "Dokument hochladen",
+  "sync": "Synchronisieren",
+  "status": "Status",
+  "documents": "Dokumente",
+  "noDocuments": "Keine Dokumente",
+  "syncing": "Wird synchronisiert...",
+  "synced": "Synchronisiert",
+  "failed": "Synchronisierung fehlgeschlagen",
+  "delete": "Wissensdatenbank löschen",
+  "search": "Wissen durchsuchen...",
+  "source": "Quelle",
+  "file": "Datei",
+  "url": "URL",
+  "text": "Text",
+  "chunkSize": "Chunk-Größe",
+  "chunkOverlap": "Chunk-Überlappung",
+  "embeddingModel": "Embedding-Modell"
+}

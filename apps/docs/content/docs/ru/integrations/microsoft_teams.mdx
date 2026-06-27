@@ -1,0 +1,431 @@
+---
+title: Microsoft Teams
+description: Управление сообщениями, реакциями и участниками в Teams
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_teams"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Teams](https://teams.microsoft.com) is a robust communication and collaboration platform that enables users to engage in real-time messaging, meetings, and content sharing within teams and organizations. As part of Microsoft's productivity ecosystem, Microsoft Teams offers seamless chat functionality integrated with Office 365, allowing users to post messages, coordinate work, and stay connected across devices and workflows.
+
+With Microsoft Teams, you can:
+
+- **Send and receive messages**: Communicate instantly with individuals or groups in chat threads  
+- **Collaborate in real-time**: Share updates and information across teams within channels and chats  
+- **Organize conversations**: Maintain context with threaded discussions and persistent chat history  
+- **Share files and content**: Attach and view documents, images, and links directly in chat  
+- **Integrate with Microsoft 365**: Seamlessly connect with Outlook, SharePoint, OneDrive, and more  
+- **Access across devices**: Use Teams on desktop, web, and mobile with cloud-synced conversations  
+- **Secure communication**: Leverage enterprise-grade security and compliance features
+
+In Sim, the Microsoft Teams integration enables your agents to interact directly with chat messages programmatically. This allows for powerful automation scenarios such as sending updates, posting alerts, coordinating tasks, and responding to conversations in real time. Your agents can write new messages to chats or channels, update content based on workflow data, and engage with users where collaboration happens. By integrating Sim with Microsoft Teams, you bridge the gap between intelligent workflows and team communication — empowering your agents to streamline collaboration, automate communication tasks, and keep your teams aligned.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
+
+
+
+## Действия
+
+### `microsoft_teams_read_chat`
+
+Read content from a Microsoft Teams chat
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Да | The ID of the chat to read from \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `includeAttachments` | boolean | Нет | Download and include message attachments \(hosted contents\) into storage |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Teams chat read operation success status |
+| `messageCount` | number | Number of messages retrieved from chat |
+| `chatId` | string | ID of the chat that was read from |
+| `messages` | array | Array of chat message objects |
+| `attachmentCount` | number | Total number of attachments found |
+| `attachmentTypes` | array | Types of attachments found |
+| `content` | string | Formatted content of chat messages |
+| `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
+
+### `microsoft_teams_write_chat`
+
+Write or update content in a Microsoft Teams chat
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Да | The ID of the chat to write to \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `content` | string | Да | The content to write to the message \(plain text or HTML formatted, supports @mentions\) |
+| `files` | file[] | Нет | Files to attach to the message |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Teams chat message send success status |
+| `messageId` | string | Unique identifier for the sent message |
+| `chatId` | string | ID of the chat where message was sent |
+| `createdTime` | string | Timestamp when message was created |
+| `url` | string | Web URL to the message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+| `files` | file[] | Files attached to the message |
+
+### `microsoft_teams_read_channel`
+
+Read content from a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team to read from \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Да | The ID of the channel to read from \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `includeAttachments` | boolean | Нет | Download and include message attachments \(hosted contents\) into storage |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Teams channel read operation success status |
+| `messageCount` | number | Number of messages retrieved from channel |
+| `teamId` | string | ID of the team that was read from |
+| `channelId` | string | ID of the channel that was read from |
+| `messages` | array | Array of channel message objects |
+| `attachmentCount` | number | Total number of attachments found |
+| `attachmentTypes` | array | Types of attachments found |
+| `content` | string | Formatted content of channel messages |
+| `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
+
+### `microsoft_teams_write_channel`
+
+Write or send a message to a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team to write to \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Да | The ID of the channel to write to \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `content` | string | Да | The content to write to the channel \(plain text or HTML formatted, supports @mentions\) |
+| `files` | file[] | Нет | Files to attach to the message |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Teams channel message send success status |
+| `messageId` | string | Unique identifier for the sent message |
+| `teamId` | string | ID of the team where message was sent |
+| `channelId` | string | ID of the channel where message was sent |
+| `createdTime` | string | Timestamp when message was created |
+| `url` | string | Web URL to the message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+| `files` | file[] | Files attached to the message |
+
+### `microsoft_teams_update_chat_message`
+
+Update an existing message in a Microsoft Teams chat
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Да | The ID of the chat containing the message \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `messageId` | string | Да | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Да | The new content for the message \(plain text or HTML formatted\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update was successful |
+| `messageId` | string | ID of the updated message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+
+### `microsoft_teams_update_channel_message`
+
+Update an existing message in a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Да | The ID of the channel containing the message \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Да | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Да | The new content for the message \(plain text or HTML formatted\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update was successful |
+| `messageId` | string | ID of the updated message |
+| `updatedContent` | boolean | Whether content was successfully updated |
+
+### `microsoft_teams_delete_chat_message`
+
+Soft delete a message in a Microsoft Teams chat
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `chatId` | string | Да | The ID of the chat containing the message \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
+| `messageId` | string | Да | The ID of the message to delete \(e.g., "1234567890123" - a numeric string from message responses\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `deleted` | boolean | Confirmation of deletion |
+| `messageId` | string | ID of the deleted message |
+
+### `microsoft_teams_delete_channel_message`
+
+Soft delete a message in a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Да | The ID of the channel containing the message \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Да | The ID of the message to delete \(e.g., "1234567890123" - a numeric string from message responses\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `deleted` | boolean | Confirmation of deletion |
+| `messageId` | string | ID of the deleted message |
+
+### `microsoft_teams_reply_to_message`
+
+Reply to an existing message in a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
+| `channelId` | string | Да | The ID of the channel \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+| `messageId` | string | Да | The ID of the message to reply to \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `content` | string | Да | The reply content \(plain text or HTML formatted message\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reply was successful |
+| `messageId` | string | ID of the reply message |
+| `updatedContent` | boolean | Whether content was successfully sent |
+
+### `microsoft_teams_get_message`
+
+Get a specific message from a Microsoft Teams chat or channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Нет | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | Нет | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | Нет | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Да | The ID of the message to retrieve \(e.g., "1234567890123" - a numeric string from message responses\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the retrieval was successful |
+| `content` | string | The message content |
+| `metadata` | object | Message metadata including sender, timestamp, etc. |
+|   ↳ `messageId` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `createdTime` | string | Message creation timestamp |
+|   ↳ `url` | string | Web URL to the message |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `channelId` | string | Channel ID |
+|   ↳ `chatId` | string | Chat ID |
+|   ↳ `messages` | array | Array of message details |
+|   ↳ `messageCount` | number | Number of messages |
+
+### `microsoft_teams_set_reaction`
+
+Add an emoji reaction to a message in Microsoft Teams
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Нет | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | Нет | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | Нет | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Да | The ID of the message to react to \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `reactionType` | string | Да | The emoji reaction \(e.g., ❤️, 👍, 😊\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reaction was added successfully |
+| `reactionType` | string | The emoji that was added |
+| `messageId` | string | ID of the message |
+
+### `microsoft_teams_unset_reaction`
+
+Remove an emoji reaction from a message in Microsoft Teams
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Нет | The ID of the team for channel messages \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID\) |
+| `channelId` | string | Нет | The ID of the channel for channel messages \(e.g., "19:abc123def456@thread.tacv2"\) |
+| `chatId` | string | Нет | The ID of the chat for chat messages \(e.g., "19:abc123def456@thread.v2"\) |
+| `messageId` | string | Да | The ID of the message \(e.g., "1234567890123" - a numeric string from message responses\) |
+| `reactionType` | string | Да | The emoji reaction to remove \(e.g., ❤️, 👍, 😊\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the reaction was removed successfully |
+| `reactionType` | string | The emoji that was removed |
+| `messageId` | string | ID of the message |
+
+### `microsoft_teams_list_team_members`
+
+List all members of a Microsoft Teams team
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `members` | array | Array of team members |
+| `memberCount` | number | Total number of members |
+
+### `microsoft_teams_list_channel_members`
+
+List all members of a Microsoft Teams channel
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | string | Да | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
+| `channelId` | string | Да | The ID of the channel \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the listing was successful |
+| `members` | array | Array of channel members |
+| `memberCount` | number | Total number of members |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Microsoft Teams Channel
+
+Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `hmacSecret` | string | Да | The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity. |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `from` | object | from output from the tool |
+|   ↳ `id` | string | Sender ID |
+|   ↳ `name` | string | Sender name |
+|   ↳ `aadObjectId` | string | AAD Object ID |
+| `message` | object | message output from the tool |
+|   ↳ `raw` | object | raw output from the tool |
+|     ↳ `attachments` | json | Array of attachments |
+|     ↳ `channelData` | object | channelData output from the tool |
+|       ↳ `team` | object | team output from the tool |
+|         ↳ `id` | string | Team ID |
+|       ↳ `tenant` | object | tenant output from the tool |
+|         ↳ `id` | string | Tenant ID |
+|       ↳ `channel` | object | channel output from the tool |
+|         ↳ `id` | string | Channel ID |
+|       ↳ `teamsTeamId` | string | Teams team ID |
+|       ↳ `teamsChannelId` | string | Teams channel ID |
+|     ↳ `conversation` | object | conversation output from the tool |
+|       ↳ `id` | string | Composite conversation ID |
+|       ↳ `name` | string | Conversation name \(nullable\) |
+|       ↳ `isGroup` | boolean | Is group conversation |
+|       ↳ `tenantId` | string | Tenant ID |
+|       ↳ `aadObjectId` | string | AAD Object ID \(nullable\) |
+|       ↳ `conversationType` | string | Conversation type \(channel\) |
+|     ↳ `text` | string | Message text content |
+|     ↳ `messageType` | string | Message type |
+|     ↳ `channelId` | string | Channel ID \(msteams\) |
+|     ↳ `timestamp` | string | Timestamp |
+| `activity` | object | Activity payload |
+| `conversation` | object | conversation output from the tool |
+|   ↳ `id` | string | Composite conversation ID |
+|   ↳ `name` | string | Conversation name \(nullable\) |
+|   ↳ `isGroup` | boolean | Is group conversation |
+|   ↳ `tenantId` | string | Tenant ID |
+|   ↳ `aadObjectId` | string | AAD Object ID \(nullable\) |
+|   ↳ `conversationType` | string | Conversation type \(channel\) |
+
+
+---
+
+### Microsoft Teams Chat
+
+Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Да | This trigger requires microsoft teams credentials to access your account. |
+| `triggerChatId` | string | Да | The ID of the Teams chat to monitor |
+| `includeAttachments` | boolean | Нет | Fetch hosted contents and upload to storage |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message_id` | string | Message ID |
+| `chat_id` | string | Chat ID |
+| `from_name` | string | Sender display name |
+| `text` | string | Message body \(HTML or text\) |
+| `created_at` | string | Message timestamp |
+| `attachments` | file[] | Uploaded attachments as files |
+

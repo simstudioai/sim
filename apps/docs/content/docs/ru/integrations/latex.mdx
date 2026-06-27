@@ -1,0 +1,129 @@
+---
+title: LaTeX
+description: Компиляция документов LaTeX в PDF
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="latex"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LaTeX](https://www.latex-project.org/) is a typesetting system that is the de facto standard for producing high-quality scientific and technical documents. Unlike word processors, LaTeX uses plain-text markup to describe a document's structure and lets the compiler handle layout, which makes it ideal for documents with mathematical notation, citations, cross-references, and consistent professional formatting.
+
+With LaTeX, you can:
+
+- **Compile documents to PDF**: Turn LaTeX source into a polished, print-ready PDF
+- **Typeset mathematics**: Render equations, theorems, and scientific notation with precision
+- **Choose your compiler**: Build with pdfLaTeX, XeLaTeX, LuaLaTeX, pLaTeX, upLaTeX, or ConTeXt
+- **Include supporting files**: Add images, included `.tex` files, bibliographies, and custom classes or styles to the build
+- **Automate document production**: Generate reports, invoices, certificates, and papers from templates
+
+In Sim, the LaTeX integration enables your agents to compile LaTeX source into PDF files as part of any workflow — no OAuth or API key required. Agents can draft documents in LaTeX, attach supporting resources such as images or BibTeX bibliographies, and produce a finished PDF that downstream blocks can email, upload, or store. Agents can also search the available TeX Live packages and system fonts to pick the right tools for a document. This makes it easy to build agents that generate reports, typeset research digests, or produce templated documents like invoices and certificates.
+
+Note: compilation runs on the public [LaTeX-on-HTTP](https://github.com/YtoTech/latex-on-http) service at latex.ytotech.com, so the document source and any attached resources are sent to that third-party service. Avoid compiling documents whose contents must not leave your environment.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key. Compilation runs on the public LaTeX-on-HTTP service (latex.ytotech.com), so document source and resources are sent to that third-party service.
+
+
+
+## Действия
+
+### `latex_compile`
+
+Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Да | LaTeX source of the main document, from \\documentclass to \\end\{document\} |
+| `compiler` | string | Нет | LaTeX compiler: pdflatex \(default\), xelatex, lualatex, platex, uplatex, or context |
+| `fileName` | string | Нет | Name for the generated PDF file \(default: document.pdf\) |
+| `resources` | array | Нет | Supporting files for the compilation. Each entry has a "path" plus exactly one of "content" \(plain text\), "file" \(base64\), or "url" \(remote file\), e.g. \[\{"path": "refs.bib", "content": "..."\}, \{"path": "logo.png", "url": "https://..."\}\] |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `pdf` | file | Compiled PDF file |
+| `pdfUrl` | string | URL of the compiled PDF |
+| `fileName` | string | Name of the compiled PDF file |
+| `compiler` | string | LaTeX compiler used for the build |
+
+### `latex_search_packages`
+
+Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Да | Search terms matched against package names and descriptions |
+| `maxResults` | number | Нет | Maximum number of packages to return \(default: 25, max: 100\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `packages` | array | TeX Live packages matching the query |
+|   ↳ `name` | string | Package name |
+|   ↳ `shortDescription` | string | One-line package description |
+|   ↳ `installed` | boolean | Whether the package is installed |
+|   ↳ `ctanUrl` | string | CTAN page for the package |
+| `totalMatches` | number | Total number of packages matching the query, before truncation |
+
+### `latex_get_package`
+
+Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Да | Exact package name, e.g. amsmath, tikz, or biblatex |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `package` | json | TeX Live package details |
+|   ↳ `name` | string | Package name |
+|   ↳ `installed` | boolean | Whether the package is installed |
+|   ↳ `shortDescription` | string | One-line package description |
+|   ↳ `longDescription` | string | Full package description |
+|   ↳ `category` | string | Package category |
+|   ↳ `license` | string | Package license identifier |
+|   ↳ `topics` | array | CTAN topic tags |
+|   ↳ `relatedPackages` | array | Names of related packages |
+|   ↳ `homepage` | string | Package homepage URL |
+|   ↳ `ctanUrl` | string | CTAN page for the package |
+
+### `latex_list_fonts`
+
+List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Нет | Filter matched against font family and full font name, e.g. "Noto Serif" |
+| `maxResults` | number | Нет | Maximum number of fonts to return \(default: 50, max: 200\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `fonts` | array | Fonts available to the LaTeX compiler |
+|   ↳ `family` | string | Font family name |
+|   ↳ `name` | string | Full font name |
+|   ↳ `styles` | array | Available styles, e.g. Bold or Italic |
+| `totalMatches` | number | Total number of fonts matching the filter, before truncation |
+
+

@@ -1,0 +1,76 @@
+---
+title: Workflow Block
+description: Run another workflow inside the current flow
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { BlockPreview, WorkflowPreview, WORKFLOW_CALL_WORKFLOW } from '@/components/workflow-preview'
+
+## What It Does
+
+<BlockPreview type="workflow" />
+
+Drop a Workflow block when you want to call a child workflow as part of a larger flow. The block runs the latest deployed version of that workflow, waits for it to finish, and then continues with the parent.
+
+## Configure It
+
+1. **Pick a workflow** from the dropdown (self-references are blocked to prevent loops).
+2. **Map inputs**: If the child workflow has an Input Form trigger, you'll see each field and can connect parent variables. The mapped values are what the child receives.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow-2.png'
+    alt='Workflow block with input mapping example'
+    width={700}
+    height={400}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+3. **Outputs**: After the child finishes, the block exposes:
+   - `result` – the child workflow's final response
+   - `success` – whether it ran without errors
+   - `error` – message when the run fails
+   - `childWorkflowName` – the name of the child workflow (string)
+   - `childWorkflowId` – the ID of the child workflow (string)
+
+## Example
+
+<WorkflowPreview workflow={WORKFLOW_CALL_WORKFLOW} />
+
+The parent passes its input to the child workflow `enrich-lead`, waits for it to finish, and reads the result downstream as `<workflow.result>`.
+
+## Deployment Status Badge
+
+The Workflow block displays a deployment status badge to help you track whether the child workflow is ready to execute:
+
+- **Deployed** – The child workflow has been deployed and is ready to use. The block will execute the current deployed version.
+- **Undeployed** – The child workflow has never been deployed. You must deploy it before the Workflow block can execute it.
+- **Redeploy** – Changes have been detected in the child workflow since the last deployment. Click the badge to redeploy the child workflow with the latest changes.
+
+<Callout type="warn">
+The Workflow block always executes the most recent deployed version of the child workflow, not the editor version. Make sure to redeploy after making changes to ensure the block uses the latest logic.
+</Callout>
+
+## Execution Notes
+
+- Child workflows run in the same workspace context, so environment variables and tools carry over.
+- The block uses deployment versioning: any API, schedule, webhook, manual, or chat execution calls the deployed snapshot. Redeploy the child when you change it.
+- If the child fails, the block raises an error unless you handle it downstream.
+
+<Callout>
+Keep child workflows focused. Small, reusable flows make it easier to combine them without creating deep nesting.
+</Callout>
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "Can a workflow call itself recursively?", answer: "No. The workflow selector blocks self-references to prevent infinite loops. Additionally, Sim tracks the call chain across nested executions using an internal header and enforces a maximum call chain depth of 25 hops. If the limit is exceeded, the execution is rejected with a 409 error." },
+  { question: "What is the maximum nesting depth for sub-workflows?", answer: "The maximum call chain depth is 25. This means workflow A can call B, which calls C, and so on up to 25 levels deep. This limit applies across all chained calls, not just direct parent-child relationships." },
+  { question: "Does the Workflow block use the deployed or draft version of the child workflow?", answer: "The child workflow inherits the execution context of the parent. If the parent is running in a deployed context (API, schedule, webhook), the child also uses its deployed version. If the parent is running in draft mode (manual run from the editor), the child also uses its draft state. This lets you test nested workflows end-to-end before deploying." },
+  { question: "How do I pass data to a child workflow?", answer: "Use the Inputs field on the Workflow block. If the child workflow has an Input Form trigger, each field appears in the block configuration and you can map parent variables to them. The mapped values are available as start.input in the child workflow." },
+  { question: "What outputs does the Workflow block return?", answer: "The block returns a success boolean, the child workflow's result (its final response output), the child workflow's name and ID, and an error message if the run failed. You can reference these outputs from downstream blocks using the tag syntax." },
+  { question: "What happens if the child workflow fails?", answer: "The Workflow block raises an error that propagates to the parent workflow. If you need to handle failures gracefully, connect an error path from the Workflow block to a downstream block that processes the error." },
+]} />

@@ -1,0 +1,107 @@
+---
+title: Быстрый старт
+description: Создайте первого агента за 10 минут — исследователя людей с поиском в интернете и структурированным выводом.
+pageType: guide
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+# Быстрый старт
+
+Создайте агента-исследователя за 10 минут. Он принимает имя через чат-интерфейс, ищет информацию в интернете с помощью ИИ-инструментов и возвращает структурированный JSON с местоположением, профессией и образованием человека.
+
+<Image
+  src="/static/getting-started/started-1.png"
+  alt="Готовый воркфлоу исследования людей"
+  width={800}
+  height={500}
+/>
+
+## Руководство
+
+<Steps>
+  <Step title="Создайте воркфлоу и добавьте агента">
+    На боковой панели нажмите **+** рядом с **Workflows** и назовите новый воркфлоу «Getting Started». Блок **Start** уже находится на холсте — это точка входа, которая принимает ввод из чата.
+
+    Перетащите блок **Agent** на холст и настройте его **Messages**:
+    - **System**: «You are a people research agent. When given a person's name, use your search tools to find their location, profession, educational background, and other relevant details.»
+    - **User**: вставьте `<start.input>`, чтобы агент читал то, что получает чат.
+
+    Оставьте **Model** по умолчанию (`claude-sonnet-4-6`) или выберите любую другую.
+
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-2.mp4" width={700} height={450} />
+    </div>
+  </Step>
+
+  <Step title="Добавьте поисковые инструменты">
+    В секции **Tools** блока Agent добавьте **Exa** и **Linkup**. Агент сам решает, когда их вызывать.
+
+    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+      <Video src="getting-started/started-3.mp4" width={700} height={450} />
+    </div>
+  </Step>
+
+  <Step title="Протестируйте">
+    Откройте панель **Chat**, выберите `agent1.content` в качестве отображаемого вывода и отправьте: *«John is a software engineer from San Francisco who studied Computer Science at Stanford University.»*
+
+    Агент выполняет поиск, затем возвращает найденную информацию.
+
+    <Callout type="info">
+    Если запуск не завершился успешно, откройте выпадающий список вывода и посмотрите, что вернул каждый блок — причина ошибки почти всегда видна там. Две самые частые причины: отсутствующий API-ключ у инструмента и ссылка на значение, которого нет. Подробный метод см. в разделе [трассировка ошибок в обратном порядке](/logs-debugging).
+    </Callout>
+
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-4.mp4" width={700} height={450} />
+    </div>
+  </Step>
+
+  <Step title="Добавьте структурированный вывод">
+    В секции **Response Format** блока Agent нажмите на волшебную палочку (✨) и введите промпт: *«create a schema named person, that contains location, profession, and education»*. Схема будет создана автоматически.
+
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-5.mp4" width={700} height={450} />
+    </div>
+  </Step>
+
+  <Step title="Протестируйте структурированный вывод">
+    Вернитесь в панель **Chat**, выберите новый вариант структурированного вывода и отправьте: *«Sarah is a marketing manager from New York who has an MBA from Harvard Business School.»*
+
+    Теперь агент возвращает JSON с полями `location`, `profession` и `education` — готовый для чтения по имени любым последующим блоком.
+
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-6.mp4" width={700} height={450} />
+    </div>
+  </Step>
+</Steps>
+
+## Далее
+
+<Cards>
+  <Card title="Workflows" href="/workflows">
+    Полная модель: блоки, соединения, триггеры и как выполняются запуски.
+  </Card>
+  <Card title="Блок Agent" href="/workflows/blocks/agent">
+    Всё, что может блок, который вы только что использовали — инструменты, память, навыки, структурированный вывод.
+  </Card>
+  <Card title="Интеграции" href="/integrations">
+    Более 1 000 сервисов, с которыми могут работать ваши агенты — от Gmail до HubSpot.
+  </Card>
+  <Card title="Разверните" href="/workflows/deployment">
+    Опубликуйте воркфлоу как API, чат или MCP-сервер.
+  </Card>
+</Cards>
+
+<FAQ items={[
+  { question: "Сколько времени занимает руководство по быстрому старту?", answer: "Около 10 минут. К концу у вас будет полностью работающий воркфлоу." },
+  { question: "Нужны ли мне API-ключи для выполнения этого руководства?", answer: "Нет. На хостинге Sim модель и поисковые инструменты работают на ключах Sim, включённых в кредиты вашего тарифа. Вы можете использовать собственные ключи провайдера, если предпочитаете." },
+  { question: "Нужен ли опыт программирования для выполнения этого руководства?", answer: "Нет. Всё руководство использует визуальный конструктор и панель чата — без кода." },
+  { question: "Могу ли я использовать другую модель?", answer: "Да. Блок Agent поддерживает модели от OpenAI, Anthropic, Google, Groq, Cerebras, DeepSeek, xAI и других, а также локальные модели через Ollama при самостоятельном хостинге." },
+  { question: "Могу ли я импортировать воркфлоу из других инструментов?", answer: "Не напрямую. Но вы можете описать, что вам нужно, на естественном языке в Mothership, и он соберёт воркфлоу за вас — обычно это быстрее, чем воссоздавать вручную." },
+  { question: "Что делать, если воркфлоу не выдаёт ожидаемый результат?", answer: "Тестируйте итеративно в панели Chat и проверяйте вывод каждого блока из выпадающего списка, чтобы определить, где что-то пошло не так. Страница Logs записывает каждый запуск, блок за блоком, с входами, выходами, временем выполнения и стоимостью." },
+]} />

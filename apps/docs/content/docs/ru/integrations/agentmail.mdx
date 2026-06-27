@@ -1,0 +1,598 @@
+---
+title: AgentMail
+description: Управление почтовыми ящиками, цепочками и сообщениями с помощью AgentMail
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="agentmail"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AgentMail](https://agentmail.to/) — это почтовая платформа, ориентированная на API, созданная для агентов и автоматизации. AgentMail позволяет создавать почтовые ящики на лету, отправлять и получать сообщения, отвечать в цепочках, управлять черновиками и организовывать переписку с помощью меток — всё через простой REST API, разработанный для программного доступа.
+
+**Почему AgentMail?**
+- **Нативная почта для агентов:** Специально создана для ИИ-агентов и автоматизации — создание ящиков, отправка сообщений и управление цепочками без пользовательского интерфейса.
+- **Полный жизненный цикл писем:** Отправка новых сообщений, ответы в цепочках, пересылка писем, управление черновиками и планирование отправки — всё через единый API.
+- **Управление цепочками и перепиской:** Организация писем в цепочки с полной поддержкой чтения, ответа, пересылки и меток для структурированного отслеживания переписки.
+- **Рабочий процесс с черновиками:** Создание черновиков, их обновление, планирование отправки и отправка после утверждения — идеально для рабочих процессов с проверкой перед отправкой.
+- **Организация с помощью меток:** Пометка цепочек и сообщений пользовательскими метками для фильтрации, маршрутизации и последующей автоматизации.
+
+**Использование AgentMail в Sim**
+
+Интеграция Sim с AgentMail соединяет ваши агентные рабочие процессы напрямую с AgentMail с помощью API-ключа. С 20 операциями, охватывающими ящики, цепочки, сообщения и черновики, вы можете создавать мощные почтовые автоматизации без написания серверного кода.
+
+**Ключевые преимущества использования AgentMail в Sim:**
+- **Динамическое создание ящиков:** Создавайте новые ящики на лету для каждого агента, рабочего процесса или клиента — идеально для многопользовательской обработки почты.
+- **Автоматизированная обработка писем:** Просматривайте и читайте входящие сообщения, затем запускайте последующие действия на основе содержимого, отправителя или меток.
+- **Диалоговая почта:** Отвечайте в цепочках и пересылайте сообщения, чтобы переписка продолжалась естественным образом в рамках ваших автоматизированных рабочих процессов.
+- **Рабочие процессы с черновиками и проверкой:** Создавайте черновики, обновляйте их с помощью контента, сгенерированного ИИ, и отправляйте после утверждения — идеально для паттернов с участием человека.
+- **Организация почты:** Применяйте метки к цепочкам и сообщениям для категоризации, фильтрации и маршрутизации писем через ваш конвейер автоматизации.
+
+Создаёте ли вы ИИ-почтового ассистента, автоматизируете ответы службы поддержки, обрабатываете входящие лиды или управляете многоагентными почтовыми рабочими процессами — AgentMail в Sim предоставляет вам прямой и безопасный доступ к полному API AgentMail, без промежуточного ПО. Просто настройте ваш API-ключ, выберите нужную операцию, и Sim сделает всё остальное.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Интегрируйте AgentMail в ваш рабочий процесс. Создавайте и управляйте почтовыми ящиками, отправляйте и получайте сообщения, отвечайте в цепочках, управляйте черновиками и организуйте цепочки с помощью меток. Требуется API-ключ.
+
+
+
+## Actions
+
+### `agentmail_create_draft`
+
+Создать новый черновик письма в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, в котором создать черновик |
+| `to` | string | No | Адреса получателей \(через запятую\) |
+| `subject` | string | No | Тема черновика |
+| `text` | string | No | Текст черновика в простом формате |
+| `html` | string | No | Тело черновика в HTML |
+| `cc` | string | No | Адреса CC-получателей \(через запятую\) |
+| `bcc` | string | No | Адреса BCC-получателей \(через запятую\) |
+| `inReplyTo` | string | No | ID сообщения, на которое создаётся ответ |
+| `sendAt` | string | No | Метка времени ISO 8601 для планирования отправки |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Уникальный идентификатор черновика |
+| `inboxId` | string | Ящик, которому принадлежит черновик |
+| `subject` | string | Тема черновика |
+| `to` | array | Адреса получателей |
+| `cc` | array | Адреса CC |
+| `bcc` | array | Адреса BCC |
+| `text` | string | Текстовое содержимое |
+| `html` | string | HTML-содержимое |
+| `preview` | string | Текст предпросмотра черновика |
+| `labels` | array | Метки, назначенные черновику |
+| `inReplyTo` | string | ID сообщения, на которое отвечает черновик |
+| `sendStatus` | string | Статус отправки \(scheduled, sending, failed\) |
+| `sendAt` | string | Запланированное время отправки |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+
+### `agentmail_create_inbox`
+
+Создать новый почтовый ящик с помощью AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `username` | string | No | Имя пользователя для адреса ящика |
+| `domain` | string | No | Домен для адреса ящика |
+| `displayName` | string | No | Отображаемое имя ящика |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Уникальный идентификатор ящика |
+| `email` | string | Адрес эл. почты ящика |
+| `displayName` | string | Отображаемое имя ящика |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+### `agentmail_delete_draft`
+
+Удалить черновик письма в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего черновик |
+| `draftId` | string | Yes | ID черновика для удаления |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Был ли черновик успешно удалён |
+
+### `agentmail_delete_inbox`
+
+Удалить почтовый ящик в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика для удаления |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Был ли ящик успешно удалён |
+
+### `agentmail_delete_thread`
+
+Удалить цепочку писем в AgentMail (перемещает в корзину или удаляет навсегда, если уже в корзине)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего цепочку |
+| `threadId` | string | Yes | ID цепочки для удаления |
+| `permanent` | boolean | No | Принудительное безвозвратное удаление вместо перемещения в корзину |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Была ли цепочка успешно удалена |
+
+### `agentmail_forward_message`
+
+Переслать сообщение новым получателям в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего сообщение |
+| `messageId` | string | Yes | ID сообщения для пересылки |
+| `to` | string | Yes | Адреса получателей \(через запятую\) |
+| `subject` | string | No | Переопределить тему письма |
+| `text` | string | No | Дополнительный текст для добавления в начало |
+| `html` | string | No | Дополнительный HTML для добавления в начало |
+| `cc` | string | No | Адреса CC-получателей \(через запятую\) |
+| `bcc` | string | No | Адреса BCC-получателей \(через запятую\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID пересланного сообщения |
+| `threadId` | string | ID цепочки |
+
+### `agentmail_get_draft`
+
+Получить сведения о конкретном черновике в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, которому принадлежит черновик |
+| `draftId` | string | Yes | ID черновика для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Уникальный идентификатор черновика |
+| `inboxId` | string | Ящик, которому принадлежит черновик |
+| `subject` | string | Тема черновика |
+| `to` | array | Адреса получателей |
+| `cc` | array | Адреса CC |
+| `bcc` | array | Адреса BCC |
+| `text` | string | Текстовое содержимое |
+| `html` | string | HTML-содержимое |
+| `preview` | string | Текст предпросмотра черновика |
+| `labels` | array | Метки, назначенные черновику |
+| `inReplyTo` | string | ID сообщения, на которое отвечает черновик |
+| `sendStatus` | string | Статус отправки \(scheduled, sending, failed\) |
+| `sendAt` | string | Запланированное время отправки |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+### `agentmail_get_inbox`
+
+Получить сведения о конкретном почтовом ящике в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Уникальный идентификатор ящика |
+| `email` | string | Адрес эл. почты ящика |
+| `displayName` | string | Отображаемое имя ящика |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+### `agentmail_get_message`
+
+Получить сведения о конкретном сообщении в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего сообщение |
+| `messageId` | string | Yes | ID сообщения для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Уникальный идентификатор сообщения |
+| `threadId` | string | ID цепочки, к которой принадлежит сообщение |
+| `from` | string | Адрес отправителя |
+| `to` | array | Адреса получателей |
+| `cc` | array | Адреса CC |
+| `bcc` | array | Адреса BCC |
+| `subject` | string | Тема сообщения |
+| `text` | string | Текстовое содержимое |
+| `html` | string | HTML-содержимое |
+| `labels` | array | Метки, назначенные сообщению |
+| `timestamp` | string | Время отправки или создания черновика |
+| `createdAt` | string | Метка времени создания |
+
+### `agentmail_get_thread`
+
+Получить сведения о конкретной цепочке писем, включая сообщения, в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего цепочку |
+| `threadId` | string | Yes | ID цепочки для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Уникальный идентификатор цепочки |
+| `subject` | string | Тема цепочки |
+| `senders` | array | Список адресов отправителей |
+| `recipients` | array | Список адресов получателей |
+| `messageCount` | number | Количество сообщений в цепочке |
+| `labels` | array | Метки, назначенные цепочке |
+| `lastMessageAt` | string | Метка времени последнего сообщения |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+| `messages` | array | Сообщения в цепочке |
+|   ↳ `messageId` | string | Уникальный идентификатор сообщения |
+|   ↳ `from` | string | Адрес отправителя |
+|   ↳ `to` | array | Адреса получателей |
+|   ↳ `cc` | array | Адреса CC |
+|   ↳ `bcc` | array | Адреса BCC |
+|   ↳ `subject` | string | Тема сообщения |
+|   ↳ `text` | string | Текстовое содержимое |
+|   ↳ `html` | string | HTML-содержимое |
+|   ↳ `labels` | array | Метки, назначенные сообщению |
+|   ↳ `timestamp` | string | Время отправки или создания черновика |
+|   ↳ `createdAt` | string | Метка времени создания |
+
+
+### `agentmail_list_drafts`
+
+Показать черновики писем в ящике AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, из которого показать черновики |
+| `limit` | number | No | Максимальное количество возвращаемых черновиков |
+| `pageToken` | string | No | Токен пагинации для следующей страницы результатов |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `drafts` | array | Список черновиков |
+|   ↳ `draftId` | string | Уникальный идентификатор черновика |
+|   ↳ `inboxId` | string | Ящик, которому принадлежит черновик |
+|   ↳ `subject` | string | Тема черновика |
+|   ↳ `to` | array | Адреса получателей |
+|   ↳ `cc` | array | Адреса CC |
+|   ↳ `bcc` | array | Адреса BCC |
+|   ↳ `preview` | string | Текст предпросмотра черновика |
+|   ↳ `sendStatus` | string | Статус отправки \(scheduled, sending, failed\) |
+|   ↳ `sendAt` | string | Запланированное время отправки |
+|   ↳ `createdAt` | string | Метка времени создания |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления |
+| `count` | number | Общее количество черновиков |
+| `nextPageToken` | string | Токен для получения следующей страницы |
+
+### `agentmail_list_inboxes`
+
+Показать все почтовые ящики в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `limit` | number | No | Максимальное количество возвращаемых ящиков |
+| `pageToken` | string | No | Токен пагинации для следующей страницы результатов |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxes` | array | Список ящиков |
+|   ↳ `inboxId` | string | Уникальный идентификатор ящика |
+|   ↳ `email` | string | Адрес эл. почты ящика |
+|   ↳ `displayName` | string | Отображаемое имя ящика |
+|   ↳ `createdAt` | string | Метка времени создания |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления |
+| `count` | number | Общее количество ящиков |
+| `nextPageToken` | string | Токен для получения следующей страницы |
+
+### `agentmail_list_messages`
+
+Показать сообщения в ящике AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, из которого показать сообщения |
+| `limit` | number | No | Максимальное количество возвращаемых сообщений |
+| `pageToken` | string | No | Токен пагинации для следующей страницы результатов |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Список сообщений в ящике |
+|   ↳ `messageId` | string | Уникальный идентификатор сообщения |
+|   ↳ `from` | string | Адрес отправителя |
+|   ↳ `to` | array | Адреса получателей |
+|   ↳ `subject` | string | Тема сообщения |
+|   ↳ `preview` | string | Текст предпросмотра сообщения |
+|   ↳ `timestamp` | string | Время отправки или создания черновика |
+|   ↳ `createdAt` | string | Метка времени создания |
+| `count` | number | Общее количество сообщений |
+| `nextPageToken` | string | Токен для получения следующей страницы |
+
+### `agentmail_list_threads`
+
+Показать цепочки писем в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, из которого показать цепочки |
+| `limit` | number | No | Максимальное количество возвращаемых цепочек |
+| `pageToken` | string | No | Токен пагинации для следующей страницы результатов |
+| `labels` | string | No | Метки для фильтрации цепочек \(через запятую\) |
+| `before` | string | No | Фильтр цепочек до этой метки времени ISO 8601 |
+| `after` | string | No | Фильтр цепочек после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Список цепочек писем |
+|   ↳ `threadId` | string | Уникальный идентификатор цепочки |
+|   ↳ `subject` | string | Тема цепочки |
+|   ↳ `senders` | array | Список адресов отправителей |
+|   ↳ `recipients` | array | Список адресов получателей |
+|   ↳ `messageCount` | number | Количество сообщений в цепочке |
+|   ↳ `lastMessageAt` | string | Метка времени последнего сообщения |
+|   ↳ `createdAt` | string | Метка времени создания |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления |
+| `count` | number | Общее количество цепочек |
+| `nextPageToken` | string | Токен для получения следующей страницы |
+
+### `agentmail_reply_message`
+
+Ответить на существующее сообщение в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, из которого ответить |
+| `messageId` | string | Yes | ID сообщения, на которое нужно ответить |
+| `text` | string | No | Текст ответа в простом формате |
+| `html` | string | No | Тело ответа в HTML |
+| `to` | string | No | Переопределить адреса получателей \(через запятую\) |
+| `cc` | string | No | Адреса CC \(через запятую\) |
+| `bcc` | string | No | Адреса BCC \(через запятую\) |
+| `replyAll` | boolean | No | Ответить всем получателям исходного сообщения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID отправленного ответного сообщения |
+| `threadId` | string | ID цепочки |
+
+### `agentmail_send_draft`
+
+Отправить существующий черновик письма в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего черновик |
+| `draftId` | string | Yes | ID черновика для отправки |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID отправленного сообщения |
+| `threadId` | string | ID цепочки |
+
+### `agentmail_send_message`
+
+Отправить сообщение из ящика AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, из которого отправить |
+| `to` | string | Yes | Адрес получателя \(через запятую для нескольких\) |
+| `subject` | string | Yes | Тема письма |
+| `text` | string | No | Текст письма в простом формате |
+| `html` | string | No | Тело письма в HTML |
+| `cc` | string | No | Адреса CC-получателей \(через запятую\) |
+| `bcc` | string | No | Адреса BCC-получателей \(через запятую\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | ID созданной цепочки |
+| `messageId` | string | ID отправленного сообщения |
+| `subject` | string | Тема письма |
+| `to` | string | Адрес получателя |
+
+### `agentmail_update_draft`
+
+Обновить существующий черновик письма в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего черновик |
+| `draftId` | string | Yes | ID черновика для обновления |
+| `to` | string | No | Адреса получателей \(через запятую\) |
+| `subject` | string | No | Тема черновика |
+| `text` | string | No | Текст черновика в простом формате |
+| `html` | string | No | Тело черновика в HTML |
+| `cc` | string | No | Адреса CC-получателей \(через запятую\) |
+| `bcc` | string | No | Адреса BCC-получателей \(через запятую\) |
+| `sendAt` | string | No | Метка времени ISO 8601 для планирования отправки |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Уникальный идентификатор черновика |
+| `inboxId` | string | Ящик, которому принадлежит черновик |
+| `subject` | string | Тема черновика |
+| `to` | array | Адреса получателей |
+| `cc` | array | Адреса CC |
+| `bcc` | array | Адреса BCC |
+| `text` | string | Текстовое содержимое |
+| `html` | string | HTML-содержимое |
+| `preview` | string | Текст предпросмотра черновика |
+| `labels` | array | Метки, назначенные черновику |
+| `inReplyTo` | string | ID сообщения, на которое отвечает черновик |
+| `sendStatus` | string | Статус отправки \(scheduled, sending, failed\) |
+| `sendAt` | string | Запланированное время отправки |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+### `agentmail_update_inbox`
+
+Обновить отображаемое имя почтового ящика в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика для обновления |
+| `displayName` | string | Yes | Новое отображаемое имя ящика |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Уникальный идентификатор ящика |
+| `email` | string | Адрес эл. почты ящика |
+| `displayName` | string | Отображаемое имя ящика |
+| `createdAt` | string | Метка времени создания |
+| `updatedAt` | string | Метка времени последнего обновления |
+
+### `agentmail_update_message`
+
+Добавить или удалить метки на сообщении в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего сообщение |
+| `messageId` | string | Yes | ID сообщения для обновления |
+| `addLabels` | string | No | Метки для добавления к сообщению \(через запятую\) |
+| `removeLabels` | string | No | Метки для удаления с сообщения \(через запятую\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Уникальный идентификатор сообщения |
+| `labels` | array | Текущие метки на сообщении |
+
+### `agentmail_update_thread`
+
+Добавить или удалить метки на цепочке писем в AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentMail |
+| `inboxId` | string | Yes | ID ящика, содержащего цепочку |
+| `threadId` | string | Yes | ID цепочки для обновления |
+| `addLabels` | string | No | Метки для добавления к цепочке \(через запятую\) |
+| `removeLabels` | string | No | Метки для удаления с цепочки \(через запятую\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Уникальный идентификатор цепочки |
+| `labels` | array | Текущие метки на цепочке |
+

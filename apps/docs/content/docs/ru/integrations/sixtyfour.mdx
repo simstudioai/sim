@@ -1,0 +1,129 @@
+---
+title: Sixtyfour AI
+description: Обогащение лидов и компаний с помощью исследований на базе AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sixtyfour"
+  color="#000000"
+/>
+
+## Инструкции по использованию
+
+Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.
+
+
+
+## Действия
+
+### `sixtyfour_find_phone`
+
+Find phone numbers for a lead using Sixtyfour AI.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Sixtyfour Ключ API |
+| `name` | string | Да | Full name of the person |
+| `company` | string | Нет | Company name |
+| `linkedinUrl` | string | Нет | LinkedIn profile URL |
+| `domain` | string | Нет | Company website domain |
+| `email` | string | Нет | Email address |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the person |
+| `company` | string | Company name |
+| `phone` | string | Phone number\(s\) found |
+| `linkedinUrl` | string | LinkedIn profile URL |
+
+### `sixtyfour_find_email`
+
+Find email addresses for a lead using Sixtyfour AI.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Sixtyfour Ключ API |
+| `name` | string | Да | Full name of the person |
+| `company` | string | Нет | Company name |
+| `linkedinUrl` | string | Нет | LinkedIn profile URL |
+| `domain` | string | Нет | Company website domain |
+| `phone` | string | Нет | Phone number |
+| `title` | string | Нет | Job title |
+| `mode` | string | Нет | Email discovery mode: PROFESSIONAL \(default\) or PERSONAL |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the person |
+| `company` | string | Company name |
+| `title` | string | Job title |
+| `phone` | string | Phone number |
+| `linkedinUrl` | string | LinkedIn profile URL |
+| `emails` | json | Professional email addresses found |
+|   ↳ `address` | string | Email address |
+|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
+|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+| `personalEmails` | json | Personal email addresses found \(only in PERSONAL mode\) |
+|   ↳ `address` | string | Email address |
+|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
+|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+
+### `sixtyfour_enrich_lead`
+
+Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Sixtyfour Ключ API |
+| `leadInfo` | string | Да | Lead information as JSON object with key-value pairs (например, name, company, title, linkedin\) |
+| `struct` | string | Да | Fields to collect as JSON object. Keys are field names, values are descriptions (например, \{"email": "The individual\'s email address", "phone": "Phone number"\}\) |
+| `researchPlan` | string | Нет | Optional research plan to guide enrichment strategy |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | string | Research notes about the lead |
+| `structuredData` | json | Enriched lead data matching the requested struct fields |
+| `references` | json | Source URLs and descriptions used for enrichment |
+| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
+
+### `sixtyfour_enrich_company`
+
+Enrich company data with additional information and find associated people using Sixtyfour AI.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Sixtyfour Ключ API |
+| `targetCompany` | string | Да | Company data as JSON object (например, \{"name": "Acme Inc", "domain": "acme.com"\}\) |
+| `struct` | string | Да | Fields to collect as JSON object. Keys are field names, values are descriptions (например, \{"website": "Company website URL", "num_employees": "Employee count"\}\) |
+| `findPeople` | boolean | Нет | Whether to find people associated with the company |
+| `fullOrgChart` | boolean | Нет | Whether to retrieve the full organizational chart |
+| `researchPlan` | string | Нет | Optional strategy describing how the agent should search for information |
+| `peopleFocusPrompt` | string | Нет | Description of people to find \(roles, responsibilities\) |
+| `leadStruct` | string | Нет | Custom schema for returned lead data as JSON object |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | string | Research notes about the company |
+| `structuredData` | json | Enriched company data matching the requested struct fields |
+| `references` | json | Source URLs and descriptions used for enrichment |
+| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
+| `orgChart` | json | Org chart returned when fullOrgChart is enabled |
+
+

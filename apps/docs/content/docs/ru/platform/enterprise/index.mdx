@@ -1,0 +1,93 @@
+---
+title: Enterprise
+description: Enterprise-функции для бизнес-организаций
+---
+
+import { FAQ } from '@/components/ui/faq'
+
+Sim Enterprise добавляет детальный контроль доступа, SSO, аудит-логи и функции соответствия требованиям поверх командных тарифных планов.
+
+---
+
+## Access Control
+
+Define permission groups on a workspace to control what features and integrations its members can use. Permission groups are scoped to a single workspace — a user can belong to different groups (or no group) in different workspaces.
+
+External workspace members can be assigned to permission groups just like internal organization members, but they remain outside the organization roster and do not consume seats.
+
+### Features
+
+- **Allowed Model Providers** - Restrict which AI providers users can access (OpenAI, Anthropic, Google, etc.)
+- **Allowed Blocks** - Control which workflow blocks are available
+- **Platform Settings** - Hide Knowledge Base, disable MCP tools, disable custom tools, or disable invitations
+
+### Setup
+
+1. Navigate to **Settings** → **Access Control** in the workspace you want to manage
+2. Create a permission group with your desired restrictions
+3. Add workspace members to the permission group
+
+Any workspace admin on an Enterprise-entitled workspace can manage permission groups. Users not assigned to any group have full access. Restrictions are enforced at both UI and execution time, based on the workflow's workspace.
+
+See the [Access Control guide](/platform/enterprise/access-control) for full details.
+
+---
+
+## Single Sign-On (SSO)
+
+Enterprise authentication with SAML 2.0 and OIDC support. Works with Okta, Azure AD (Entra ID), Google Workspace, ADFS, and any standard OIDC or SAML 2.0 provider.
+
+See the [SSO setup guide](/platform/enterprise/sso) for step-by-step instructions and provider-specific configuration.
+
+---
+
+## Whitelabeling
+
+Replace Sim's default branding — logos, product name, and favicons — with your own. See the [whitelabeling guide](/platform/enterprise/whitelabeling).
+
+---
+
+## Audit Logs
+
+Track configuration and security-relevant actions across your organization for compliance and monitoring. See the [audit logs guide](/platform/enterprise/audit-logs).
+
+---
+
+## Data Retention
+
+Configure how long execution logs, soft-deleted resources, and Mothership data are kept before permanent deletion. See the [data retention guide](/platform/enterprise/data-retention).
+
+---
+
+## Data Drains
+
+Continuously export workflow logs, audit logs, and Mothership data to a customer-owned S3 bucket or HTTPS webhook on a schedule. See the [data drains guide](/platform/enterprise/data-drains).
+
+---
+
+<FAQ items={[
+  { question: "Who can manage Enterprise features?", answer: "Workspace admins on an Enterprise-entitled workspace. Access Control, SSO, whitelabeling, audit logs, and data retention are all configured per workspace under Settings → Enterprise." },
+  { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC, which works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, ADFS, and OneLogin." },
+  { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace. Users not assigned to any group have full access. Restrictions are enforced at both the UI level and at execution time based on the workflow's workspace." },
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments enable enterprise features via environment variables instead of billing.
+
+| Variable | Description |
+|----------|-------------|
+| `ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` | Team and organization management |
+| `ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` | Permission groups |
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | SAML and OIDC sign-in |
+| `WHITELABELING_ENABLED`, `NEXT_PUBLIC_WHITELABELING_ENABLED` | Custom branding |
+| `AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` | Audit logging |
+| `NEXT_PUBLIC_DATA_RETENTION_ENABLED` | Data retention configuration |
+| `DATA_DRAINS_ENABLED`, `NEXT_PUBLIC_DATA_DRAINS_ENABLED` | Data drains |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling groups for email triggers |
+| `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox |
+| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable invitations; manage membership via Admin API |
+
+Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled, use the Admin API (`x-admin-key` header) to manage organization membership and workspace access. Internal members join the organization; external workspace members only receive access to a specific workspace.

@@ -1,0 +1,336 @@
+---
+title: Azure AD
+description: Управление пользователями и группами в Azure AD (Microsoft Entra ID)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_ad"
+  color="#0078D4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Azure Active Directory](https://entra.microsoft.com) (now Microsoft Entra ID) is Microsoft's cloud-based identity and access management service. It helps organizations manage users, groups, and access to applications and resources across cloud and on-premises environments.
+
+With the Azure AD integration in Sim, you can:
+
+- **Manage users**: List, create, update, and delete user accounts in your directory
+- **Manage groups**: Create and configure security groups and Microsoft 365 groups
+- **Control group membership**: Add and remove members from groups programmatically
+- **Query directory data**: Search and filter users and groups using OData expressions
+- **Automate onboarding/offboarding**: Create new user accounts with initial passwords and enable/disable accounts as part of HR workflows
+
+In Sim, the Azure AD integration enables your agents to programmatically manage your organization's identity infrastructure. This allows for automation scenarios such as provisioning new employees, updating user profiles in bulk, managing team group memberships, and auditing directory data. By connecting Sim with Azure AD, you can streamline identity lifecycle management and ensure your directory stays in sync with your organization's needs.
+
+## Need Help?
+
+If you encounter issues with the Azure AD integration, contact us at [help@sim.ai](mailto:help@sim.ai)
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интеграция Azure Active Directory в ваши рабочие процессы. Просмотр, создание, обновление и удаление пользователей и групп. Manage group memberships programmatically.
+
+
+
+## Действия
+
+### `microsoft_ad_list_users`
+
+List users in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | Нет | Maximum number of users to return \(default 100, max 999\) |
+| `filter` | string | Нет | OData filter expression \(e.g., "department eq \'Sales\'"\) |
+| `search` | string | Нет | Search string to filter users by displayName or mail |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+| `userCount` | number | Number of users returned |
+
+### `microsoft_ad_get_user`
+
+Get a user by ID or user principal name from Azure AD
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Да | User ID or user principal name \(e.g., "user@example.com"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `user` | object | User details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+
+### `microsoft_ad_create_user`
+
+Create a new user in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Да | Display name for the user |
+| `mailNickname` | string | Да | Mail alias for the user |
+| `userPrincipalName` | string | Да | User principal name \(e.g., "user@example.com"\) |
+| `password` | string | Да | Initial password for the user |
+| `accountEnabled` | boolean | Да | Whether the account is enabled |
+| `givenName` | string | Нет | First name |
+| `surname` | string | Нет | Last name |
+| `jobTitle` | string | Нет | Job title |
+| `department` | string | Нет | Department |
+| `officeLocation` | string | Нет | Office location |
+| `mobilePhone` | string | Нет | Mobile phone number |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `user` | object | Created user details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+
+### `microsoft_ad_update_user`
+
+Update user properties in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Да | User ID or user principal name |
+| `displayName` | string | Нет | Display name |
+| `givenName` | string | Нет | First name |
+| `surname` | string | Нет | Last name |
+| `jobTitle` | string | Нет | Job title |
+| `department` | string | Нет | Department |
+| `officeLocation` | string | Нет | Office location |
+| `mobilePhone` | string | Нет | Mobile phone number |
+| `accountEnabled` | boolean | Нет | Whether the account is enabled |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `userId` | string | ID of the updated user |
+
+### `microsoft_ad_delete_user`
+
+Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Да | User ID or user principal name |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `userId` | string | ID of the deleted user |
+
+### `microsoft_ad_list_groups`
+
+List groups in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | Нет | Maximum number of groups to return \(default 100, max 999\) |
+| `filter` | string | Нет | OData filter expression \(e.g., "securityEnabled eq true"\) |
+| `search` | string | Нет | Search string to filter groups by displayName or description |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `groups` | array | List of groups |
+| `groupCount` | number | Number of groups returned |
+
+### `microsoft_ad_get_group`
+
+Get a group by ID from Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `group` | object | Group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### `microsoft_ad_create_group`
+
+Create a new group in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Да | Display name for the group |
+| `mailNickname` | string | Да | Mail alias for the group \(ASCII only, max 64 characters\) |
+| `description` | string | Нет | Group description |
+| `mailEnabled` | boolean | Да | Whether mail is enabled \(true for Microsoft 365 groups\) |
+| `securityEnabled` | boolean | Да | Whether security is enabled \(true for security groups\) |
+| `groupTypes` | string | Нет | Group type: "Unified" for Microsoft 365 group, leave empty for security group |
+| `visibility` | string | Нет | Group visibility: "Private" or "Public" |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `group` | object | Created group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### `microsoft_ad_update_group`
+
+Update group properties in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+| `displayName` | string | Нет | Display name |
+| `description` | string | Нет | Group description |
+| `mailNickname` | string | Нет | Mail alias |
+| `visibility` | string | Нет | Group visibility: "Private" or "Public" |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `groupId` | string | ID of the updated group |
+
+### `microsoft_ad_delete_group`
+
+Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `groupId` | string | ID of the deleted group |
+
+### `microsoft_ad_list_group_members`
+
+List members of a group in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+| `top` | number | Нет | Maximum number of members to return \(default 100, max 999\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `members` | array | List of group members |
+| `memberCount` | number | Number of members returned |
+
+### `microsoft_ad_add_group_member`
+
+Add a member to a group in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+| `memberId` | string | Да | User ID of the member to add |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `added` | boolean | Whether the member was added successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was added |
+
+### `microsoft_ad_remove_group_member`
+
+Remove a member from a group in Azure AD (Microsoft Entra ID)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Да | Group ID |
+| `memberId` | string | Да | User ID of the member to remove |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Whether the member was removed successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was removed |
+
+

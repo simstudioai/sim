@@ -1,0 +1,204 @@
+---
+title: Connectors
+description: Automatically sync documents from external sources into your knowledge base
+pageType: guide
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Connectors continuously sync documents from external services into your knowledge base, so you never have to upload files manually. New content is added, changed content is re-processed, and deleted content is removed — all automatically.
+
+## Available Connectors
+
+<Image src="/static/connectors/connectors-sources.png" alt="Connect Source picker showing a searchable list of available connectors including Airtable, Asana, Confluence, Discord, Dropbox, Evernote, Fireflies, GitHub, and Gmail" width={800} height={500} />
+
+Sim ships with 49 built-in connectors:
+
+| Category | Connectors |
+|----------|-----------|
+| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Jira Service Management, Monday, Google Calendar, Google Sheets, Google Forms, Typeform |
+| **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint, Amazon S3 |
+| **Documents** | Google Docs, WordPress, Webflow, DocuSign |
+| **Development** | GitHub, GitLab, Azure DevOps, Sentry |
+| **Communication** | Slack, Discord, Microsoft Teams, Reddit, YouTube |
+| **Email** | Gmail, Outlook |
+| **CRM** | HubSpot, Salesforce |
+| **Support** | Intercom, ServiceNow, Zendesk |
+| **Incident Management** | incident.io, Rootly |
+| **Data** | Airtable |
+| **Note-taking** | Evernote, Obsidian |
+| **Meetings** | Zoom, Gong, Grain, Granola, Fathom, Fireflies |
+| **Recruiting** | Greenhouse, Ashby |
+
+## Adding a Connector
+
+From inside a knowledge base, click **+ New connector** in the top right to open the connector picker. Select a service, then complete the setup steps:
+
+<Steps>
+<Step>
+
+### Authenticate
+
+Most connectors use **OAuth** — select an existing credential from the dropdown or click **Connect new account** to authorize through the service. Tokens are refreshed automatically.
+
+Other connectors use **API keys** or **personal access tokens** instead. The setup modal tells you which credential each connector expects — for example:
+
+| Connector | Where to get the key |
+|-----------|---------------------|
+| **Evernote** | Developer Token (starts with `S=`) from your Evernote account settings |
+| **Obsidian** | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin, then copy the key from its settings |
+| **Fireflies** | Generate from the Integrations page in your Fireflies account |
+| **Typeform** | Personal access token from your Typeform account settings |
+| **Azure DevOps** | Personal access token with Wiki (Read), Work Items (Read), and Code (Read) scopes |
+| **YouTube** | YouTube Data API key from the Google Cloud Console |
+| **Amazon S3** | Secret Access Key (the Access Key ID, region, and bucket are entered as config fields) |
+| **Sentry** | Auth token with `project:read` and `event:read` scopes |
+
+<Callout type="info">
+  If you rotate an API key in the external service, update it in Sim as well — OAuth tokens refresh automatically, but API keys do not.
+</Callout>
+
+</Step>
+<Step>
+
+### Configure
+
+Each connector has source-specific fields that control what gets synced. Examples:
+
+- **Notion** — sync an entire workspace, a specific database, or a single page tree
+- **GitHub** — specify a repository, branch, and optional file extension filter
+- **Confluence** — enter your Atlassian domain and optionally filter by space key or content type
+- **Azure DevOps** — choose what to sync (wiki pages, work items, repository files, or all), with optional work item type/state filters, a custom WIQL query, and repository/branch/path filters
+- **Amazon S3** — point at a bucket with an optional key prefix and a customizable file extension allowlist; S3-compatible stores (Cloudflare R2, MinIO) are supported via a custom endpoint
+- **YouTube** — sync a channel (by `@handle` or ID) or playlist, with an optional published-after date filter and the option to exclude Shorts
+- **Sentry** — filter issues by search query (e.g. `is:unresolved`), environment, and time window; self-hosted Sentry is supported via a custom host
+- **Obsidian** — provide your vault URL (`https://127.0.0.1:27124` by default) and optionally restrict to a folder path
+- **Fireflies** — optionally filter by host email or cap the number of transcripts synced
+
+Configuration is validated on save — if a repository doesn't exist or a domain is unreachable, you'll see an error immediately.
+
+</Step>
+<Step>
+
+### Choose sync frequency
+
+| Frequency | Notes |
+|-----------|-------|
+| Every hour | Best for fast-moving sources |
+| Every 6 hours | Good balance for most sources |
+| **Daily** (default) | Suitable for content that changes infrequently |
+| Weekly | For stable, rarely-updated sources |
+| Manual only | Sync only when you trigger it manually |
+
+Sub-hourly frequencies require a Max or Enterprise plan.
+
+</Step>
+<Step>
+
+### Configure metadata tags (optional)
+
+If the connector supports metadata tags, you'll see checkboxes for each available tag type (e.g., Labels, Last Modified, Notebook). All are enabled by default — uncheck any you don't need.
+
+Tag slots are shared across all documents in a knowledge base. See [Tags](/knowledgebase/tags) for details.
+
+</Step>
+<Step>
+
+### Connect & Sync
+
+Click **Connect & Sync** to save the connector and trigger the first sync. Documents will start appearing as they're processed.
+
+</Step>
+</Steps>
+
+## Managing Connectors
+
+Open **Connected Sources** from the knowledge base to see all active connectors. Each card shows the connector's status, the last sync time and document count, and the next scheduled sync:
+
+<Image src="/static/connectors/connectors-sync-history.png" alt="Connected Sources panel showing a Google Docs connector with Active status, last sync details, and a sync history log with dated entries" width={800} height={450} />
+
+The action buttons on each connector card:
+
+| Button | Action |
+|--------|--------|
+| **↻** (Refresh) | Trigger a manual sync immediately. Disabled while syncing or disabled; a 5-minute cooldown applies after each manual trigger |
+| **⚙** (Settings) | Open the edit modal to change source config or sync frequency |
+| **⏸ / ▶** (Pause / Resume) | Pause scheduled syncs without removing the connector. Resume works from both paused and disabled states |
+| **🗑** (Delete) | Remove the connector. A confirmation modal appears with an option to also delete all synced documents |
+| **∨** (Chevron) | Expand to show sync history |
+
+### Editing a Connector
+
+Click the settings icon to open the edit modal. It has two tabs:
+
+**Settings** — change any source-specific config fields (e.g., switch the GitHub branch) and update the sync frequency.
+
+**Documents** — browse all documents this connector has synced and manage exclusions (see [Excluding Documents](#excluding-documents) below).
+
+### Sync History
+
+Expand any connector card by clicking the chevron to see a log of recent syncs:
+
+- Each row shows the date/time and a summary of what changed: **+N** (added, green), **~N** (updated, amber), **-N** (deleted, red), **!N** (failed, red), or **No changes**
+- A spinner indicates a sync currently in progress
+- Error rows show a red icon and the failure message
+
+The log retains the most recent 10 sync runs.
+
+## Excluding Documents
+
+Sometimes a connector syncs documents you don't want in your knowledge base — drafts, templates, confidential pages, and so on. You can exclude them individually.
+
+<Image src="/static/connectors/connectors-excluded.png" alt="Edit Google Docs modal showing the Documents tab with Active (37) and Excluded (0) filter buttons and a 'No excluded documents' message" width={800} height={450} />
+
+To exclude a document, open the connector's settings modal, go to the **Documents** tab, and click **Exclude** next to any document. Excluded documents are skipped on every subsequent sync even if the source content changes.
+
+To reverse an exclusion, switch to the **Excluded** tab and click **Restore** — the document will be pulled in on the next sync.
+
+## How Syncing Works
+
+On each run the connector fetches documents from the source and compares them against what's already stored. Only changed documents are reprocessed — new content is added, updated content is re-chunked and re-embedded, deleted content is removed. A connector syncing thousands of documents will only do real work when something actually changes.
+
+### Connector Status
+
+| Status | Meaning |
+|--------|---------|
+| **Active** | Running normally on schedule |
+| **Syncing** | A sync is currently in progress |
+| **Paused** | Scheduled syncs are suspended; manual sync is still available |
+| **Error** | The last sync failed; will retry on the next scheduled run with backoff |
+| **Disabled** | Syncing has been paused automatically after 10 consecutive failures |
+
+A disabled connector requires intervention — either reconnect the OAuth account or use the Resume button to re-enable syncing.
+
+### Handling Failures
+
+If a single document fails (e.g., a permission issue or timeout), the sync continues and retries that document next time. If an entire sync fails, the connector backs off and retries with increasing delays. After 10 consecutive full-sync failures the connector is automatically set to **Disabled** to avoid spinning indefinitely.
+
+## Metadata Tags
+
+Connectors can auto-populate [tags](/knowledgebase/tags) with metadata from the source — for example, a Notion connector can tag documents with their Labels and Last Modified date; a GitHub connector can tag documents with Repository and File Path. These tags are then available for filtered search in the Knowledge block.
+
+You can disable specific tag types during setup or at any time from the connector settings to free up tag slots for manual tagging or other connectors.
+
+<Callout type="info">
+  Tag slots are shared across all documents in a knowledge base. If multiple connectors each populate tags, they draw from the same pool of 17 slots.
+</Callout>
+
+## Multiple Connectors
+
+<Image src="/static/connectors/connectors-list.png" alt="Knowledge base document list showing synced Google Docs documents with Name, Size, Tokens, Chunks, Uploaded date, Status, and Tags columns" width={800} height={300} />
+
+You can add as many connectors as you need to a single knowledge base. Each manages its own documents independently, and all content is searchable together through the Knowledge block. Keep tag slot usage in mind when combining connectors that each populate metadata tags.
+
+<FAQ items={[
+  { question: "How often do connectors sync?", answer: "You choose from hourly, every 6 hours, daily (default), weekly, or manual-only. Sub-hourly frequencies require a Max or Enterprise plan. Each connector has its own schedule." },
+  { question: "What happens if a source document is deleted?", answer: "On the next sync the connector detects the document is gone and removes it from your knowledge base automatically." },
+  { question: "What happens when I delete a connector?", answer: "The connector is removed and future syncs stop. You're given the option to also delete all documents that were synced by that connector. If you don't check that option, they stay in the knowledge base as-is." },
+  { question: "What does the Disabled status mean?", answer: "After 10 consecutive full-sync failures, the connector is automatically disabled to stop retrying. Reconnect the OAuth account or click Resume to re-enable it." },
+  { question: "Do metadata tags count against a limit?", answer: "Yes. Tag slots are shared across all documents in a knowledge base — 17 slots total. Multiple connectors draw from the same pool, so plan accordingly if several connectors each auto-populate tags." },
+  { question: "Do I need to re-authenticate connectors?", answer: "OAuth connectors refresh tokens automatically. API key and personal access token connectors need manual updates if you rotate the credential in the external service." },
+]} />

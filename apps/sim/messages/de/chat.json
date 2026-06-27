@@ -1,0 +1,14 @@
+{
+  "newChat": "Neuer Chat",
+  "sendMessage": "Nachricht senden",
+  "typeMessage": "Nachricht eingeben...",
+  "thinking": "Denkt nach...",
+  "generating": "Wird generiert...",
+  "attachFile": "Datei anhängen",
+  "clearChat": "Chat leeren",
+  "regenerate": "Neu generieren",
+  "stopGenerating": "Generierung stoppen",
+  "copiedToClipboard": "In die Zwischenablage kopiert",
+  "noMessages": "Keine Nachrichten",
+  "startConversation": "Unterhaltung beginnen"
+}

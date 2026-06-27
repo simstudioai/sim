@@ -1,0 +1,18 @@
+{
+  "workflowCreated": "Workflow created",
+  "workflowDeleted": "Workflow deleted",
+  "workflowUpdated": "Workflow updated",
+  "workflowDuplicated": "Workflow duplicated",
+  "executionStarted": "Execution started",
+  "executionCompleted": "Execution completed",
+  "executionFailed": "Execution failed",
+  "invitationSent": "Invitation sent",
+  "memberAdded": "Member added",
+  "memberRemoved": "Member removed",
+  "settingsSaved": "Settings saved",
+  "fileUploaded": "File uploaded",
+  "fileDeleted": "File deleted",
+  "integrationConnected": "Integration connected",
+  "integrationDisconnected": "Integration disconnected",
+  "knowledgeSynced": "Knowledge base synced"
+}

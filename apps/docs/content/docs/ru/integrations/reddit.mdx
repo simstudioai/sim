@@ -1,0 +1,988 @@
+---
+title: Reddit
+description: Доступ к данным и контенту Reddit
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="reddit"
+  color="#FF5700"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Reddit](https://www.reddit.com/) is a social platform where users share and discuss content in topic-based communities called subreddits.
+
+In Sim, you can use the Reddit integration to:
+
+- **Получение Posts**: Получение posts from any subreddit, with options to sort (Hot, New, Top, Rising) and filter Top posts by time (Day, Week, Month, Year, All Time).
+- **Получение Comments**: Fetch comments from a specific post, with options to sort and set the number of comments.
+
+These operations let your agents access and analyze Reddit content as part of your automated workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.
+
+
+
+## Действия
+
+### `reddit_get_posts`
+
+Fetch posts from a subreddit with different sorting options
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to fetch posts from (например, "technology", "news"\) |
+| `sort` | string | Нет | Sort method for posts (например, "hot", "new", "top", "rising", "controversial"\). По умолчанию: "hot" |
+| `limit` | number | Нет | Maximum number of posts to return (например, 25\). По умолчанию: 10, max: 100 |
+| `time` | string | Нет | Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" \(по умолчанию: "all"\) |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+| `g` | string | Нет | Geo filter for posts (например, "GLOBAL", "US", "AR", etc.\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name of the subreddit where posts were fetched from |
+| `posts` | array | Array of posts with title, author, URL, score, comments count, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_comments`
+
+Fetch comments from a specific Reddit post
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `postId` | string | Да | The ID of the Reddit post to fetch comments from (например, "abc123"\) |
+| `subreddit` | string | Да | The subreddit where the post is located (например, "technology", "programming"\) |
+| `sort` | string | Нет | Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" \(по умолчанию: "confidence"\) |
+| `limit` | number | Нет | Maximum number of comments to return (например, 25\). По умолчанию: 50, max: 100 |
+| `depth` | number | Нет | Maximum depth of subtrees in the thread \(controls nested comment levels\) |
+| `context` | number | Нет | Number of parent comments to include |
+| `showedits` | boolean | Нет | Show edit information for comments |
+| `showmore` | boolean | Нет | Include "load more comments" elements in the response |
+| `threaded` | boolean | Нет | Return comments in threaded/nested format |
+| `truncate` | number | Нет | Integer to truncate comment depth |
+| `comment` | string | Нет | ID36 of a comment to focus on \(returns that comment thread\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | Post information including ID, title, author, content, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Post author |
+|   ↳ `selftext` | string | Post text content |
+|   ↳ `score` | number | Post score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Reddit permalink |
+| `comments` | array | Nested comments with author, body, score, timestamps, and replies |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+|   ↳ `replies` | array | Nested reply comments |
+
+### `reddit_get_controversial`
+
+Fetch controversial posts from a subreddit
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to fetch posts from (например, "technology", "news"\) |
+| `time` | string | Нет | Time filter for controversial posts: "hour", "day", "week", "month", "year", or "all" \(по умолчанию: "all"\) |
+| `limit` | number | Нет | Maximum number of posts to return (например, 25\). По умолчанию: 10, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name of the subreddit where posts were fetched from |
+| `posts` | array | Array of controversial posts with title, author, URL, score, comments count, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_search`
+
+Search for posts within a subreddit
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to search in (например, "technology", "programming"\) |
+| `query` | string | Да | Search query text (например, "artificial intelligence", "machine learning tutorial"\) |
+| `sort` | string | Нет | Sort method for search results (например, "relevance", "hot", "top", "new", "comments"\). По умолчанию: "relevance" |
+| `time` | string | Нет | Time filter for search results: "hour", "day", "week", "month", "year", or "all" \(по умолчанию: "all"\) |
+| `limit` | number | Нет | Maximum number of posts to return (например, 25\). По умолчанию: 10, max: 100 |
+| `restrict_sr` | boolean | Нет | Restrict search to the specified subreddit only \(по умолчанию: true\) |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `type` | string | Нет | Type of search results: "link" \(posts\), "sr" \(subreddits\), or "user" \(users\). По умолчанию: "link" |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Name of the subreddit where search was performed |
+| `posts` | array | Array of search result posts with title, author, URL, score, comments count, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_submit_post`
+
+Submit a new post to a subreddit (text or link)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to post to (например, "technology", "programming"\) |
+| `title` | string | Да | Title of the submission (например, "Check out this new AI tool"\). Max 300 characters |
+| `text` | string | Нет | Text content for a self post in markdown format (например, "This is the **body** of my post"\) |
+| `url` | string | Нет | URL for a link post \(cannot be used with text\) |
+| `nsfw` | boolean | Нет | Mark post as NSFW |
+| `spoiler` | boolean | Нет | Mark post as spoiler |
+| `send_replies` | boolean | Нет | Send reply notifications to inbox \(по умолчанию: true\) |
+| `flair_id` | string | Нет | Flair template UUID for the post \(max 36 characters\) |
+| `flair_text` | string | Нет | Flair text to display on the post \(max 64 characters\) |
+| `collection_id` | string | Нет | Collection UUID to add the post to |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  post was submitted successfully |
+| `message` | string | Success or error message |
+| `data` | object | Post data including ID, name, URL, and permalink |
+|   ↳ `id` | string | New post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `url` | string | Post URL from API response |
+|   ↳ `permalink` | string | Full Reddit permalink |
+
+### `reddit_vote`
+
+Upvote, downvote, or unvote a Reddit post or comment
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to vote on (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `dir` | number | Да | Vote direction: 1 \(upvote\), 0 \(unvote\), or -1 \(downvote\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  vote was successful |
+| `message` | string | Success or error message |
+
+### `reddit_save`
+
+Save a Reddit post or comment to your saved items
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to save (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `category` | string | Нет | Category to save under \(Reddit Gold feature\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  save was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unsave`
+
+Remove a Reddit post or comment from your saved items
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to unsave (например, "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  unsave was successful |
+| `message` | string | Success or error message |
+
+### `reddit_reply`
+
+Add a comment reply to a Reddit post or comment
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `parent_id` | string | Да | Thing fullname to reply to (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `text` | string | Да | Comment text in markdown format (например, "Great post! Here is my **reply**"\) |
+| `return_rtjson` | boolean | Нет | Return response in Rich Text JSON format |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  reply was posted successfully |
+| `message` | string | Success or error message |
+| `data` | object | Comment data including ID, name, permalink, and body |
+|   ↳ `id` | string | New comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `permalink` | string | Comment permalink |
+|   ↳ `body` | string | Comment body text |
+
+### `reddit_edit`
+
+Edit the text of your own Reddit post or comment
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | string | Да | Thing fullname to edit (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `text` | string | Да | New text content in markdown format (например, "Updated **content** here"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  edit was successful |
+| `message` | string | Success or error message |
+| `data` | object | Updated content data |
+|   ↳ `id` | string | Edited thing ID |
+|   ↳ `body` | string | Updated comment body \(for comments\) |
+|   ↳ `selftext` | string | Updated post text \(for self posts\) |
+
+### `reddit_delete`
+
+Delete your own Reddit post or comment
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to delete (например, "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  deletion was successful |
+| `message` | string | Success or error message |
+
+### `reddit_subscribe`
+
+Subscribe or unsubscribe from a subreddit
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to subscribe to or unsubscribe from (например, "technology", "programming"\) |
+| `action` | string | Да | Action to perform: "sub" to subscribe or "unsub" to unsubscribe |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  subscription action was successful |
+| `message` | string | Success or error message |
+
+### `reddit_get_me`
+
+Получение information about the authenticated Reddit user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `name` | string | Username |
+| `created_utc` | number | Account creation time in UTC epoch seconds |
+| `link_karma` | number | Total link karma |
+| `comment_karma` | number | Total comment karma |
+| `total_karma` | number | Combined total karma |
+| `is_gold` | boolean | Whether user has Reddit Premium |
+| `is_mod` | boolean | Whether user is a moderator |
+| `has_verified_email` | boolean | Whether email is verified |
+| `icon_img` | string | User avatar/icon URL |
+
+### `reddit_get_user`
+
+Получение public profile information about any Reddit user by username
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Да | Reddit username to look up (например, "spez", "example_user"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `name` | string | Username |
+| `created_utc` | number | Account creation time in UTC epoch seconds |
+| `link_karma` | number | Total link karma |
+| `comment_karma` | number | Total comment karma |
+| `total_karma` | number | Combined total karma |
+| `is_gold` | boolean | Whether user has Reddit Premium |
+| `is_mod` | boolean | Whether user is a moderator |
+| `has_verified_email` | boolean | Whether email is verified |
+| `icon_img` | string | User avatar/icon URL |
+
+### `reddit_send_message`
+
+Send a private message to a Reddit user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Да | Recipient username (например, "example_user"\) or subreddit (например, "/r/subreddit"\) |
+| `subject` | string | Да | Message subject \(max 100 characters\) |
+| `text` | string | Да | Message body in markdown format |
+| `from_sr` | string | Нет | Subreddit name to send the message from \(requires moderator mail permission\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  message was sent successfully |
+| `message` | string | Success or error message |
+
+### `reddit_get_messages`
+
+Получение private messages from your Reddit inbox
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `where` | string | Нет | Message folder to retrieve: "inbox" \(all\), "unread", "sent", "messages" \(direct messages only\), "comments" \(comment replies\), "selfreply" \(self-post replies\), or "mentions" \(username mentions\). По умолчанию: "inbox" |
+| `limit` | number | Нет | Maximum number of messages to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `mark` | boolean | Нет | Whether to mark fetched messages as read |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of messages with sender, recipient, subject, body, and metadata |
+|   ↳ `id` | string | Message ID |
+|   ↳ `name` | string | Thing fullname \(t4_xxxxx\) |
+|   ↳ `author` | string | Sender username |
+|   ↳ `dest` | string | Recipient username |
+|   ↳ `subject` | string | Message subject |
+|   ↳ `body` | string | Message body text |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `new` | boolean | Указывает,  message is unread |
+|   ↳ `was_comment` | boolean | Указывает,  message is a comment reply |
+|   ↳ `context` | string | Context URL for comment replies |
+|   ↳ `distinguished` | string | Distinction: null/"moderator"/"admin" |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_subreddit_info`
+
+Получение metadata and information about a subreddit
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to get info about (например, "technology", "programming", "news"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Subreddit ID |
+| `name` | string | Subreddit fullname \(t5_xxxxx\) |
+| `display_name` | string | Subreddit name without prefix |
+| `title` | string | Subreddit title |
+| `description` | string | Full subreddit description \(markdown\) |
+| `public_description` | string | Short public description |
+| `subscribers` | number | Number of subscribers |
+| `accounts_active` | number | Number of currently active users |
+| `created_utc` | number | Creation time in UTC epoch seconds |
+| `over18` | boolean | Указывает,  subreddit is NSFW |
+| `lang` | string | Primary language of the subreddit |
+| `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+| `url` | string | Subreddit URL path (например, /r/technology/\) |
+| `icon_img` | string | Subreddit icon URL |
+| `banner_img` | string | Subreddit banner URL |
+
+### `reddit_get_subreddit_rules`
+
+Получение the rules and site-wide rules that apply to a subreddit
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Да | The subreddit to get rules for (например, "technology", "programming", "news"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rules` | array | Array of subreddit-specific rules |
+|   ↳ `short_name` | string | Short name/title of the rule |
+|   ↳ `description` | string | Full description of the rule \(markdown\) |
+|   ↳ `description_html` | string | HTML-rendered rule description |
+|   ↳ `violation_reason` | string | Reason shown on the report menu when this rule is selected |
+|   ↳ `kind` | string | What the rule applies to: "link", "comment", or "all" |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `priority` | number | Display/order priority of the rule |
+| `site_rules` | array | Reddit site-wide rules that apply to the subreddit |
+| `site_rules_flow` | array | Structured site-wide rules flow used by the report menu |
+
+### `reddit_get_user_posts`
+
+Fetch submitted posts (t3) from a Reddit user profile
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Да | Reddit username whose posts to fetch (например, "spez", "example_user"\) |
+| `sort` | string | Нет | Sort method for posts: "hot", "new", "top", "controversial" \(по умолчанию: "new"\) |
+| `time` | string | Нет | Time filter for "top"/"controversial" sorts: "hour", "day", "week", "month", "year", or "all" \(по умолчанию: "all"\) |
+| `limit` | number | Нет | Maximum number of posts to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Array of submitted posts with title, author, URL, score, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_user_comments`
+
+Fetch comments (t1) made by a Reddit user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Да | Reddit username whose comments to fetch (например, "spez", "example_user"\) |
+| `sort` | string | Нет | Sort method for comments: "hot", "new", "top", "controversial" \(по умолчанию: "new"\) |
+| `time` | string | Нет | Time filter for "top"/"controversial" sorts: "hour", "day", "week", "month", "year", or "all" \(по умолчанию: "all"\) |
+| `limit` | number | Нет | Maximum number of comments to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Array of comments with author, body, score, timestamp, and permalink |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_saved`
+
+Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Да | Your own Reddit username \(saved items can only be read for the authenticated user\) |
+| `limit` | number | Нет | Maximum number of items to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Array of saved posts \(t3\) with title, author, URL, score, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `comments` | array | Array of saved comments \(t1\) with author, body, score, and permalink |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_info`
+
+Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Comma-separated list of thing fullnames to look up (например, "t3_abc123,t1_xyz789,t5_2qh33"\). Prefixes: t1_ = comment, t3_ = post, t5_ = subreddit |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Posts \(t3\) matched by the requested fullnames |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `comments` | array | Comments \(t1\) matched by the requested fullnames |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `subreddits` | array | Subreddits \(t5\) matched by the requested fullnames |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Указывает,  subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path (например, /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+
+### `reddit_search_subreddits`
+
+Search for subreddits by name and description
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Да | Search query to match against subreddit names and descriptions |
+| `sort` | string | Нет | Sort order for results: "relevance" or "activity". По умолчанию: "relevance" |
+| `limit` | number | Нет | Maximum number of subreddits to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `show_users` | boolean | Нет | Whether to include matching user profiles in the results |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddits` | array | Array of matching subreddits with name, description, and subscriber metadata |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Указывает,  subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path (например, /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_list_my_subreddits`
+
+Получение списка the subreddits the authenticated user is subscribed to
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | Нет | Maximum number of subreddits to return (например, 25\). По умолчанию: 25, max: 100 |
+| `after` | string | Нет | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | Нет | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | Нет | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | Нет | Show items that would normally be filtered (например, "all"\) |
+| `sr_detail` | boolean | Нет | Expand subreddit details in the response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddits` | array | Array of subscribed subreddits with name, description, and subscriber metadata |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Указывает,  subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path (например, /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_report`
+
+Report a Reddit post or comment to subreddit moderators for a rules violation
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | string | Да | Thing fullname to report (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `reason` | string | Нет | Reason for reporting \(max 100 characters\) |
+| `other_reason` | string | Нет | Free-form custom reason for reporting \(max 100 characters\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  report was successful |
+| `message` | string | Success or error message |
+
+### `reddit_hide`
+
+Hide one or more Reddit posts from your listings
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Comma-separated list of post fullnames to hide (например, "t3_abc123,t3_def456"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  hide was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unhide`
+
+Unhide one or more previously hidden Reddit posts
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Comma-separated list of post fullnames to unhide (например, "t3_abc123,t3_def456"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  unhide was successful |
+| `message` | string | Success or error message |
+
+### `reddit_marknsfw`
+
+Mark a Reddit post as NSFW (not safe for work)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Post fullname to mark as NSFW (например, "t3_abc123"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  operation was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unmarknsfw`
+
+Remove the NSFW (not safe for work) mark from a Reddit post
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Post fullname to unmark as NSFW (например, "t3_abc123"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  operation was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mark_read`
+
+Mark one or more private messages as read
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Comma-separated list of message fullnames to mark read (например, "t4_abc123,t4_def456"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  operation was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mark_all_read`
+
+Mark all private messages in the inbox as read
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  operation was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_approve`
+
+Approve a reported or removed Reddit post or comment as a moderator
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to approve (например, "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  approval was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_remove`
+
+Remove a Reddit post or comment as a moderator, optionally marking it as spam
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to remove (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `spam` | boolean | Нет | Mark the item as spam to train the subreddit spam filter \(по умолчанию: false\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  removal was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_distinguish`
+
+Distinguish or un-distinguish a Reddit post or comment as a moderator
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to distinguish (например, "t3_abc123" for post, "t1_def456" for comment\) |
+| `how` | string | Да | Distinguish type: "yes" \(moderator\), "no" \(remove distinction\), "admin", or "special" |
+| `sticky` | boolean | Нет | Sticky the comment to the top of the comment page \(comments only\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  distinguish action was successful |
+| `message` | string | Success or error message |
+
+### `reddit_lock`
+
+Lock a Reddit post or comment to prevent further replies (moderator action)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to lock (например, "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  lock was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unlock`
+
+Unlock a Reddit post or comment to allow replies again (moderator action)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Thing fullname to unlock (например, "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  unlock was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_sticky`
+
+Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Да | Post fullname to sticky/unsticky (например, "t3_abc123"\) |
+| `state` | boolean | Да | true to sticky the post, false to unsticky it |
+| `num` | number | Нет | Sticky slot to use, 1-4 \(1 is the top slot\). Only applies when stickying |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Указывает,  sticky action was successful |
+| `message` | string | Success or error message |
+
+

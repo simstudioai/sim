@@ -1,0 +1,84 @@
+---
+title: Google PageSpeed
+description: Анализ производительности веб-страниц с помощью Google PageSpeed Insights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_pagespeed"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google PageSpeed Insights](https://pagespeed.web.dev/) — это инструмент анализа производительности веб-страниц на базе Lighthouse, который оценивает качество веб-страниц по нескольким измерениям, включая производительность, доступность, SEO и лучшие практики.
+
+С интеграцией Google PageSpeed в Sim вы можете:
+
+- **Анализировать производительность веб-страниц**: получать подробные оценки производительности и метрики для любого публичного URL, включая First Contentful Paint, Largest Contentful Paint и Speed Index
+- **Оценивать доступность**: проверять, насколько веб-страница соответствует стандартам доступности, и выявлять области для улучшения
+- **Аудировать SEO**: оценивать поисковую оптимизацию страницы и находить возможности для улучшения рейтинга
+- **Проверять лучшие практики**: убедиться, что веб-страница следует современным лучшим практикам веб-разработки
+- **Сравнивать стратегии**: запускать анализ с использованием стратегий desktop или mobile для понимания производительности на разных типах устройств
+- **Локализовывать результаты**: получать результаты анализа на разных языках для интернационализированной отчётности
+
+В Sim интеграция Google PageSpeed позволяет вашим агентам программно аудировать веб-страницы в рамках автоматизированных рабочих процессов. Это полезно для мониторинга производительности сайта с течением времени, запуска оповещений при падении оценок ниже пороговых значений, создания отчётов о производительности и обеспечения соответствия внесённых изменений стандартам качества перед релизом.
+
+### Получение API-ключа
+
+1. Перейдите в [Google Cloud Console](https://console.cloud.google.com/)
+2. Создайте или выберите проект
+3. Включите **PageSpeed Insights API** из библиотеки API
+4. Перейдите в раздел **Credentials** и создайте API-ключ
+5. Используйте API-ключ в конфигурации блока Sim
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Анализ веб-страниц на предмет производительности, доступности, SEO и лучших практик с помощью Google PageSpeed Insights API на базе Lighthouse.
+
+
+
+## Действия
+
+### `google_pagespeed_analyze`
+
+Анализ веб-страницы на предмет производительности, доступности, SEO и лучших практик с помощью Google PageSpeed Insights.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Ключ API Google PageSpeed Insights |
+| `url` | string | Да | URL веб-страницы для анализа |
+| `category` | string | Нет | Категории Lighthouse для анализа \(через запятую\): performance, accessibility, best-practices, seo |
+| `strategy` | string | Нет | Стратегия анализа: desktop или mobile |
+| `locale` | string | Нет | Язык результатов \(например, en, fr, de\) |
+| `pricing` | per_request | Нет | Нет описания |
+| `rateLimit` | string | Нет | Нет описания |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `finalUrl` | string | Итоговый URL после перенаправлений |
+| `performanceScore` | number | Оценка категории производительности \(0-1\) |
+| `accessibilityScore` | number | Оценка категории доступности \(0-1\) |
+| `bestPracticesScore` | number | Оценка категории лучших практик \(0-1\) |
+| `seoScore` | number | Оценка категории SEO \(0-1\) |
+| `firstContentfulPaint` | string | Время до First Contentful Paint \(отображаемое значение\) |
+| `firstContentfulPaintMs` | number | Время до First Contentful Paint в миллисекундах |
+| `largestContentfulPaint` | string | Время до Largest Contentful Paint \(отображаемое значение\) |
+| `largestContentfulPaintMs` | number | Время до Largest Contentful Paint в миллисекундах |
+| `totalBlockingTime` | string | Total Blocking Time \(отображаемое значение\) |
+| `totalBlockingTimeMs` | number | Total Blocking Time в миллисекундах |
+| `cumulativeLayoutShift` | string | Cumulative Layout Shift \(отображаемое значение\) |
+| `cumulativeLayoutShiftValue` | number | Числовое значение Cumulative Layout Shift |
+| `speedIndex` | string | Speed Index \(отображаемое значение\) |
+| `speedIndexMs` | number | Speed Index в миллисекундах |
+| `interactive` | string | Time to Interactive \(отображаемое значение\) |
+| `interactiveMs` | number | Time to Interactive в миллисекундах |
+| `overallCategory` | string | Общая категория опыта загрузки \(FAST, AVERAGE, SLOW или NONE\) |
+| `analysisTimestamp` | string | UTC-метка времени анализа |
+| `lighthouseVersion` | string | Версия Lighthouse, использованная для анализа |

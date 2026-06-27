@@ -1,0 +1,18 @@
+{
+  "undo": "Rückgängig",
+  "redo": "Wiederherstellen",
+  "zoomIn": "Vergrößern",
+  "zoomOut": "Verkleinern",
+  "fitToScreen": "An Bildschirm anpassen",
+  "miniMap": "Übersichtskarte",
+  "snapToGrid": "Am Raster ausrichten",
+  "autoConnect": "Automatisch verbinden",
+  "addNote": "Notiz hinzufügen",
+  "group": "Gruppieren",
+  "ungroup": "Gruppierung aufheben",
+  "alignLeft": "Linksbündig ausrichten",
+  "alignCenter": "Zentriert ausrichten",
+  "alignRight": "Rechtsbündig ausrichten",
+  "distributeHorizontal": "Horizontal verteilen",
+  "distributeVertical": "Vertikal verteilen"
+}

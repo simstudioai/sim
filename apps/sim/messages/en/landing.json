@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "product": "Product",
+    "docs": "Docs",
+    "pricing": "Pricing",
+    "blog": "Blog",
+    "contact": "Contact",
+    "signIn": "Sign In",
+    "startBuilding": "Start Building",
+    "integrations": "Integrations",
+    "templates": "Templates"
+  },
+  "hero": {
+    "title": "The AI Workspace Where Teams Build, Deploy, and Manage Agents",
+    "subtitle": "Build conversationally, visually, or with code. Connect 1,000+ integrations and every major LLM to automate real work.",
+    "cta": "Start Building Free",
+    "watchDemo": "Watch Demo",
+    "trustedBy": "Trusted by teams at"
+  },
+  "features": {
+    "title": "Everything You Need to Build AI Agents",
+    "subtitle": "One workspace. Every capability. No switching tools.",
+    "chat": {
+      "title": "Build in Chat",
+      "description": "Describe what you want in plain language. Sim knows your entire workspace and takes action."
+    },
+    "workflows": {
+      "title": "Visual Workflows",
+      "description": "Design agents block by block on a visual canvas with full control over every step."
+    },
+    "knowledge": {
+      "title": "Knowledge Bases",
+      "description": "Ground agents in your documents. Upload PDFs, websites, and more for RAG."
+    },
+    "tables": {
+      "title": "Structured Tables",
+      "description": "A database built in. Store, query, and wire structured data into agent runs."
+    },
+    "files": {
+      "title": "Generate Files",
+      "description": "Create documents, reports, and presentations from a single prompt."
+    },
+    "deploy": {
+      "title": "Deploy Anywhere",
+      "description": "Ship as API, chat widget, MCP server, or scheduled automation."
+    }
+  },
+  "pricing": {
+    "title": "Simple, Transparent Pricing",
+    "subtitle": "Start free, scale as you grow. No hidden fees.",
+    "free": {
+      "name": "Free",
+      "price": "$0",
+      "period": "/month",
+      "description": "For individuals exploring AI automation",
+      "cta": "Start Free"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "$20",
+      "period": "/month",
+      "description": "For professionals building production agents",
+      "cta": "Start Pro"
+    },
+    "team": {
+      "name": "Team",
+      "price": "$50",
+      "period": "/seat/month",
+      "description": "For teams collaborating on AI workflows",
+      "cta": "Start Team"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "Custom",
+      "period": "",
+      "description": "For organizations with advanced security needs",
+      "cta": "Contact Sales"
+    }
+  },
+  "testimonials": {
+    "title": "Loved by Builders",
+    "subtitle": "See what teams are building with Sim"
+  },
+  "templates": {
+    "title": "Start with a Template",
+    "subtitle": "Pre-built workflows for common use cases. Deploy in minutes."
+  },
+  "collaboration": {
+    "title": "Built for Teams",
+    "subtitle": "Collaborate on workflows, share knowledge, and deploy together."
+  },
+  "footer": {
+    "copyright": "© 2026 Sim Technologies, Inc.",
+    "product": "Product",
+    "resources": "Resources",
+    "company": "Company",
+    "legal": "Legal",
+    "status": "Status",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
+  },
+  "faq": {
+    "title": "Frequently Asked Questions"
+  },
+  "contact": {
+    "title": "Get in Touch",
+    "subtitle": "Have questions? We're here to help."
+  }
+}

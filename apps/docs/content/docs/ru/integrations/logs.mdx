@@ -1,0 +1,75 @@
+---
+title: Logs
+description: Запрос запусков рабочих процессов и получение деталей запусков
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="logs_v2"
+  color="#EAB308"
+/>
+
+## Инструкции по использованию
+
+Query workflow run logs in the current workspace with the same filters as the Logs page, returning matching run IDs. Fetch full details for a single run, including its trace spans.
+
+
+
+## Действия
+
+### `logs_query_runs`
+
+Query workflow run logs in the current workspace with the full Logs-page filter set. Returns matching run IDs.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `workflowIds` | string | Нет | Comma-separated workflow IDs to filter by |
+| `folderIds` | string | Нет | Comma-separated folder IDs to filter by \(descendants included\) |
+| `level` | string | Нет | Comma-separated statuses: 'info', 'error', 'running', 'pending', 'cancelled'. Omit for all. |
+| `triggers` | string | Нет | Comma-separated trigger types \(api, webhook, schedule, manual, chat, mcp, a2a, workflow, sim, …\) |
+| `startDate` | string | Нет | ISO 8601 timestamp; only runs at or after this time |
+| `endDate` | string | Нет | ISO 8601 timestamp; only runs at or before this time |
+| `search` | string | Нет | Free-text search across log fields |
+| `costOperator` | string | Нет | Cost comparison operator: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
+| `costValue` | number | Нет | Cost threshold in credits, compared using costOperator |
+| `durationOperator` | string | Нет | Duration comparison operator: '=', '&gt;', '&lt;', '&gt;=', '&lt;=', '!=' |
+| `durationValue` | number | Нет | Duration threshold in milliseconds, compared using durationOperator |
+| `limit` | number | Нет | Max run IDs to return \(default 100, max 200\) |
+| `sortBy` | string | Нет | Sort field: 'date' \(default\), 'duration', 'cost', 'status' |
+| `sortOrder` | string | Нет | Sort order: 'desc' \(default\) or 'asc' |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `runIds` | array | IDs of the runs matching the filters |
+
+### `logs_get_run_details`
+
+Fetch details for a single workflow run by its run ID, including the full trace spans.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `runId` | string | Да | The run ID to fetch details for |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `runId` | string | The run ID |
+| `workflowId` | string | Workflow ID this run belongs to |
+| `workflowName` | string | Workflow name |
+| `status` | string | Run status |
+| `trigger` | string | How the run was triggered |
+| `startedAt` | string | Run start time \(ISO 8601\) |
+| `durationMs` | number | Run duration in milliseconds |
+| `cost` | number | Run cost in credits |
+| `traceSpans` | array | Full trace spans for the run |
+| `finalOutput` | json | Final output of the run |
+
+

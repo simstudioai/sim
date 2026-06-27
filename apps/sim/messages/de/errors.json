@@ -1,0 +1,11 @@
+{
+  "unknown": "Ein unbekannter Fehler ist aufgetreten",
+  "network": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung",
+  "unauthorized": "Autorisierung erforderlich",
+  "forbidden": "Zugriff verweigert",
+  "notFound": "Nicht gefunden",
+  "rateLimit": "Zu viele Anfragen. Versuchen Sie es später erneut",
+  "timeout": "Zeitüberschreitung der Anfrage",
+  "validation": "Bitte überprüfen Sie Ihre Eingabe",
+  "serverError": "Serverfehler. Versuchen Sie es später erneut"
+}

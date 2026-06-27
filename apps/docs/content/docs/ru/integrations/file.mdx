@@ -1,0 +1,175 @@
+---
+title: File
+description: Read, get content, fetch, write, append, compress, decompress, and manage sharing for files
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file_v5"
+  color="#F5F5F5"
+/>
+
+## Usage Instructions
+
+Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+
+
+
+## Actions
+
+### `file_read`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Workspace file objects |
+
+### `file_get_content`
+
+Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contents` | array | Array of file text contents, one entry per file in input order |
+
+### `file_fetch`
+
+Fetch and parse a file from a URL with optional custom headers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `headers` | object | No | HTTP headers to include when fetching URL-based files. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Fetched files as UserFile objects |
+| `combinedContent` | string | Combined content of all fetched files |
+
+### `file_write`
+
+Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | File name \(e.g., "data.csv"\). If a file with this name exists, a numeric suffix is added automatically. |
+| `content` | string | Yes | The text content to write to the file. |
+| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from file extension if omitted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `url` | string | URL to access the file |
+
+### `file_append`
+
+Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | Name of an existing workspace file to append to. |
+| `content` | string | Yes | The text content to append to the file. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `url` | string | URL to access the file |
+
+### `file_compress`
+
+Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Compressed archive file ID |
+| `name` | string | Compressed archive file name |
+| `size` | number | Compressed archive size in bytes |
+| `url` | string | URL to access the compressed archive |
+| `files` | file[] | Compressed archive file object, as a single-item array |
+
+### `file_decompress`
+
+Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID of the .zip archive to extract. |
+| `fileInput` | file | No | Selected .zip archive file object. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Extracted workspace file objects |
+
+### `file_manage_sharing`
+
+Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical ID of the workspace file to update sharing for. |
+| `fileInput` | file | No | Selected workspace file object \(from the file picker\). |
+| `isActive` | boolean | Yes | Whether the public link is enabled. Set to false to make the file private. |
+| `authType` | string | No | Access mode for the link: "public", "password", "email", or "sso". Defaults to "public". |
+| `password` | string | No | Password to protect the link. Required when authType is "password". |
+| `allowedEmails` | array | No | Allowed emails or "@domain" patterns. Required when authType is "email" or "sso". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Public share URL for the file |
+| `isActive` | boolean | Whether the public link is enabled |
+| `authType` | string | Access mode: public, password, email, or sso |
+| `hasPassword` | boolean | Whether the share is password-protected |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access |
+
+

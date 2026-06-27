@@ -1,0 +1,175 @@
+---
+title: Function
+description: Блок Function выполняет ваш JavaScript или Python код как шаг и возвращает то, что он производит.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { BlockPreview, WorkflowPreview, FUNCTION_RESHAPE_WORKFLOW, FUNCTION_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+**Блок Function** выполняет ваш собственный код на JavaScript или Python как один шаг воркфлоу. Используйте его для преобразования значения, выполнения расчёта или добавления логики, которую не покрывают другие блоки.
+
+<BlockPreview type="function" />
+
+## Конфигурация
+
+### Code
+
+Ваш код на JavaScript (по умолчанию) или Python — выберите язык в блоке. Ссылайтесь на предыдущий output напрямую, без кавычек вокруг тега, а переменные окружения читайте через `{{VAR}}`:
+
+<Tabs items={['JavaScript', 'Python']}>
+  <Tab value="JavaScript">
+  ```javascript
+  const data = <api.data>;
+  return data.items.filter((i) => i.active).map((i) => i.id);
+  ```
+  </Tab>
+  <Tab value="Python">
+  ```python
+  import json
+  data = json.loads('<api.data>')
+  print(json.dumps([i["id"] for i in data["items"] if i["active"]]))
+  ```
+  </Tab>
+</Tabs>
+
+Возвращайте значение в JavaScript через `return`. В Python выводите его как JSON в stdout через `print(json.dumps(...))`; блок захватывает stdout как результат. Ваш код выполняется в асинхронном контексте, поэтому вы можете использовать `await` напрямую в JavaScript.
+
+## Output'ы
+
+| Output | Что это |
+| --- | --- |
+| `<function.result>` | Значение, которое возвращает ваш код (объект, массив, строка, число, …) |
+| `<function.stdout>` | Всё, что выведено через `console.log()` или `print()` |
+
+## Язык
+
+JavaScript выполняется в быстрой локальной песочнице или в песочнице [E2B](https://e2b.dev), когда ваш код использует `import` или `require`. Python всегда выполняется в песочнице E2B.
+
+| | JavaScript | Python |
+| --- | --- | --- |
+| **Выполнение** | Локальная песочница (быстро) или E2B с импортами | Всегда песочница E2B |
+| **Возврат значения** | `return { … }` | `print(json.dumps({ … }))` |
+| **HTTP-запросы** | `fetch()` встроенный | `requests` или `httpx` |
+| **Лучше всего для** | быстрых преобразований, JSON | науки о данных, графиков, сложной математики |
+
+<Callout type="info">
+Python требует E2B. Он включён по умолчанию на sim.ai; на собственной инсталляции включите E2B, чтобы увидеть Python в выпадающем списке языков. Все созданные вами изображения автоматически захватываются.
+</Callout>
+
+{/* Package list provenance (verified 2026-06-10): E2B code-interpreter template
+    requirements (github.com/e2b-dev/code-interpreter, template/requirements.txt)
+    plus Sim's template additions — pip awscli/yq/csvkit — from
+    simstudioai/copilot scripts/e2b/template.ts. Update if either source changes. */}
+
+Помимо стандартной библиотеки Python, песочница включает стек науки о данных E2B и несколько дополнений Sim:
+
+- **Данные:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `joblib`
+- **ML и NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
+- **Графики и изображения:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `pillow`, `opencv-python`, `scikit-image`, `imageio`
+- **Аудио:** `librosa`, `soundfile`
+- **Веб и файлы:** `requests`, `aiohttp`, `beautifulsoup4`, `openpyxl`, `xlrd`, `python-docx`, `orjson`
+- **Математика и тестирование:** `sympy`, `pytest`
+- **Дополнения Sim:** `awscli`, `yq`, `csvkit`
+
+## Примеры
+
+### Преобразование ответа API
+
+<WorkflowPreview workflow={FUNCTION_RESHAPE_WORKFLOW} />
+
+Function читает `<api.data>`, возвращает только то поле, которое нужно остальной части воркфлоу, и предоставляет его как `<extract.result>`.
+
+### Проверка ввода перед записью
+
+<WorkflowPreview workflow={FUNCTION_VALIDATE_WORKFLOW} />
+
+Function очищает ввод формы и возвращает чистое значение, которое блок API отправляет как тело запроса.
+
+### Развёрнутый пример: оценка лояльности
+
+<Tabs items={['JavaScript', 'Python']}>
+  <Tab value="JavaScript">
+```javascript title="loyalty-calculator.js"
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+const totalSpent = purchaseHistory.reduce((sum, p) => sum + p.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+const spendScore = Math.min((totalSpent / 1000) * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? 'Platinum' : loyaltyScore >= 60 ? 'Gold' : 'Silver',
+};
+```
+  </Tab>
+  <Tab value="Python">
+```python title="loyalty-calculator.py"
+import json
+
+data = json.loads('<agent>')
+purchase_history = data["purchaseHistory"]
+account_age = data["accountAge"]
+support_tickets = data["supportTickets"]
+
+total_spent = sum(p["amount"] for p in purchase_history)
+purchase_frequency = len(purchase_history) / (account_age / 365)
+ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
+
+spend_score = min(total_spent / 1000 * 30, 30)
+frequency_score = min(purchase_frequency * 20, 40)
+support_score = ticket_ratio * 30
+loyalty_score = round(spend_score + frequency_score + support_score)
+
+tier = "Platinum" if loyalty_score >= 80 else "Gold" if loyalty_score >= 60 else "Silver"
+print(json.dumps({ "customer": data["name"], "loyaltyScore": loyalty_score, "loyaltyTier": tier }))
+```
+  </Tab>
+</Tabs>
+
+## Большие входные данные
+
+Sim передаёт блоку Function его код, параметры и разрешённые ссылки в одном запросе, поэтому очень большие значения хранятся по ссылке, а не встраиваются.
+
+Предпочитайте узкую ссылку вместо целого большого значения: используйте `<api.data.id>` вместо `<api.data>`. Если JavaScript-функция без импортов всё же ссылается на целое большое значение, Sim автоматически переписывает его на ленивое чтение на стороне сервера.
+
+Файлы — сначала метаданные: чтение `<file.name>` или `<file.url>` не загружает содержимое файла. Читайте содержимое по требованию с помощью хелперов `sim.files` (только JavaScript без импортов):
+
+```javascript
+const file = <readfile.file>;
+const text = await sim.files.readText(file);
+const chunk = await sim.files.readTextChunk(file, { offset: 0, length: 1024 * 1024 });
+const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 1024 });
+```
+
+`sim.files.readText`, `readBase64` и варианты `…Chunk` читают потоком из хранилища выполнения с ограничениями по памяти. `sim.values.read(ref)` и `sim.values.readArray(ref)` читают ссылки на большие значения и массивы. Параметры `offset` и `length` у Chunk задаются в байтах, поэтому для точного разбора Unicode предпочитайте более мелкие структурированные ссылки. Для больших генерируемых данных записывайте результат в файл или таблицу через `outputPath`, `outputSandboxPath` или `outputTable` вместо возврата всего содержимого напрямую.
+
+<Callout type="warn">
+Ленивые хелперы `sim.files` и `sim.values` доступны только в JavaScript-функциях без импортов. JavaScript с импортами, Python и shell пока их не поддерживают.
+</Callout>
+
+## Рекомендации
+
+{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+
+- **Держите каждую функцию сфокусированной.** Одно преобразование на блок легче читать, тестировать и отлаживать.
+- **Обрабатывайте ошибки.** Оборачивайте рискованный код в `try`/`catch` и возвращайте понятное сообщение или позволяйте исключению уйти на путь ошибки.
+- **Ссылайтесь только на то, что нужно.** Используйте узкое поле вместо целого большого объекта, чтобы не включать значения в тело запроса.
+- **Используйте stdout для отладки.** `console.log()` и `print()` попадают в `<function.stdout>` и логи запуска.
+
+<FAQ items={[
+  { question: "Какие языки поддерживает блок Function?", answer: "JavaScript и Python. JavaScript используется по умолчанию. Python требует функцию E2B, поскольку Python всегда выполняется в безопасной песочнице E2B." },
+  { question: "Когда код выполняется локально, а когда в песочнице?", answer: "JavaScript без внешних импортов выполняется в локальной изолированной песочнице для скорости. JavaScript с import или require выполняется в E2B. Python всегда выполняется в песочнице E2B, с импортами или без." },
+  { question: "Как ссылаться на output'ы других блоков внутри моего кода?", answer: "Используйте синтаксис угловых скобок напрямую, например <agent.content> или <api.data>, без кавычек вокруг тега — Sim заменяет его на реальное значение перед выполнением. Для переменных окружения используйте двойные фигурные скобки: {{API_KEY}}." },
+  { question: "Что возвращает блок Function?", answer: "Два output'а: result (возвращаемое значение вашего кода, читается как <function.result>) и stdout (всё, что выведено через console.log или print, читается как <function.stdout>). Добавьте return в JavaScript или выведите JSON в Python для передачи данных дальше." },
+  { question: "Можно ли делать HTTP-запросы из блока Function?", answer: "Да. fetch() доступен в JavaScript с async/await; библиотеки вроде axios недоступны, только встроенный fetch. В Python используйте requests или httpx в песочнице E2B." },
+  { question: "Есть ли тайм-аут для выполнения блока Function?", answer: "Да, настраиваемый тайм-аут выполнения. Если ваш код превысит его, выполнение прерывается, и блок сообщает об ошибке. Учитывайте это для внешних вызовов или тяжёлой обработки." },
+]} />

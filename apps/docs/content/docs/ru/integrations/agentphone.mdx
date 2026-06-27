@@ -1,0 +1,631 @@
+---
+title: AgentPhone
+description: Выделение номеров, отправка SMS и iMessage, а также голосовые вызовы с помощью AgentPhone
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="agentphone"
+  color="linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AgentPhone](https://agentphone.to/) — это голосовая и messaging-платформа, ориентированная на API, созданная для ИИ-агентов. AgentPhone позволяет выделять реальные телефонные номера, совершать исходящие ИИ-голосовые вызовы, отправлять SMS и iMessage, управлять перепиской и контактами, а также отслеживать использование — всё через простой REST API, разработанный для программного доступа.
+
+**Почему AgentPhone?**
+- **Нативная телефония для агентов:** Специально создана для ИИ-агентов — выделение номеров, совершение вызовов и отправка сообщений без контрактов с операторами и телефонной инфраструктуры.
+- **Голос + сообщения в одном API:** Исходящие ИИ-голосовые вызовы вместе с SMS, MMS и iMessage с одного аккаунта и одних телефонных номеров.
+- **Управление перепиской и транскриптами:** Каждый вызов возвращает упорядоченный транскрипт; каждая цепочка сообщений отслеживается как переписка с полной историей и метаданными.
+- **Встроенные контакты:** Создание, поиск, обновление и удаление контактов в аккаунте, чтобы ваши агенты могли ссылаться на людей по имени, а не по номерам телефонов.
+- **Видимость использования:** Проверка лимитов плана, текущих показателей и дневной/месячной агрегации, чтобы рабочие процессы оставались в рамках ограничений.
+
+**Использование AgentPhone в Sim**
+
+Интеграция Sim с AgentPhone соединяет ваши агентные рабочие процессы напрямую с AgentPhone с помощью API-ключа. С 22 операциями, охватывающими номера, вызовы, переписку, контакты и использование, вы можете создавать мощные голосовые и messaging-автоматизации без написания серверного кода.
+
+**Ключевые преимущества использования AgentPhone в Sim:**
+- **Динамическое выделение номеров:** Резервируйте номера США или Канады на лету — для каждого агента, клиента или рабочего процесса — и освобождайте их, когда они больше не нужны.
+- **Исходящие ИИ-голосовые вызовы:** Совершайте вызовы от агента с опциональным приветствием, переопределением голоса или системным промптом и получайте полный транскрипт в виде структурированных данных после завершения вызова.
+- **Двусторонний обмен сообщениями:** Отправляйте SMS, MMS или iMessage, получайте историю переписки и реагируйте на входящие iMessage — всё внутри вашего рабочего процесса.
+- **Управление контактами и метаданными:** Ведите список контактов на уровне аккаунта и прикрепляйте пользовательские JSON-метаданные к перепискам, чтобы последующие блоки могли ветвиться в зависимости от состояния.
+- **Операционная аналитика:** Получайте текущую статистику использования и дневные/месячные разбивки для мониторинга потребления и соблюдения лимитов плана перед следующим вызовом.
+
+Создаёте ли вы исходящего ИИ-голосового агента, выполняете автоматизированные SMS-рассылки, управляете двусторонней перепиской с клиентами или отслеживаете использование телефонии в вашей организации — AgentPhone в Sim предоставляет вам прямой и безопасный доступ к полному API AgentPhone, без промежуточного ПО. Просто настройте ваш API-ключ, выберите нужную операцию, и Sim сделает всё остальное.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Дайте вашему рабочему процессу телефон. Выделяйте номера с поддержкой SMS и голоса, отправляйте сообщения и реакции tapback, совершайте исходящие голосовые вызовы, управляйте перепиской и контактами, а также отслеживайте использование — всё через единый API-ключ AgentPhone.
+
+
+
+## Actions
+
+### `agentphone_create_call`
+
+Инициировать исходящий голосовой вызов от агента AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `agentId` | string | Yes | Агент, который будет обрабатывать вызов |
+| `toNumber` | string | Yes | Номер телефона для вызова в формате E.164 \(например, +14155551234\) |
+| `fromNumberId` | string | No | ID номера телефона для использования в качестве Caller ID. Должен принадлежать агенту. Если не указан, используется первый назначенный номер агента. |
+| `initialGreeting` | string | No | Опциональное приветствие, произносимое при ответе получателя |
+| `voice` | string | No | ID голоса для переопределения в этом вызове \(по умолчанию используется настроенный голос агента\) |
+| `systemPrompt` | string | No | При указании используется встроенная LLM для разговора вместо пересылки на ваш webhook |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Уникальный идентификатор вызова |
+| `agentId` | string | Агент, обрабатывающий вызов |
+| `status` | string | Начальный статус вызова |
+| `toNumber` | string | Номер телефона назначения |
+| `fromNumber` | string | Caller ID, использованный для вызова |
+| `phoneNumberId` | string | ID номера телефона, использованного в качестве Caller ID |
+| `direction` | string | Направление вызова \(outbound\) |
+| `startedAt` | string | Метка времени ISO 8601 |
+
+### `agentphone_create_contact`
+
+Создать новый контакт в AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `phoneNumber` | string | Yes | Номер телефона в формате E.164 \(например, +14155551234\) |
+| `name` | string | Yes | Полное имя контакта |
+| `email` | string | No | Адрес эл. почты контакта |
+| `notes` | string | No | Произвольные заметки, хранящиеся в контакте |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID контакта |
+| `phoneNumber` | string | Номер телефона в формате E.164 |
+| `name` | string | Имя контакта |
+| `email` | string | Адрес эл. почты контакта |
+| `notes` | string | Произвольные заметки |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `updatedAt` | string | Метка времени обновления ISO 8601 |
+
+### `agentphone_create_number`
+
+Выделить новый номер телефона с поддержкой SMS и голоса
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `country` | string | No | Двухбуквенный код страны \(например, US, CA\). По умолчанию US. |
+| `areaCode` | string | No | Предпочитаемый код города \(только US/CA, например, "415"\). Выполняется по возможности — может быть проигнорирован при недоступности. |
+| `agentId` | string | No | Опционально прикрепить номер к агенту сразу |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Уникальный ID номера телефона |
+| `phoneNumber` | string | Выделенный номер телефона в формате E.164 |
+| `country` | string | Двухбуквенный код страны |
+| `status` | string | Статус номера \(например, active\) |
+| `type` | string | Тип номера \(например, sms\) |
+| `agentId` | string | Агент, к которому прикреплён номер |
+| `createdAt` | string | Метка времени ISO 8601 создания номера |
+
+### `agentphone_delete_contact`
+
+Удалить контакт по ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `contactId` | string | Yes | ID контакта |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID удалённого контакта |
+| `deleted` | boolean | Был ли контакт успешно удалён |
+
+### `agentphone_get_call`
+
+Получить вызов и его полный транскрипт
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `callId` | string | Yes | ID вызова для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID вызова |
+| `agentId` | string | Агент, обработавший вызов |
+| `phoneNumberId` | string | ID номера телефона |
+| `phoneNumber` | string | Номер телефона, использованный для вызова |
+| `fromNumber` | string | Номер телефона звонящего |
+| `toNumber` | string | Номер телефона получателя |
+| `direction` | string | inbound или outbound |
+| `status` | string | Статус вызова |
+| `startedAt` | string | Метка времени ISO 8601 |
+| `endedAt` | string | Метка времени ISO 8601 |
+| `durationSeconds` | number | Длительность вызова в секундах |
+| `lastTranscriptSnippet` | string | Последний фрагмент транскрипта |
+| `recordingUrl` | string | URL аудиозаписи |
+| `recordingAvailable` | boolean | Доступна ли запись |
+| `transcripts` | array | Упорядоченные реплики транскрипта вызова |
+|   ↳ `id` | string | ID реплики транскрипта |
+|   ↳ `transcript` | string | Высказывание пользователя |
+|   ↳ `confidence` | number | Уверенность распознавания речи |
+|   ↳ `response` | string | Ответ агента \(когда доступен\) |
+|   ↳ `createdAt` | string | Метка времени ISO 8601 |
+
+### `agentphone_get_call_transcript`
+
+Получить полный упорядоченный транскрипт вызова
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `callId` | string | Yes | ID вызова, для которого нужно получить транскрипт |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `callId` | string | ID вызова |
+| `transcript` | array | Упорядоченные реплики транскрипта вызова |
+|   ↳ `role` | string | Роль говорящего \(user или agent\) |
+|   ↳ `content` | string | Содержимое реплики |
+|   ↳ `createdAt` | string | Метка времени ISO 8601 |
+
+### `agentphone_get_contact`
+
+Получить один контакт по ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `contactId` | string | Yes | ID контакта |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID контакта |
+| `phoneNumber` | string | Номер телефона в формате E.164 |
+| `name` | string | Имя контакта |
+| `email` | string | Адрес эл. почты контакта |
+| `notes` | string | Произвольные заметки |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `updatedAt` | string | Метка времени обновления ISO 8601 |
+
+### `agentphone_get_conversation`
+
+Получить переписку вместе с её последними сообщениями
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `conversationId` | string | Yes | ID переписки |
+| `messageLimit` | number | No | Количество последних сообщений для включения \(по умолчанию 50, макс. 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID переписки |
+| `agentId` | string | ID агента |
+| `phoneNumberId` | string | ID номера телефона |
+| `phoneNumber` | string | Номер телефона |
+| `participant` | string | Номер телефона внешнего участника |
+| `lastMessageAt` | string | Метка времени ISO 8601 |
+| `messageCount` | number | Количество сообщений в переписке |
+| `metadata` | json | Пользовательские метаданные, хранящиеся в переписке |
+| `createdAt` | string | Метка времени ISO 8601 |
+| `messages` | array | Последние сообщения в переписке |
+|   ↳ `id` | string | ID сообщения |
+|   ↳ `body` | string | Текст сообщения |
+|   ↳ `fromNumber` | string | Номер телефона отправителя |
+|   ↳ `toNumber` | string | Номер телефона получателя |
+|   ↳ `direction` | string | inbound или outbound |
+|   ↳ `channel` | string | sms, mms или imessage |
+|   ↳ `mediaUrl` | string | URL прикреплённого медиафайла |
+|   ↳ `mediaUrls` | array | Все URL прикреплённых медиафайлов |
+|   ↳ `receivedAt` | string | Метка времени ISO 8601 |
+
+### `agentphone_get_conversation_messages`
+
+Получить сообщения переписки с пагинацией
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `conversationId` | string | Yes | ID переписки |
+| `limit` | number | No | Количество возвращаемых сообщений \(по умолчанию 50, макс. 200\) |
+| `before` | string | No | Вернуть сообщения, полученные до этой метки времени ISO 8601 |
+| `after` | string | No | Вернуть сообщения, полученные после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Сообщения в переписке |
+|   ↳ `id` | string | ID сообщения |
+|   ↳ `body` | string | Текст сообщения |
+|   ↳ `fromNumber` | string | Номер телефона отправителя |
+|   ↳ `toNumber` | string | Номер телефона получателя |
+|   ↳ `direction` | string | inbound или outbound |
+|   ↳ `channel` | string | sms, mms или imessage |
+|   ↳ `mediaUrl` | string | URL прикреплённого медиафайла |
+|   ↳ `mediaUrls` | array | Все URL прикреплённых медиафайлов |
+|   ↳ `receivedAt` | string | Метка времени ISO 8601 |
+| `hasMore` | boolean | Доступны ли ещё сообщения |
+
+### `agentphone_get_number_messages`
+
+Получить сообщения, полученные на конкретный номер телефона
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `numberId` | string | Yes | ID номера телефона |
+| `limit` | number | No | Количество возвращаемых сообщений \(по умолчанию 50, макс. 200\) |
+| `before` | string | No | Вернуть сообщения, полученные до этой метки времени ISO 8601 |
+| `after` | string | No | Вернуть сообщения, полученные после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Сообщения, полученные на номер |
+|   ↳ `id` | string | ID сообщения |
+|   ↳ `from_` | string | Номер телефона отправителя \(E.164\) |
+|   ↳ `to` | string | Номер телефона получателя \(E.164\) |
+|   ↳ `body` | string | Текст сообщения |
+|   ↳ `direction` | string | inbound или outbound |
+|   ↳ `channel` | string | Канал \(sms, mms и т.д.\) |
+|   ↳ `receivedAt` | string | Метка времени ISO 8601 |
+| `hasMore` | boolean | Доступны ли ещё сообщения |
+
+### `agentphone_get_usage`
+
+Получить текущую статистику использования аккаунта AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `plan` | json | Название плана и лимиты \(name, limits: numbers/messagesPerMonth/voiceMinutesPerMonth/maxCallDurationMinutes/concurrentCalls\) |
+| `numbers` | json | Использование номеров \(used, limit, remaining\) |
+| `stats` | json | Статистика использования: totalMessages, messagesLast24h/7d/30d, totalCalls, callsLast24h/7d/30d, totalWebhookDeliveries, successfulWebhookDeliveries, failedWebhookDeliveries |
+| `periodStart` | string | Начало расчётного периода |
+| `periodEnd` | string | Конец расчётного периода |
+
+### `agentphone_get_usage_daily`
+
+Получить дневную разбивку использования \(сообщения, вызовы, webhook'и\) за последние N дней
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `days` | number | No | Количество дней для возврата \(1-365, по умолчанию 30\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Записи дневного использования |
+|   ↳ `date` | string | День \(YYYY-MM-DD\) |
+|   ↳ `messages` | number | Сообщений в этот день |
+|   ↳ `calls` | number | Вызовов в этот день |
+|   ↳ `webhooks` | number | Доставок webhook'ов в этот день |
+| `days` | number | Количество возвращённых дней |
+
+### `agentphone_get_usage_monthly`
+
+Получить месячную агрегацию использования \(сообщения, вызовы, webhook'и\) за последние N месяцев
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `months` | number | No | Количество месяцев для возврата \(1-24, по умолчанию 6\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Записи месячного использования |
+|   ↳ `month` | string | Месяц \(YYYY-MM\) |
+|   ↳ `messages` | number | Сообщений в этом месяце |
+|   ↳ `calls` | number | Вызовов в этом месяце |
+|   ↳ `webhooks` | number | Доставок webhook'ов в этом месяце |
+| `months` | number | Количество возвращённых месяцев |
+
+### `agentphone_list_calls`
+
+Показать голосовые вызовы этого аккаунта AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `limit` | number | No | Количество возвращаемых результатов \(по умолчанию 20, макс. 100\) |
+| `offset` | number | No | Количество пропускаемых результатов \(мин. 0\) |
+| `status` | string | No | Фильтр по статусу \(completed, in-progress, failed\) |
+| `direction` | string | No | Фильтр по направлению \(inbound, outbound\) |
+| `type` | string | No | Фильтр по типу вызова \(pstn, web\) |
+| `search` | string | No | Поиск по номеру телефона \(совпадает с fromNumber или toNumber\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Вызовы |
+|   ↳ `id` | string | ID вызова |
+|   ↳ `agentId` | string | Агент, обработавший вызов |
+|   ↳ `phoneNumberId` | string | ID номера телефона, использованного для вызова |
+|   ↳ `phoneNumber` | string | Номер телефона, использованный для вызова |
+|   ↳ `fromNumber` | string | Номер телефона звонящего |
+|   ↳ `toNumber` | string | Номер телефона получателя |
+|   ↳ `direction` | string | inbound или outbound |
+|   ↳ `status` | string | Статус вызова |
+|   ↳ `startedAt` | string | Метка времени ISO 8601 |
+|   ↳ `endedAt` | string | Метка времени ISO 8601 |
+|   ↳ `durationSeconds` | number | Длительность вызова в секундах |
+|   ↳ `lastTranscriptSnippet` | string | Последний фрагмент транскрипта |
+|   ↳ `recordingUrl` | string | URL аудиозаписи |
+|   ↳ `recordingAvailable` | boolean | Доступна ли запись |
+| `hasMore` | boolean | Доступны ли ещё результаты |
+| `total` | number | Общее количество совпадающих вызовов |
+
+### `agentphone_list_contacts`
+
+Показать контакты этого аккаунта AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `search` | string | No | Фильтр по имени или номеру телефона \(поиск без учёта регистра\) |
+| `limit` | number | No | Количество возвращаемых результатов \(по умолчанию 50, макс. 200\) |
+| `offset` | number | No | Количество пропускаемых результатов \(мин. 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Контакты |
+|   ↳ `id` | string | ID контакта |
+|   ↳ `phoneNumber` | string | Номер телефона в формате E.164 |
+|   ↳ `name` | string | Имя контакта |
+|   ↳ `email` | string | Адрес эл. почты контакта |
+|   ↳ `notes` | string | Произвольные заметки |
+|   ↳ `createdAt` | string | Метка времени создания ISO 8601 |
+|   ↳ `updatedAt` | string | Метка времени обновления ISO 8601 |
+| `hasMore` | boolean | Доступны ли ещё результаты |
+| `total` | number | Общее количество контактов |
+
+### `agentphone_list_conversations`
+
+Показать переписки \(цепочки сообщений\) этого аккаунта AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `limit` | number | No | Количество возвращаемых результатов \(по умолчанию 20, макс. 100\) |
+| `offset` | number | No | Количество пропускаемых результатов \(мин. 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Переписки |
+|   ↳ `id` | string | ID переписки |
+|   ↳ `agentId` | string | ID агента |
+|   ↳ `phoneNumberId` | string | ID номера телефона |
+|   ↳ `phoneNumber` | string | Номер телефона |
+|   ↳ `participant` | string | Номер телефона внешнего участника |
+|   ↳ `lastMessageAt` | string | Метка времени ISO 8601 |
+|   ↳ `lastMessagePreview` | string | Предпросмотр последнего сообщения |
+|   ↳ `messageCount` | number | Количество сообщений в переписке |
+|   ↳ `metadata` | json | Пользовательские метаданные, хранящиеся в переписке |
+|   ↳ `createdAt` | string | Метка времени ISO 8601 |
+| `hasMore` | boolean | Доступны ли ещё результаты |
+| `total` | number | Общее количество переписок |
+
+### `agentphone_list_numbers`
+
+Показать все номера телефонов, выделенные для этого аккаунта AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `limit` | number | No | Количество возвращаемых результатов \(по умолчанию 20, макс. 100\) |
+| `offset` | number | No | Количество пропускаемых результатов \(мин. 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Номера телефонов |
+|   ↳ `id` | string | ID номера телефона |
+|   ↳ `phoneNumber` | string | Номер телефона в формате E.164 |
+|   ↳ `country` | string | Двухбуквенный код страны |
+|   ↳ `status` | string | Статус номера |
+|   ↳ `type` | string | Тип номера \(например, sms\) |
+|   ↳ `agentId` | string | ID прикреплённого агента |
+|   ↳ `createdAt` | string | Метка времени создания ISO 8601 |
+| `hasMore` | boolean | Доступны ли ещё результаты |
+| `total` | number | Общее количество номеров телефонов |
+
+### `agentphone_react_to_message`
+
+Отправить реакцию tapback iMessage на сообщение \(только iMessage\)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `messageId` | string | Yes | ID сообщения, на которое нужно отреагировать |
+| `reaction` | string | Yes | Тип реакции: love, like, dislike, laugh, emphasize или question |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID реакции |
+| `reactionType` | string | Применённый тип реакции |
+| `messageId` | string | ID сообщения, на которое была реакция |
+| `channel` | string | Канал \(imessage\) |
+
+### `agentphone_release_number`
+
+Освободить \(удалить\) номер телефона. Это действие необратимо.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `numberId` | string | Yes | ID номера телефона для освобождения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID освобождённого номера телефона |
+| `released` | boolean | Был ли номер успешно освобождён |
+
+### `agentphone_send_message`
+
+Отправить исходящее SMS или iMessage от агента AgentPhone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `agentId` | string | Yes | Агент, отправляющий сообщение |
+| `toNumber` | string | Yes | Номер телефона получателя в формате E.164 \(например, +14155551234\) |
+| `body` | string | Yes | Текст сообщения для отправки |
+| `mediaUrl` | string | No | Опциональный URL изображения, видео или файла для прикрепления |
+| `numberId` | string | No | ID номера телефона для отправки. Если не указан, используется первый назначенный номер агента. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID сообщения |
+| `status` | string | Статус доставки |
+| `channel` | string | sms, mms или imessage |
+| `fromNumber` | string | Номер телефона отправителя |
+| `toNumber` | string | Номер телефона получателя |
+
+### `agentphone_update_contact`
+
+Обновить поля контакта
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `contactId` | string | Yes | ID контакта |
+| `phoneNumber` | string | No | Новый номер телефона в формате E.164 |
+| `name` | string | No | Новое имя контакта |
+| `email` | string | No | Новый адрес эл. почты |
+| `notes` | string | No | Новые произвольные заметки |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID контакта |
+| `phoneNumber` | string | Номер телефона в формате E.164 |
+| `name` | string | Имя контакта |
+| `email` | string | Адрес эл. почты контакта |
+| `notes` | string | Произвольные заметки |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `updatedAt` | string | Метка времени обновления ISO 8601 |
+
+### `agentphone_update_conversation`
+
+Обновить метаданные переписки \(хранимое состояние\). Передайте null для очистки существующих метаданных.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ AgentPhone |
+| `conversationId` | string | Yes | ID переписки |
+| `metadata` | json | No | Пользовательские метаданные ключ-значение для хранения в переписке. Передайте null для очистки существующих метаданных. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID переписки |
+| `agentId` | string | ID агента |
+| `phoneNumberId` | string | ID номера телефона |
+| `phoneNumber` | string | Номер телефона |
+| `participant` | string | Номер телефона внешнего участника |
+| `lastMessageAt` | string | Метка времени ISO 8601 |
+| `messageCount` | number | Количество сообщений |
+| `metadata` | json | Пользовательские метаданные, хранящиеся в переписке |
+| `createdAt` | string | Метка времени ISO 8601 |
+| `messages` | array | Сообщения в переписке |
+|   ↳ `id` | string | ID сообщения |
+|   ↳ `body` | string | Тело сообщения |
+|   ↳ `fromNumber` | string | Номер телефона отправителя |
+|   ↳ `toNumber` | string | Номер телефона получателя |
+|   ↳ `direction` | string | inbound или outbound |
+|   ↳ `channel` | string | Канал \(sms, mms и т.д.\) |
+|   ↳ `mediaUrl` | string | URL медиафайла, если есть |
+|   ↳ `mediaUrls` | array | Все URL прикреплённых медиафайлов |
+|   ↳ `receivedAt` | string | Метка времени ISO 8601 |
+

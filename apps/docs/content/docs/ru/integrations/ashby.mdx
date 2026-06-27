@@ -1,0 +1,1056 @@
+---
+title: Ashby
+description: Управление кандидатами, вакансиями и заявками в Ashby
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ashby"
+  color="#5D4ED6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ashby](https://www.ashbyhq.com/) — это универсальная рекрутинговая платформа, объединяющая систему отслеживания кандидатов (ATS), CRM, планирование и аналитику, чтобы помочь командам нанимать более эффективно.
+
+С помощью Ashby вы можете:
+
+- **Просматривать и искать кандидатов**: Просматривать весь пайплайн кандидатов или искать по имени и эл. почте для быстрого поиска конкретных людей
+- **Создавать кандидатов**: Добавлять новых кандидатов в вашу организацию Ashby с контактными данными
+- **Просматривать сведения о кандидатах**: Получать полные профили кандидатов, включая теги, эл. почту, телефон и метки времени
+- **Добавлять заметки к кандидатам**: Прикреплять заметки к записям кандидатов для фиксации обратной связи, контекста или последующих задач
+- **Просматривать вакансии**: Просматривать все открытые, закрытые и архивные вакансии с информацией о местоположении и отделе
+- **Просматривать заявки**: Просматривать все заявки в организации с деталями кандидатов и вакансий, отслеживанием статуса и пагинацией
+
+Блок Ashby также поддерживает **триггеры webhook**, которые автоматически запускают рабочие процессы в ответ на события Ashby. Доступные триггеры включают Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created и Offer Created. Webhook'и полностью управляемы — Sim автоматически создаёт webhook в Ashby при сохранении триггера и удаляет его при удалении, так что ручная настройка webhook не требуется. Просто укажите ваш API-ключ Ashby \(с разрешением `apiKeysWrite`\) и выберите тип события.
+
+В Sim интеграция Ashby позволяет вашим агентам программно управлять вашим рекрутинговым пайплайном. Агенты могут искать кандидатов, создавать новые записи кандидатов, добавлять заметки после интервью и отслеживать заявки по вакансиям. Это позволяет автоматизировать рекрутинговые рабочие процессы, такие как приём кандидатов, последующие действия после интервью, отчётность по пайплайну и перекрёстные ссылки кандидатов между должностями.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Интегрируйте Ashby в рабочий процесс. Управляйте кандидатами \(просмотр, получение, создание, обновление, поиск, теги\), заявками \(просмотр, получение, создание, изменение стадии\), вакансиями \(просмотр, получение\), публикациями вакансий \(просмотр, получение\), предложениями \(просмотр, получение\), заметками \(просмотр, создание\), интервью \(просмотр\) и справочными данными \(источники, теги, причины архивации, пользовательские поля, отделы, местоположения, открытые позиции, пользователи\).
+
+
+
+## Actions
+
+### `ashby_add_candidate_tag`
+
+Добавляет тег кандидату в Ashby и возвращает обновлённого кандидата.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `candidateId` | string | Yes | UUID кандидата, которому нужно добавить тег |
+| `tagId` | string | Yes | UUID тега для добавления |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location с locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source с sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | Список вакансий \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location с address, openings\[\] с latestVersion\) |
+| `applications` | json | Список заявок \(id, status, customFields\[\], сводка кандидата, currentInterviewStage, source с sourceType, archiveReason с customFields\[\], archivedAt, сводка вакансии, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | Список заметок \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | Список предложений \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion с id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | Список причин архивации \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | Список источников \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | Список определений пользовательских полей \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | Список отделов \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | Список местоположений \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address с addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | Список публикаций вакансий \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | Список открытых позиций \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion с identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | Список пользователей \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
+| `interviewSchedules` | json | Список расписаний интервью \(id, applicationId, interviewStageId, interviewEvents\[\] с interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | Список тегов кандидатов \(id, title, isArchived\) |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата \(id, name, primaryEmailAddress, primaryPhoneNumber\). Для полных полей кандидата используйте вывод списка кандидатов или операции get/create/update. |
+| `job` | json | Детали вакансии \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
+| `application` | json | Детали заявки \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Детали предложения \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Детали публикации вакансии \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[включается при expandJob=true\]\) |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки \(id, firstName, lastName, email\) |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+### `ashby_create_application`
+
+Создаёт новую заявку кандидата на вакансию. Опционально укажите план интервью, стадию, источник и пользователя, которому засчитывается заявка.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `candidateId` | string | Yes | UUID кандидата для рассмотрения на вакансию |
+| `jobId` | string | Yes | UUID вакансии для рассмотрения кандидата |
+| `interviewPlanId` | string | No | UUID плана интервью \(по умолчанию — план вакансии по умолчанию\) |
+| `interviewStageId` | string | No | UUID стадии интервью для размещения заявки \(по умолчанию — первая стадия Lead\) |
+| `sourceId` | string | No | UUID источника для установки на заявку |
+| `creditedToUserId` | string | No | UUID пользователя, которому засчитывается заявка |
+| `createdAt` | string | No | Метка времени ISO 8601 для установки даты создания заявки \(по умолчанию — сейчас\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями |
+| `jobs` | json | Список вакансий |
+| `applications` | json | Список заявок |
+| `notes` | json | Список заметок |
+| `offers` | json | Список предложений |
+| `archiveReasons` | json | Список причин архивации |
+| `sources` | json | Список источников |
+| `customFields` | json | Список определений пользовательских полей |
+| `departments` | json | Список отделов |
+| `locations` | json | Список местоположений |
+| `jobPostings` | json | Список публикаций вакансий |
+| `openings` | json | Список открытых позиций |
+| `users` | json | Список пользователей |
+| `interviewSchedules` | json | Список расписаний интервью |
+| `tags` | json | Список тегов кандидатов |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата |
+| `job` | json | Детали вакансии |
+| `application` | json | Детали заявки |
+| `offer` | json | Детали предложения |
+| `jobPosting` | json | Детали публикации вакансии |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+### `ashby_create_candidate`
+
+Создаёт нового кандидата в Ashby с контактной информацией и опциональным источником.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `name` | string | Yes | Полное имя кандидата |
+| `email` | string | No | Основной адрес эл. почты |
+| `phoneNumber` | string | No | Основной номер телефона |
+| `linkedInUrl` | string | No | URL профиля LinkedIn |
+| `githubUrl` | string | No | URL профиля GitHub |
+| `website` | string | No | URL личного веб-сайта |
+| `sourceId` | string | No | UUID источника для атрибуции кандидата |
+| `creditedToUserId` | string | No | UUID пользователя Ashby, которому засчитывается поиск кандидата |
+| `createdAt` | string | No | Обратная дата создания в ISO 8601 \(например, 2024-01-01T00:00:00Z\). По умолчанию — сейчас. |
+| `alternateEmailAddresses` | json | No | Массив дополнительных адресов эл. почты для добавления кандидату, например, \["a@x.com","b@y.com"\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями |
+| `jobs` | json | Список вакансий |
+| `applications` | json | Список заявок |
+| `notes` | json | Список заметок |
+| `offers` | json | Список предложений |
+| `archiveReasons` | json | Список причин архивации |
+| `sources` | json | Список источников |
+| `customFields` | json | Список определений пользовательских полей |
+| `departments` | json | Список отделов |
+| `locations` | json | Список местоположений |
+| `jobPostings` | json | Список публикаций вакансий |
+| `openings` | json | Список открытых позиций |
+| `users` | json | Список пользователей |
+| `interviewSchedules` | json | Список расписаний интервью |
+| `tags` | json | Список тегов кандидатов |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата |
+| `job` | json | Детали вакансии |
+| `application` | json | Детали заявки |
+| `offer` | json | Детали предложения |
+| `jobPosting` | json | Детали публикации вакансии |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+### `ashby_get_application`
+
+Получает полные сведения об одной заявке по её ID, включая связанного кандидата, вакансию, стадию интервью и заметки.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `applicationId` | string | Yes | UUID заявки для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями |
+| `jobs` | json | Список вакансий |
+| `applications` | json | Список заявок |
+| `notes` | json | Список заметок |
+| `offers` | json | Список предложений |
+| `archiveReasons` | json | Список причин архивации |
+| `sources` | json | Список источников |
+| `customFields` | json | Список определений пользовательских полей |
+| `departments` | json | Список отделов |
+| `locations` | json | Список местоположений |
+| `jobPostings` | json | Список публикаций вакансий |
+| `openings` | json | Список открытых позиций |
+| `users` | json | Список пользователей |
+| `interviewSchedules` | json | Список расписаний интервью |
+| `tags` | json | Список тегов кандидатов |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата |
+| `job` | json | Детали вакансии |
+| `application` | json | Детали заявки |
+| `offer` | json | Детали предложения |
+| `jobPosting` | json | Детали публикации вакансии |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+### `ashby_get_candidate`
+
+Получает полные сведения об одном кандидате по его ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `candidateId` | string | Yes | UUID кандидата для получения |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями |
+| `jobs` | json | Список вакансий |
+| `applications` | json | Список заявок |
+| `notes` | json | Список заметок |
+| `offers` | json | Список предложений |
+| `archiveReasons` | json | Список причин архивации |
+| `sources` | json | Список источников |
+| `customFields` | json | Список определений пользовательских полей |
+| `departments` | json | Список отделов |
+| `locations` | json | Список местоположений |
+| `jobPostings` | json | Список публикаций вакансий |
+| `openings` | json | Список открытых позиций |
+| `users` | json | Список пользователей |
+| `interviewSchedules` | json | Список расписаний интервью |
+| `tags` | json | Список тегов кандидатов |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата \(id, name, primaryEmailAddress, primaryPhoneNumber\). Для полных полей кандидата используйте вывод списка кандидатов или операции get/create/update. |
+| `job` | json | Детали вакансии \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
+| `application` | json | Детали заявки \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Детали предложения \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Детали публикации вакансии \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[включается при expandJob=true\]\) |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки \(id, firstName, lastName, email\) |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+### `ashby_get_job_posting`
+
+Получает полные сведения об одной публикации вакансии по её ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `jobPostingId` | string | Yes | UUID публикации вакансии для получения |
+| `jobBoardId` | string | No | Опциональный UUID доски вакансий. Если опущен, возвращает публикацию для внешней доски. |
+| `expandJob` | boolean | No | Разворачивать ли и включать связанный объект вакансии в ответ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | UUID публикации вакансии |
+| `title` | string | Название публикации |
+| `descriptionPlain` | string | Полное описание в простом тексте |
+| `descriptionHtml` | string | Полное описание в HTML |
+| `descriptionSocial` | string | Сокращённое описание для соцсетей \(макс. 200 символов\) |
+| `descriptionParts` | object | Описание, разбитое на секции opening, body и closing |
+|   ↳ `descriptionOpening` | object | Вступительная часть \(из настроек темы досок вакансий\) |
+|     ↳ `html` | string | HTML-содержимое |
+|     ↳ `plain` | string | Простой текст |
+|   ↳ `descriptionBody` | object | Основная часть описания |
+|     ↳ `html` | string | HTML-содержимое |
+|     ↳ `plain` | string | Простой текст |
+|   ↳ `descriptionClosing` | object | Заключительная часть \(из настроек темы досок вакансий\) |
+|     ↳ `html` | string | HTML-содержимое |
+|     ↳ `plain` | string | Простой текст |
+| `departmentName` | string | Название отдела |
+| `teamName` | string | Название команды |
+| `teamNameHierarchy` | array | Иерархия названий команд от корневой до команды |
+| `jobId` | string | UUID связанной вакансии |
+| `locationName` | string | Название основного местоположения |
+| `locationIds` | object | UUID основного и вторичных местоположений |
+|   ↳ `primaryLocationId` | string | UUID основного местоположения |
+|   ↳ `secondaryLocationIds` | array | UUID вторичных местоположений |
+| `address` | object | Почтовый адрес |
+| `isRemote` | boolean | Является ли удалённой |
+| `workplaceType` | string | Тип рабочего места \(OnSite, Remote, Hybrid\) |
+| `employmentType` | string | Тип занятости \(FullTime, PartTime, Intern, Contract, Temporary\) |
+| `isListed` | boolean | Опубликована ли публично |
+| `publishedDate` | string | Дата публикации ISO 8601 |
+| `applicationDeadline` | string | Крайний срок подачи ISO 8601 |
+| `externalLink` | string | Внешняя ссылка на публикацию |
+| `applyLink` | string | Прямая ссылка для подачи заявки |
+| `compensation` | json | Информация о компенсации |
+| `updatedAt` | string | Метка времени последнего обновления ISO 8601 |
+| `job` | json | Объект вакансии \(включается при expandJob=true\) |
+
+### `ashby_list_applications`
+
+Показывает все заявки в организации Ashby с пагинацией и опциональными фильтрами по статусу, вакансии и дате создания.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации из предыдущего значения nextCursor |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `status` | string | No | Фильтр по статусу заявки: Active, Hired, Archived или Lead |
+| `jobId` | string | No | Фильтр заявок по конкретному UUID вакансии |
+| `candidateId` | string | No | Фильтр заявок по конкретному UUID кандидата |
+| `createdAfter` | string | No | Фильтр заявок, созданных после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applications` | array | Список заявок |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы результатов |
+| `nextCursor` | string | Непрозрачный курсор для получения следующей страницы |
+
+### `ashby_list_archive_reasons`
+
+Показывает все причины архивации, настроенные в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `includeArchived` | boolean | No | Включать ли архивные причины архивации в ответ \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `archiveReasons` | array | Список причин архивации |
+|   ↳ `id` | string | UUID причины архивации |
+|   ↳ `text` | string | Текст причины архивации |
+|   ↳ `reasonType` | string | Тип причины \(RejectedByCandidate, RejectedByOrg, Other\) |
+|   ↳ `isArchived` | boolean | Архивирована ли причина |
+
+### `ashby_list_candidate_tags`
+
+Показывает все теги кандидатов, настроенные в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `includeArchived` | boolean | No | Включать ли архивные теги кандидатов \(по умолчанию false\) |
+| `cursor` | string | No | Непрозрачный курсор пагинации из предыдущего значения nextCursor |
+| `syncToken` | string | No | Токен синхронизации из предыдущего ответа для получения только изменённых результатов |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Список тегов кандидатов |
+|   ↳ `id` | string | UUID тега |
+|   ↳ `title` | string | Название тега |
+|   ↳ `isArchived` | boolean | Архивирован ли тег |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы результатов |
+| `nextCursor` | string | Непрозрачный курсор для получения следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений в будущих запросах |
+
+### `ashby_list_candidates`
+
+Показывает всех кандидатов в организации Ashby с курсорной пагинацией.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации из предыдущего значения nextCursor |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `createdAfter` | string | No | Возвращать только кандидатов, созданных после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | array | Список кандидатов |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы результатов |
+| `nextCursor` | string | Непрозрачный курсор для получения следующей страницы |
+
+### `ashby_list_custom_fields`
+
+Показывает все определения пользовательских полей, настроенные в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации из предыдущего значения nextCursor |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию и макс. 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации для получения только изменённых элементов |
+| `includeArchived` | boolean | No | При true включает архивные пользовательские поля в результаты \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customFields` | array | Список определений пользовательских полей |
+|   ↳ `id` | string | UUID пользовательского поля |
+|   ↳ `title` | string | Название пользовательского поля |
+|   ↳ `isPrivate` | boolean | Является ли поле приватным |
+|   ↳ `fieldType` | string | Тип данных поля \(MultiValueSelect, NumberRange, String, Date, ValueSelect, Number, Currency, Boolean, LongText, CompensationRange\) |
+|   ↳ `objectType` | string | Тип объекта, к которому применяется поле \(Application, Candidate, Employee, Job, Offer, Opening, Talent_Project\) |
+|   ↳ `isArchived` | boolean | Архивировано ли поле |
+|   ↳ `isRequired` | boolean | Требуется ли значение |
+|   ↳ `selectableValues` | array | Выбираемые значения для полей MultiValueSelect \(пусто для других типов\) |
+|     ↳ `label` | string | Отображаемая метка |
+|     ↳ `value` | string | Сохраняемое значение |
+|     ↳ `isArchived` | boolean | Архивировано ли |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы результатов |
+| `nextCursor` | string | Непрозрачный курсор для получения следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации после последней страницы |
+
+### `ashby_list_departments`
+
+Показывает все отделы в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию и макс. 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации |
+| `includeArchived` | boolean | No | При true включает архивные отделы \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | Список отделов |
+|   ↳ `id` | string | UUID отдела |
+|   ↳ `name` | string | Название отдела |
+|   ↳ `externalName` | string | Название для кандидатов на досках вакансий |
+|   ↳ `isArchived` | boolean | Архивирован ли отдел |
+|   ↳ `parentId` | string | UUID родительского отдела |
+|   ↳ `createdAt` | string | Метка времени создания ISO 8601 |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления ISO 8601 |
+|   ↳ `extraData` | json | Произвольные метаданные ключ-значение |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации |
+
+### `ashby_list_interviews`
+
+Показывает расписания интервью в Ashby, опционально фильтруя по заявке или стадии интервью.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `applicationId` | string | No | UUID заявки для показа расписаний интервью |
+| `interviewStageId` | string | No | UUID стадии интервью для показа расписаний |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `createdAfter` | string | No | Только расписания, созданные после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `interviewSchedules` | array | Список расписаний интервью |
+|   ↳ `id` | string | UUID расписания интервью |
+|   ↳ `status` | string | Статус расписания \(NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold и др.\) |
+|   ↳ `applicationId` | string | UUID связанной заявки |
+|   ↳ `interviewStageId` | string | UUID стадии интервью |
+|   ↳ `createdAt` | string | Метка времени создания ISO 8601 |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления ISO 8601 |
+|   ↳ `interviewEvents` | array | Запланированные события интервью в этом расписании |
+|     ↳ `id` | string | UUID события |
+|     ↳ `interviewId` | string | UUID шаблона интервью |
+|     ↳ `interviewScheduleId` | string | UUID родительского расписания |
+|     ↳ `interviewerUserIds` | array | UUID пользователей-интервьюеров |
+|     ↳ `createdAt` | string | Метка времени создания события |
+|     ↳ `updatedAt` | string | Метка времени последнего обновления события |
+|     ↳ `startTime` | string | Время начала события |
+|     ↳ `endTime` | string | Время окончания события |
+|     ↳ `feedbackLink` | string | URL для отправки обратной связи |
+|     ↳ `location` | string | Физическое местоположение |
+|     ↳ `meetingLink` | string | URL виртуальной встречи |
+|     ↳ `hasSubmittedFeedback` | boolean | Была ли отправлена обратная связь |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+
+### `ashby_list_job_postings`
+
+Показывает все публикации вакансий в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `location` | string | No | Фильтр по названию местоположения \(с учётом регистра\) |
+| `department` | string | No | Фильтр по названию отдела \(с учётом регистра\) |
+| `listedOnly` | boolean | No | При true возвращает только опубликованные \(публично видимые\) вакансии \(по умолчанию false\) |
+| `jobBoardId` | string | No | UUID конкретной доски вакансий для фильтрации. Если опущен, возвращает публикации на основной внешней доске. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobPostings` | array | Список публикаций вакансий |
+|   ↳ `id` | string | UUID публикации |
+|   ↳ `title` | string | Название публикации |
+|   ↳ `jobId` | string | UUID связанной вакансии |
+|   ↳ `departmentName` | string | Название отдела |
+|   ↳ `teamName` | string | Название команды |
+|   ↳ `locationName` | string | Отображаемое название основного местоположения |
+|   ↳ `locationIds` | object | UUID основного и вторичных местоположений |
+|   ↳ `workplaceType` | string | Тип рабочего места \(OnSite, Remote, Hybrid\) |
+|   ↳ `employmentType` | string | Тип занятости \(FullTime, PartTime, Intern, Contract, Temporary\) |
+|   ↳ `isListed` | boolean | Опубликована ли публично |
+|   ↳ `publishedDate` | string | Дата публикации ISO 8601 |
+|   ↳ `applicationDeadline` | string | Крайний срок подачи ISO 8601 |
+|   ↳ `externalLink` | string | Внешняя ссылка |
+|   ↳ `applyLink` | string | Прямая ссылка для подачи |
+|   ↳ `compensationTierSummary` | string | Сводка уровня компенсации |
+|   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Показывать ли компенсацию на доске |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления ISO 8601 |
+
+### `ashby_list_jobs`
+
+Показывает все вакансии в организации Ashby. По умолчанию возвращает Open, Closed и Archived вакансии. Укажите status для фильтрации.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `status` | string | No | Фильтр по статусу: Open, Closed, Archived или Draft |
+| `createdAfter` | string | No | Только вакансии, созданные после этой метки времени ISO 8601 |
+| `openedAfter` | string | No | Только вакансии, открытые после этой метки времени |
+| `openedBefore` | string | No | Только вакансии, открытые до этой метки времени |
+| `closedAfter` | string | No | Только вакансии, закрытые после этой метки времени |
+| `closedBefore` | string | No | Только вакансии, закрытые до этой метки времени |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | array | Список вакансий |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+
+### `ashby_list_locations`
+
+Показывает все местоположения, настроенные в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию и макс. 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации |
+| `includeArchived` | boolean | No | При true включает архивные местоположения \(по умолчанию false\) |
+| `includeLocationHierarchy` | boolean | No | При true включает компоненты/регионы иерархии местоположений \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | Список местоположений |
+|   ↳ `id` | string | UUID местоположения |
+|   ↳ `name` | string | Название местоположения |
+|   ↳ `externalName` | string | Название для кандидатов на досках вакансий |
+|   ↳ `isArchived` | boolean | Архивировано ли |
+|   ↳ `isRemote` | boolean | Является ли удалённым \(используйте workplaceType\) |
+|   ↳ `workplaceType` | string | Тип рабочего места \(OnSite, Hybrid, Remote\) |
+|   ↳ `parentLocationId` | string | UUID родительского местоположения |
+|   ↳ `type` | string | Тип компонента местоположения \(Location, LocationHierarchy\) |
+|   ↳ `address` | object | Почтовый адрес |
+|     ↳ `addressCountry` | string | Страна |
+|     ↳ `addressRegion` | string | Штат или регион |
+|     ↳ `addressLocality` | string | Город или населённый пункт |
+|     ↳ `postalCode` | string | Почтовый индекс |
+|     ↳ `streetAddress` | string | Улица и дом |
+|   ↳ `extraData` | json | Произвольные метаданные ключ-значение |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации |
+
+### `ashby_list_notes`
+
+Показывает все заметки кандидата с поддержкой пагинации.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `candidateId` | string | Yes | UUID кандидата для показа заметок |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Список заметок кандидата |
+|   ↳ `id` | string | UUID заметки |
+|   ↳ `content` | string | Содержимое заметки |
+|   ↳ `isPrivate` | boolean | Является ли заметка приватной |
+|   ↳ `author` | object | Автор заметки |
+|     ↳ `id` | string | UUID пользователя-автора |
+|     ↳ `firstName` | string | Имя |
+|     ↳ `lastName` | string | Фамилия |
+|     ↳ `email` | string | Адрес эл. почты |
+|   ↳ `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+
+### `ashby_list_offers`
+
+Показывает все предложения с их последней версией в организации Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `createdAfter` | string | No | Только предложения, созданные после этой метки времени ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `offers` | array | Список предложений |
+|   ↳ `id` | string | UUID предложения |
+|   ↳ `decidedAt` | string | Метка времени решения ISO 8601 |
+|   ↳ `applicationId` | string | UUID связанной заявки |
+|   ↳ `acceptanceStatus` | string | Статус принятия \(Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse\) |
+|   ↳ `offerStatus` | string | Статус процесса предложения |
+|   ↳ `latestVersion` | object | Последняя версия предложения |
+|     ↳ `id` | string | UUID версии |
+|     ↳ `startDate` | string | Дата начала |
+|     ↳ `salary` | json | Информация о зарплате |
+|     ↳ `createdAt` | string | Метка времени создания |
+|     ↳ `openingId` | string | UUID открытой позиции |
+|     ↳ `customFields` | array | Пользовательские поля |
+|     ↳ `fileHandles` | array | Дескрипторы файлов |
+|     ↳ `author` | object | Автор |
+|     ↳ `approvalStatus` | string | Статус утверждения |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+
+### `ashby_list_openings`
+
+Показывает все открытые позиции в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации |
+| `includeArchived` | boolean | No | При true включает архивные открытые позиции \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `openings` | array | Список открытых позиций |
+|   ↳ `id` | string | UUID открытой позиции |
+|   ↳ `openedAt` | string | Когда была открыта |
+|   ↳ `closedAt` | string | Когда была закрыта |
+|   ↳ `isArchived` | boolean | Архивирована ли |
+|   ↳ `archivedAt` | string | Когда была архивирована |
+|   ↳ `closeReasonId` | string | UUID причины закрытия |
+|   ↳ `openingState` | string | Состояние открытой позиции |
+|   ↳ `latestVersion` | object | Последняя версия \(identifier, description, authorId, createdAt, teamId, jobIds\[\], targetHireDate, targetStartDate, isBackfill, employmentType, locationIds\[\], hiringTeam\[\], customFields\[\]\) |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации |
+
+### `ashby_list_sources`
+
+Показывает все источники, настроенные в Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации |
+| `includeArchived` | boolean | No | При true включает архивные источники \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sources` | array | Список источников |
+|   ↳ `id` | string | UUID источника |
+|   ↳ `title` | string | Название источника |
+|   ↳ `isArchived` | boolean | Архивирован ли |
+|   ↳ `sourceType` | object | Тип источника |
+|     ↳ `id` | string | UUID типа источника |
+|     ↳ `title` | string | Название типа источника |
+|     ↳ `isArchived` | boolean | Архивирован ли тип |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации |
+
+### `ashby_list_users`
+
+Показывает всех пользователей в организации Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `cursor` | string | No | Непрозрачный курсор пагинации |
+| `perPage` | number | No | Количество результатов на странице \(по умолчанию 100\) |
+| `syncToken` | string | No | Непрозрачный токен из предыдущей синхронизации |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Список пользователей |
+|   ↳ `id` | string | UUID пользователя |
+|   ↳ `firstName` | string | Имя |
+|   ↳ `lastName` | string | Фамилия |
+|   ↳ `email` | string | Адрес эл. почты |
+|   ↳ `globalRole` | string | Глобальная роль |
+|   ↳ `isEnabled` | boolean | Включён ли пользователь |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Непрозрачный курсор для следующей страницы |
+| `syncToken` | string | Непрозрачный токен синхронизации |
+
+### `ashby_search_candidates`
+
+Ищет кандидатов по имени и/или эл. почте с логикой AND. Результаты ограничены 100 совпадениями. Используйте candidate.list для полной пагинации.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `name` | string | No | Имя кандидата для поиска \(комбинируется с email по логике AND\) |
+| `email` | string | No | Эл. почта кандидата для поиска \(комбинируется с name по логике AND\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | array | Совпадающие кандидаты \(макс. 100 результатов\) |
+
+### `ashby_update_candidate`
+
+Обновляет существующую запись кандидата в Ashby. Изменяются только указанные поля.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Ashby |
+| `candidateId` | string | Yes | UUID кандидата для обновления |
+| `name` | string | No | Обновлённое полное имя |
+| `email` | string | No | Обновлённый основной адрес эл. почты |
+| `phoneNumber` | string | No | Обновлённый основной номер телефона |
+| `linkedInUrl` | string | No | URL профиля LinkedIn |
+| `githubUrl` | string | No | URL профиля GitHub |
+| `websiteUrl` | string | No | URL личного веб-сайта |
+| `alternateEmail` | string | No | Дополнительный адрес эл. почты для добавления кандидату |
+| `sourceId` | string | No | UUID источника для атрибуции кандидата |
+| `creditedToUserId` | string | No | UUID пользователя Ashby, которому засчитывается поиск |
+| `createdAt` | string | No | Обратная дата создания в ISO 8601. Можно обновить только если изначально была обратно датирована. |
+| `sendNotifications` | boolean | No | Отправлять ли уведомление при обновлении источника \(по умолчанию true\) |
+| `socialLinks` | json | No | Массив объектов социальных ссылок для установки, например, \[\{"type":"LinkedIn","url":"https://..."\}\]. Заменяет существующие. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | json | Список кандидатов с полями |
+| `jobs` | json | Список вакансий |
+| `applications` | json | Список заявок |
+| `notes` | json | Список заметок |
+| `offers` | json | Список предложений |
+| `archiveReasons` | json | Список причин архивации |
+| `sources` | json | Список источников |
+| `customFields` | json | Список определений пользовательских полей |
+| `departments` | json | Список отделов |
+| `locations` | json | Список местоположений |
+| `jobPostings` | json | Список публикаций вакансий |
+| `openings` | json | Список открытых позиций |
+| `users` | json | Список пользователей |
+| `interviewSchedules` | json | Список расписаний интервью |
+| `tags` | json | Список тегов кандидатов |
+| `id` | string | UUID ресурса |
+| `name` | string | Имя ресурса |
+| `title` | string | Название вакансии или публикации |
+| `status` | string | Статус |
+| `candidate` | json | Сводка кандидата |
+| `job` | json | Детали вакансии |
+| `application` | json | Детали заявки |
+| `offer` | json | Детали предложения |
+| `jobPosting` | json | Детали публикации вакансии |
+| `content` | string | Содержимое заметки |
+| `author` | json | Автор заметки |
+| `isPrivate` | boolean | Является ли заметка приватной |
+| `createdAt` | string | Метка времени создания ISO 8601 |
+| `moreDataAvailable` | boolean | Существуют ли ещё страницы |
+| `nextCursor` | string | Курсор пагинации для следующей страницы |
+| `syncToken` | string | Токен синхронизации для инкрементальных обновлений |
+
+
+---
+
+### Ashby Application Submitted
+
+Запуск рабочего процесса при отправке новой заявки
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `application` | object | Вывод заявки из инструмента |
+|   ↳ `id` | string | UUID заявки |
+|   ↳ `createdAt` | string | Метка времени создания заявки \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления заявки \(ISO 8601\) |
+|   ↳ `status` | string | Статус заявки \(Active, Hired, Archived, Lead\) |
+|   ↳ `candidate` | object | Вывод кандидата из инструмента |
+|     ↳ `id` | string | UUID кандидата |
+|     ↳ `name` | string | Имя кандидата |
+|   ↳ `currentInterviewStage` | object | Вывод currentInterviewStage из инструмента |
+|     ↳ `id` | string | UUID текущей стадии интервью |
+|     ↳ `title` | string | Название текущей стадии интервью |
+|   ↳ `job` | object | Вывод вакансии из инструмента |
+|     ↳ `id` | string | UUID вакансии |
+|     ↳ `title` | string | Название вакансии |
+
+
+---
+
+### Ashby Candidate Deleted
+
+Запуск рабочего процесса при удалении кандидата
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `candidate` | object | Вывод кандидата из инструмента |
+|   ↳ `id` | string | UUID удалённого кандидата |
+
+
+---
+
+### Ashby Candidate Hired
+
+Запуск рабочего процесса при найме кандидата
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `application` | object | Вывод заявки из инструмента |
+|   ↳ `id` | string | UUID заявки |
+|   ↳ `createdAt` | string | Метка времени создания заявки \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления заявки \(ISO 8601\) |
+|   ↳ `status` | string | Статус заявки \(Hired\) |
+|   ↳ `candidate` | object | Вывод кандидата из инструмента |
+|     ↳ `id` | string | UUID кандидата |
+|     ↳ `name` | string | Имя кандидата |
+|   ↳ `currentInterviewStage` | object | Вывод currentInterviewStage из инструмента |
+|     ↳ `id` | string | UUID текущей стадии интервью |
+|     ↳ `title` | string | Название текущей стадии интервью |
+|   ↳ `job` | object | Вывод вакансии из инструмента |
+|     ↳ `id` | string | UUID вакансии |
+|     ↳ `title` | string | Название вакансии |
+| `offer` | object | Вывод предложения из инструмента |
+|   ↳ `id` | string | UUID принятого предложения |
+|   ↳ `applicationId` | string | UUID связанной заявки |
+|   ↳ `acceptanceStatus` | string | Статус принятия предложения |
+|   ↳ `offerStatus` | string | Статус процесса предложения |
+|   ↳ `decidedAt` | string | Метка времени решения по предложению \(ISO 8601\) |
+|   ↳ `latestVersion` | object | Вывод latestVersion из инструмента |
+|     ↳ `id` | string | UUID последней версии предложения |
+
+
+---
+
+### Ashby Candidate Stage Change
+
+Запуск рабочего процесса при изменении стадии интервью кандидата
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `application` | object | Вывод заявки из инструмента |
+|   ↳ `id` | string | UUID заявки |
+|   ↳ `createdAt` | string | Метка времени создания заявки \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Метка времени последнего обновления заявки \(ISO 8601\) |
+|   ↳ `status` | string | Статус заявки \(Active, Hired, Archived, Lead\) |
+|   ↳ `candidate` | object | Вывод кандидата из инструмента |
+|     ↳ `id` | string | UUID кандидата |
+|     ↳ `name` | string | Имя кандидата |
+|   ↳ `currentInterviewStage` | object | Вывод currentInterviewStage из инструмента |
+|     ↳ `id` | string | UUID текущей стадии интервью |
+|     ↳ `title` | string | Название текущей стадии интервью |
+|   ↳ `job` | object | Вывод вакансии из инструмента |
+|     ↳ `id` | string | UUID вакансии |
+|     ↳ `title` | string | Название вакансии |
+
+
+---
+
+### Ashby Job Created
+
+Запуск рабочего процесса при создании новой вакансии
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `job` | object | Вывод вакансии из инструмента |
+|   ↳ `id` | string | UUID вакансии |
+|   ↳ `title` | string | Название вакансии |
+|   ↳ `confidential` | boolean | Является ли вакансия конфиденциальной |
+|   ↳ `status` | string | Статус вакансии \(Open, Closed, Draft, Archived\) |
+|   ↳ `employmentType` | string | Тип занятости \(Full-time, Part-time и т.д.\) |
+
+
+---
+
+### Ashby Offer Created
+
+Запуск рабочего процесса при создании нового предложения
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Тип события webhook \(например, applicationSubmit, candidateHire\) |
+| `offer` | object | Вывод предложения из инструмента |
+|   ↳ `id` | string | UUID предложения |
+|   ↳ `applicationId` | string | UUID связанной заявки |
+|   ↳ `acceptanceStatus` | string | Статус принятия предложения \(Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse\) |
+|   ↳ `offerStatus` | string | Статус процесса предложения \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled\) |
+|   ↳ `decidedAt` | string | Метка времени решения по предложению \(ISO 8601\). Обычно null при создании; заполняется после ответа кандидата. |
+|   ↳ `latestVersion` | object | Вывод latestVersion из инструмента |
+|     ↳ `id` | string | UUID последней версии предложения |
+

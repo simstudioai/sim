@@ -1,0 +1,2312 @@
+---
+title: Rippling
+description: Управление сотрудниками, отделами, пользовательскими объектами и данными компании в Rippling
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rippling"
+  color="#502D3C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Rippling](https://www.rippling.com/) is a unified workforce management platform that brings together HR, IT, and Finance into a single system. Rippling lets companies manage payroll, benefits, devices, apps, and more — all from one place — while automating the tedious manual work that typically bogs down HR teams. Its Platform REST API provides programmatic access to workers, users, departments, teams, custom objects, business partners, supergroups, and more.
+
+**Why Rippling?**
+- **Comprehensive Workforce Data:** Access workers, users, companies, entitlements, departments, teams, titles, employment types, job functions, work locations, and custom fields — your complete organizational graph in one API.
+- **Custom Objects Platform:** Create, manage, and query custom objects with typed fields, records, and bulk operations — extend Rippling's data model to fit your business.
+- **Business Partner Management:** Track vendors, contractors, and external partners with full CRUD operations and grouping support via business partner groups.
+- **Supergroup Access Control:** Manage dynamic permission groups with granular inclusion and exclusion member lists for fine-grained access control.
+- **Platform Extensibility:** Build custom apps, pages, settings, and object categories that live natively inside Rippling's UI.
+- **Automated Reporting:** Trigger report runs programmatically and poll for results to build fully automated reporting pipelines.
+
+**Using Rippling in Sim**
+
+Sim's Rippling integration connects your agentic workflows directly to your Rippling account using an Ключ API. With 86 operations spanning workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires, you can build powerful HR and platform automations without writing backend code.
+
+**Key benefits of using Rippling in Sim:**
+- **Worker and user management:** List, search, and retrieve worker and user details to power onboarding checklists, offboarding workflows, and org chart updates.
+- **Organizational intelligence:** Query departments, teams, titles, employment types, job functions, work locations, and custom fields to build dynamic org reports or trigger actions based on structural changes.
+- **Custom object automation:** Create custom objects, define fields, and manage records — including bulk create, update, and delete operations — to extend Rippling's data model for your workflows.
+- **Business partner workflows:** Manage vendors and external partners with full lifecycle operations including grouping and categorization.
+- **Platform app development:** Create and manage custom apps, pages, settings, and object categories that extend Rippling's native functionality.
+- **Report automation:** Trigger report runs and poll for results to build automated reporting pipelines without manual intervention.
+- **Draft hire onboarding:** Push one or more draft hires into Rippling's onboarding flow in a single call, complete with all required employee data.
+
+Whether you're automating new hire onboarding, managing custom object data, building organizational reports, or extending Rippling's platform with custom apps, Rippling in Sim gives you direct, secure access to the full Rippling Platform REST API — no middleware required. Simply configure your Ключ API, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Rippling Platform в ваш рабочий процесс. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.
+
+
+
+## Действия
+
+### `rippling_list_workers`
+
+Получение списка workers with optional filtering and pagination
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `filter` | string | Нет | Filter expression |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workers` | array | Получение списка of workers |
+|   ↳ `id` | string | Worker ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `user_id` | string | Associated user ID |
+|   ↳ `is_manager` | boolean | Указывает,  worker is a manager |
+|   ↳ `manager_id` | string | Manager worker ID |
+|   ↳ `legal_entity_id` | string | Legal entity ID |
+|   ↳ `country` | string | Worker country code |
+|   ↳ `start_date` | string | Employment start date |
+|   ↳ `end_date` | string | Employment end date |
+|   ↳ `number` | number | Worker number |
+|   ↳ `work_email` | string | Work email address |
+|   ↳ `personal_email` | string | Personal email address |
+|   ↳ `status` | string | Worker status \(INIT, HIRED, ACCEPTED, ACTIVE, TERMINATED\) |
+|   ↳ `employment_type_id` | string | Employment type ID |
+|   ↳ `department_id` | string | Department ID |
+|   ↳ `teams_id` | json | Array of team IDs |
+|   ↳ `title` | string | Job title |
+|   ↳ `level_id` | string | Level ID |
+|   ↳ `compensation_id` | string | Compensation ID |
+|   ↳ `overtime_exemption` | string | Overtime exemption status \(EXEMPT, NON_EXEMPT\) |
+|   ↳ `title_effective_date` | string | Title effective date |
+|   ↳ `business_partners_id` | json | Array of business partner IDs |
+|   ↳ `location` | json | Worker location \(type, work_location_id\) |
+|   ↳ `gender` | string | Gender |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `race` | string | Race |
+|   ↳ `ethnicity` | string | Ethnicity |
+|   ↳ `citizenship` | string | Citizenship country code |
+|   ↳ `termination_details` | json | Termination details |
+|   ↳ `custom_fields` | json | Custom fields \(expandable\) |
+|   ↳ `country_fields` | json | Country-specific fields |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_worker`
+
+Получение a specific worker by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Worker ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `user_id` | string | User ID |
+| `is_manager` | boolean | Is manager |
+| `manager_id` | string | Manager ID |
+| `legal_entity_id` | string | Legal entity ID |
+| `country` | string | Country |
+| `start_date` | string | Start date |
+| `end_date` | string | End date |
+| `number` | number | Worker number |
+| `work_email` | string | Work email |
+| `personal_email` | string | Personal email |
+| `status` | string | Status |
+| `employment_type_id` | string | Employment type ID |
+| `department_id` | string | Department ID |
+| `teams_id` | json | Team IDs |
+| `title` | string | Job title |
+| `level_id` | string | Level ID |
+| `compensation_id` | string | Compensation ID |
+| `overtime_exemption` | string | Overtime exemption |
+| `title_effective_date` | string | Title effective date |
+| `business_partners_id` | json | Business partner IDs |
+| `location` | json | Worker location |
+| `gender` | string | Gender |
+| `date_of_birth` | string | Date of birth |
+| `race` | string | Race |
+| `ethnicity` | string | Ethnicity |
+| `citizenship` | string | Citizenship |
+| `termination_details` | json | Termination details |
+| `custom_fields` | json | Custom fields |
+| `country_fields` | json | Country-specific fields |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_users`
+
+Получение списка users with optional pagination
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Получение списка of users |
+|   ↳ `id` | string | User ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `active` | boolean | Указывает,  user is active |
+|   ↳ `username` | string | Unique username |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `preferred_language` | string | Preferred language |
+|   ↳ `locale` | string | Locale |
+|   ↳ `timezone` | string | Timezone \(IANA format\) |
+|   ↳ `number` | string | Permanent profile number |
+|   ↳ `name` | json | User name object \(given_name, family_name, etc.\) |
+|   ↳ `emails` | json | Array of email objects |
+|   ↳ `phone_numbers` | json | Array of phone number objects |
+|   ↳ `addresses` | json | Array of address objects |
+|   ↳ `photos` | json | Array of photo objects |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_user`
+
+Получение a specific user by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `active` | boolean | Is active |
+| `username` | string | Username |
+| `display_name` | string | Display name |
+| `preferred_language` | string | Preferred language |
+| `locale` | string | Locale |
+| `timezone` | string | Timezone |
+| `number` | string | Profile number |
+| `name` | json | User name object |
+| `emails` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `addresses` | json | Addresses |
+| `photos` | json | Photos |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_companies`
+
+Получение списка companies
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Получение списка of companies |
+|   ↳ `id` | string | Company ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Company name |
+|   ↳ `legal_name` | string | Legal name |
+|   ↳ `doing_business_as_name` | string | DBA name |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `primary_email` | string | Primary email |
+|   ↳ `parent_legal_entity_id` | string | Parent legal entity ID |
+|   ↳ `legal_entities_id` | json | Array of legal entity IDs |
+|   ↳ `physical_address` | json | Physical address of the holding entity |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_current_user`
+
+Получение SSO information for the current user
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `work_email` | string | Work email |
+| `company_id` | string | Company ID |
+| `company` | json | Expanded company object |
+
+### `rippling_list_entitlements`
+
+Получение списка entitlements
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entitlements` | array | Получение списка of entitlements |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `display_name` | string | Display name |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_departments`
+
+Получение списка departments
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | Получение списка of departments |
+|   ↳ `id` | string | Department ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Department name |
+|   ↳ `parent_id` | string | Parent department ID |
+|   ↳ `reference_code` | string | Reference code |
+|   ↳ `department_hierarchy_id` | json | Array of department IDs in hierarchy |
+|   ↳ `parent` | json | Expanded parent department |
+|   ↳ `department_hierarchy` | json | Expanded department hierarchy |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_department`
+
+Получение a specific department by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Department ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `name` | string | Department name |
+| `parent_id` | string | Parent department ID |
+| `reference_code` | string | Reference code |
+| `department_hierarchy_id` | json | Array of department IDs in hierarchy |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_department`
+
+Создание нового department
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | Department name |
+| `parentId` | string | Нет | Parent department ID |
+| `referenceCode` | string | Нет | Reference code |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Department ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `parent_id` | string | Parent department ID |
+| `reference_code` | string | Reference code |
+| `department_hierarchy_id` | json | Department hierarchy IDs |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+
+### `rippling_update_department`
+
+Обновление existing department
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | Department name |
+| `parentId` | string | Нет | Parent department ID |
+| `referenceCode` | string | Нет | Reference code |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Department ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `parent_id` | string | Parent department ID |
+| `reference_code` | string | Reference code |
+| `department_hierarchy_id` | json | Department hierarchy IDs |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+
+### `rippling_list_teams`
+
+Получение списка teams
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | Получение списка of teams |
+|   ↳ `id` | string | Team ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Team name |
+|   ↳ `parent_id` | string | Parent team ID |
+|   ↳ `parent` | json | Expanded parent team |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_team`
+
+Получение a specific team by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Team ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `parent_id` | string | Parent team ID |
+| `parent` | json | Expanded parent team |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_employment_types`
+
+Получение списка employment types
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employmentTypes` | array | Получение списка of employmentTypes |
+|   ↳ `id` | string | Employment type ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `label` | string | Employment type label |
+|   ↳ `name` | string | Employment type name |
+|   ↳ `type` | string | Type \(CONTRACTOR, EMPLOYEE\) |
+|   ↳ `compensation_time_period` | string | Compensation period \(HOURLY, SALARIED\) |
+|   ↳ `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_employment_type`
+
+Получение a specific employment type by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Employment type ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `label` | string | Label |
+| `name` | string | Name |
+| `type` | string | Type \(CONTRACTOR, EMPLOYEE\) |
+| `compensation_time_period` | string | Compensation period \(HOURLY, SALARIED\) |
+| `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_titles`
+
+Получение списка titles
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `titles` | array | Получение списка of titles |
+|   ↳ `id` | string | Title ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Title name |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_title`
+
+Получение a specific title by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Title ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Title name |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_title`
+
+Создание нового title
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Title ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Title name |
+
+### `rippling_update_title`
+
+Обновление existing title
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Title ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Title name |
+
+### `rippling_delete_title`
+
+Удаление title
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_custom_fields`
+
+Получение списка custom fields
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customFields` | array | Получение списка of customFields |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Field name |
+|   ↳ `description` | string | Field description |
+|   ↳ `required` | boolean | Указывает,  field is required |
+|   ↳ `type` | string | Field type \(TEXT, DATE, NUMBER, CURRENCY, etc.\) |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_job_functions`
+
+Получение списка job functions
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobFunctions` | array | Получение списка of jobFunctions |
+|   ↳ `id` | string | Job function ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Job function name |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_job_function`
+
+Получение a specific job function by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Job function ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_work_locations`
+
+Получение списка work locations
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workLocations` | array | Получение списка of workLocations |
+|   ↳ `id` | string | Work location ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Location name |
+|   ↳ `address` | json | Address object |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_work_location`
+
+Получение a specific work location by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Location ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `address` | json | Address object |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_work_location`
+
+Создание нового work location
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | Location name |
+| `streetAddress` | string | Да | Street address |
+| `locality` | string | Нет | No description |
+| `region` | string | Нет | State/region |
+| `postalCode` | string | Нет | Postal code |
+| `country` | string | Нет | Country code |
+| `addressType` | string | Нет | Address type \(HOME, WORK, OTHER\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Location ID |
+| `created_at` | string | Created timestamp |
+| `updated_at` | string | Updated timestamp |
+| `name` | string | Name |
+| `address` | json | Address |
+
+### `rippling_update_work_location`
+
+Update a work location
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | Location name |
+| `streetAddress` | string | Нет | Street address |
+| `locality` | string | Нет | No description |
+| `region` | string | Нет | State/region |
+| `postalCode` | string | Нет | Postal code |
+| `country` | string | Нет | Country code |
+| `addressType` | string | Нет | Address type \(HOME, WORK, OTHER\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Location ID |
+| `created_at` | string | Created timestamp |
+| `updated_at` | string | Updated timestamp |
+| `name` | string | Name |
+| `address` | json | Address |
+
+### `rippling_delete_work_location`
+
+Удаление work location
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_business_partners`
+
+Получение списка business partners
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `filter` | string | Нет | Filter expression |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `businessPartners` | array | Получение списка of businessPartners |
+|   ↳ `id` | string | Business partner ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `business_partner_group_id` | string | Business partner group ID |
+|   ↳ `worker_id` | string | Worker ID |
+|   ↳ `client_group_id` | string | Client group ID |
+|   ↳ `client_group_member_count` | number | Client group member count |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_business_partner`
+
+Получение a specific business partner by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `business_partner_group_id` | string | Group ID |
+| `worker_id` | string | Worker ID |
+| `client_group_id` | string | Client group ID |
+| `client_group_member_count` | number | Client group member count |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_business_partner`
+
+Создание нового business partner
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `businessPartnerGroupId` | string | Да | Business partner group ID |
+| `workerId` | string | Да | Worker ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `business_partner_group_id` | string | Group ID |
+| `worker_id` | string | Worker ID |
+| `client_group_id` | string | Client group ID |
+| `client_group_member_count` | number | Client group member count |
+
+### `rippling_delete_business_partner`
+
+Удаление business partner
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_business_partner_groups`
+
+Получение списка business partner groups
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `expand` | string | Нет | Comma-separated fields to expand |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `businessPartnerGroups` | array | Получение списка of businessPartnerGroups |
+|   ↳ `id` | string | Business partner group ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Group name |
+|   ↳ `domain` | string | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
+|   ↳ `default_business_partner_id` | string | Default business partner ID |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_business_partner_group`
+
+Получение a specific business partner group by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `expand` | string | Нет | Comma-separated fields to expand |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `domain` | string | Domain |
+| `default_business_partner_id` | string | Default partner ID |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_business_partner_group`
+
+Создание нового business partner group
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | Group name |
+| `domain` | string | Нет | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
+| `defaultBusinessPartnerId` | string | Нет | Default business partner ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `domain` | string | Domain |
+| `default_business_partner_id` | string | Default partner ID |
+
+### `rippling_delete_business_partner_group`
+
+Удаление business partner group
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_supergroups`
+
+Получение списка supergroups
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `filter` | string | Нет | Filter expression \(filterable fields: app_owner_id, group_type\) |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supergroups` | array | Получение списка of supergroups |
+|   ↳ `id` | string | Supergroup ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `description` | string | Description |
+|   ↳ `app_owner_id` | string | App owner ID |
+|   ↳ `group_type` | string | Group type |
+|   ↳ `name` | string | Name |
+|   ↳ `sub_group_type` | string | Sub group type |
+|   ↳ `read_only` | boolean | Указывает,  group is read only |
+|   ↳ `parent` | string | Parent group ID |
+|   ↳ `mutually_exclusive_key` | string | Mutually exclusive key |
+|   ↳ `cumulatively_exhaustive_default` | boolean | Указывает,  group is the cumulatively exhaustive по умолчанию |
+|   ↳ `include_terminated` | boolean | Указывает,  group includes terminated roles |
+|   ↳ `allow_non_employees` | boolean | Указывает,  group allows non-employees |
+|   ↳ `can_override_role_states` | boolean | Указывает,  group can override role states |
+|   ↳ `priority` | number | Group priority |
+|   ↳ `is_invisible` | boolean | Указывает,  group is invisible |
+|   ↳ `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_supergroup`
+
+Получение a specific supergroup by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Supergroup ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `display_name` | string | Display name |
+| `description` | string | Description |
+| `app_owner_id` | string | App owner ID |
+| `group_type` | string | Group type |
+| `name` | string | Name |
+| `sub_group_type` | string | Sub group type |
+| `read_only` | boolean | Указывает,  group is read only |
+| `parent` | string | Parent group ID |
+| `mutually_exclusive_key` | string | Mutually exclusive key |
+| `cumulatively_exhaustive_default` | boolean | Указывает,  group is the cumulatively exhaustive по умолчанию |
+| `include_terminated` | boolean | Указывает,  group includes terminated roles |
+| `allow_non_employees` | boolean | Указывает,  group allows non-employees |
+| `can_override_role_states` | boolean | Указывает,  group can override role states |
+| `priority` | number | Group priority |
+| `is_invisible` | boolean | Указывает,  group is invisible |
+| `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_supergroup_members`
+
+Получение списка members of a supergroup
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `groupId` | string | Да | Supergroup ID |
+| `expand` | string | Нет | Fields to expand (например, worker\) |
+| `orderBy` | string | Нет | Sort field |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Получение списка of members |
+|   ↳ `id` | string | Member ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `work_email` | string | Work email |
+|   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
+| `totalCount` | number | Number of members returned |
+| `nextLink` | string | Next page link |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_supergroup_inclusion_members`
+
+Получение списка inclusion members of a supergroup
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `groupId` | string | Да | Supergroup ID |
+| `expand` | string | Нет | Fields to expand (например, worker\) |
+| `orderBy` | string | Нет | Sort field |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Получение списка of members |
+|   ↳ `id` | string | Member ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `work_email` | string | Work email |
+|   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
+| `totalCount` | number | Number of members returned |
+| `nextLink` | string | Next page link |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_list_supergroup_exclusion_members`
+
+Получение списка exclusion members of a supergroup
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `groupId` | string | Да | Supergroup ID |
+| `expand` | string | Нет | Fields to expand (например, worker\) |
+| `orderBy` | string | Нет | Sort field |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Получение списка of members |
+|   ↳ `id` | string | Member ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `work_email` | string | Work email |
+|   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
+| `totalCount` | number | Number of members returned |
+| `nextLink` | string | Next page link |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_update_supergroup_inclusion_members`
+
+Update inclusion members of a supergroup
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `groupId` | string | Да | Supergroup ID |
+| `operations` | json | Да | Operations array \[\{op: "add"\|"remove", value: \[\{id: "member_id"\}\]\}\] |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Указывает,  operation succeeded |
+
+### `rippling_update_supergroup_exclusion_members`
+
+Update exclusion members of a supergroup
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `groupId` | string | Да | Supergroup ID |
+| `operations` | json | Да | Operations array \[\{op: "add"\|"remove", value: \[\{id: "member_id"\}\]\}\] |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Указывает,  operation succeeded |
+
+### `rippling_list_custom_objects`
+
+Получение списка custom objects
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customObjects` | array | Получение списка of customObjects |
+|   ↳ `id` | string | Custom object ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Object name |
+|   ↳ `description` | string | Description |
+|   ↳ `api_name` | string | API name |
+|   ↳ `plural_label` | string | Plural label |
+|   ↳ `category_id` | string | Category ID |
+|   ↳ `native_category_id` | string | Native category ID |
+|   ↳ `managed_package_install_id` | string | Package install ID |
+|   ↳ `owner_id` | string | Owner ID |
+|   ↳ `enable_history` | boolean | Whether history is enabled |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+
+### `rippling_get_custom_object`
+
+Получение a custom object by API name
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | custom object api name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `plural_label` | string | Plural label |
+| `category_id` | string | Category ID |
+| `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
+
+### `rippling_create_custom_object`
+
+Создание нового custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | No description |
+| `description` | string | Нет | Description |
+| `category` | string | Нет | Category |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `plural_label` | string | Plural label |
+| `category_id` | string | Category ID |
+| `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
+
+### `rippling_update_custom_object`
+
+Update a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `name` | string | Нет | No description |
+| `description` | string | Нет | Description |
+| `category` | string | Нет | Category |
+| `pluralLabel` | string | Нет | Plural label |
+| `ownerRole` | string | Нет | Owner role |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `plural_label` | string | Plural label |
+| `category_id` | string | Category ID |
+| `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
+
+### `rippling_delete_custom_object`
+
+Удаление custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_custom_object_fields`
+
+Получение списка fields for a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Получение списка of fields |
+|   ↳ `id` | string | Field ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Field name |
+|   ↳ `custom_object` | string | Parent custom object |
+|   ↳ `description` | string | Description |
+|   ↳ `api_name` | string | API name |
+|   ↳ `data_type` | json | Data type configuration |
+|   ↳ `is_unique` | boolean | Указывает,  field is unique |
+|   ↳ `is_immutable` | boolean | Указывает,  field is immutable |
+|   ↳ `is_standard` | boolean | Указывает,  field is standard |
+|   ↳ `enable_history` | boolean | Whether history is enabled |
+|   ↳ `managed_package_install_id` | string | Package install ID |
+| `totalCount` | number | Number of fields returned |
+| `nextLink` | string | Next page link |
+
+### `rippling_get_custom_object_field`
+
+Получение a specific field of a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `fieldApiName` | string | Да | Field API name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Field ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `custom_object` | string | Custom object |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `data_type` | json | Data type configuration |
+| `is_unique` | boolean | Is unique |
+| `is_immutable` | boolean | Is immutable |
+| `is_standard` | boolean | Is standard |
+| `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
+
+### `rippling_create_custom_object_field`
+
+Create a field on a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `name` | string | Да | Field name |
+| `description` | string | Нет | Description |
+| `dataType` | json | Да | Data type configuration |
+| `required` | boolean | Нет | Указывает,  field is required |
+| `rqlDefinition` | json | Нет | RQL definition object |
+| `isUnique` | boolean | Нет | Whether field is unique |
+| `formulaAttrMetas` | json | Нет | Formula attribute metadata |
+| `section` | json | Нет | Section configuration |
+| `enableHistory` | boolean | Нет | Enable history tracking |
+| `derivedFieldFormula` | string | Нет | Derived field formula expression |
+| `derivedAggregatedField` | json | Нет | Derived aggregated field configuration |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Field ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `custom_object` | string | Custom object |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `data_type` | json | Data type configuration |
+| `is_unique` | boolean | Is unique |
+| `is_immutable` | boolean | Is immutable |
+| `is_standard` | boolean | Is standard |
+| `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
+
+### `rippling_update_custom_object_field`
+
+Update a field on a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `fieldApiName` | string | Да | Field API name |
+| `name` | string | Нет | Field name |
+| `description` | string | Нет | Description |
+| `dataType` | json | Нет | Data type |
+| `required` | boolean | Нет | Указывает,  field is required |
+| `rqlDefinition` | json | Нет | RQL definition object |
+| `isUnique` | boolean | Нет | Is unique |
+| `formulaAttrMetas` | json | Нет | Formula attribute metadata |
+| `section` | json | Нет | Section configuration |
+| `enableHistory` | boolean | Нет | Enable history |
+| `derivedFieldFormula` | string | Нет | Derived field formula expression |
+| `nameFieldDetails` | json | Нет | Name field details configuration |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Field ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `custom_object` | string | Custom object |
+| `description` | string | Description |
+| `api_name` | string | API name |
+| `data_type` | json | Data type configuration |
+| `is_unique` | boolean | Is unique |
+| `is_immutable` | boolean | Is immutable |
+| `is_standard` | boolean | Is standard |
+| `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
+
+### `rippling_delete_custom_object_field`
+
+Удаление field from a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `fieldApiName` | string | Да | Field API name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  field was deleted |
+
+### `rippling_list_custom_object_records`
+
+Получение списка records for a custom object
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Получение списка of records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Record name |
+|   ↳ `external_id` | string | External ID |
+|   ↳ `created_by` | json | Created by user \(id, display_value, image\) |
+|   ↳ `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+|   ↳ `owner_role` | json | Owner role \(id, display_value, image\) |
+|   ↳ `system_updated_at` | string | System update timestamp |
+|   ↳ `data` | json | Full record data including dynamic fields |
+| `totalCount` | number | Number of records returned |
+| `nextLink` | string | Next page link |
+
+### `rippling_get_custom_object_record`
+
+Получение a specific custom object record
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `codrId` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user \(id, display_value, image\) |
+| `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `owner_role` | json | Owner role \(id, display_value, image\) |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+### `rippling_get_custom_object_record_by_external_id`
+
+Получение a custom object record by external ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `externalId` | string | Да | External ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user \(id, display_value, image\) |
+| `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `owner_role` | json | Owner role \(id, display_value, image\) |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+### `rippling_query_custom_object_records`
+
+Query custom object records with filters
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `query` | string | Нет | Query expression |
+| `limit` | number | Нет | Maximum number of records to return |
+| `cursor` | string | Нет | Pagination cursor |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Matching records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Record name |
+|   ↳ `external_id` | string | External ID |
+|   ↳ `created_by` | json | Created by user \(id, display_value, image\) |
+|   ↳ `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+|   ↳ `owner_role` | json | Owner role \(id, display_value, image\) |
+|   ↳ `system_updated_at` | string | System update timestamp |
+|   ↳ `data` | json | Full record data |
+| `totalCount` | number | Number of records returned |
+| `cursor` | string | Cursor for next page of results |
+
+### `rippling_create_custom_object_record`
+
+Create a custom object record
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `externalId` | string | Нет | External ID for the record |
+| `data` | json | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user \(id, display_value, image\) |
+| `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `owner_role` | json | Owner role \(id, display_value, image\) |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+### `rippling_update_custom_object_record`
+
+Update a custom object record
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `codrId` | string | Да | Record ID |
+| `externalId` | string | Нет | External ID for the record |
+| `data` | json | Нет | Updated record data |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user \(id, display_value, image\) |
+| `last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `owner_role` | json | Owner role \(id, display_value, image\) |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+### `rippling_delete_custom_object_record`
+
+Удаление custom object record
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `codrId` | string | Да | Record ID |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  record was deleted |
+
+### `rippling_bulk_create_custom_object_records`
+
+Bulk create custom object records
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `rowsToWrite` | json | Да | Array of records to create \[\{external_id?, data\}\] |
+| `allOrNothing` | boolean | Нет | If true, fail entire batch on any error |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `createdRecords` | array | Created custom object records |
+| `totalCount` | number | Number of records created |
+
+### `rippling_bulk_update_custom_object_records`
+
+Bulk update custom object records
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `rowsToUpdate` | json | Да | Array of records to update |
+| `allOrNothing` | boolean | Нет | If true, fail entire batch on any error |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedRecords` | array | Updated custom object records |
+| `totalCount` | number | Number of records updated |
+
+### `rippling_bulk_delete_custom_object_records`
+
+Bulk delete custom object records
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `customObjectApiName` | string | Да | Custom object API name |
+| `rowsToDelete` | json | Да | Array of records to delete |
+| `allOrNothing` | boolean | Нет | If true, fail entire batch on any error |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  bulk delete succeeded |
+
+### `rippling_list_custom_apps`
+
+Получение списка custom apps
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customApps` | array | Получение списка of customApps |
+|   ↳ `id` | string | App ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | App name |
+|   ↳ `api_name` | string | API name |
+|   ↳ `description` | string | Description |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `pages` | json | Array of page summaries |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_custom_app`
+
+Получение a specific custom app
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | App ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `api_name` | string | API name |
+| `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_custom_app`
+
+Создание нового custom app
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | No description |
+| `apiName` | string | Да | No description |
+| `description` | string | Нет | Description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | App ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `api_name` | string | API name |
+| `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
+
+### `rippling_update_custom_app`
+
+Update a custom app
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | No description |
+| `apiName` | string | Нет | API name |
+| `description` | string | Нет | Description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | App ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `api_name` | string | API name |
+| `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
+
+### `rippling_delete_custom_app`
+
+Удаление custom app
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_custom_pages`
+
+Получение списка custom pages
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customPages` | array | Получение списка of customPages |
+|   ↳ `id` | string | Page ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Page name |
+|   ↳ `components` | json | Page components |
+|   ↳ `actions` | json | Page actions |
+|   ↳ `canvas_actions` | json | Canvas actions |
+|   ↳ `variables` | json | Page variables |
+|   ↳ `media` | json | Page media |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_custom_page`
+
+Получение a specific custom page
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Page ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_custom_page`
+
+Создание нового custom page
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Page ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
+
+### `rippling_update_custom_page`
+
+Update a custom page
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Page ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
+
+### `rippling_delete_custom_page`
+
+Удаление custom page
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_custom_settings`
+
+Получение списка custom settings
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `orderBy` | string | Нет | Sort field. Prefix with - for descending |
+| `cursor` | string | Нет | Pagination cursor from previous response |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customSettings` | array | Получение списка of custom settings |
+|   ↳ `id` | string | Setting ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `api_name` | string | API name |
+|   ↳ `data_type` | string | Data type |
+|   ↳ `secret_value` | string | Secret value |
+|   ↳ `string_value` | string | String value |
+|   ↳ `number_value` | number | Number value |
+|   ↳ `boolean_value` | boolean | Boolean value |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_get_custom_setting`
+
+Получение a specific custom setting
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Setting ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `display_name` | string | Display name |
+| `api_name` | string | API name |
+| `data_type` | string | Data type |
+| `secret_value` | string | Secret value |
+| `string_value` | string | String value |
+| `number_value` | number | Number value |
+| `boolean_value` | boolean | Boolean value |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_create_custom_setting`
+
+Создание нового custom setting
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `displayName` | string | Нет | Display name |
+| `apiName` | string | Нет | Unique API name |
+| `dataType` | string | Нет | Data type of the setting |
+| `secretValue` | string | Нет | Secret value \(for secret data type\) |
+| `stringValue` | string | Нет | String value \(for string data type\) |
+| `numberValue` | number | Нет | Number value \(for number data type\) |
+| `booleanValue` | boolean | Нет | Boolean value \(for boolean data type\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Setting ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `display_name` | string | Display name |
+| `api_name` | string | API name |
+| `data_type` | string | Data type |
+| `secret_value` | string | Secret value |
+| `string_value` | string | String value |
+| `number_value` | number | Number value |
+| `boolean_value` | boolean | Boolean value |
+
+### `rippling_update_custom_setting`
+
+Update a custom setting
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `displayName` | string | Нет | Display name |
+| `apiName` | string | Нет | Unique API name |
+| `dataType` | string | Нет | Data type of the setting |
+| `secretValue` | string | Нет | Secret value \(for secret data type\) |
+| `stringValue` | string | Нет | String value \(for string data type\) |
+| `numberValue` | number | Нет | Number value \(for number data type\) |
+| `booleanValue` | boolean | Нет | Boolean value \(for boolean data type\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Setting ID |
+| `created_at` | string | Record creation date |
+| `updated_at` | string | Record update date |
+| `display_name` | string | Display name |
+| `api_name` | string | API name |
+| `data_type` | string | Data type |
+| `secret_value` | string | Secret value |
+| `string_value` | string | String value |
+| `number_value` | number | Number value |
+| `boolean_value` | boolean | Boolean value |
+
+### `rippling_delete_custom_setting`
+
+Удаление custom setting
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_list_object_categories`
+
+Получение списка object categories
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectCategories` | array | Получение списка of objectCategories |
+|   ↳ `id` | string | Category ID |
+|   ↳ `created_at` | string | Record creation date |
+|   ↳ `updated_at` | string | Record update date |
+|   ↳ `name` | string | Category name |
+|   ↳ `description` | string | Description |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+
+### `rippling_get_object_category`
+
+Получение a specific object category
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Category ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+
+### `rippling_create_object_category`
+
+Создание нового object category
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `name` | string | Да | Category name |
+| `description` | string | Нет | Description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Category ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+
+### `rippling_update_object_category`
+
+Обновление object category
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | No description |
+| `name` | string | Нет | Category name |
+| `description` | string | Нет | Description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Category ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+| `description` | string | Description |
+
+### `rippling_delete_object_category`
+
+Удалениеn object category
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `id` | string | Да | ID of the resource to delete |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Указывает,  resource was deleted |
+
+### `rippling_get_report_run`
+
+Получение a report run by ID
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `runId` | string | Да | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Report run ID |
+| `report_id` | string | Report ID |
+| `status` | string | Run status |
+| `file_url` | string | URL to download the report file |
+| `expires_at` | string | Expiration timestamp for the file URL |
+| `output_type` | string | Output format \(JSON or CSV\) |
+| `__meta` | json | Metadata including redacted_fields |
+
+### `rippling_trigger_report_run`
+
+Trigger a new report run
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `reportId` | string | Да | Report ID to run |
+| `includeObjectIds` | boolean | Нет | Include object IDs in the report |
+| `includeTotalRows` | boolean | Нет | Include total row count |
+| `formatDateFields` | json | Нет | Date field formatting configuration |
+| `formatCurrencyFields` | json | Нет | Currency field formatting configuration |
+| `outputType` | string | Нет | Output type \(JSON or CSV\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Report run ID |
+| `report_id` | string | Report ID |
+| `status` | string | Run status |
+| `file_url` | string | URL to download the report file |
+| `expires_at` | string | Expiration timestamp for the file URL |
+| `output_type` | string | Output format \(JSON or CSV\) |
+
+### `rippling_create_draft_hires`
+
+Create bulk draft hires
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Rippling Ключ API |
+| `draftHires` | json | Да | Array of draft hire objects |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invalidItems` | json | Failed draft hires |
+| `successfulResults` | json | Successful draft hires |
+| `totalInvalid` | number | Number of failures |
+| `totalSuccessful` | number | Number of successes |
+
+

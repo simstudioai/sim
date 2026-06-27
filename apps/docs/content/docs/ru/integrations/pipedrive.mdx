@@ -1,0 +1,520 @@
+---
+title: Pipedrive
+description: Взаимодействие с Pipedrive CRM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pipedrive"
+  color="#2E6936"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Pipedrive](https://www.pipedrive.com) is a sales-focused CRM platform designed to help sales teams manage leads, track deals, and optimize their sales pipeline. Built with simplicity and effectiveness in mind, Pipedrive provides intuitive visual pipeline management and actionable sales insights.
+
+With the Pipedrive integration in Sim, you can:
+
+- **Manage deals**: List, get, create, and update deals in your sales pipeline
+- **Manage leads**: Get, create, update, and delete leads for prospect tracking
+- **Track activities**: Get, create, and update sales activities such as calls, meetings, and tasks
+- **Manage projects**: Получение списка and create projects for post-sale delivery tracking
+- **Access pipelines**: Получение pipeline configurations and list deals within specific pipelines
+- **Получение files**: Access files attached to deals, contacts, or other records
+- **Access email**: Получение mail messages and threads linked to CRM records
+
+In Sim, the Pipedrive integration enables your agents to interact with your sales workflow as part of automated processes. Agents can qualify leads, manage deals through pipeline stages, schedule activities, and keep CRM data synchronized—enabling intelligent sales automation.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Pipedrive в ваш рабочий процесс. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.
+
+
+
+## Действия
+
+### `pipedrive_get_all_deals`
+
+Получение all deals from Pipedrive with optional filters
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | Нет | Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned |
+| `person_id` | string | Нет | If supplied, only deals linked to the specified person are returned (например, "456"\) |
+| `org_id` | string | Нет | If supplied, only deals linked to the specified organization are returned (например, "789"\) |
+| `pipeline_id` | string | Нет | If supplied, only deals in the specified pipeline are returned (например, "1"\) |
+| `updated_since` | string | Нет | If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500\) |
+| `cursor` | string | Нет | For pagination, the marker representing the first item on the next page |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Array of deal objects from Pipedrive |
+|   ↳ `id` | number | Deal ID |
+|   ↳ `title` | string | Deal title |
+|   ↳ `value` | number | Deal value |
+|   ↳ `currency` | string | Currency code |
+|   ↳ `status` | string | Deal status \(open, won, lost, deleted\) |
+|   ↳ `stage_id` | number | Pipeline stage ID |
+|   ↳ `pipeline_id` | number | Pipeline ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `owner_id` | number | Deal owner user ID |
+|   ↳ `add_time` | string | When the deal was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the deal was last updated \(ISO 8601\) |
+|   ↳ `won_time` | string | When the deal was won |
+|   ↳ `lost_time` | string | When the deal was lost |
+|   ↳ `close_time` | string | When the deal was closed |
+|   ↳ `expected_close_date` | string | Expected close date |
+| `metadata` | object | Pagination metadata for the response |
+|   ↳ `total_items` | number | Total number of items |
+|   ↳ `has_more` | boolean | Whether more items are available |
+|   ↳ `next_cursor` | string | Cursor for fetching the next page \(v2 endpoints\) |
+|   ↳ `next_start` | number | Offset for fetching the next page \(v1 endpoints\) |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_deal`
+
+Получение detailed information about a specific deal
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Да | The ID of the deal to retrieve (например, "123"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | Deal object with full details |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_create_deal`
+
+Создание нового deal in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Да | The title of the deal (например, "Enterprise Software License"\) |
+| `value` | string | Нет | The monetary value of the deal (например, "5000"\) |
+| `currency` | string | Нет | Currency code (например, "USD", "EUR", "GBP"\) |
+| `person_id` | string | Нет | ID of the person this deal is associated with (например, "456"\) |
+| `org_id` | string | Нет | ID of the organization this deal is associated with (например, "789"\) |
+| `pipeline_id` | string | Нет | ID of the pipeline this deal should be placed in (например, "1"\) |
+| `stage_id` | string | Нет | ID of the stage this deal should be placed in (например, "2"\) |
+| `status` | string | Нет | Status of the deal: open, won, lost |
+| `expected_close_date` | string | Нет | Expected close date in YYYY-MM-DD format (например, "2025-06-30"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | The created deal object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_update_deal`
+
+Обновление existing deal in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `deal_id` | string | Да | The ID of the deal to update (например, "123"\) |
+| `title` | string | Нет | New title for the deal (например, "Updated Enterprise License"\) |
+| `value` | string | Нет | New monetary value for the deal (например, "7500"\) |
+| `status` | string | Нет | New status: open, won, lost |
+| `stage_id` | string | Нет | New stage ID for the deal (например, "3"\) |
+| `expected_close_date` | string | Нет | New expected close date in YYYY-MM-DD format (например, "2025-07-15"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | The updated deal object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_files`
+
+Получение files from Pipedrive with optional filters
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `sort` | string | Нет | Sort files by field \(supported: "id", "update_time"\) |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 100\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+| `downloadFiles` | boolean | Нет | Download file contents into file outputs |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Array of file objects from Pipedrive |
+|   ↳ `id` | number | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `file_type` | string | File type/extension |
+|   ↳ `file_size` | number | File size in bytes |
+|   ↳ `add_time` | string | When the file was uploaded |
+|   ↳ `update_time` | string | When the file was last updated |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `url` | string | File download URL |
+| `downloadedFiles` | file[] | Downloaded files from Pipedrive |
+| `total_items` | number | Total number of files returned |
+| `has_more` | boolean | Whether more files are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_mail_messages`
+
+Получение mail threads from Pipedrive mailbox
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `folder` | string | Нет | Filter by folder: inbox, drafts, sent, archive \(по умолчанию: inbox\) |
+| `limit` | string | Нет | Number of results to return (например, "25", по умолчанию: 50\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of mail thread objects from Pipedrive mailbox |
+| `total_items` | number | Total number of mail threads returned |
+| `has_more` | boolean | Whether more messages are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_mail_thread`
+
+Получение all messages from a specific mail thread
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `thread_id` | string | Да | The ID of the mail thread (например, "12345"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of mail message objects from the thread |
+| `metadata` | object | Thread and pagination metadata |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_pipelines`
+
+Получение all pipelines from Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `sort_by` | string | Нет | Field to sort by: id, update_time, add_time \(по умолчанию: id\) |
+| `sort_direction` | string | Нет | Sorting direction: asc, desc \(по умолчанию: asc\) |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelines` | array | Array of pipeline objects from Pipedrive |
+|   ↳ `id` | number | Pipeline ID |
+|   ↳ `name` | string | Pipeline name |
+|   ↳ `url_title` | string | URL-friendly title |
+|   ↳ `order_nr` | number | Pipeline order number |
+|   ↳ `active` | boolean | Указывает,  pipeline is active |
+|   ↳ `deal_probability` | boolean | Whether deal probability is enabled |
+|   ↳ `add_time` | string | When the pipeline was created |
+|   ↳ `update_time` | string | When the pipeline was last updated |
+| `total_items` | number | Total number of pipelines returned |
+| `has_more` | boolean | Whether more pipelines are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_pipeline_deals`
+
+Получение all deals in a specific pipeline
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `pipeline_id` | string | Да | The ID of the pipeline (например, "1"\) |
+| `stage_id` | string | Нет | Filter by specific stage within the pipeline (например, "2"\) |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Array of deal objects from the pipeline |
+| `metadata` | object | Pipeline and pagination metadata |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_projects`
+
+Получение all projects or a specific project from Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `project_id` | string | Нет | Optional: ID of a specific project to retrieve (например, "123"\) |
+| `status` | string | Нет | Filter by project status: open, completed, deleted \(only for listing all\) |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500, only for listing all\) |
+| `cursor` | string | Нет | For pagination, the marker representing the first item on the next page |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | Array of project objects \(when listing all\) |
+| `project` | object | Single project object \(when project_id is provided\) |
+| `total_items` | number | Total number of projects returned |
+| `has_more` | boolean | Whether more projects are available |
+| `next_cursor` | string | Cursor for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_create_project`
+
+Создание нового project in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Да | The title of the project (например, "Q2 Marketing Campaign"\) |
+| `description` | string | Нет | Description of the project |
+| `start_date` | string | Нет | Project start date in YYYY-MM-DD format (например, "2025-04-01"\) |
+| `end_date` | string | Нет | Project end date in YYYY-MM-DD format (например, "2025-06-30"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | The created project object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_activities`
+
+Получение activities (tasks) from Pipedrive with optional filters
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `user_id` | string | Нет | Filter activities by user ID (например, "123"\) |
+| `type` | string | Нет | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
+| `done` | string | Нет | Filter by completion status: 0 for not done, 1 for done |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | array | Array of activity objects from Pipedrive |
+|   ↳ `id` | number | Activity ID |
+|   ↳ `subject` | string | Activity subject |
+|   ↳ `type` | string | Activity type \(call, meeting, task, etc.\) |
+|   ↳ `due_date` | string | Due date \(YYYY-MM-DD\) |
+|   ↳ `due_time` | string | Due time \(HH:MM\) |
+|   ↳ `duration` | string | Duration \(HH:MM\) |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `done` | boolean | Указывает,  activity is done |
+|   ↳ `note` | string | Activity note |
+|   ↳ `add_time` | string | When the activity was created |
+|   ↳ `update_time` | string | When the activity was last updated |
+| `total_items` | number | Total number of activities returned |
+| `has_more` | boolean | Whether more activities are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_create_activity`
+
+Создание нового activity (task) in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | Да | The subject/title of the activity (например, "Follow up call with John"\) |
+| `type` | string | Да | Activity type: call, meeting, task, deadline, email, lunch |
+| `due_date` | string | Да | Due date in YYYY-MM-DD format (например, "2025-03-15"\) |
+| `due_time` | string | Нет | Due time in HH:MM format (например, "14:30"\) |
+| `duration` | string | Нет | Duration in HH:MM format (например, "01:00" for 1 hour\) |
+| `deal_id` | string | Нет | ID of the deal to associate with (например, "123"\) |
+| `person_id` | string | Нет | ID of the person to associate with (например, "456"\) |
+| `org_id` | string | Нет | ID of the organization to associate with (например, "789"\) |
+| `note` | string | Нет | Notes for the activity |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | object | The created activity object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_update_activity`
+
+Обновление existing activity (task) in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `activity_id` | string | Да | The ID of the activity to update (например, "12345"\) |
+| `subject` | string | Нет | New subject/title for the activity (например, "Updated meeting with client"\) |
+| `due_date` | string | Нет | New due date in YYYY-MM-DD format (например, "2025-03-20"\) |
+| `due_time` | string | Нет | New due time in HH:MM format (например, "15:00"\) |
+| `duration` | string | Нет | New duration in HH:MM format (например, "00:30" for 30 minutes\) |
+| `done` | string | Нет | Mark as done: 0 for not done, 1 for done |
+| `note` | string | Нет | New notes for the activity |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | object | The updated activity object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_get_leads`
+
+Получение all leads or a specific lead from Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Нет | Optional: ID of a specific lead to retrieve (например, "abc123-def456-ghi789"\) |
+| `archived` | string | Нет | Получение archived leads instead of active ones (например, "true" or "false"\) |
+| `owner_id` | string | Нет | Filter by owner user ID (например, "123"\) |
+| `person_id` | string | Нет | Filter by person ID (например, "456"\) |
+| `organization_id` | string | Нет | Filter by organization ID (например, "789"\) |
+| `limit` | string | Нет | Number of results to return (например, "50", по умолчанию: 100, max: 500\) |
+| `start` | string | Нет | Pagination start offset \(0-based index of the first item to return\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | Array of lead objects \(when listing all\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code (например, USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Указывает,  lead is archived |
+|   ↳ `was_seen` | boolean | Указывает,  lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
+| `lead` | object | Single lead object \(when lead_id is provided\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code (например, USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Указывает,  lead is archived |
+|   ↳ `was_seen` | boolean | Указывает,  lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
+| `total_items` | number | Total number of leads returned |
+| `has_more` | boolean | Whether more leads are available |
+| `next_start` | number | Offset for fetching the next page |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_create_lead`
+
+Создание нового lead in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Да | The name of the lead (например, "Acme Corp - Website Redesign"\) |
+| `person_id` | string | Нет | ID of the person \(REQUIRED unless organization_id is provided\) (например, "456"\) |
+| `organization_id` | string | Нет | ID of the organization \(REQUIRED unless person_id is provided\) (например, "789"\) |
+| `owner_id` | string | Нет | ID of the user who will own the lead (например, "123"\) |
+| `value_amount` | string | Нет | Potential value amount (например, "10000"\) |
+| `value_currency` | string | Нет | Currency code (например, "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | Нет | Expected close date in YYYY-MM-DD format (например, "2025-04-15"\) |
+| `visible_to` | string | Нет | Visibility: 1 \(Owner & followers\), 3 \(Entire company\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lead` | object | The created lead object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_update_lead`
+
+Обновление existing lead in Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Да | The ID of the lead to update (например, "abc123-def456-ghi789"\) |
+| `title` | string | Нет | New name for the lead (например, "Updated Lead - Premium Package"\) |
+| `person_id` | string | Нет | New person ID (например, "456"\) |
+| `organization_id` | string | Нет | New organization ID (например, "789"\) |
+| `owner_id` | string | Нет | New owner user ID (например, "123"\) |
+| `value_amount` | string | Нет | New value amount (например, "15000"\) |
+| `value_currency` | string | Нет | New currency code (например, "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | Нет | New expected close date in YYYY-MM-DD format (например, "2025-05-01"\) |
+| `is_archived` | string | Нет | Archive the lead: true or false |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lead` | object | The updated lead object |
+| `success` | boolean | Operation статус успешности |
+
+### `pipedrive_delete_lead`
+
+Удаление specific lead from Pipedrive
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `lead_id` | string | Да | The ID of the lead to delete (например, "abc123-def456-ghi789"\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Deletion confirmation data |
+| `success` | boolean | Operation статус успешности |
+
+

@@ -1,0 +1,152 @@
+---
+title: Pi Coding Agent
+description: The Pi Coding Agent block runs an autonomous coding agent on a real repository — in an isolated cloud sandbox that opens a pull request, or on your own machine over SSH.
+pageType: reference
+---
+
+import { BlockPreview } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it reads, edits, and runs files, then either opens a pull request or changes your files in place. It reuses your models, [skills](/agents/skills), and multi-turn [memory](#memory), and streams its progress as it works.
+
+It has two modes that decide *where* it runs and *how* its changes land:
+
+- **Cloud** — spins up an isolated sandbox, clones a connected GitHub repo, edits and tests with native shell + git, and opens a **pull request**.
+- **Local** — connects to your own machine over **SSH** and edits files there directly.
+
+<BlockPreview type="pi" />
+
+## Modes
+
+Pick the mode with the **Mode** dropdown. The fields below it change to match.
+
+### Cloud
+
+Cloud runs entirely inside a disposable sandbox, so it never touches your machine. It clones the repo, lets the agent work with full read/shell/edit/git, pushes a branch, and opens a PR you review and merge.
+
+- Requires sandbox execution to be enabled (the Cloud option only appears when it is).
+- Requires **your own provider API key (BYOK)** — the model key is handed to the sandbox.
+- Needs a **GitHub token** with permission to clone, push, and open a PR (see [Setup](#setup-cloud)).
+- The deliverable is a **pull request** — nothing is committed to your default branch directly.
+
+### Local
+
+Local runs the agent against a repository on a machine you control, reached over SSH. Changes are written **in place** — there's no PR; you review them as normal git changes on that machine.
+
+- The machine must be reachable on a **public hostname** — `localhost` and LAN/private addresses are blocked. Expose it with a tunnel (see [Setup](#setup-local)).
+- The agent's file and shell tools are confined to the **Repository Path** you configure.
+- You can also expose **Sim tools** (Gmail, Slack, Exa, …) to the agent so it can act beyond the repo while it works.
+
+## Configuration
+
+### Task
+
+What the agent should do, in plain language — for example *"Add input validation to the signup form and a test for it."* Insert a [connection tag](/workflows/connections) to pass an earlier output, like `<start.input>`.
+
+### Model
+
+The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown lists only models the Pi harness can run: **OpenAI, Anthropic, Google (Gemini), xAI, DeepSeek, Mistral, Groq, Cerebras, and OpenRouter**.
+
+### API Key
+
+Your key for the chosen provider. On hosted Sim it's optional for Local runs (a hosted key is used and metered to your workspace), but **Cloud always requires your own key** — enter it in this field. For OpenAI, Anthropic, Google, and Mistral you can instead store a workspace key in **Settings → BYOK**; other providers must use this field.
+
+### Repository (Cloud)
+
+- **Repository Owner / Repository Name** — the GitHub repo to clone and open the PR against (for example `your-org` / `your-repo`).
+- **GitHub Token** — a personal access token used to clone, push, and open the PR. See [Setup](#setup-cloud) for the exact permissions.
+- **Base Branch** — the branch the PR is opened against and cloned from. Defaults to the repository's default branch.
+- **Branch Name** *(advanced)* — the branch to push. Auto-generated when blank.
+- **Open as Draft PR** *(advanced)* — opens the PR as a draft. On by default.
+- **PR Title / PR Body** *(advanced)* — generated from the run when blank.
+
+### Connection (Local)
+
+- **Host** — the public hostname or tunnel for the target machine (for example `2.tcp.ngrok.io`). Not `localhost` or a LAN address.
+- **Username** — the SSH user (for example `ubuntu`, `root`, or your macOS account).
+- **Authentication Method** — `Password` or `Private Key`.
+- **Password / Private Key** — the credential for that method. Use a key where you can.
+- **Repository Path** — the absolute path to the repo on the target machine (for example `/home/user/my-repo`). The agent's tools are confined to this directory.
+- **Port** *(advanced)* — the SSH port. Defaults to `22`; set this to your tunnel's port if it differs.
+- **Passphrase** *(advanced)* — for an encrypted private key.
+
+### Tools (Local)
+
+Sim tools the agent can call while it works — search a knowledge base, send a Slack message, call any of the [integrations](/integrations). They run through Sim with your connected credentials, exactly like the [Agent block](/workflows/blocks/agent). MCP and custom tools aren't supported here yet (they appear greyed out).
+
+### Skills
+
+[Agent skills](/agents/skills) the agent can use — reusable instruction packages like a coding standard or a review playbook. They're shared with the Agent block, so a skill you author once works in both.
+
+### Thinking Level
+
+For models with extended reasoning, how much the model thinks before acting. Higher is more thorough but slower and costs more tokens. Defaults to `medium`.
+
+### Memory
+
+Multi-turn memory keyed by a conversation ID, shared with the [Agent block](/workflows/blocks/agent):
+
+- **None.** Each run is independent.
+- **Conversation.** The full history for that conversation ID.
+- **Sliding window (messages).** The most recent N messages.
+- **Sliding window (tokens).** Recent messages up to a token budget.
+
+Reuse the same **Conversation ID** across runs to continue a thread. Each turn stores your task and the agent's final summary, which are folded into the next run's prompt.
+
+### Context limits
+
+Memory is folded into the agent's first prompt, and two layers keep it within the model's context window:
+
+- **Sim trims before the run.** The selected memory type bounds what's injected: **Conversation** is automatically capped to a fraction of the model's context window (for models in Sim's catalog), **Sliding window (messages)** keeps the last N messages, and **Sliding window (tokens)** keeps history up to an explicit token budget.
+- **Pi compacts during the run.** As the agent works (reading files, running commands), Pi automatically summarizes older turns to stay under the window — in both Cloud and Local mode, on by default. You don't need to configure anything for context growth mid-run.
+
+The one case neither layer can rescue is a *first* prompt that already exceeds the window — Pi can only compact once there are older turns to summarize. This is only reachable with **Conversation** memory plus a model typed in manually (not in Sim's catalog), where the automatic cap can't look up a context window. For long histories — and whenever you use a manually entered model — choose **Sliding window (tokens)**: its budget applies regardless of the model, so the first prompt always fits.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<pi.content>` | The agent's final message / run summary |
+| `<pi.changedFiles>` | The files the agent changed |
+| `<pi.diff>` | A unified diff of the changes |
+| `<pi.prUrl>` | URL of the opened pull request *(Cloud)* |
+| `<pi.branch>` | The branch pushed with the changes *(Cloud)* |
+| `<pi.model>` | The model that ran |
+| `<pi.tokens>` | Token usage, an object `{ input, output, total }` |
+| `<pi.cost>` | Estimated cost of the run |
+| `<pi.providerTiming>` | Timing, an object `{ startTime, endTime, duration }` |
+
+## Setup
+
+### Cloud [#setup-cloud]
+
+Cloud runs in a sandbox image with the Pi CLI and git baked in.
+
+1. **Enable sandbox execution.** On self-hosted Sim, set `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_PI_TEMPLATE_ID` (the Pi template id), and `NEXT_PUBLIC_E2B_ENABLED=true` (this reveals the Cloud option in the UI). Build the template with `bun run apps/sim/scripts/build-pi-e2b-template.ts`. The Cloud option stays hidden until `NEXT_PUBLIC_E2B_ENABLED` is set.
+2. **Bring your own model key.** Set the provider API key in the block's API Key field (or, for OpenAI/Anthropic/Google/Mistral, in **Settings → BYOK**).
+3. **Create a GitHub token** with permission to clone, push, and open a PR:
+   - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.
+   - *Classic:* the **`repo`** scope. For org repos, authorize the token for SSO.
+
+### Local [#setup-local]
+
+1. **Enable SSH** on the target machine (on macOS: System Settings → General → Sharing → Remote Login).
+2. **Expose it on a public host.** Sim blocks `localhost`/LAN, so use a TCP tunnel — for example `ngrok tcp 22`, which gives a `host:port` to put in **Host** and **Port**.
+3. **Use a model your provider supports** (for example a Claude model with an Anthropic key). Set the credential method and **Repository Path**, then run.
+
+## Best Practices
+
+- **Scope the task.** A specific instruction ("fix the failing `auth` test and add a regression case") produces far better results than a vague one.
+- **Use Cloud for hands-off PRs, Local for your working tree.** Cloud is safest for unattended changes (everything lands in a reviewable PR); Local is for iterating on a repo you already have checked out.
+- **Prefer key auth and tear down tunnels.** A public SSH tunnel is a real attack surface — use a private key and stop the tunnel when you're done.
+- **Reuse a Conversation ID for follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
+
+<FAQ items={[
+  { question: "What's the difference between Cloud and Local mode?", answer: "Cloud runs in a disposable sandbox, clones a GitHub repo, and opens a pull request — it never touches your machine. Local connects to your own machine over SSH and edits files in place (no PR). Cloud requires your own model key (BYOK); Local can use a hosted model key on hosted Sim." },
+  { question: "Which models can I use?", answer: "The model dropdown is filtered to providers the Pi harness can run with an API key: OpenAI, Anthropic, Google (Gemini), xAI, DeepSeek, Mistral, Groq, Cerebras, and OpenRouter. Providers that need richer config (Vertex, Bedrock, Azure) or a base URL (Ollama, vLLM, etc.) aren't offered." },
+  { question: "Why does Local mode need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
+  { question: "What GitHub permissions does Cloud mode need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
+  { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local mode via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
+  { question: "Where do the changes go?", answer: "In Cloud mode, to a new branch and a pull request (read prUrl and branch). In Local mode, the files are edited in place on the target machine — review them with git there. Both modes also return changedFiles and a diff." },
+  { question: "What happens when memory or context gets large?", answer: "Two things keep it in bounds. Sim trims memory before the run based on the memory type (Conversation auto-caps to a fraction of the model's window for catalog models; the sliding windows bound by message count or token budget), and Pi auto-compacts older turns during the run to stay under the window in both modes. The only gap is a first prompt that already exceeds the window, reachable with Conversation memory plus a manually typed model — use Sliding window (tokens) for long histories or non-catalog models so the budget always applies." },
+]} />

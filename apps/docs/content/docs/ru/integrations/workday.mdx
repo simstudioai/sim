@@ -1,0 +1,262 @@
+---
+title: Workday
+description: Управление сотрудниками, наймом, адаптацией и HR-операциями в Workday
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="workday"
+  color="#F5F0EB"
+/>
+
+## Инструкции по использованию
+
+Интегрируйте Workday HRIS в ваш рабочий процесс. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.
+
+
+
+## Действия
+
+### `workday_get_worker`
+
+Получение a specific worker profile including personal, employment, and organization data.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID to retrieve (например, 3aa5550b7fe348b98d7b5741afc65534\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worker` | json | Worker profile with personal, employment, and organization data |
+
+### `workday_list_workers`
+
+Получение списка or search workers with optional filtering and pagination.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `limit` | number | Нет | Maximum number of workers to return \(по умолчанию: 20\) |
+| `offset` | number | Нет | Number of records to skip for pagination |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workers` | array | Array of worker profiles |
+| `total` | number | Total number of matching workers |
+
+### `workday_create_prehire`
+
+Создание нового pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `legalName` | string | Да | Full legal name of the pre-hire (например, "Jane Doe"\) |
+| `email` | string | Нет | Email address of the pre-hire |
+| `phoneNumber` | string | Нет | Phone number of the pre-hire |
+| `address` | string | Нет | Address of the pre-hire |
+| `countryCode` | string | Нет | ISO 3166-1 Alpha-2 country code \(defaults to US\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `preHireId` | string | ID of the created pre-hire record |
+| `descriptor` | string | Display name of the pre-hire |
+
+### `workday_hire_employee`
+
+Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `preHireId` | string | Да | Pre-hire \(applicant\) ID to convert into an employee |
+| `positionId` | string | Да | Position ID to assign the new hire to |
+| `hireDate` | string | Да | Hire date in ISO 8601 format (например, 2025-06-01\) |
+| `employeeType` | string | Нет | Employee type (например, Regular, Temporary, Contractor\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workerId` | string | Worker ID of the newly hired employee |
+| `employeeId` | string | Employee ID assigned to the new hire |
+| `eventId` | string | Event ID of the hire business process |
+| `hireDate` | string | Effective hire date |
+
+### `workday_update_worker`
+
+Update fields on an existing worker record in Workday.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID to update |
+| `fields` | json | Да | Fields to update as JSON (например, \{"businessTitle": "Senior Engineer", "primaryWorkEmail": "new@company.com"\}\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Event ID of the change personal information business process |
+| `workerId` | string | Worker ID that was updated |
+
+### `workday_assign_onboarding`
+
+Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID to assign the onboarding plan to |
+| `onboardingPlanId` | string | Да | Onboarding plan ID to assign |
+| `actionEventId` | string | Да | Action event ID that enables the onboarding plan (например, the hiring event ID\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignmentId` | string | Onboarding plan assignment ID |
+| `workerId` | string | Worker ID the plan was assigned to |
+| `planId` | string | Onboarding plan ID that was assigned |
+
+### `workday_get_organizations`
+
+Получение organizations, departments, and cost centers from Workday.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `type` | string | Нет | Organization type filter (например, Supervisory, Cost_Center, Company, Region\) |
+| `limit` | number | Нет | Maximum number of organizations to return \(по умолчанию: 20\) |
+| `offset` | number | Нет | Number of records to skip for pagination |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | array | Array of organization records |
+| `total` | number | Total number of matching organizations |
+
+### `workday_change_job`
+
+Perform a job change for a worker including transfers, promotions, demotions, and lateral moves.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID for the job change |
+| `effectiveDate` | string | Да | Effective date for the job change in ISO 8601 format (например, 2025-06-01\) |
+| `newPositionId` | string | Нет | New position ID \(for transfers\) |
+| `newJobProfileId` | string | Нет | New job profile ID \(for role changes\) |
+| `newLocationId` | string | Нет | New work location ID \(for relocations\) |
+| `newSupervisoryOrgId` | string | Нет | Target supervisory organization ID \(for org transfers\) |
+| `reason` | string | Да | Reason for the job change (например, Promotion, Transfer, Reorganization\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Job change event ID |
+| `workerId` | string | Worker ID the job change was applied to |
+| `effectiveDate` | string | Effective date of the job change |
+
+### `workday_get_compensation`
+
+Получение compensation plan details for a specific worker.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID to retrieve compensation data for |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `compensationPlans` | array | Array of compensation plan details |
+|   ↳ `id` | string | Compensation plan ID |
+|   ↳ `planName` | string | Name of the compensation plan |
+|   ↳ `amount` | number | Compensation amount |
+|   ↳ `currency` | string | Currency code |
+|   ↳ `frequency` | string | Pay frequency |
+
+### `workday_terminate_worker`
+
+Initiate a worker termination in Workday. Triggers the Terminate Employee business process.
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `tenantUrl` | string | Да | Workday instance URL (например, https://wd5-impl-services1.workday.com\) |
+| `tenant` | string | Да | Workday tenant name |
+| `username` | string | Да | Integration System User username |
+| `password` | string | Да | Integration System User password |
+| `workerId` | string | Да | Worker ID to terminate |
+| `terminationDate` | string | Да | Termination date in ISO 8601 format (например, 2025-06-01\) |
+| `reason` | string | Да | Termination reason (например, Resignation, End_of_Contract, Retirement\) |
+| `notificationDate` | string | Нет | Date the termination was communicated in ISO 8601 format |
+| `lastDayOfWork` | string | Нет | Last day of work in ISO 8601 format \(defaults to termination date\) |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Termination event ID |
+| `workerId` | string | Worker ID that was terminated |
+| `terminationDate` | string | Effective termination date |
+
+

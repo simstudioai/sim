@@ -1,0 +1,142 @@
+---
+title: Using tables in workflows
+description: How a workflow reads, writes, and updates table rows with the Table block.
+pageType: guide
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, OutputBundle, TABLE_ENRICH_WORKFLOW, TABLE_ROUNDTRIP_WORKFLOW } from '@/components/workflow-preview'
+
+A [table](/tables) is a resource: structured rows your workflows read and write. A [Table block](/integrations/table) is the step that does the reading and writing inside a workflow. You pick an operation on the block (query rows, insert a row, update rows), point it at a table, and its result is remembered under the block's name for later blocks to use.
+
+A workflow uses whichever Table operations its task needs. It might read rows to work on, write rows produced elsewhere, update rows in place, or just look something up mid-run. This page covers the operations and shows a few ways to combine them.
+
+Throughout this page the running example is a `leads` table with columns `company`, `email`, `description`, and `status`. The goal is to find unprocessed leads, have an Agent classify each one, and write the category back.
+
+<WorkflowPreview workflow={TABLE_ENRICH_WORKFLOW} height={180} />
+
+## The Table block
+
+A **Table block** performs one operation against one table. The **Operation** dropdown picks the action; the **Table** selector picks the target. The fields below those two change based on the operation you choose.
+
+{/* VISUAL: Table block UI showing the Operation dropdown open, plus the conditional fields that appear for Query Rows (Filter Conditions, Sort Order, Limit, Offset). */}
+
+The operations fall into three groups:
+
+- **Read:** Query Rows, Get Row by ID, Get Schema.
+- **Write:** Insert Row, Batch Insert Rows, Upsert Row.
+- **Update and delete:** Update Row by ID, Update Rows by Filter, Delete Row by ID, Delete Rows by Filter.
+
+Every row carries three built-in columns alongside your own: `id` (the row's unique identifier), `createdAt`, and `updatedAt`. Sim manages these for you, so you never include them when inserting. You can still filter and sort on them.
+
+## Reading rows
+
+**Query Rows** retrieves rows from a table, with optional filtering, sorting, and pagination. It's how a workflow gets its input from a table.
+
+For our example, the block queries `leads` where `status` equals `unprocessed`. Its output holds the matching rows plus counts:
+
+```
+{ success: true, rows: [ { id: "row_...", company: "Acme", ... } ], rowCount: 5, totalCount: 42 }
+```
+
+Later blocks read these by name: `<table1.rows>` is the array, `<table1.rowCount>` is how many came back, `<table1.totalCount>` is how many matched the filter before the limit. (For more on reading outputs by reference, see [how blocks pass data](/workflows/data-flow).)
+
+<OutputBundle
+  blockName="table1"
+  blockType="table"
+  blockColor="#10B981"
+  duration="84ms"
+  values={[
+    {
+      key: 'rows', type: 'array', highlight: true,
+      children: [
+        {
+          key: '0', type: 'object',
+          children: [
+            { key: 'id', type: 'string', expanded: false },
+            { key: 'company', type: 'string', value: '"Acme"' },
+            { key: 'status', type: 'string', value: '"unprocessed"' },
+          ],
+        },
+      ],
+    },
+    { key: 'rowCount', type: 'number', value: '5' },
+    { key: 'totalCount', type: 'number', value: '42' },
+  ]}
+/>
+
+**Filter Conditions** narrow the result. In the default **Builder** input mode you add rules visually: pick a column, an operator, and a value. Switch the **Input Mode** to **Editor** to write the filter as an object instead, using operators like `$eq`, `$gt`, `$contains`, and `$in`:
+
+```
+{ status: "unprocessed", createdAt: { $gte: "2026-06-01" } }
+```
+
+**Sort Order** orders the result, again visually in Builder mode or as an object in Editor mode, for example `{ createdAt: "desc" }`. **Limit** caps how many rows come back (default 100, max 1000) and **Offset** skips rows for pagination.
+
+{/* VISUAL: Filter Conditions and Sort Order builders, showing a status = unprocessed rule and a createdAt descending sort, with the equivalent Editor-mode object beside them. */}
+
+For a one-off point lookup, use **Get Row by ID** with a single `Row ID`. **Get Schema** returns the table's column definitions, useful when a workflow needs to inspect structure before writing. The full operator list lives in the [Table block reference](/integrations/table).
+
+## Writing rows
+
+**Insert Row** adds one row. Its **Row Data** is an object whose keys match your column names:
+
+```
+{ company: "Acme", email: "deals@acme.com", description: "...", status: "unprocessed" }
+```
+
+The output is the inserted row, including the `id` and timestamps Sim generated for it.
+
+**Batch Insert Rows** adds many rows in one operation (up to 1000) from a **Rows Data** array. Use it instead of looping Insert Row when you have a set of results to load at once. Its output reports `insertedCount`.
+
+**Upsert Row** inserts a row, or updates the existing one if it matches a unique column. Its output includes an `operation` field set to `insert` or `update`, so a later block can tell which happened.
+
+<Callout type="info">
+Row data must match the table's columns and types. A `number` column rejects `"twenty"`; a `boolean` column wants `true`, not `"true"`. If an Agent produces the value, give it a [structured output](/workflows/blocks/agent) so the shape is predictable before it reaches the table.
+</Callout>
+
+## Updating rows
+
+To change an existing row you either name it or filter for it.
+
+**Update Row by ID** modifies one row. It takes a `Row ID`, often `<table1.rows[0].id>` from an earlier query, and **Row Data** with only the fields you want to change. Unlisted fields stay as they were.
+
+**Update Rows by Filter** changes every row that matches a filter, which is the right tool when you don't know the IDs. In our example, after the Agent classifies leads, the workflow sets `status` to `qualified` on all rows where `status` is `unprocessed`. The output reports `updatedCount` and the list of `updatedRowIds`.
+
+{/* VISUAL: before/after of the leads table. Left shows rows with status "unprocessed" and an empty category column; right shows the same rows with category filled in and status "qualified". */}
+
+**Delete Row by ID** and **Delete Rows by Filter** remove rows the same two ways, by ID or by filter, and report a `deletedCount`. Deletes are mostly for cleanup, not part of the everyday read-process-write loop.
+
+## Example: enriching rows
+
+One way to combine the operations is to query rows, process them, and write the results back. Here, the workflow classifies unprocessed leads:
+
+1. **Table (Query Rows)** reads `leads` where `status` is `unprocessed`.
+2. **Agent** reads a row's fields, classifies it, and returns a [structured output](/workflows/blocks/agent) like `{ category: "enterprise", score: 0.9 }`.
+3. **Table (Update Rows by Filter)** writes the category back and flips `status` to `qualified`.
+
+After the run, the table holds the enriched rows. The next run queries them again, and the `status` column keeps the workflow from reprocessing what it already handled. So the table serves as both the queue the workflow pulls from and the record of what it has already done.
+
+<WorkflowPreview workflow={TABLE_ROUNDTRIP_WORKFLOW} height={200} />
+
+## Variations
+
+**Lookup mid-run.** A Table block doesn't have to be the first or last step. Place a Query Rows in the middle to fetch reference data while processing: query a `pricing` table by the order's currency, then let the Agent use the result to compute a total.
+
+**Iterate row by row.** Wrap a Query → process → update cycle in a [Loop block](/workflows/blocks/loop) to handle one row at a time. This runs sequentially, slower than a batch update but useful when each row needs its own multi-step logic. Inside the loop the Agent reads the current row and an Update Row by ID writes its result.
+
+**Paginate large reads.** Query Rows returns at most 1000 rows. When `totalCount` exceeds your **Limit**, increase **Offset** on each pass (0, then 100, then 200) to walk through the whole table, typically inside a Loop.
+
+## Inspecting reads and writes
+
+Every Table block's input and output is recorded in [logs](/logs-debugging). For a Query block, the log shows the filter and sort it sent and the rows it received. For an Update or Insert, it shows the row data written and the count affected. When a write does nothing or a query comes back empty, the log is where you check the filter and the data shape before looking anywhere else.
+
+## Next
+
+<Cards>
+  <Card title="Table block reference" href="/integrations/table" description="Every operation, field, and filter operator in full." />
+  <Card title="Tables overview" href="/tables" description="Columns, types, and limits of a table." />
+  <Card title="Workflow columns & active tables" href="/tables/workflow-columns" description="Run a workflow automatically against a table's rows." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Reading earlier outputs by reference." />
+</Cards>

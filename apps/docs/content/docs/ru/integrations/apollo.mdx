@@ -1,0 +1,605 @@
+---
+title: Apollo
+description: Поиск, обогащение и управление контактами с помощью Apollo.io
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="apollo"
+  color="#EBF212"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Apollo.io](https://apollo.io/) — это ведущая платформа разведывательной информации о продажах и вовлечения, которая позволяет пользователям находить, обогащать и вовлекать контакты и компании в масштабе. Apollo.io объединяет обширную базу контактов с надёжными инструментами обогащения и автоматизации рабочих процессов, помогая командам продаж, маркетинга и рекрутинга ускорять рост.
+
+С помощью Apollo.io вы можете:
+
+- **Искать миллионы контактов и компаний**: Находить точные лиды с помощью расширенных фильтров
+- **Обогащать лиды и аккаунты**: Заполнять недостающие детали проверенными данными и актуальной информацией
+- **Управлять и организовывать записи CRM**: Поддерживать точность и актуальность данных о людях и компаниях
+- **Автоматизировать охват**: Добавлять контакты в последовательности и создавать задачи для последующих действий непосредственно из Apollo.io
+
+В Sim интеграция Apollo.io позволяет вашим агентам программно выполнять основные операции Apollo:
+
+- **Поиск людей и компаний**: Используйте `apollo_people_search` для поиска новых лидов с помощью гибких фильтров.
+- **Обогащение данных людей**: Используйте `apollo_people_enrich` для дополнения контактов проверенной информацией.
+- **Массовое обогащение людей**: Используйте `apollo_people_bulk_enrich` для крупномасштабного обогащения нескольких контактов одновременно.
+- **Поиск и обогащение компаний**: Используйте `apollo_company_search` и `apollo_company_enrich` для поиска и обновления ключевой информации о компаниях.
+
+Это позволяет вашим агентам создавать мощные рабочие процессы для поиска потенциальных клиентов, обогащения CRM и автоматизации без ручного ввода данных или переключения вкладок. Интегрируйте Apollo.io как динамический источник данных и CRM-движок — позволяя вашим агентам выявлять, квалифицировать и охватывать лиды seamlessly в рамках их повседневных операций.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Интегрирует Apollo.io в рабочий процесс. Поиск людей и компаний, обогащение контактных данных, управление контактами и аккаунтами CRM, добавление контактов в последовательности и создание задач.
+
+
+
+## Actions
+
+### `apollo_people_search`
+
+Поиск людей в базе данных Apollo с использованием демографических фильтров
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `person_titles` | array | No | Должности для поиска \(например, \["CEO", "VP of Sales"\]\) |
+| `include_similar_titles` | boolean | No | Возвращать ли людей с должностями, похожими на person_titles |
+| `person_locations` | array | No | Местоположения для поиска \(например, \["San Francisco, CA", "New York, NY"\]\) |
+| `person_seniorities` | array | No | Уровни seniority: owner, founder, c_suite, partner, vp, head, director, manager, senior, entry, intern |
+| `organization_ids` | array | No | ID организаций Apollo для фильтрации \(например, \["5e66b6381e05b4008c8331b8"\]\) |
+| `organization_names` | array | No | Названия компаний для поиска \(устаревший фильтр\) |
+| `organization_locations` | array | No | Местоположения штаб-квартир текущего работодателя людей \(например, \['texas', 'tokyo', 'spain'\]\) |
+| `q_organization_domains_list` | array | No | Доменные имена работодателей \(например, \["apollo.io", "microsoft.com"\]\) — до 1 000, без www. или @ |
+| `organization_num_employees_ranges` | array | No | Диапазоны количества сотрудников текущего работодателя. Каждая запись в формате \"min,max\" \(например, \["1,10", "250,500", "10000,20000"\]\) |
+| `contact_email_status` | array | No | Статусы эл. почты для фильтрации: \"verified\", \"unverified\", \"likely to engage\", \"unavailable\" |
+| `q_keywords` | string | No | Ключевые слова для поиска |
+| `page` | number | No | Номер страницы для пагинации, по умолчанию 1 \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, по умолчанию 25, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | json | Массив людей, соответствующих критериям поиска |
+| `page` | number | Текущий номер страницы |
+| `per_page` | number | Результатов на странице |
+| `total_entries` | number | Общее количество совпадающих записей |
+
+### `apollo_people_enrich`
+
+Обогатить данные одного человека с помощью Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `first_name` | string | No | Имя человека |
+| `last_name` | string | No | Фамилия человека |
+| `name` | string | No | Полное имя человека \(альтернатива first_name/last_name\) |
+| `id` | string | No | Apollo ID человека |
+| `hashed_email` | string | No | MD5 или SHA-256 хеш эл. почты |
+| `email` | string | No | Адрес эл. почты человека |
+| `organization_name` | string | No | Название компании, где работает человек |
+| `domain` | string | No | Домен компании \(например, \"apollo.io\", \"acme.com\"\) |
+| `linkedin_url` | string | No | URL профиля LinkedIn |
+| `reveal_personal_emails` | boolean | No | Раскрыть личные адреса эл. почты \(расходует кредиты\) |
+| `reveal_phone_number` | boolean | No | Раскрыть номера телефонов \(расходует кредиты, требует webhook_url\) |
+| `webhook_url` | string | No | URL webhook для асинхронной доставки номера телефона \(обязателен, когда reveal_phone_number = true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `person` | json | Обогащённые данные человека из Apollo |
+| `enriched` | boolean | Был ли человек успешно обогащён |
+
+### `apollo_people_bulk_enrich`
+
+Обогатить данные до 10 человек одновременно с помощью Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `people` | array | Yes | Массив людей для обогащения \(макс. 10\) |
+| `reveal_personal_emails` | boolean | No | Раскрыть личные адреса эл. почты \(расходует кредиты\) |
+| `reveal_phone_number` | boolean | No | Раскрыть номера телефонов \(расходует кредиты, требует webhook_url\) |
+| `webhook_url` | string | No | URL webhook для асинхронной доставки номера телефона \(обязателен, когда reveal_phone_number = true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | json | Массив обогащённых людей \(null означает отсутствие совпадения\) |
+| `total_requested_enrichments` | number | Общее количество записей, отправленных на обогащение |
+| `unique_enriched_records` | number | Количество успешно обогащённых записей |
+| `missing_records` | number | Количество записей, которые не удалось обогатить |
+| `credits_consumed` | number | Количество кредитов Apollo, израсходованных этим запросом |
+
+### `apollo_organization_search`
+
+Поиск компаний в базе данных Apollo с использованием фильтров
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `organization_locations` | array | No | Местоположения штаб-квартир компаний \(города, штаты США или страны\) |
+| `organization_not_locations` | array | No | Исключить компании, чьи штаб-квартиры находятся в этих местах |
+| `organization_num_employees_ranges` | array | No | Диапазоны количества сотрудников в формате "min,max" \(например, \["1,10", "250,500", "10000,20000"\]\) |
+| `q_organization_keyword_tags` | array | No | Отраслевые или ключевые теги |
+| `q_organization_name` | string | No | Название организации для поиска \(например, "Acme", "TechCorp"\) |
+| `organization_ids` | array | No | ID организаций Apollo для включения \(например, \["5e66b6381e05b4008c8331b8"\]\) |
+| `q_organization_domains_list` | array | No | Доменные имена для фильтрации \(без www. или @, до 1 000\) |
+| `page` | number | No | Номер страницы для пагинации \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | json | Массив организаций, соответствующих критериям поиска |
+| `page` | number | Текущий номер страницы |
+| `per_page` | number | Результатов на странице |
+| `total_entries` | number | Общее количество совпадающих записей |
+
+### `apollo_organization_enrich`
+
+Обогатить данные одной организации с помощью Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `domain` | string | Yes | Домен компании \(например, "apollo.io", "acme.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organization` | json | Обогащённые данные организации из Apollo |
+| `enriched` | boolean | Была ли организация успешно обогащена |
+
+### `apollo_organization_bulk_enrich`
+
+Обогатить данные до 10 организаций одновременно с помощью Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `domains` | array | Yes | Массив доменов компаний для обогащения \(макс. 10, без www. или @, например, \["apollo.io", "stripe.com"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | json | Массив обогащённых данных организаций |
+| `total` | number | Общее количество запрошенных доменов |
+| `enriched` | number | Количество уникальных обогащённых записей |
+| `missing_records` | number | Количество доменов, которые не удалось обогатить |
+| `unique_domains` | number | Количество обработанных уникальных доменов |
+
+### `apollo_contact_create`
+
+Создать новый контакт в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `first_name` | string | Yes | Имя контакта |
+| `last_name` | string | Yes | Фамилия контакта |
+| `email` | string | No | Адрес эл. почты контакта |
+| `title` | string | No | Должность \(например, "VP of Sales", "Software Engineer"\) |
+| `account_id` | string | No | ID аккаунта Apollo для связывания \(например, "acc_abc123"\) |
+| `owner_id` | string | No | ID пользователя-владельца контакта \(принимается Apollo, но не задокументирован официально для POST /contacts\) |
+| `organization_name` | string | No | Название работодателя контакта \(например, "Apollo"\) |
+| `website_url` | string | No | URL корпоративного веб-сайта \(например, "https://www.apollo.io/"\) |
+| `label_names` | array | No | Списки/метки для добавления контакта \(например, \["Prospects"\]\) |
+| `contact_stage_id` | string | No | Apollo ID стадии контакта |
+| `present_raw_address` | string | No | Личное местоположение контакта \(например, "Atlanta, United States"\) |
+| `direct_phone` | string | No | Основной номер телефона |
+| `corporate_phone` | string | No | Рабочий/офисный номер телефона |
+| `mobile_phone` | string | No | Мобильный номер телефона |
+| `home_phone` | string | No | Домашний номер телефона |
+| `other_phone` | string | No | Альтернативный номер телефона |
+| `typed_custom_fields` | json | No | Значения пользовательских полей, сгруппированные по ID поля |
+| `run_dedupe` | boolean | No | При true Apollo выполняет дедупликацию с существующими контактами |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | json | Данные созданного контакта из Apollo |
+| `created` | boolean | Был ли контакт успешно создан |
+
+### `apollo_contact_update`
+
+Обновить существующий контакт в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `contact_id` | string | Yes | ID контакта для обновления \(например, "con_abc123"\) |
+| `first_name` | string | No | Имя контакта |
+| `last_name` | string | No | Фамилия контакта |
+| `email` | string | No | Адрес эл. почты |
+| `title` | string | No | Должность \(например, "VP of Sales", "Software Engineer"\) |
+| `account_id` | string | No | ID аккаунта Apollo \(например, "acc_abc123"\) |
+| `owner_id` | string | No | ID пользователя-владельца контакта |
+| `organization_name` | string | No | Название работодателя контакта \(например, "Apollo"\) |
+| `website_url` | string | No | URL корпоративного веб-сайта \(например, "https://www.apollo.io/"\) |
+| `label_names` | array | No | Списки/метки для добавления контакта \(например, \["Prospects"\]\) |
+| `contact_stage_id` | string | No | Apollo ID стадии контакта |
+| `present_raw_address` | string | No | Личное местоположение контакта \(например, "Atlanta, United States"\) |
+| `direct_phone` | string | No | Основной номер телефона |
+| `corporate_phone` | string | No | Рабочий/офисный номер телефона |
+| `mobile_phone` | string | No | Мобильный номер телефона |
+| `home_phone` | string | No | Домашний номер телефона |
+| `other_phone` | string | No | Альтернативный номер телефона |
+| `typed_custom_fields` | json | No | Значения пользовательских полей, сгруппированные по ID поля |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | json | Обновлённые данные контакта из Apollo |
+| `updated` | boolean | Был ли контакт успешно обновлён |
+
+### `apollo_contact_search`
+
+Поиск контактов в аккаунте вашей команды Apollo. Лимит отображения: 50 000 записей (100 записей на странице, макс. 500 страниц). Используйте фильтры для сужения результатов. Требуется мастер-ключ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `q_keywords` | string | No | Поиск по ключевым словам в контактах |
+| `contact_stage_ids` | array | No | Фильтр по ID стадий контактов |
+| `sort_by_field` | string | No | Поле сортировки: "contact_last_activity_date", "contact_created_at", "contact_updated_at", "contact_sanford_potential" |
+| `sort_ascending` | boolean | No | Сортировка по возрастанию при true. По умолчанию — по убыванию. |
+| `page` | number | No | Номер страницы для пагинации \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Массив контактов, соответствующих критериям поиска |
+| `pagination` | json | Информация о пагинации \(page, per_page, total_entries, total_pages\) |
+
+### `apollo_contact_bulk_update`
+
+Обновить до 500 существующих контактов одновременно в вашей базе данных Apollo. Каждый контакт должен включать поле id. Требуется мастер-ключ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `contact_ids` | array | No | Массив ID контактов для обновления одинаковыми значениями \(макс. 500\). Используйте с owner_id/label_names для единообразных обновлений. |
+| `owner_id` | string | No | При использовании contact_ids — применить этого владельца ко всем контактам |
+| `label_names` | array | No | При использовании contact_ids — применить эти метки ко всем контактам |
+| `contact_attributes` | json | No | Массив объектов контактов с индивидуальными обновлениями \(каждый должен включать id\) |
+| `async` | boolean | No | При true обрабатывает обновление асинхронно. Поддерживается только с contact_ids. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | json | Обновлённые контакты \(синхронный ответ\) |
+| `contact_ids` | json | ID обновлённых контактов |
+| `entity_progress_job` | json | Дескриптор асинхронной задачи \(когда async=true\) |
+| `job_id` | string | ID асинхронной задачи, извлечённый из entity_progress_job |
+| `message` | string | Опциональное сообщение подтверждения от Apollo |
+
+### `apollo_account_create`
+
+Создать новый аккаунт \(компанию\) в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `name` | string | Yes | Название компании \(например, "Acme Corporation"\) |
+| `domain` | string | No | Домен компании без префикса www. \(например, "acme.com"\) |
+| `phone` | string | No | Основной номер телефона аккаунта |
+| `owner_id` | string | No | ID пользователя Apollo — владельца аккаунта |
+| `account_stage_id` | string | No | Apollo ID стадии аккаунта для назначения |
+| `raw_address` | string | No | Корпоративное местоположение \(например, "San Francisco, CA, USA"\) |
+| `typed_custom_fields` | json | No | Значения пользовательских полей в виде \{ custom_field_id: value \} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | json | Данные созданного аккаунта из Apollo |
+| `created` | boolean | Был ли аккаунт успешно создан |
+
+### `apollo_account_update`
+
+Обновить существующий аккаунт в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `account_id` | string | Yes | ID аккаунта для обновления \(например, "acc_abc123"\) |
+| `name` | string | No | Название компании \(например, "Acme Corporation"\) |
+| `domain` | string | No | Домен компании \(например, "acme.com"\) |
+| `phone` | string | No | Номер телефона компании |
+| `owner_id` | string | No | ID пользователя Apollo — владельца аккаунта |
+| `account_stage_id` | string | No | Apollo ID стадии аккаунта для назначения |
+| `raw_address` | string | No | Корпоративное местоположение \(например, "San Francisco, CA, USA"\) |
+| `typed_custom_fields` | json | No | Значения пользовательских полей в виде \{ custom_field_id: value \} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | json | Обновлённые данные аккаунта из Apollo |
+| `updated` | boolean | Был ли аккаунт успешно обновлён |
+
+### `apollo_account_search`
+
+Поиск аккаунтов вашей команды в Apollo. Лимит отображения: 50 000 записей (100 записей на странице, макс. 500 страниц). Используйте фильтры для сужения результатов. Требуется мастер-ключ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `q_organization_name` | string | No | Фильтр аккаунтов по названию организации \(поиск по частичному совпадению\) |
+| `account_stage_ids` | array | No | Фильтр по ID стадий аккаунтов |
+| `account_label_ids` | array | No | Фильтр по ID меток аккаунтов |
+| `sort_by_field` | string | No | Поле сортировки: "account_last_activity_date", "account_created_at" или "account_updated_at" |
+| `sort_ascending` | boolean | No | Сортировка по возрастанию при true. По умолчанию — по убыванию. |
+| `page` | number | No | Номер страницы для пагинации \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | json | Массив аккаунтов, соответствующих критериям поиска |
+| `pagination` | json | Информация о пагинации |
+
+### `apollo_account_bulk_create`
+
+Создать до 100 аккаунтов одновременно в вашей базе данных Apollo. Установите run_dedupe=true для дедупликации по домену, organization_id и имени. Требуется мастер-ключ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `accounts` | array | Yes | Массив аккаунтов для создания \(макс. 100\). Каждый аккаунт должен включать name и может опционально включать domain, phone, phone_status_cd, raw_address, owner_id, linkedin_url, facebook_url, twitter_url, salesforce_id и hubspot_id. |
+| `append_label_names` | array | No | Массив имён меток для добавления ко ВСЕМ аккаунтам в этом запросе |
+| `run_dedupe` | boolean | No | При true выполняет агрессивную дедупликацию по домену, organization_id и имени \(по умолчанию false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `created_accounts` | json | Массив новых созданных аккаунтов |
+| `existing_accounts` | json | Массив существующих аккаунтов, возвращённых Apollo \(при обнаружении дубликатов\) |
+| `failed_accounts` | json | Массив аккаунтов, которые не удалось создать, с причинами |
+| `total_submitted` | number | Общее количество аккаунтов в ответе \(созданные + существующие + неудавшиеся\) |
+| `created` | number | Количество успешно созданных аккаунтов |
+| `existing` | number | Количество найденных существующих аккаунтов |
+| `failed` | number | Количество аккаунтов, которые не удалось создать |
+
+### `apollo_account_bulk_update`
+
+Обновить до 1000 существующих аккаунтов одновременно в вашей базе данных Apollo \(более высокий лимит, чем для контактов!\). Каждый аккаунт должен включать поле id. Требуется мастер-ключ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `account_ids` | array | No | Массив ID аккаунтов для обновления одинаковыми значениями \(макс. 1000\). Используйте с name/owner_id для единообразных обновлений. Используйте ЭТО ИЛИ account_attributes. |
+| `name` | string | No | При использовании account_ids — применить это имя ко всем аккаунтам |
+| `owner_id` | string | No | При использовании account_ids — применить этого владельца ко всем аккаунтам |
+| `account_stage_id` | string | No | При использовании account_ids — применить эту стадию ко всем аккаунтам |
+| `account_attributes` | json | No | Массив объектов аккаунтов с индивидуальными обновлениями \(каждый должен включать id\). Пример: \[\{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": \{"field_id": "value"\}\}\] |
+| `async` | boolean | No | При true обрабатывает обновление асинхронно. Поддерживается только с account_ids; возвращает 422 при использовании с account_attributes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | json | Обновлённые аккаунты \(синхронный ответ\): \[\{id, account_stage_id, ...\}\] |
+| `account_ids` | json | ID обновлённых аккаунтов |
+| `entity_progress_job` | json | Дескриптор асинхронной задачи \(когда async=true с account_ids\) |
+| `job_id` | string | ID асинхронной задачи, извлечённый из entity_progress_job |
+| `message` | string | Опциональное сообщение подтверждения от Apollo |
+
+### `apollo_opportunity_create`
+
+Создать новую сделку в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `name` | string | Yes | Название сделки \(например, "Enterprise Deal Q4"\) |
+| `amount` | number | No | Сумма сделки |
+| `opportunity_stage_id` | string | No | Apollo ID стадии сделки |
+| `account_id` | string | No | ID аккаунта Apollo |
+| `owner_id` | string | No | ID пользователя-владельца |
+| `closed_date` | string | No | Дата закрытия в формате ISO 8601 \(например, "2024-12-31"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Данные созданной сделки из Apollo |
+| `created` | boolean | Была ли сделка успешно создана |
+
+### `apollo_opportunity_update`
+
+Обновить существующую сделку в вашей базе данных Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo |
+| `opportunity_id` | string | Yes | ID сделки для обновления |
+| `name` | string | No | Название сделки |
+| `amount` | number | No | Сумма сделки |
+| `opportunity_stage_id` | string | No | Apollo ID стадии сделки |
+| `account_id` | string | No | ID аккаунта Apollo |
+| `owner_id` | string | No | ID пользователя-владельца |
+| `closed_date` | string | No | Дата закрытия в формате ISO 8601 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | json | Обновлённые данные сделки из Apollo |
+| `updated` | boolean | Была ли сделка успешно обновлена |
+
+### `apollo_sequence_search`
+
+Поиск последовательностей/кампаний в аккаунте вашей команды Apollo \(требуется мастер-ключ\)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `q_name` | string | No | Поиск последовательностей по имени \(например, "Outbound Q1", "Follow-up"\) |
+| `page` | number | No | Номер страницы для пагинации \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sequences` | json | Массив последовательностей/кампаний, соответствующих критериям поиска |
+| `page` | number | Текущий номер страницы |
+| `per_page` | number | Результатов на странице |
+| `total_entries` | number | Общее количество совпадающих записей |
+
+### `apollo_sequence_add_contacts`
+
+Добавить контакты в последовательность Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `sequence_id` | string | Yes | ID последовательности для добавления контактов \(например, "seq_abc123"\) |
+| `contact_ids` | array | No | Массив ID контактов для добавления \(например, \["con_abc123", "con_def456"\]\). Либо contact_ids, либо label_names должны быть указаны. |
+| `label_names` | array | No | Массив имён меток для идентификации контактов. Либо contact_ids, либо label_names должны быть указаны. |
+| `send_email_from_email_account_id` | string | Yes | ID почтового аккаунта для отправки. Используйте операцию Get Email Accounts для поиска. |
+| `send_email_from_email_address` | string | No | Конкретный адрес эл. почты для отправки в рамках почтового аккаунта. |
+| `sequence_no_email` | boolean | No | Добавлять контакты, даже если у них нет адреса эл. почты |
+| `sequence_unverified_email` | boolean | No | Добавлять контакты с непроверенными адресами эл. почты |
+| `sequence_job_change` | boolean | No | Добавлять контакты, которые недавно сменили работу |
+| `sequence_active_in_other_campaigns` | boolean | No | Добавлять контакты, активные в других кампаниях |
+| `sequence_finished_in_other_campaigns` | boolean | No | Добавлять контакты, завершившие другие кампании |
+| `sequence_same_company_in_same_campaign` | boolean | No | Добавлять контакты, даже если другие из той же компании уже в последовательности |
+| `contacts_without_ownership_permission` | boolean | No | Добавлять контакты без разрешения владения |
+| `add_if_in_queue` | boolean | No | Добавлять контакты, даже если они в очереди |
+| `contact_verification_skipped` | boolean | No | Пропустить проверку контакта при добавлении |
+| `user_id` | string | No | ID пользователя, выполняющего действие |
+| `status` | string | No | Начальный статус добавленных контактов: "active" или "paused" |
+| `auto_unpause_at` | string | No | Дата/время ISO 8601 для автоматического снятия с паузы |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `added` | json | Массив объектов контактов, успешно добавленных в последовательность |
+| `skipped` | json | Массив объектов контактов, которые были пропущены, с причинами |
+| `skipped_contact_ids` | json | Пропущенные ID контактов — массив ID или хеш ID → код причины |
+| `emailer_campaign` | json | Детали кампании emailer \(id, name\) |
+| `sequence_id` | string | ID последовательности, в которую были добавлены контакты |
+| `total_added` | number | Общее количество добавленных контактов |
+| `total_skipped` | number | Общее количество пропущенных контактов |
+
+### `apollo_task_create`
+
+Создать одну или несколько задач в Apollo \(одна задача на contact_id, требуется мастер-ключ\)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `user_id` | string | Yes | ID пользователя Apollo, которому назначена задача |
+| `contact_ids` | array | Yes | Массив ID контактов. Одна задача создаётся на контакт. |
+| `priority` | string | No | Приоритет задачи: "high", "medium" или "low" \(по умолчанию "medium"\) |
+| `due_at` | string | Yes | Дата/время выполнения в формате ISO 8601 \(например, "2024-12-31T23:59:59Z"\) |
+| `type` | string | Yes | Тип задачи: "call", "outreach_manual_email", "linkedin_step_connect", "linkedin_step_message", "linkedin_step_view_profile", "linkedin_step_interact_post" или "action_item" |
+| `status` | string | Yes | Статус задачи: "scheduled", "completed" или "skipped" |
+| `note` | string | No | Произвольная заметка с контекстом для задачи |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | json | Массив созданных задач \(когда возвращено Apollo\) |
+| `created` | boolean | Был ли запрос успешным |
+
+### `apollo_task_search`
+
+Поиск задач в Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+| `sort_by_field` | string | No | Поле сортировки: "task_due_at" или "task_priority" |
+| `open_factor_names` | array | No | Фильтр по статусу. Частые значения: \["task_types"\] для открытых задач, \["task_completed_at"\] для завершённых. |
+| `page` | number | No | Номер страницы для пагинации \(например, 1, 2, 3\) |
+| `per_page` | number | No | Результатов на странице, макс. 100 \(например, 25, 50, 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | json | Массив задач, соответствующих критериям поиска |
+| `pagination` | json | Информация о пагинации |
+
+### `apollo_email_accounts`
+
+Получить список связанных почтовых аккаунтов команды в Apollo
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API-ключ Apollo \(требуется мастер-ключ\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email_accounts` | json | Массив почтовых аккаунтов команды, связанных в Apollo |
+| `total` | number | Общее количество почтовых аккаунтов |
+

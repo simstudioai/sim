@@ -1,0 +1,168 @@
+---
+title: MySQL
+description: Подключение к базе данных MySQL
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#FFFFFF"
+/>
+
+## Инструкции по использованию
+
+Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.
+
+
+
+## Действия
+
+### `mysql_query`
+
+Execute SELECT query on MySQL database
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Да | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE active = 1\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `mysql_insert`
+
+Insert new record into MySQL database
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to insert into \(e.g., users, orders\) |
+| `data` | object | Да | Data to insert as key-value pairs |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of inserted rows |
+| `rowCount` | number | Number of rows inserted |
+
+### `mysql_update`
+
+Update existing records in MySQL database
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to update \(e.g., users, orders\) |
+| `data` | object | Да | Data to update as key-value pairs |
+| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of updated rows |
+| `rowCount` | number | Number of rows updated |
+
+### `mysql_delete`
+
+Delete records from MySQL database
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Да | Table name to delete from \(e.g., users, orders\) |
+| `where` | string | Да | WHERE clause condition \(without WHERE keyword\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of deleted rows |
+| `rowCount` | number | Number of rows deleted |
+
+### `mysql_execute`
+
+Execute raw SQL query on MySQL database
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Да | Raw SQL query to execute \(e.g., CREATE TABLE users \(id INT PRIMARY KEY, name VARCHAR\(255\)\)\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows affected |
+
+### `mysql_introspect`
+
+Introspect MySQL database schema to retrieve table structures, columns, and relationships
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Да | MySQL server hostname or IP address |
+| `port` | number | Да | MySQL server port \(default: 3306\) |
+| `database` | string | Да | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Да | Database username |
+| `password` | string | Да | Database password |
+| `ssl` | string | Нет | SSL connection mode \(disabled, required, preferred\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+| `databases` | array | List of available databases on the server |
+
+

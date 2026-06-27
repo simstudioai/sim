@@ -1,0 +1,787 @@
+---
+title: Linq
+description: Отправка iMessage, SMS и RCS-сообщений и управление беседами с Linq
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linq"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linq](https://linqapp.com/) is an API-first messaging platform that lets you reach people on iMessage, SMS, and RCS through real conversations. Linq handles the messaging plumbing — Apple and carrier delivery, group chats, read receipts, typing indicators, reactions, and attachments — behind a single REST API designed for programmatic access.
+
+**Why Linq?**
+- **iMessage, SMS, and RCS in one API:** Send and receive across all three channels from the same chats and phone numbers, with automatic delivery over the best available service.
+- **Rich conversations:** Media, link previews, screen and bubble effects, tapback reactions, inline replies, voice memos, and editable messages — not just plain text.
+- **Group chat management:** Create groups, add and remove participants, rename chats, update icons, and leave conversations.
+- **Capability checks:** Verify whether an address supports iMessage or RCS before you send, so you pick the right channel every time.
+- **Real-time webhooks:** Subscribe to message, reaction, participant, and call events with HMAC-SHA256 signature verification.
+
+**Using Linq in Sim**
+
+Sim's Linq integration connects your agentic workflows directly to Linq using an API key. With 34 operations spanning chats, messages, attachments, phone numbers, capability checks, contact cards, and webhook subscriptions, you can build conversational messaging automations without writing backend code.
+
+**Key benefits of using Linq in Sim:**
+- **Conversational agents:** Send and read messages in iMessage, SMS, or RCS chats, react with tapbacks, and reply inline to build natural two-way conversations.
+- **Reliable delivery:** Check iMessage/RCS capability and set a preferred service so each message goes out over the right channel.
+- **Files and voice:** Upload attachments up to 100MB and send media or voice memos straight from your workflow.
+- **Event-driven flows:** Manage webhook subscriptions so workflows can react to inbound messages, reactions, and participant changes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.
+
+
+
+## Действия
+
+### `linq_add_participant`
+
+Add a participant to a group chat (3+ existing participants)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the group chat |
+| `handle` | string | Да | Phone number \(E.164 format\) or email address of the participant to add |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Queued action status |
+| `traceId` | string | Trace ID for the queued action |
+
+### `linq_check_imessage`
+
+Check whether an address (phone number or email) supports iMessage
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `address` | string | Да | Phone number \(E.164 format\) or email address to check |
+| `from` | string | Нет | Sender phone number to check from \(defaults to an available number\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `address` | string | The address that was checked |
+| `available` | boolean | Whether the address supports iMessage |
+
+### `linq_check_rcs`
+
+Check whether an address (phone number or email) supports RCS
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `address` | string | Да | Phone number \(E.164 format\) or email address to check |
+| `from` | string | Нет | Sender phone number to check from \(defaults to an available number\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `address` | string | The address that was checked |
+| `available` | boolean | Whether the address supports RCS |
+
+### `linq_create_attachment`
+
+Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `file` | file | Нет | File to upload \(a UserFile from a file-upload field or a previous block\) |
+| `fileContent` | string | Нет | Legacy base64-encoded file content fallback |
+| `filename` | string | Нет | Override the file name \(defaults to the uploaded file name\) |
+| `contentType` | string | Нет | Override the MIME type \(defaults to the uploaded file type\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `attachmentId` | string | Reusable attachment ID to reference when sending messages or voice memos |
+| `downloadUrl` | string | URL the attachment can be downloaded from |
+| `filename` | string | File name |
+| `contentType` | string | MIME type of the file |
+| `sizeBytes` | number | File size in bytes |
+| `status` | string | Upload status |
+
+### `linq_create_chat`
+
+Start a new iMessage, SMS, or RCS chat and send the first message
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `from` | string | Да | Sender phone number in E.164 format \(e.g. +14155551234\) |
+| `to` | array | Да | Recipient handles \(phone numbers in E.164 format or email addresses\) |
+| `text` | string | Нет | Text content of the first message. Optional, but at least one of text, media, attachment, or link is required |
+| `mediaUrl` | string | Нет | Optional publicly accessible HTTPS URL of an image, video, or file to attach |
+| `attachmentId` | string | Нет | Optional ID of a pre-uploaded attachment to send instead of a media URL |
+| `preferredService` | string | Нет | Preferred delivery service: iMessage, SMS, or RCS |
+| `effectName` | string | Нет | Optional iMessage effect name \(e.g. confetti, fireworks, lasers\) |
+| `effectType` | string | Нет | Optional effect type: screen or bubble |
+| `replyToMessageId` | string | Нет | Optional message ID to reply to inline |
+| `replyToPartIndex` | number | Нет | Optional part index of the message being replied to |
+| `idempotencyKey` | string | Нет | Optional idempotency key to safely retry the request |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `chatId` | string | ID of the created chat |
+| `displayName` | string | Display name of the chat |
+| `isGroup` | boolean | Whether the chat is a group chat |
+| `service` | string | Delivery service used \(iMessage, SMS, RCS\) |
+| `handles` | json | Participant handles in the chat |
+| `healthStatus` | json | Messaging line health status |
+| `message` | json | The sent message object with parts and delivery info |
+
+### `linq_create_contact_card`
+
+Set up a contact card (Name and Photo Sharing) for a phone number
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `phoneNumber` | string | Да | Phone number in E.164 format the card applies to |
+| `firstName` | string | Да | First name to display |
+| `lastName` | string | Нет | Last name to display |
+| `imageUrl` | string | Нет | Profile photo URL |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `phoneNumber` | string | Phone number the card applies to |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `imageUrl` | string | Profile photo URL |
+| `isActive` | boolean | Whether the card is active |
+
+### `linq_create_webhook_subscription`
+
+Subscribe an HTTPS endpoint to Linq webhook events
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `targetUrl` | string | Да | HTTPS endpoint that will receive webhook events |
+| `subscribedEvents` | array | Да | Event types to subscribe to \(e.g. message.sent, message.delivered\) |
+| `phoneNumbers` | array | Нет | E.164 phone numbers to filter events by \(omit for all numbers\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Subscription ID |
+| `targetUrl` | string | Endpoint that receives events |
+| `subscribedEvents` | json | Subscribed event types |
+| `phoneNumbers` | json | Filtered phone numbers \(null = all\) |
+| `isActive` | boolean | Whether the subscription is active |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+| `signingSecret` | string | HMAC-SHA256 signing secret. Store securely — it cannot be retrieved again |
+
+### `linq_delete_attachment`
+
+Permanently delete an attachment owned by your account
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `attachmentId` | string | Да | The unique identifier of the attachment to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the attachment was deleted |
+
+### `linq_delete_message`
+
+Delete a message from the Linq API only (does not unsend it; recipients still see it)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `messageId` | string | Да | The unique identifier of the message to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the message was deleted |
+
+### `linq_delete_webhook_subscription`
+
+Delete a webhook subscription from your account
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `subscriptionId` | string | Да | The unique identifier of the webhook subscription to delete |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the subscription was deleted |
+
+### `linq_edit_message`
+
+Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `messageId` | string | Да | The unique identifier of the message to edit |
+| `text` | string | Да | New text content for the message part |
+| `partIndex` | number | Нет | Index of the message part to edit \(defaults to 0\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Message ID |
+| `chatId` | string | ID of the chat the message belongs to |
+| `isFromMe` | boolean | Whether the message was sent by you |
+| `isDelivered` | boolean | Whether the message was delivered |
+| `isRead` | boolean | Whether the message was read |
+| `service` | string | Delivery service \(iMessage, SMS, RCS\) |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+| `sentAt` | string | ISO 8601 sent timestamp |
+| `parts` | json | Updated message parts with reactions |
+| `message` | json | The full updated message object |
+
+### `linq_get_attachment`
+
+Retrieve metadata for an attachment, including its download URL and status
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `attachmentId` | string | Да | The unique identifier of the attachment |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Attachment ID |
+| `filename` | string | File name |
+| `contentType` | string | MIME type of the file |
+| `sizeBytes` | number | File size in bytes |
+| `status` | string | Upload status \(pending, complete, failed\) |
+| `downloadUrl` | string | URL to download the file |
+| `createdAt` | string | ISO 8601 creation timestamp |
+
+### `linq_get_chat`
+
+Retrieve a chat by ID, including participants and line health
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Chat ID |
+| `displayName` | string | Display name of the chat |
+| `isGroup` | boolean | Whether the chat is a group chat |
+| `isArchived` | boolean | Whether the chat is archived |
+| `service` | string | Delivery service \(iMessage, SMS, RCS\) |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+| `handles` | json | Participant handles in the chat |
+| `healthStatus` | json | Messaging line health status |
+
+### `linq_get_contact_card`
+
+Retrieve contact cards, optionally filtered by phone number
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `phoneNumber` | string | Нет | E.164 phone number to filter by \(omit to return all cards\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `contactCards` | array | Contact cards on the account |
+|   ↳ `phoneNumber` | string | Phone number in E.164 format |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `imageUrl` | string | Profile photo URL |
+|   ↳ `isActive` | boolean | Whether the card is active |
+
+### `linq_get_message`
+
+Retrieve a single message by ID, including parts, reactions, and delivery status
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `messageId` | string | Да | The unique identifier of the message |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Message ID |
+| `chatId` | string | ID of the chat the message belongs to |
+| `isFromMe` | boolean | Whether the message was sent by you |
+| `isDelivered` | boolean | Whether the message was delivered |
+| `isRead` | boolean | Whether the message was read |
+| `service` | string | Delivery service \(iMessage, SMS, RCS\) |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+| `sentAt` | string | ISO 8601 sent timestamp |
+| `parts` | json | Message parts \(text, media, link\) with reactions |
+| `message` | json | The full message object |
+
+### `linq_get_webhook_subscription`
+
+Retrieve a webhook subscription by ID
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `subscriptionId` | string | Да | The unique identifier of the webhook subscription |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Subscription ID |
+| `targetUrl` | string | Endpoint that receives events |
+| `subscribedEvents` | json | Subscribed event types |
+| `phoneNumbers` | json | Filtered phone numbers \(null = all\) |
+| `isActive` | boolean | Whether the subscription is active |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+
+### `linq_leave_chat`
+
+Leave an iMessage group chat (4+ active participants; not supported for direct chats)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the group chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Queued action status \(e.g. accepted\) |
+| `traceId` | string | Trace ID for the queued action |
+
+### `linq_list_chats`
+
+List chats, optionally filtered by sender or participant handle
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `from` | string | Нет | Filter by sender phone number in E.164 format |
+| `to` | string | Нет | Filter by participant handle \(phone number or email\) |
+| `limit` | number | Нет | Results per page \(default 20, max 100\) |
+| `cursor` | string | Нет | Pagination cursor from a previous response |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `chats` | json | Array of chat objects |
+| `nextCursor` | string | Cursor for the next page, or null if there are no more results |
+
+### `linq_list_messages`
+
+List messages in a chat with pagination
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+| `limit` | number | Нет | Maximum number of messages to return |
+| `cursor` | string | Нет | Pagination cursor from a previous response |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `messages` | json | Array of message objects with parts and reactions |
+| `nextCursor` | string | Cursor for the next page, or null if there are no more results |
+
+### `linq_list_phone_numbers`
+
+List all phone numbers assigned to your partner account, with line health
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `phoneNumbers` | array | Phone numbers assigned to the account |
+|   ↳ `id` | string | Phone number ID |
+|   ↳ `phoneNumber` | string | Phone number in E.164 format |
+|   ↳ `healthStatus` | json | Line health status \(status, doc_url\) |
+
+### `linq_list_thread`
+
+List all messages in the thread that contains a given message
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `messageId` | string | Да | The ID of any message in the thread |
+| `order` | string | Нет | Sort order: asc \(oldest first\) or desc \(newest first\) |
+| `limit` | number | Нет | Maximum number of messages to return |
+| `cursor` | string | Нет | Pagination cursor from a previous response |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `messages` | json | Array of message objects in the thread |
+| `nextCursor` | string | Cursor for the next page, or null if there are no more results |
+
+### `linq_list_webhook_events`
+
+List all webhook event types available to subscribe to
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `events` | json | Available webhook event type names |
+| `docUrl` | string | Documentation URL for webhook events |
+
+### `linq_list_webhook_subscriptions`
+
+List all webhook subscriptions on your account
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `subscriptions` | array | Webhook subscriptions |
+|   ↳ `id` | string | Subscription ID |
+|   ↳ `targetUrl` | string | Endpoint that receives events |
+|   ↳ `subscribedEvents` | json | Subscribed event types |
+|   ↳ `phoneNumbers` | json | Filtered phone numbers \(null = all\) |
+|   ↳ `isActive` | boolean | Whether the subscription is active |
+|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+|   ↳ `updatedAt` | string | ISO 8601 update timestamp |
+
+### `linq_mark_chat_read`
+
+Mark all messages in a chat as read
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the chat was marked as read |
+
+### `linq_react_to_message`
+
+Add or remove a tapback reaction on a message
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `messageId` | string | Да | The unique identifier of the message to react to |
+| `operation` | string | Да | Whether to add or remove the reaction: add or remove |
+| `type` | string | Да | Reaction type: love, like, dislike, laugh, emphasize, question, custom, or sticker |
+| `customEmoji` | string | Нет | Emoji to use when type is custom |
+| `partIndex` | number | Нет | Index of the message part to react to \(defaults to the entire message\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Queued action status |
+| `traceId` | string | Trace ID for the queued action |
+
+### `linq_remove_participant`
+
+Remove a participant from a group chat (minimum 3 participants must remain)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the group chat |
+| `handle` | string | Да | Phone number \(E.164 format\) or email address of the participant to remove |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Queued action status |
+| `traceId` | string | Trace ID for the queued action |
+
+### `linq_send_message`
+
+Send a message to an existing chat, with optional media, link, effect, or reply
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+| `text` | string | Нет | Text content of the message. Optional, but at least one of text, media, attachment, or link is required |
+| `mediaUrl` | string | Нет | Optional publicly accessible HTTPS URL of an image, video, or file to attach |
+| `attachmentId` | string | Нет | Optional ID of a pre-uploaded attachment to send instead of a media URL |
+| `linkUrl` | string | Нет | Optional URL to send as a rich link preview. Linq requires a link to be its own message, so when set, text and media are ignored |
+| `preferredService` | string | Нет | Preferred delivery service: iMessage, SMS, or RCS |
+| `effectName` | string | Нет | Optional iMessage effect name \(e.g. confetti, fireworks, lasers\) |
+| `effectType` | string | Нет | Optional effect type: screen or bubble |
+| `replyToMessageId` | string | Нет | Optional message ID to reply to inline |
+| `replyToPartIndex` | number | Нет | Optional part index of the message being replied to |
+| `idempotencyKey` | string | Нет | Optional idempotency key to safely retry the request |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `chatId` | string | ID of the chat the message was sent to |
+| `messageId` | string | ID of the sent message |
+| `deliveryStatus` | string | Delivery status \(pending, queued, sent, delivered, failed\) |
+| `sentAt` | string | ISO 8601 timestamp the message was sent |
+| `service` | string | Delivery service \(iMessage, SMS, RCS\) |
+| `message` | json | The full sent message object with parts |
+
+### `linq_send_voice_memo`
+
+Send a voice memo to a chat from a URL or a pre-uploaded attachment
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+| `voiceMemoUrl` | string | Нет | Publicly accessible HTTPS URL of the audio file \(MP3, M4A, AAC, CAF, WAV, AIFF, AMR\) |
+| `attachmentId` | string | Нет | ID of a pre-uploaded audio attachment \(use instead of voiceMemoUrl\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the sent voice memo message |
+| `status` | string | Delivery status |
+| `from` | string | Sender handle |
+| `to` | json | Recipient handles |
+| `service` | string | Delivery service \(iMessage, SMS, RCS\) |
+| `voiceMemo` | json | Audio file metadata \(id, filename, mime_type, size_bytes, url, duration_ms\) |
+
+### `linq_share_contact_card`
+
+Share your configured contact card (Name and Photo Sharing) with a chat
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the contact card was shared |
+
+### `linq_start_typing`
+
+Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the typing indicator was sent |
+
+### `linq_stop_typing`
+
+Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the typing indicator was stopped |
+
+### `linq_update_chat`
+
+Update chat properties such as group display name and icon
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `chatId` | string | Да | The unique identifier of the chat |
+| `displayName` | string | Нет | New display name for the group chat |
+| `groupChatIcon` | string | Нет | New group chat icon \(publicly accessible image URL\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `chatId` | string | ID of the updated chat |
+| `status` | string | Status of the queued update |
+
+### `linq_update_contact_card`
+
+Partially update an existing active contact card for a phone number
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `phoneNumber` | string | Да | Phone number in E.164 format identifying the card to update |
+| `firstName` | string | Нет | New first name |
+| `lastName` | string | Нет | New last name |
+| `imageUrl` | string | Нет | New profile photo URL |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `phoneNumber` | string | Phone number the card applies to |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `imageUrl` | string | Profile photo URL |
+| `isActive` | boolean | Whether the card is active |
+
+### `linq_update_webhook_subscription`
+
+Update a webhook subscription (target URL, events, phone filter, or active state)
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Linq API key |
+| `subscriptionId` | string | Да | The unique identifier of the webhook subscription |
+| `targetUrl` | string | Нет | New HTTPS endpoint that will receive events |
+| `subscribedEvents` | array | Нет | New set of event types to subscribe to |
+| `phoneNumbers` | array | Нет | New set of E.164 phone numbers to filter by |
+| `isActive` | boolean | Нет | Whether the subscription should be active |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `id` | string | Subscription ID |
+| `targetUrl` | string | Endpoint that receives events |
+| `subscribedEvents` | json | Subscribed event types |
+| `phoneNumbers` | json | Filtered phone numbers \(null = all\) |
+| `isActive` | boolean | Whether the subscription is active |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `updatedAt` | string | ISO 8601 update timestamp |
+
+

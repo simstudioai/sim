@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl' // i18n ready
 import { createContext, type ReactNode, useContext } from 'react'
 import { ChipInput, ChipLink, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'

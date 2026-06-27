@@ -1,0 +1,475 @@
+---
+title: Lemlist
+description: Управление активностями по outreach, лидами и отправка писем через Lemlist
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lemlist"
+  color="#316BFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Supercharge your sales outreach and engagement with [Lemlist](https://lemlist.com) – the personalized outreach automation platform trusted by thousands of sales teams. With Lemlist, you can automate multi-channel campaigns, nurture leads, and boost reply rates, all while keeping your communication highly personalized and authentic.
+
+With the Lemlist integration, you can:
+
+- **Automate outreach sequences:** Launch personalized email, LinkedIn, and calling campaigns at scale, tailored to each recipient.
+- **Track campaign activity:** Instantly monitor opens, clicks, replies, bounces, and every lead interaction for granular campaign insights.
+- **Centralize engagement data:** Fetch real-time activity and replies for each campaign or lead, and sync it directly into your workflow automation.
+- **Get lead details automatically:** Retrieve enriched lead information by email or ID to keep your CRM and processes up to date without manual data entry.
+- **Send targeted emails from your inbox:** Trigger bespoke emails to leads directly from the workflow, using up-to-date templates and data.
+- **Boost team collaboration and follow-up:** Assign leads, track outcomes, and ensure no prospect is lost thanks to Lemlist’s built-in tools—all accessible via automation.
+
+Lemlist empowers sales, marketing, and outbound teams to save time, personalize at scale, and convert more prospects. Automate and optimize your campaigns, integrate with your stack, and never miss a valuable opportunity.
+
+Drive more replies, book more meetings, and grow your pipeline by connecting Lemlist to your automated workflows today!
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
+
+
+
+## Действия
+
+### `lemlist_get_activities`
+
+Retrieves campaign activities and steps performed, including email opens, clicks, replies, and other events.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Lemlist API key |
+| `type` | string | Нет | Filter by activity type \(e.g., emailOpened, emailClicked, emailReplied, paused\) |
+| `campaignId` | string | Нет | Filter by campaign ID \(e.g., "cam_abc123def456"\) |
+| `leadId` | string | Нет | Filter by lead ID \(e.g., "lea_abc123def456"\) |
+| `isFirst` | boolean | Нет | Filter for first activity only |
+| `limit` | number | Нет | Number of results per request \(e.g., 50\). Max 100, default 100 |
+| `offset` | number | Нет | Number of records to skip for pagination \(e.g., 0, 100, 200\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `activities` | array | List of activities |
+|   ↳ `_id` | string | Activity ID |
+|   ↳ `type` | string | Activity type |
+|   ↳ `leadId` | string | Associated lead ID |
+|   ↳ `campaignId` | string | Campaign ID |
+|   ↳ `sequenceId` | string | Sequence ID |
+|   ↳ `stepId` | string | Step ID |
+|   ↳ `createdAt` | string | When the activity occurred |
+| `count` | number | Number of activities returned |
+
+### `lemlist_get_lead`
+
+Retrieves lead information by email address or lead ID.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Lemlist API key |
+| `leadIdentifier` | string | Да | Lead email address \(e.g., "john@example.com"\) or lead ID \(e.g., "lea_abc123def456"\) |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Lead ID |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Company name |
+| `jobTitle` | string | Job title |
+| `companyDomain` | string | Company domain |
+| `isPaused` | boolean | Whether the lead is paused |
+| `campaignId` | string | Campaign ID the lead belongs to |
+| `contactId` | string | Contact ID |
+| `emailStatus` | string | Email deliverability status |
+
+### `lemlist_send_email`
+
+Sends an email to a contact through the Lemlist inbox.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Lemlist API key |
+| `sendUserId` | string | Да | Identifier for the user sending the message \(e.g., "usr_abc123def456"\) |
+| `sendUserEmail` | string | Да | Email address of the sender \(e.g., "sales@company.com"\) |
+| `sendUserMailboxId` | string | Да | Mailbox identifier for the sender \(e.g., "mbx_abc123def456"\) |
+| `contactId` | string | Да | Recipient contact identifier \(e.g., "con_abc123def456"\) |
+| `leadId` | string | Да | Associated lead identifier \(e.g., "lea_abc123def456"\) |
+| `subject` | string | Да | Email subject line |
+| `message` | string | Да | Email message body in HTML format |
+| `cc` | json | Нет | Array of CC email addresses |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the email was sent successfully |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Lemlist Email Bounced
+
+Trigger workflow when an email bounces
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `messageId` | string | Email message ID that bounced |
+| `errorMessage` | string | Bounce error message |
+
+
+---
+
+### Lemlist Email Clicked
+
+Trigger workflow when a lead clicks a link in an email
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `messageId` | string | Email message ID containing the clicked link |
+| `clickedUrl` | string | URL that was clicked |
+
+
+---
+
+### Lemlist Email Opened
+
+Trigger workflow when a lead opens an email
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `messageId` | string | Email message ID that was opened |
+
+
+---
+
+### Lemlist Email Replied
+
+Trigger workflow when a lead replies to an email
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `subject` | string | Email subject line |
+| `text` | string | Email body content \(HTML\) |
+| `messageId` | string | Email message ID \(RFC 2822 format\) |
+| `emailId` | string | Lemlist email identifier |
+
+
+---
+
+### Lemlist Email Sent
+
+Trigger workflow when an email is sent
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `subject` | string | Email subject line |
+| `text` | string | Email body content \(HTML\) |
+| `messageId` | string | Email message ID \(RFC 2822 format\) |
+| `emailId` | string | Lemlist email identifier |
+
+
+---
+
+### Lemlist Lead Interested
+
+Trigger workflow when a lead is marked as interested
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+
+
+---
+
+### Lemlist Lead Not Interested
+
+Trigger workflow when a lead is marked as not interested
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+
+
+---
+
+### Lemlist LinkedIn Replied
+
+Trigger workflow when a lead replies to a LinkedIn message
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `text` | string | LinkedIn message content |
+
+
+---
+
+### Lemlist Webhook (All Events)
+
+Trigger workflow on any Lemlist webhook event
+
+#### Configuration
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | Required to create the webhook in Lemlist. |
+| `campaignId` | string | Нет | Optionally scope the webhook to a specific campaign |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `_id` | string | Unique activity identifier |
+| `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
+| `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
+| `teamId` | string | Lemlist team identifier |
+| `leadId` | string | Lead identifier \(only present for campaign activities\) |
+| `campaignId` | string | Campaign identifier \(only present for campaign activities\) |
+| `campaignName` | string | Campaign name \(only present for campaign activities\) |
+| `email` | string | Lead email address |
+| `firstName` | string | Lead first name |
+| `lastName` | string | Lead last name |
+| `companyName` | string | Lead company name |
+| `linkedinUrl` | string | Lead LinkedIn profile URL |
+| `sequenceId` | string | Sequence identifier |
+| `sequenceStep` | number | Current step in the sequence \(0-indexed\) |
+| `totalSequenceStep` | number | Total number of steps in the sequence |
+| `isFirst` | boolean | Whether this is the first activity of this type for this step |
+| `sendUserId` | string | Sender user identifier |
+| `sendUserEmail` | string | Sender email address |
+| `sendUserName` | string | Sender display name |
+| `subject` | string | Email subject line |
+| `text` | string | Email body content \(HTML\) |
+| `messageId` | string | Email message ID \(RFC 2822 format\) |
+| `emailId` | string | Lemlist email identifier |
+| `clickedUrl` | string | URL that was clicked \(for emailsClicked events\) |
+| `errorMessage` | string | Error message \(for bounce/failed events\) |
+

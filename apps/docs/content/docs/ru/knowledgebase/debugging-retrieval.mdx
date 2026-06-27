@@ -1,0 +1,95 @@
+---
+title: Debugging retrieval
+description: Why a Knowledge block search returns no results, wrong results, or duplicates, and how to fix each one.
+pageType: guide
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+A [Knowledge block](/integrations/knowledge) search reads a query, embeds it as a vector, and returns the chunks of your documents that are closest to it. When the search misbehaves, it does so in one of three ways: it returns nothing, it returns the wrong chunks, or it returns the same content twice. Each one has a short list of causes you can check in the search results, in the document list, and in your tag filters.
+
+## What a result looks like
+
+A search returns a `results` array. Each entry is one chunk of one document, with the fields you use to diagnose retrieval:
+
+| Field | What it is |
+| --- | --- |
+| `documentName` | The source document the chunk came from. |
+| `sourceUrl` | Where the document was uploaded or synced from (`null` for manual uploads). |
+| `content` | The chunk text that matched. |
+| `chunkIndex` | The chunk's position in the document (`0` is the first chunk). |
+| `similarity` | How close the chunk is to your query, `0` to `1` (higher is closer). |
+| `rerankerScore` | An optional relevance score, present only when [Cohere reranking](/integrations/knowledge) is on. |
+| `metadata` | The chunk's tag values, by their display names. |
+
+{/* VISUAL: two result panels side by side. Left: empty `results: []`. Right: one populated result object with documentName, content, chunkIndex, similarity 0.92, metadata, sourceUrl annotated. */}
+
+The **similarity score** is the first thing to read. As a rough guide: above `0.8` is usually relevant, `0.6` to `0.8` is marginal, and below `0.6` is often noise. A search with a query always scores chunks this way. A tag-only search (filters, no query) returns every matching chunk with `similarity: 1`, because there's no query to measure distance against.
+
+## Empty results
+
+An empty `results` array means no chunk matched. There are three causes, listed here in the order worth checking.
+
+### The documents aren't ready
+
+Only documents that finished processing are searchable. Every document carries a `processingStatus`, and the Knowledge block silently skips anything that isn't `completed`. A knowledge base full of half-processed documents looks empty even though the upload succeeded.
+
+| `processingStatus` | Meaning | Searchable |
+| --- | --- | --- |
+| `pending` | Queued, not started. | No |
+| `processing` | Being chunked and embedded. | No |
+| `completed` | Ready. | Yes |
+| `failed` | Chunking or embedding errored. | No |
+
+{/* VISUAL: the four processingStatus states in a row, with a checkmark only on `completed`. */}
+
+Run the block's **List Documents** operation and check the status of each document. If a document is `pending` or `processing`, wait for it to finish. If it's `failed`, read its `processingError` (via **Get Document**) and re-upload. See [chunking strategies](/knowledgebase/chunking-strategies) for what happens during processing.
+
+### The query doesn't match the content
+
+If your documents are `completed` but the search still returns nothing, the query may not be close to anything stored. Confirm the content actually exists: run **List Chunks** and read what's in the knowledge base. If the answer is there but the search misses it, the problem is wording, not data. Try a simpler query, or use a term that appears in the content. See [wrong results](#wrong-results-or-low-relevance) below for the deeper version of this.
+
+### Tag filters exclude everything
+
+[Tag filters](/knowledgebase/tags) restrict the document set before the vector search runs, and they combine with AND logic: a document must match every filter to be searched. A filter like `Department equals 'engineering'` returns nothing if no document carries that tag value.
+
+Check the tag values actually set on your documents (**Get Document** shows them), and confirm the filter value matches exactly. To rule filters out as the cause, remove them and search by query alone.
+
+## Wrong results or low relevance
+
+Wrong results are chunks that come back but don't answer the query, even though better content exists in the knowledge base. The vector search found something semantically near the query, but it wasn't near enough to be a good match. Read the `similarity` scores: a top result at `0.65` is the search telling you nothing good matched.
+
+Common causes:
+
+- **The query and the content use different words.** A search for `LLM` won't sit close to content written entirely as `language model`. Reword the query toward the content's own terms.
+- **Chunks are too large.** A 1,024-token chunk blends many topics into one embedding, so its score is diluted across all of them. Smaller chunks (256 to 512 tokens) often retrieve more precisely. See [chunking strategies](/knowledgebase/chunking-strategies).
+- **Context is split across a chunk boundary.** The sentence that answers the query sits in one chunk and the subject it refers to sits in the previous one, so neither chunk scores well on its own. Overlap during chunking reduces this.
+
+Two fixes that don't require re-chunking: narrow the search with a tag filter first so the vector search runs over fewer, more relevant documents, or turn on **Cohere reranking**. Reranking re-scores the initial vector results with a model tuned for relevance and adds a `rerankerScore` to each result. It's worth enabling when you see marginal results (`0.6` to `0.75`) that a human would call relevant. It costs one search unit per call and adds latency, and if the reranker is unavailable the search falls back to vector ordering automatically.
+
+<Callout type="info">
+A high `similarity` score is not a guarantee the chunk answers the query, only that it's close in meaning. Vet the top results yourself, or use reranking, before trusting a search to ground an agent's answer.
+</Callout>
+
+## Duplicates
+
+Duplicates are the same or near-identical content appearing more than once in `results`. Read the `documentName` and `chunkIndex` of the repeated entries to tell which case you have.
+
+- **Same document, adjacent `chunkIndex` values.** This is overlap. Chunking repeats some tokens between consecutive chunks (200 by default) to preserve context, so neighboring chunks share text and can both match. Lowering overlap reduces the repetition, at the cost of context at chunk boundaries. See [chunking strategies](/knowledgebase/chunking-strategies).
+- **Different `documentName`, identical content.** The same material was uploaded as two documents, or [synced from a connector](/knowledgebase/connectors) that holds it in more than one place. Consolidate the duplicate documents, or check the connector's source.
+
+## Disabled chunks and claimed tag slots
+
+A chunk can be disabled with the **Update Chunk** operation (`enabled: false`), which removes it from all searches without deleting it. A disabled chunk never appears in results, even when it's the best match. If a chunk you know is relevant is missing from a search, confirm it isn't disabled.
+
+The same goes for tag slots when you use [connectors](/knowledgebase/connectors). Synced documents auto-populate tag values (a repository name, a last-modified date), and those occupy the same slots manual tags would. A filter that returns nothing can be filtering on a slot the connector already claimed.
+
+## Next
+
+<Cards>
+  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="Max chunk size, overlap, and how splits become chunks." />
+  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Set tag values and filter searches by them." />
+  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="Wire a Knowledge block search into an agent." />
+  <Card title="Knowledge block" href="/integrations/knowledge" description="Every operation the block supports." />
+</Cards>

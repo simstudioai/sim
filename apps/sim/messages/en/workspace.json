@@ -1,0 +1,16 @@
+{
+  "create": "Create Workspace",
+  "name": "Workspace Name",
+  "members": "Members",
+  "invite": "Invite",
+  "noWorkflows": "No workflows yet",
+  "createFirst": "Create your first workflow",
+  "switch": "Switch workspace",
+  "leave": "Leave workspace",
+  "delete": "Delete workspace",
+  "owner": "Owner",
+  "admin": "Admin",
+  "member": "Member",
+  "role": "Role",
+  "transferOwnership": "Transfer ownership"
+}

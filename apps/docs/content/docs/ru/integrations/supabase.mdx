@@ -1,0 +1,604 @@
+---
+title: Supabase
+description: Использование базы данных Supabase
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) is a powerful open-source backend-as-a-service platform that provides developers with a suite of tools to build, scale, and manage modern applications. Supabase offers a fully managed [PostgreSQL](https://www.postgresql.org/) database, robust authentication, instant RESTful and GraphQL APIs, real-time subscriptions, file storage, and edge functions—all accessible through a unified and developer-friendly interface. Its open-source nature and compatibility with popular frameworks make it a compelling alternative to Firebase, with the added benefit of SQL flexibility and transparency.
+
+**Why Supabase?**
+- **Instant APIs:** Every table and view in your database is instantly available via REST and GraphQL endpoints, making it easy to build data-driven applications without writing custom backend code.
+- **Real-time Data:** Supabase enables real-time subscriptions, allowing your apps to react instantly to changes in your database.
+- **Authentication & Authorization:** Built-in user management with support for email, OAuth, SSO, and more, plus row-level security for granular access control.
+- **Storage:** Securely upload, serve, and manage files with built-in storage that integrates seamlessly with your database.
+- **Edge Functions:** Deploy serverless functions close to your users for low-latency custom logic.
+
+**Using Supabase in Sim**
+
+Sim’s Supabase integration makes it effortless to connect your agentic workflows to your Supabase projects. With just a few configuration fields—your Project ID, Table name, and Service Role Secret—you can securely interact with your database directly from your Sim blocks. The integration abstracts away the complexity of API calls, letting you focus on building logic and automations.
+
+**Key benefits of using Supabase in Sim:**
+- **No-code/low-code database operations:** Query, insert, update, and delete rows in your Supabase tables without writing SQL or backend code.
+- **Flexible querying:** Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) to perform advanced queries, including filtering, ordering, and limiting results.
+- **Seamless integration:** Easily connect Supabase to other tools and services in your workflow, enabling powerful automations such as syncing data, triggering notifications, or enriching records.
+- **Secure and scalable:** All operations use your Supabase Service Role Secret, ensuring secure access to your data with the scalability of a managed cloud platform.
+
+Whether you’re building internal tools, automating business processes, or powering production applications, Supabase in Sim provides a fast, reliable, and developer-friendly way to manage your data and backend logic—no infrastructure management required. Simply configure your block, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Интегрируйте Supabase в рабочий процесс. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).
+
+
+
+## Действия
+
+### `supabase_query`
+
+Query data from a Supabase table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to query |
+| `schema` | string | Нет | Database schema to query from \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `select` | string | Нет | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
+| `filter` | string | Нет | PostgREST filter (например, "id=eq.123"\) |
+| `orderBy` | string | Нет | Column to order by \(add DESC for descending\) |
+| `limit` | number | Нет | Maximum number of rows to return |
+| `offset` | number | Нет | Number of rows to skip \(for pagination\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of records returned from the query |
+
+### `supabase_insert`
+
+Insert data into a Supabase table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to insert data into |
+| `schema` | string | Нет | Database schema to insert into \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `data` | array | Да | The data to insert \(array of objects or a single object\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of inserted records |
+
+### `supabase_get_row`
+
+Получение a single row from a Supabase table based on filter criteria
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to query |
+| `schema` | string | Нет | Database schema to query from \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `select` | string | Нет | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
+| `filter` | string | Да | PostgREST filter to find the specific row (например, "id=eq.123"\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array containing the row data if found, empty array if not found |
+
+### `supabase_update`
+
+Update rows in a Supabase table based on filter criteria
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to update |
+| `schema` | string | Нет | Database schema to update in \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `filter` | string | Да | PostgREST filter to identify rows to update (например, "id=eq.123"\) |
+| `data` | object | Да | Data to update in the matching rows |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of updated records |
+
+### `supabase_delete`
+
+Delete rows from a Supabase table based on filter criteria
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to delete from |
+| `schema` | string | Нет | Database schema to delete from \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `filter` | string | Да | PostgREST filter to identify rows to delete (например, "id=eq.123"\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of deleted records |
+
+### `supabase_upsert`
+
+Insert or update data in a Supabase table (upsert operation)
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to upsert data into |
+| `schema` | string | Нет | Database schema to upsert into \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `data` | array | Да | The data to upsert \(insert or update\) - array of objects or a single object |
+| `onConflict` | string | Нет | Comma-separated column\(s\) with a unique or primary key constraint to resolve conflicts on (например, "email"\). Defaults to the primary key. |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of upserted records |
+
+### `supabase_count`
+
+Count rows in a Supabase table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to count rows from |
+| `schema` | string | Нет | Database schema to count from \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `filter` | string | Нет | PostgREST filter (например, "status=eq.active"\) |
+| `countType` | string | Нет | Count type: exact, planned, or estimated \(по умолчанию: exact\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `count` | number | Number of rows matching the filter |
+
+### `supabase_text_search`
+
+Perform full-text search on a Supabase table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `table` | string | Да | The name of the Supabase table to search |
+| `schema` | string | Нет | Database schema to search in \(по умолчанию: public\). Use this to access tables in other schemas. |
+| `column` | string | Да | The column to search in |
+| `query` | string | Да | The search query |
+| `searchType` | string | Нет | Search type: plain, phrase, or websearch \(по умолчанию: websearch\) |
+| `language` | string | Нет | Language for text search configuration \(по умолчанию: english\) |
+| `limit` | number | Нет | Maximum number of rows to return |
+| `offset` | number | Нет | Number of rows to skip \(for pagination\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of records matching the search query |
+
+### `supabase_vector_search`
+
+Perform similarity search using pgvector in a Supabase table
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Да | The name of the PostgreSQL function that performs vector search (например, match_documents\) |
+| `queryEmbedding` | array | Да | The query vector/embedding to search for similar items |
+| `matchThreshold` | number | Нет | Minimum similarity threshold \(0-1\), typically 0.7-0.9 |
+| `matchCount` | number | Нет | Maximum number of results to return \(по умолчанию: 10\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of records with similarity scores from the vector search. Each record includes a similarity field \(0-1\) indicating how similar it is to the query vector. |
+
+### `supabase_rpc`
+
+Call a PostgreSQL function in Supabase
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Да | The name of the PostgreSQL function to call |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | json | Result returned from the function |
+
+### `supabase_invoke_function`
+
+Invoke a Supabase Edge Function over HTTP
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Да | The name of the Edge Function to invoke (например, "hello-world"\) |
+| `method` | string | Нет | HTTP method to use: GET, POST, PUT, PATCH, or DELETE \(по умолчанию: POST\) |
+| `body` | json | Нет | Request payload to send to the function as a JSON object \(ignored for GET\) |
+| `headers` | json | Нет | Additional request headers as a JSON object of header name to value |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | json | Response body returned by the Edge Function |
+
+### `supabase_introspect`
+
+Introspect Supabase database schema to get table structures, columns, and relationships
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `schema` | string | Нет | Database schema to introspect \(defaults to all user schemas, commonly "public"\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+|   ↳ `name` | string | Table name |
+|   ↳ `schema` | string | Database schema name |
+|   ↳ `columns` | array | Array of column definitions |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Column data type |
+|     ↳ `nullable` | boolean | Указывает,  column allows null values |
+|     ↳ `default` | string | Default value for the column |
+|     ↳ `isPrimaryKey` | boolean | Указывает,  column is a primary key |
+|     ↳ `isForeignKey` | boolean | Указывает,  column is a foreign key |
+|     ↳ `references` | object | Foreign key reference details |
+|       ↳ `table` | string | Referenced table name |
+|       ↳ `column` | string | Referenced column name |
+|   ↳ `primaryKey` | array | Array of primary key column names |
+|   ↳ `foreignKeys` | array | Array of foreign key relationships |
+|     ↳ `column` | string | Local column name |
+|     ↳ `referencesTable` | string | Referenced table name |
+|     ↳ `referencesColumn` | string | Referenced column name |
+|   ↳ `indexes` | array | Array of index definitions |
+|     ↳ `name` | string | Index name |
+|     ↳ `columns` | array | Columns included in the index |
+|     ↳ `unique` | boolean | Указывает,  index enforces uniqueness |
+| `schemas` | array | Получение списка of schemas found in the database |
+
+### `supabase_storage_upload`
+
+Upload a file to a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `fileName` | string | Да | The name of the file (например, "document.pdf", "image.jpg"\) |
+| `path` | string | Нет | Optional folder path (например, "folder/subfolder/"\) |
+| `fileData` | json | Да | File to upload - UserFile object \(basic mode\) or string content \(advanced mode: base64 or plain text\). Supports data URLs. |
+| `contentType` | string | Нет | MIME type of the file (например, "image/jpeg", "text/plain"\) |
+| `cacheControl` | string | Нет | Cache-Control header value in seconds for the stored object (например, "3600"; по умолчанию: "3600"\) |
+| `upsert` | boolean | Нет | If true, overwrites existing file \(по умолчанию: false\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | object | Upload result including file path, bucket, and public URL |
+|   ↳ `Id` | string | Уникальный идентификатор for the uploaded file |
+|   ↳ `Key` | string | Full object key including bucket name |
+|   ↳ `path` | string | Path to the uploaded file within the bucket |
+|   ↳ `bucket` | string | Name of the bucket the file was uploaded to |
+|   ↳ `publicUrl` | string | Public URL for the uploaded file |
+
+### `supabase_storage_download`
+
+Download a file from a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `path` | string | Да | The path to the file to download (например, "folder/file.jpg"\) |
+| `fileName` | string | Нет | Optional filename override |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### `supabase_storage_list`
+
+Получение списка files in a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `path` | string | Нет | The folder path to list files from \(по умолчанию: root\) |
+| `limit` | number | Нет | Maximum number of files to return \(по умолчанию: 100\) |
+| `offset` | number | Нет | Number of files to skip \(for pagination\) |
+| `sortBy` | string | Нет | Column to sort by: name, created_at, updated_at, last_accessed_at \(по умолчанию: name\) |
+| `sortOrder` | string | Нет | Sort order: asc or desc \(по умолчанию: asc\) |
+| `search` | string | Нет | Search term to filter files by name |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of file objects with metadata |
+|   ↳ `id` | string | Unique file identifier |
+|   ↳ `name` | string | File name |
+|   ↳ `bucket_id` | string | Bucket identifier the file belongs to |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `created_at` | string | File creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `last_accessed_at` | string | Last access timestamp |
+|   ↳ `metadata` | object | File metadata including size and MIME type |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `cacheControl` | string | Cache control header value |
+|     ↳ `lastModified` | string | Last modified timestamp |
+|     ↳ `eTag` | string | Entity tag for caching |
+
+### `supabase_storage_delete`
+
+Delete files from a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `paths` | array | Да | Array of file paths to delete (например, \["folder/file1.jpg", "folder/file2.jpg"\]\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of deleted file objects |
+|   ↳ `name` | string | Name of the deleted file |
+|   ↳ `bucket_id` | string | Bucket identifier |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `id` | string | Unique file identifier |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `created_at` | string | File creation timestamp |
+|   ↳ `last_accessed_at` | string | Last access timestamp |
+
+### `supabase_storage_move`
+
+Move a file within a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `fromPath` | string | Да | The current path of the file (например, "folder/old.jpg"\) |
+| `toPath` | string | Да | The new path for the file (например, "newfolder/new.jpg"\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | object | Move operation result |
+|   ↳ `message` | string | Статус операции message |
+|   ↳ `Id` | string | Identifier of the destination object |
+|   ↳ `Key` | string | Full object key of the destination |
+
+### `supabase_storage_copy`
+
+Copy a file within a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `fromPath` | string | Да | The path of the source file (например, "folder/source.jpg"\) |
+| `toPath` | string | Да | The path for the copied file (например, "folder/copy.jpg"\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | object | Copy operation result with the destination object key |
+|   ↳ `Key` | string | Full object key of the copied file |
+|   ↳ `Id` | string | Identifier of the copied object |
+
+### `supabase_storage_create_bucket`
+
+Создание нового storage bucket in Supabase
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the bucket to create |
+| `isPublic` | boolean | Нет | Указывает,  bucket should be publicly accessible \(по умолчанию: false\) |
+| `fileSizeLimit` | number | Нет | Maximum file size in bytes \(optional\) |
+| `allowedMimeTypes` | array | Нет | Array of allowed MIME types (например, \["image/png", "image/jpeg"\]\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | object | Created bucket result \(name\) |
+|   ↳ `name` | string | Created bucket name |
+
+### `supabase_storage_list_buckets`
+
+Получение списка storage buckets in Supabase
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | array | Array of bucket objects |
+|   ↳ `id` | string | Unique bucket identifier |
+|   ↳ `name` | string | Bucket name |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `public` | boolean | Указывает,  bucket is publicly accessible |
+|   ↳ `created_at` | string | Bucket creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `file_size_limit` | number | Maximum file size allowed in bytes |
+|   ↳ `allowed_mime_types` | array | Получение списка of allowed MIME types for uploads |
+
+### `supabase_storage_delete_bucket`
+
+Удаление storage bucket in Supabase
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the bucket to delete |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `results` | object | Delete operation result |
+|   ↳ `message` | string | Статус операции message |
+
+### `supabase_storage_get_public_url`
+
+Получение the public URL for a file in a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `path` | string | Да | The path to the file (например, "folder/file.jpg"\) |
+| `download` | boolean | Нет | If true, forces download instead of inline display \(по умолчанию: false\) |
+| `output` | string | Нет | No description |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `publicUrl` | string | The public URL to access the file |
+
+### `supabase_storage_create_signed_url`
+
+Create a temporary signed URL for a file in a Supabase storage bucket
+
+#### Вход
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Да | Your Supabase project ID (например, jdrkgepadsdopsntdlom\) |
+| `bucket` | string | Да | The name of the storage bucket |
+| `path` | string | Да | The path to the file (например, "folder/file.jpg"\) |
+| `expiresIn` | number | Да | Number of seconds until the URL expires (например, 3600 for 1 hour\) |
+| `download` | boolean | Нет | If true, forces download instead of inline display \(по умолчанию: false\) |
+| `apiKey` | string | Да | Your Supabase service role secret key |
+
+#### Выход
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Статус операции message |
+| `signedUrl` | string | The temporary signed URL to access the file |
+
+

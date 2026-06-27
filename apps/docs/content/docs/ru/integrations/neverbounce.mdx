@@ -1,0 +1,66 @@
+---
+title: NeverBounce
+description: Проверка доставляемости email и проверка кредитов аккаунта
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="neverbounce"
+  color="#064AF4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+NeverBounce is a real-time email verification and list-cleaning service. Use this integration to check whether an email address is deliverable — it classifies each address as valid, invalid, disposable, catch-all, or unknown and surfaces role-account and free-provider flags — and to read the paid and free verification credits left on your account. Verify addresses before sending to cut bounces and keep your domain reputation healthy.
+{/* MANUAL-CONTENT-END */}
+
+
+## Инструкции по использованию
+
+Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.
+
+
+
+## Действия
+
+### `neverbounce_verify_email`
+
+Verify the deliverability of an email address. Uses one verification credit.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Да | Email address to verify \(e.g., john@example.com\) |
+| `apiKey` | string | Да | NeverBounce API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `email` | string | The verified email address |
+| `status` | string | Verification status \(valid, invalid, catch_all, disposable, unknown\) |
+| `deliverable` | boolean | Whether the email is valid and safe to send |
+| `roleAccount` | boolean | Whether the address is a role account \(e.g., info@, sales@\) |
+| `freeEmail` | boolean | Whether the address is on a free email provider |
+| `didYouMean` | string | Suggested correction for a likely typo |
+| `flags` | array | Raw NeverBounce flags for the address |
+
+### `neverbounce_get_credits`
+
+Retrieve the remaining paid and free verification credits for the account.
+
+#### Входные параметры
+
+| Параметр | Тип | Обязательный | Описание |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Да | NeverBounce API Key |
+
+#### Выходные параметры
+
+| Параметр | Тип | Описание |
+| --------- | ---- | ----------- |
+| `credits` | number | Remaining paid verification credits |
+| `freeCredits` | number | Remaining free verification credits |
+
+
