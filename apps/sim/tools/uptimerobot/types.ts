@@ -259,7 +259,9 @@ export function buildMonitorBody(
   assignDefined(body, 'type', params.type)
   assignDefined(body, 'url', params.url)
   assignDefined(body, 'interval', params.interval)
-  assignDefined(body, 'timeout', params.timeout)
+  // `checkTimeout` is the API's `timeout` (seconds). The param is renamed to
+  // avoid the tool runner's reserved `timeout` (outbound HTTP-client timeout).
+  assignDefined(body, 'timeout', params.checkTimeout)
   assignDefined(body, 'port', params.port)
   assignDefined(body, 'keywordType', params.keywordType)
   assignDefined(body, 'keywordValue', params.keywordValue)
@@ -777,7 +779,7 @@ export interface UptimeRobotCreateMonitorParams extends UptimeRobotBaseParams {
   type: string
   url?: string
   interval: number
-  timeout?: number
+  checkTimeout?: number
   port?: number
   keywordType?: string
   keywordValue?: string

@@ -141,7 +141,7 @@ export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
       required: { field: 'operation', value: 'create_monitor' },
     },
     {
-      id: 'timeout',
+      id: 'checkTimeout',
       title: 'Timeout (seconds)',
       type: 'short-input',
       placeholder: '0-60',
@@ -693,7 +693,7 @@ export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
         // Numeric tool params that arrive as strings from short-input subblocks.
         const NUMERIC = new Set([
           'monitorId',
-          'timeout',
+          'checkTimeout',
           'port',
           'keywordCaseType',
           'gracePeriod',
@@ -756,7 +756,7 @@ export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
     type: { type: 'string', description: 'Monitor type' },
     url: { type: 'string', description: 'URL or host (also a list filter)' },
     interval: { type: 'string', description: 'Check interval (seconds) or recurrence' },
-    timeout: { type: 'number', description: 'Check timeout in seconds' },
+    checkTimeout: { type: 'number', description: 'Check timeout in seconds' },
     port: { type: 'number', description: 'Port for Port/UDP monitors' },
     keywordType: { type: 'string', description: 'Keyword match type' },
     keywordValue: { type: 'string', description: 'Keyword to look for' },

@@ -50,7 +50,7 @@ export const uptimeRobotUpdateMonitorTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'New check interval in seconds (minimum 30)',
     },
-    timeout: {
+    checkTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
