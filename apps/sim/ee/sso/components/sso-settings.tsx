@@ -267,6 +267,7 @@ export function SSO() {
   const handleDiscard = () => {
     setIsEditing(false)
     setFormData(DEFAULT_FORM_DATA)
+    setOriginalFormData(DEFAULT_FORM_DATA)
     setErrors(DEFAULT_ERRORS)
     setShowErrors(false)
     setShowAdvanced(false)
@@ -350,6 +351,7 @@ export function SSO() {
       logger.info('SSO provider configured', { providerId: formData.providerId })
       toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
       setFormData(DEFAULT_FORM_DATA)
+      setOriginalFormData(DEFAULT_FORM_DATA)
       setErrors(DEFAULT_ERRORS)
       setShowErrors(false)
       setIsEditing(false)
