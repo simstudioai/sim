@@ -1,10 +1,10 @@
 {
   "name": "@sim/universal-integrator",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
-  "description": "Universal sim.ai integration agent (LangChain + Claude). Takes ANY service URL / name / SDK and generates a COMPLETE Block + Tools integration for apps/sim, covering every API method.",
+  "description": "Deterministic integration generator - chain of algorithms that GUARANTEES complete API coverage",
   "bin": {
     "sim-integrate": "./src/index.ts"
   },
@@ -13,9 +13,7 @@
     "integrate": "bun run src/index.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.3.0",
-    "@langchain/core": "^0.3.0",
-    "langchain": "^0.3.0"
+    "@anthropic-ai/sdk": "^0.28.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

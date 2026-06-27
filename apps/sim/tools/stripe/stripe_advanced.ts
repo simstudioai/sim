@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-export const stripeadvancedTool: ToolConfig = {
+stripeADVANCEDTOOL: ToolConfig = {
   id: 'stripe_advanced',
   name: 'Stripe Advanced Services',
   description: 'Manage Stripe advanced services operations through the Stripe API.',

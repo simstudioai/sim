@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-export const stripesourcesTool: ToolConfig = {
+stripeSOURCESTOOL: ToolConfig = {
   id: 'stripe_sources',
   name: 'Stripe Payment Sources',
   description: 'Manage Stripe payment sources operations through the Stripe API.',

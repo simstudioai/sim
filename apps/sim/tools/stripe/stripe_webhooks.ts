@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-export const stripewebhooksTool: ToolConfig = {
+stripeWEBHOOKSTOOL: ToolConfig = {
   id: 'stripe_webhooks',
   name: 'Stripe Webhooks & Events',
   description: 'Manage Stripe webhooks & events operations through the Stripe API.',

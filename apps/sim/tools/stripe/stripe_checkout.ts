@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-export const stripecheckoutTool: ToolConfig = {
+stripeCHECKOUTTOOL: ToolConfig = {
   id: 'stripe_checkout',
   name: 'Stripe Checkout',
   description: 'Manage Stripe checkout operations through the Stripe API.',

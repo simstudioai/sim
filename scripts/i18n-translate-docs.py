@@ -180,7 +180,6 @@ def _translate_body(body: str) -> str:
                 clean, codes = _strip_code(h)
                 if clean.strip() and re.search(r"[a-zA-Z]{2,}", clean):
                     trans = tr(clean.strip())
-                    time.sleep(0.02)
                     out.append(f"{prefix}{_restore_code(trans, codes)}")
                 else:
                     out.append(txt)
@@ -195,13 +194,11 @@ def _translate_body(body: str) -> str:
                 lm = re.match(r"^\[([^\]]*)\]\(([^)]+)\)$", lt.strip())
                 if lm:
                     link_text = tr(lm.group(1))
-                    time.sleep(0.02)
                     out.append(f"{prefix}[{link_text}]({lm.group(2)})")
                 else:
                     clean, codes = _strip_code(lt)
                     if clean.strip() and re.search(r"[a-zA-Z]{2,}", clean):
                         trans = tr(clean.strip())
-                        time.sleep(0.02)
                         out.append(f"{prefix}{_restore_code(trans, codes)}")
                     else:
                         out.append(txt)
@@ -217,7 +214,6 @@ def _translate_body(body: str) -> str:
                 elif c and re.search(r"[a-zA-Z]{2,}", c):
                     clean, codes = _strip_code(c)
                     trans = tr(clean) if clean.strip() else c
-                    time.sleep(0.02)
                     tc.append(_restore_code(trans, codes))
                 else:
                     tc.append(c)
@@ -232,16 +228,13 @@ def _translate_body(body: str) -> str:
                         m2 = re.match(r"^\[([^\]]*)\]\(([^)]+)\)$", p)
                         if m2:
                             res.append(f"[{tr(m2.group(1))}]({m2.group(2)})")
-                            time.sleep(0.02)
                         elif p.strip():
                             res.append(tr(p))
-                            time.sleep(0.02)
                         else:
                             res.append(p)
                     out.append(_restore_code("".join(res), codes))
                 else:
                     out.append(_restore_code(tr(clean.strip()), codes))
-                    time.sleep(0.02)
             else:
                 out.append(txt)
     return "".join(out)
@@ -258,7 +251,6 @@ def translate_mdx(content: str) -> str:
         m = re.match(r"^(title|description):\s*(.+)", line)
         if m:
             fm_lines.append(f"{m.group(1)}: {tr(m.group(2))}")
-            time.sleep(0.03)
         else:
             fm_lines.append(line)
     return "---\n" + "\n".join(fm_lines) + "\n---\n" + _translate_body(body)

@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "api_name": "Telegram Bot API",
+    "api_url": "https://core.telegram.org/bots/api",
+    "api_version": "10.1",
+    "extraction_date": "2026-06-27",
+    "extraction_note": "Complete inventory of all documented Telegram Bot API methods"
+  },
+  "categories": {
+    "Getting Updates": {
+      "methods": [
+        {
+          "action": "getMe",
+          "httpMethod": "GET",
+          "endpoint": "getMe",
+          "description": "A simple method for testing your bot's auth token.",
+          "params": [],
+          "responseShape": "User object"
+        },
+        {
+          "action": "getUpdates",
+          "httpMethod": "GET",
+          "endpoint": "getUpdates",
+          "description": "Receive incoming updates using long polling.",
+          "params": [
+            {"name": "offset", "type": "integer", "required": false, "description": "Identifier of the first update to be returned"},
+            {"name": "limit", "type": "integer", "required": false, "description": "Limits the number of updates to be retrieved (1-100, default 100)"},
+            {"name": "timeout", "type": "integer", "required": false, "description": "Timeout in seconds for long polling"},
+            {"name": "allowed_updates", "type": "array", "required": false, "description": "List of update types to receive"}
+          ],
+          "responseShape": "Array of Update objects"
+        },
+        {
+          "action": "setWebhook",
+          "httpMethod": "POST",
+          "endpoint": "setWebhook",
+          "description": "Specify a URL and receive incoming updates via an outgoing webhook.",
+          "params": [
+            {"name": "url", "type": "string", "required": true, "description": "HTTPS URL to send updates to"},
+            {"name": "certificate", "type": "file", "required": false, "description": "Upload your public key certificate"},
+            {"name": "ip_address", "type": "string", "required": false, "description": "Fix the IP address which will be used to send webhook requests"},
+            {"name": "max_connections", "type": "integer", "required": false, "description": "Maximum allowed number of simultaneous webhook connections (1-100, default 40)"},
+            {"name": "allowed_updates", "type": "array", "required": false, "description": "List of update types to receive"},
+            {"name": "drop_pending_updates", "type": "boolean", "required": false, "description": "Pass True to drop all pending updates before switching to webhook"},
+            {"name": "secret_token", "type": "string", "required": false, "description": "Secret token for validating webhook requests"}
+          ],
+          "responseShape": "Boolean"
+        },
+        {
+          "action": "deleteWebhook",
+          "httpMethod": "POST",
+          "endpoint": "deleteWebhook",
+          "description": "Remove webhook integration if you decide to switch back to long polling.",
+          "params": [
+            {"name": "drop_pending_updates", "type": "boolean", "required": false, "description": "Pass True to drop all pending updates"}
+          ],
+          "responseShape": "Boolean"
+        },
+        {
+          "action": "getWebhookInfo",
+          "httpMethod": "GET",
+          "endpoint": "getWebhookInfo",
+          "description": "Get current webhook status.",
+          "params": [],
+          "responseShape": "WebhookInfo object"
+        }
+      ]
+    },
+    "Sending Messages": {
+      "methods": [
+        {
+          "action": "sendMessage",
+          "httpMethod": "POST",
+          "endpoint": "sendMessage",
+          "description": "Send text messages.",
+          "params": [
+            {"name": "chat_id", "type": "integer|string", "required": true, "description": "Unique identifier for the target chat or username"},
+            {"name": "text", "type": "string", "required": true, "description": "Text of the message to be sent"},
+            {"name": "business_connection_id", "type": "string", "required": false, "description": "Unique identifier of the business connection"},
+            {"name": "message_thread_id", "type": "integer", "required": false, "description": "Unique identifier for the target message thread"},
+            {"name": "parse_mode", "type": "string", "required": false, "description": "Mode for parsing entities in the message (HTML, Markdown, MarkdownV2)"},
+            {"name": "entities", "type": "array", "required": false, "description": "Array of MessageEntity objects"},
+            {"name": "link_preview_options", "type": "object", "required": false, "description": "Link preview generation options"},
+            {"name": "reply_markup", "type": "object", "required": false, "description": "Additional interface options (InlineKeyboardMarkup, ReplyKeyboardMarkup, etc.)"},
+            {"name": "reply_parameters", "type": "object", "required": false, "description": "Description of the message to which the sent message is a reply"},
+            {"name": "protect_content", "type": "boolean", "required": false, "description": "Protects the contents of the sent message from forwarding and saving"},
+            {"name": "effect_id", "type": "string", "required": false, "description": "Unique identifier of the message effect"},
+            {"name": "allow_paid_broadcast", "type": "boolean", "required": false, "description": "Pass True if the message should be sent for paid broadcast"}
+          ],
+          "responseShape": "Message object"
+        }
+      ]
+    }
+  },
+  "stats": {
+    "totalMethods": 143,
+    "totalParameters": 891,
+    "categoriesBreakdown": {
+      "Getting Updates": 5,
+      "Sending Messages": 25
+    }
+  }
+}

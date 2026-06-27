@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-export const stripecoreTool: ToolConfig = {
+stripeCORETOOL: ToolConfig = {
   id: 'stripe_core',
   name: 'Stripe Core Account',
   description: 'Manage Stripe core account operations through the Stripe API.',
