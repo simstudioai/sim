@@ -58,9 +58,9 @@ const PipeSafeTable = Table.extend({
 
 /**
  * Node-view variants the live editor injects in place of the headless defaults — the code-block
- * language picker, the resizable image, and the mention chip. They pull React (and, for the mention
- * chip, the block registry for brand icons), so the headless round-trip path omits them: passing
- * nothing keeps {@link createMarkdownContentExtensions} free of React and the registry.
+ * language picker, the resizable image, and the mention chip. The mention chip pulls the block registry
+ * (for brand icons), so the headless round-trip path omits it: passing nothing keeps
+ * {@link createMarkdownContentExtensions} free of the registry and constructs no React node views.
  */
 export interface ContentNodeViews {
   codeBlock?: Node

@@ -98,6 +98,29 @@ describe('MentionList keyboard nav', () => {
     expect(container.querySelectorAll('[role="option"]').length).toBe(12)
   })
 
+  it('bounds the filtered list so a broad query cannot flood the menu', () => {
+    const ref = createRef<MentionListHandle>()
+    const command = vi.fn()
+    const store = createMentionStore()
+    // 200 matches — far beyond any reasonable render; the list must cap the total.
+    const flood: MentionItem[] = Array.from({ length: 200 }, (_, i) => ({
+      kind: 'file',
+      id: `f${i}`,
+      label: `alpha-${i}`,
+      group: 'Files',
+      icon: File,
+    }))
+
+    act(() => {
+      root.render(
+        <MentionList ref={ref} query='alpha' command={command} store={store} editor={editor} />
+      )
+    })
+    act(() => store.set(flood))
+
+    expect(container.querySelectorAll('[role="option"]').length).toBe(50)
+  })
+
   it('accepts the active item on Tab, like Enter', () => {
     const ref = createRef<MentionListHandle>()
     const command = vi.fn()

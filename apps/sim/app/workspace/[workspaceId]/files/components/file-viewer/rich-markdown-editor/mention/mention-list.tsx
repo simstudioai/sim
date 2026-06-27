@@ -25,6 +25,11 @@ interface MentionListProps {
  * search reaches every match, not just the first eight in a category. */
 const MAX_PER_GROUP = 8
 
+/** Total cap while filtering: lifts the per-group limit so search reaches deep matches, but still bounds
+ * the (non-virtualized) list so a broad single-char query on a huge workspace can't render thousands of
+ * rows. Generous enough that a real search is never truncated before the user narrows further. */
+const MAX_WHEN_FILTERED = 50
+
 /** Category heading order in the menu. */
 const GROUP_ORDER = [
   'Files',
@@ -51,17 +56,22 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   /**
    * Filtered, flattened in category order; `index` is the flat position for nav. A single pass over the
    * full set filters by label and buckets by group, then reads the buckets in category order — avoiding
-   * a separate filter pass per group. The per-group cap applies only to the unfiltered menu; once a
-   * query is active every match is shown so search can reach items past the eighth in a category.
+   * a separate filter pass per group. Without a query each group is capped ({@link MAX_PER_GROUP}); with
+   * a query the per-group cap is lifted (so search reaches deep matches) but the total is bounded
+   * ({@link MAX_WHEN_FILTERED}) so a broad query can't flood the non-virtualized list.
    */
   const { flat, groups } = useMemo(() => {
     const q = query.trim().toLowerCase()
     const byGroup = new Map<string, MentionItem[]>()
+    let shown = 0
     for (const item of rawItems) {
       if (q && !item.label.toLowerCase().includes(q)) continue
+      if (q && shown >= MAX_WHEN_FILTERED) break
       const bucket = byGroup.get(item.group)
-      if (!bucket) byGroup.set(item.group, [item])
-      else if (q || bucket.length < MAX_PER_GROUP) bucket.push(item)
+      if (!q && bucket && bucket.length >= MAX_PER_GROUP) continue
+      if (bucket) bucket.push(item)
+      else byGroup.set(item.group, [item])
+      shown++
     }
 
     const ordered: { group: string; items: { item: MentionItem; index: number }[] }[] = []

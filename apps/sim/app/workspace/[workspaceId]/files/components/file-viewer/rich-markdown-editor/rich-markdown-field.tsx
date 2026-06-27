@@ -192,7 +192,9 @@ function LoadedRichMarkdownField({
 
 /**
  * Raw-text fallback for content the rich editor can't round-trip losslessly — editing the markdown
- * source directly so an edit can't silently drop footnotes, raw HTML, or comments.
+ * source directly so an edit can't silently drop footnotes, raw HTML, or comments. Honors the same
+ * `onPasteText` hook as the WYSIWYG path (e.g. skill `SKILL.md` destructuring) so a full-document paste
+ * is intercepted here too.
  */
 function RawMarkdownField({
   value,
@@ -203,11 +205,16 @@ function RawMarkdownField({
   minHeight = 140,
   maxHeight = 360,
   error = false,
+  onPasteText,
 }: RichMarkdownFieldProps) {
   return (
     <ChipTextarea
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      onPaste={(event) => {
+        const text = event.clipboardData.getData('text/plain')
+        if (text && onPasteText?.(text)) event.preventDefault()
+      }}
       placeholder={placeholder}
       error={error}
       readOnly={disabled || isStreaming}
