@@ -9,7 +9,7 @@ export const listMutationsTool: ToolConfig<ClickHouseListMutationsParams, ClickH
     id: 'clickhouse_list_mutations',
     name: 'ClickHouse List Mutations',
     description: 'List mutations (async ALTER UPDATE/DELETE) for the connected database',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       host: {

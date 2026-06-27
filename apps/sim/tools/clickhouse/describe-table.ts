@@ -9,7 +9,7 @@ export const describeTableTool: ToolConfig<ClickHouseDescribeTableParams, ClickH
     id: 'clickhouse_describe_table',
     name: 'ClickHouse Describe Table',
     description: 'Describe the columns of a ClickHouse table',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       host: {

@@ -5,7 +5,7 @@ export const updateTool: ToolConfig<ClickHouseUpdateParams, ClickHouseUpdateResp
   id: 'clickhouse_update',
   name: 'ClickHouse Update',
   description: 'Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

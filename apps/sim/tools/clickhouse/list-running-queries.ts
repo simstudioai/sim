@@ -11,7 +11,7 @@ export const listRunningQueriesTool: ToolConfig<
   id: 'clickhouse_list_running_queries',
   name: 'ClickHouse List Running Queries',
   description: 'List currently running queries on a ClickHouse server',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {
