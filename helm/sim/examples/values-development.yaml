@@ -36,9 +36,9 @@ app:
   
   # Development URLs
   env:
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    NEXT_PUBLIC_APP_URL: "http://localhost:12000"
+    BETTER_AUTH_URL: "http://localhost:12000"
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:12001"
     
     # Example secrets for development (replace with secure values for production)
     # For production, generate using: openssl rand -hex 32
@@ -66,10 +66,10 @@ realtime:
       cpu: "500m"
   
   env:
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
+    NEXT_PUBLIC_APP_URL: "http://localhost:12000"
+    BETTER_AUTH_URL: "http://localhost:12000"
     BETTER_AUTH_SECRET: "dev-32-char-auth-secret-not-secure-dev"
-    ALLOWED_ORIGINS: "http://localhost:3000"
+    ALLOWED_ORIGINS: "http://localhost:12000"
 
 # Database migrations
 migrations:

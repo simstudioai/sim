@@ -70,10 +70,10 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     DOCKER_BUILD=1
 
 # Dummy values so next build can evaluate modules. Override at runtime.
-ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
+ARG DATABASE_URL="postgresql://user:pass@localhost:12002/dummy"
 ENV DATABASE_URL=${DATABASE_URL}
 
-ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ARG NEXT_PUBLIC_APP_URL="http://localhost:12000"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 # Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.

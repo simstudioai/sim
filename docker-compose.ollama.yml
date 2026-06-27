@@ -7,15 +7,15 @@ services:
       context: .
       dockerfile: docker/app.Dockerfile
     ports:
-      - '3000:3000'
+      - '12000:3000'
     deploy:
       resources:
         limits:
           memory: 8G
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
-      - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:12000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:12000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-$(openssl rand -hex 32)}
       - COPILOT_API_KEY=${COPILOT_API_KEY}
@@ -44,15 +44,15 @@ services:
       dockerfile: docker/realtime.Dockerfile
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:12000}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:12000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
     ports:
-      - '3002:3002'
+      - '12001:3002'
     deploy:
       resources:
         limits:
@@ -82,7 +82,7 @@ services:
     image: pgvector/pgvector:pg17
     restart: always
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '${POSTGRES_PORT:-12002}:5432'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -104,7 +104,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      - '11434:11434'
+      - '12003:11434'
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - OLLAMA_LOAD_TIMEOUT=-1
@@ -136,7 +136,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      - '11434:11434'
+      - '12003:11434'
     environment:
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1

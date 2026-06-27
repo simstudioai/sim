@@ -61,7 +61,7 @@ Match the error:
 
 | Log line | Cause | Fix |
 |---|---|---|
-| `Invalid env: ... NEXT_PUBLIC_APP_URL: Invalid url` | URL field set to empty string or invalid format | Set `app.env.NEXT_PUBLIC_APP_URL` to a valid URL — `https://sim.example.com` in prod, `http://localhost:3000` in dev |
+| `Invalid env: ... NEXT_PUBLIC_APP_URL: Invalid url` | URL field set to empty string or invalid format | Set `app.env.NEXT_PUBLIC_APP_URL` to a valid URL — `https://sim.example.com` in prod, `http://localhost:12000` in dev |
 | `getaddrinfo ENOTFOUND ... -postgresql` / `connect ECONNREFUSED` | App can't reach Postgres | Check `kubectl get pod -l app.kubernetes.io/name=postgresql` is `Running`; check `postgresql.auth.password` matches the password in the Secret |
 | `password authentication failed for user "sim"` | Postgres password rotated but app pod wasn't restarted, OR password contains URL-unsafe chars | `kubectl rollout restart deploy/sim-app -n sim`; regenerate password with `openssl rand -base64 24 \| tr -d '/+='` |
 | `BETTER_AUTH_SECRET is missing` / `INTERNAL_API_SECRET is required` | Required env var not present in the Secret | Verify with `kubectl get secret sim-app-secrets -o jsonpath='{.data}' \| jq 'keys'`; if missing, fix your secret strategy |

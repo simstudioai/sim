@@ -117,7 +117,7 @@
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
               "anyOf": [{ "format": "uri" }, { "const": "" }],
-              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
+              "description": "Public application URL (default http://localhost:12000 via envDefaults; set explicitly here to override in Secret)"
             },
             "INTERNAL_API_BASE_URL": {
               "type": "string",
@@ -134,7 +134,7 @@
             "BETTER_AUTH_URL": {
               "type": "string",
               "anyOf": [{ "format": "uri" }, { "const": "" }],
-              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
+              "description": "Authentication service URL (default http://localhost:12000 via envDefaults; set explicitly here to override in Secret)"
             },
             "SOCKET_SERVER_URL": {
               "type": "string",
@@ -413,12 +413,12 @@
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
               "anyOf": [{ "format": "uri" }, { "const": "" }],
-              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
+              "description": "Public application URL (default http://localhost:12000 via envDefaults; set explicitly here to override in Secret)"
             },
             "BETTER_AUTH_URL": {
               "type": "string",
               "anyOf": [{ "format": "uri" }, { "const": "" }],
-              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
+              "description": "Authentication service URL (default http://localhost:12000 via envDefaults; set explicitly here to override in Secret)"
             },
             "ALLOWED_ORIGINS": {
               "type": "string",

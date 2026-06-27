@@ -43,7 +43,7 @@ sim-start  # Runs both app and socket server using concurrently
 
 **Build errors**: Rebuild the container with `F1` → "Dev Containers: Rebuild Container"
 
-**Port conflicts**: Ensure ports 3000, 3002, and 5432 are available
+**Port conflicts**: Ensure ports 3000 (app), 3002 (realtime), 3003 (docs), and 5432 (postgres) are available
 
 **Container runtime issues**: Verify Docker Desktop or Podman Desktop is running
 

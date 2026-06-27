@@ -76,7 +76,7 @@ app:
   # Environment variables
   env:
     # Application URLs — set NEXT_PUBLIC_APP_URL / BETTER_AUTH_URL to your public origin
-    # (e.g. https://sim.example.com). Defaults to http://localhost:3000 via app.envDefaults
+    # (e.g. https://sim.example.com). Defaults to http://localhost:12000 via app.envDefaults
     # for local installs; override here (or via --set) for production. Set values here go
     # into the chart-managed Secret and take precedence over envDefaults at runtime.
     NEXT_PUBLIC_APP_URL: ""
@@ -288,8 +288,8 @@ app:
   # your values file. Move a key into `app.env` above only if it must be treated as secret.
   envDefaults:
     # Application URLs (override in app.env or app.envDefaults for production)
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
+    NEXT_PUBLIC_APP_URL: "http://localhost:12000"
+    BETTER_AUTH_URL: "http://localhost:12000"
 
     # Node environment
     NODE_ENV: "production"
@@ -445,7 +445,7 @@ realtime:
   # Environment variables — Secret-bound. See `envDefaults` below for chart-shipped defaults.
   env:
     # Application URLs — must mirror the public origin used by the main app.
-    # Defaults to http://localhost:3000 via envDefaults; override here for production.
+    # Defaults to http://localhost:12000 via envDefaults; override here for production.
     NEXT_PUBLIC_APP_URL: ""
     BETTER_AUTH_URL: ""
 
@@ -456,16 +456,16 @@ realtime:
     # Cross-Origin Resource Sharing (CORS) allowed origins for the realtime service.
     # Set to the same public origin(s) as the main app (comma-separated). The realtime
     # service rejects WebSocket upgrades from origins not in this list.
-    # Defaults to http://localhost:3000 via envDefaults; override here for production.
+    # Defaults to http://localhost:12000 via envDefaults; override here for production.
     ALLOWED_ORIGINS: ""
 
   # Operational defaults shipped with the chart. Rendered as inline `env:` on the realtime
   # container (NOT written into the Secret, NOT required in externalSecrets.remoteRefs).
   # User-set values in `realtime.env` above take precedence.
   envDefaults:
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
-    ALLOWED_ORIGINS: "http://localhost:3000"
+    NEXT_PUBLIC_APP_URL: "http://localhost:12000"
+    BETTER_AUTH_URL: "http://localhost:12000"
+    ALLOWED_ORIGINS: "http://localhost:12000"
     NODE_ENV: "production"
   
   # Service configuration

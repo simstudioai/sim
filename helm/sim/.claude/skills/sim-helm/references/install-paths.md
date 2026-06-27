@@ -45,6 +45,7 @@ helm install sim ./helm/sim \
 The chart generates a `Secret` named `<release>-app-secrets` containing every non-empty key from `app.env` + `realtime.env`. Both `app` and `realtime` Deployments mount it via `envFrom`.
 
 **Risks:**
+
 - Secrets are visible in `helm get values <release>` and `helm history <release>`.
 - Anyone with read access to the release's ConfigMap (`sh.helm.release.v1.<release>.v<N>`) can recover the secrets — they're stored base64-encoded inside.
 
@@ -107,24 +108,24 @@ ESO syncs from your existing secret store (Vault, AWS SM, Azure KV, GCP SM, etc.
 ```yaml
 externalSecrets:
   enabled: true
-  apiVersion: v1beta1     # v1beta1 works on ESO >= 0.7. Bump to v1 only on ESO >= 0.17.
+  apiVersion: v1beta1 # v1beta1 works on ESO >= 0.7. Bump to v1 only on ESO >= 0.17.
   refreshInterval: 1h
   secretStoreRef:
     name: my-cluster-secret-store
-    kind: ClusterSecretStore     # or SecretStore for namespace-scoped
+    kind: ClusterSecretStore # or SecretStore for namespace-scoped
   remoteRefs:
     app:
       BETTER_AUTH_SECRET: sim/app/better-auth-secret
       ENCRYPTION_KEY: sim/app/encryption-key
       INTERNAL_API_SECRET: sim/app/internal-api-secret
-      CRON_SECRET: sim/app/cron-secret     # required iff cronjobs.enabled
+      CRON_SECRET: sim/app/cron-secret # required iff cronjobs.enabled
       # Optional but commonly mapped:
       API_ENCRYPTION_KEY: sim/app/api-encryption-key
       OPENAI_API_KEY: sim/providers/openai
     postgresql:
-      password: sim/postgresql/password    # required if postgresql.enabled
+      password: sim/postgresql/password # required if postgresql.enabled
     externalDatabase:
-      password: sim/postgresql/password    # required if externalDatabase.enabled
+      password: sim/postgresql/password # required if externalDatabase.enabled
 
 # Leave app.env empty (or only set non-secret values like NEXT_PUBLIC_APP_URL).
 app:
@@ -153,8 +154,8 @@ BETTER_AUTH_SECRET: sim/app/better-auth-secret
 # Full form — pass any field ESO supports
 BETTER_AUTH_SECRET:
   key: sim/app/better-auth-secret
-  property: value          # for stores that return JSON
-  version: "v3"            # pin a specific version
+  property: value # for stores that return JSON
+  version: "v3" # pin a specific version
   decodingStrategy: Base64 # for base64-stored values
 ```
 

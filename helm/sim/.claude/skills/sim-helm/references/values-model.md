@@ -112,7 +112,7 @@ app:
     BETTER_AUTH_URL: "https://sim.example.com"
 ```
 
-This is the right answer for any clustered deploy. The chart's default is `http://localhost:3000` (Layer 2) — fine for kind/minikube, broken for production. The realtime Deployment also reads these via the shared Secret.
+This is the right answer for any clustered deploy. The chart's default is `http://localhost:12000` (Layer 2) — fine for kind/minikube, broken for production. The realtime Deployment also reads these via the shared Secret.
 
 ### "I want to inject a value from another ConfigMap"
 
