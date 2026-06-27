@@ -8,6 +8,7 @@ import {
   Checkbox,
   Chip,
   ChipConfirmModal,
+  ChipDropdown,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -432,7 +433,7 @@ function ProviderRow({
           {isProviderAllowed && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
+                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -519,7 +520,7 @@ function BlockToolRow({
           {isBlockAllowed && isExpandable && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform',
+                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -798,29 +799,25 @@ export function GroupDetail({
     return categories
   }, [filteredPlatformFeatures])
 
-  const platformCategoryColumns = useMemo(() => {
-    const categoryGroups = [
-      ['Sidebar', 'Deploy Tabs', 'Collaboration'],
-      ['Workflow Panel', 'Tools', 'Features'],
-      ['Settings Tabs', 'Logs'],
+  const platformCategorySections = useMemo(() => {
+    const order = [
+      'Sidebar',
+      'Deploy Tabs',
+      'Collaboration',
+      'Workflow Panel',
+      'Tools',
+      'Features',
+      'Settings Tabs',
+      'Logs',
     ]
-
-    const assignedCategories = new Set(categoryGroups.flat())
-    const unassigned = Object.keys(platformCategories).filter(
-      (c) => c !== 'Files' && !assignedCategories.has(c)
+    const known = order.filter((c) => platformCategories[c]?.length)
+    const extras = Object.keys(platformCategories).filter(
+      (c) => c !== 'Files' && !order.includes(c) && platformCategories[c]?.length
     )
-    const groups = unassigned.length > 0 ? [...categoryGroups, unassigned] : categoryGroups
-
-    return groups
-      .map((column) =>
-        column
-          .map((category) => ({
-            category,
-            features: platformCategories[category] ?? [],
-          }))
-          .filter((section) => section.features.length > 0)
-      )
-      .filter((column) => column.length > 0)
+    return [...known, ...extras].map((category) => ({
+      category,
+      features: platformCategories[category] ?? [],
+    }))
   }, [platformCategories])
 
   const hasConfigChanges = useMemo(() => {
@@ -1086,27 +1083,17 @@ export function GroupDetail({
     return counts
   }, [editingConfig.deniedModels])
 
-  const isFileShareAuthAllowed = useCallback(
-    (authType: ShareAuthType) =>
-      editingConfig.allowedFileShareAuthTypes === null ||
-      editingConfig.allowedFileShareAuthTypes.includes(authType),
+  const fileShareAuthValue = useMemo(
+    () => editingConfig.allowedFileShareAuthTypes ?? ALL_FILE_SHARE_AUTH_TYPES,
     [editingConfig.allowedFileShareAuthTypes]
   )
 
-  const toggleFileShareAuthType = useCallback((authType: ShareAuthType) => {
-    setEditingConfig((prev) => {
-      const current = prev.allowedFileShareAuthTypes
-      const next =
-        current === null
-          ? ALL_FILE_SHARE_AUTH_TYPES.filter((t) => t !== authType)
-          : current.includes(authType)
-            ? current.filter((t) => t !== authType)
-            : [...current, authType]
-      return {
-        ...prev,
-        allowedFileShareAuthTypes: next.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : next,
-      }
-    })
+  const setFileShareAuthTypes = useCallback((values: string[]) => {
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedFileShareAuthTypes:
+        values.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
+    }))
   }, [])
 
   /** Persists the editing buffer. Returns whether the save succeeded so callers can decide whether to navigate away. */
@@ -1282,13 +1269,29 @@ export function GroupDetail({
           <Chip leftIcon={ArrowLeft} onClick={handleBack}>
             Access Control
           </Chip>
-          <Chip
-            variant='destructive'
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={deletePermissionGroup.isPending}
-          >
-            {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
+          <div className='flex items-center gap-1'>
+            {hasConfigChanges && (
+              <>
+                <Chip onClick={handleDiscardConfig} disabled={updatePermissionGroup.isPending}>
+                  Discard
+                </Chip>
+                <Chip
+                  variant='primary'
+                  onClick={handleSaveConfig}
+                  disabled={updatePermissionGroup.isPending}
+                >
+                  {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
+                </Chip>
+              </>
+            )}
+            <Chip
+              variant='destructive'
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={deletePermissionGroup.isPending}
+            >
+              {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
+            </Chip>
+          </div>
         </div>
 
         <div className='flex flex-shrink-0 justify-center px-6 pb-3'>
@@ -1430,8 +1433,8 @@ export function GroupDetail({
             )}
 
             {configTab === 'providers' && (
-              <div>
-                <div className='flex items-center gap-2 pb-3'>
+              <div className='flex flex-col gap-7'>
+                <div className='flex items-center gap-2'>
                   <ChipInput
                     icon={Search}
                     placeholder='Search providers...'
@@ -1466,8 +1469,8 @@ export function GroupDetail({
             )}
 
             {configTab === 'blocks' && (
-              <div>
-                <div className='flex items-center gap-2 pb-3'>
+              <div className='flex flex-col gap-7'>
+                <div className='flex items-center gap-2'>
                   <ChipInput
                     icon={Search}
                     placeholder='Search blocks...'
@@ -1476,96 +1479,88 @@ export function GroupDetail({
                     className='min-w-0 flex-1'
                   />
                 </div>
-                <div className='flex flex-col gap-4'>
-                  {filteredCoreBlocks.length > 0 && (
-                    <div className='flex flex-col gap-1.5'>
-                      <div className='flex items-center justify-between'>
-                        <span className='font-medium text-[var(--text-muted)] text-small'>
-                          Core Blocks
-                        </span>
-                        <Chip
-                          flush
-                          onClick={() =>
-                            setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)
-                          }
-                        >
-                          {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
-                        </Chip>
-                      </div>
-                      <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                        {filteredCoreBlocks.map((block) => {
-                          const BlockIcon = block.icon
-                          const checkboxId = `block-${block.type}`
-                          return (
-                            <label
-                              key={block.type}
-                              htmlFor={checkboxId}
-                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                            >
-                              <Checkbox
-                                id={checkboxId}
-                                checked={isIntegrationAllowed(block.type)}
-                                onCheckedChange={() => toggleIntegration(block.type)}
-                              />
-                              <div
-                                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                style={{ background: block.bgColor }}
-                              >
-                                {BlockIcon && (
-                                  <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                )}
-                              </div>
-                              <span className='truncate font-medium text-sm'>{block.name}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {filteredToolBlocks.length > 0 && (
-                    <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-1.5'>
-                          <span className='font-medium text-[var(--text-muted)] text-small'>
-                            Integrations and Triggers
-                          </span>
-                          <Info side='top'>
-                            Allow a whole integration with its checkbox, then expand it to deny
-                            specific tools while keeping the rest available.
-                          </Info>
-                        </div>
-                        <Chip
-                          flush
-                          onClick={() =>
-                            setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)
-                          }
-                        >
-                          {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
-                        </Chip>
-                      </div>
-                      <div className='flex flex-col gap-0.5'>
-                        {filteredToolBlocks.map((block) => (
-                          <BlockToolRow
+                {filteredCoreBlocks.length > 0 && (
+                  <SettingsSection
+                    label='Core Blocks'
+                    action={
+                      <Chip
+                        flush
+                        onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}
+                      >
+                        {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
+                      </Chip>
+                    }
+                  >
+                    <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                      {filteredCoreBlocks.map((block) => {
+                        const BlockIcon = block.icon
+                        const checkboxId = `block-${block.type}`
+                        return (
+                          <label
                             key={block.type}
-                            block={block}
-                            isBlockAllowed={isIntegrationAllowed(block.type)}
-                            onToggleBlock={() => toggleIntegration(block.type)}
-                            deniedCount={deniedCountByBlock[block.type] ?? 0}
-                            isAllowed={isToolAllowed}
-                            onToggle={toggleTool}
-                            onSetDenied={setToolsDenied}
-                          />
-                        ))}
-                      </div>
+                            htmlFor={checkboxId}
+                            className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={isIntegrationAllowed(block.type)}
+                              onCheckedChange={() => toggleIntegration(block.type)}
+                            />
+                            <div
+                              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                              style={{ background: block.bgColor }}
+                            >
+                              {BlockIcon && (
+                                <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                              )}
+                            </div>
+                            <span className='truncate font-medium text-sm'>{block.name}</span>
+                          </label>
+                        )
+                      })}
                     </div>
-                  )}
-                </div>
+                  </SettingsSection>
+                )}
+                {filteredToolBlocks.length > 0 && (
+                  <SettingsSection
+                    label='Integrations and Triggers'
+                    headerAccessory={
+                      <Info side='top'>
+                        Allow a whole integration with its checkbox, then expand it to deny specific
+                        tools while keeping the rest available.
+                      </Info>
+                    }
+                    action={
+                      <Chip
+                        flush
+                        onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}
+                      >
+                        {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
+                      </Chip>
+                    }
+                  >
+                    <div className='flex flex-col gap-0.5'>
+                      {filteredToolBlocks.map((block) => (
+                        <BlockToolRow
+                          key={block.type}
+                          block={block}
+                          isBlockAllowed={isIntegrationAllowed(block.type)}
+                          onToggleBlock={() => toggleIntegration(block.type)}
+                          deniedCount={deniedCountByBlock[block.type] ?? 0}
+                          isAllowed={isToolAllowed}
+                          onToggle={toggleTool}
+                          onSetDenied={setToolsDenied}
+                        />
+                      ))}
+                    </div>
+                  </SettingsSection>
+                )}
               </div>
             )}
 
             {configTab === 'platform' && (
-              <div>
-                <div className='flex items-center gap-2 pb-3'>
+              <div className='flex flex-col gap-7'>
+                <div className='flex items-center gap-2'>
                   <ChipInput
                     icon={Search}
                     placeholder='Search features...'
@@ -1586,108 +1581,78 @@ export function GroupDetail({
                     {platformAllVisible ? 'Deselect All' : 'Select All'}
                   </Chip>
                 </div>
-                <div className='grid grid-cols-3 gap-x-6'>
-                  {platformCategoryColumns.map((column, columnIndex) => (
-                    <div key={columnIndex} className='flex flex-col gap-8'>
-                      {column.map(({ category, features }) => (
-                        <div key={category} className='flex flex-col gap-1.5'>
-                          <span className='font-medium text-[var(--text-muted)] text-small'>
-                            {category}
-                          </span>
-                          <div className='flex flex-col gap-0.5'>
-                            {features.map((feature) => (
-                              <div key={feature.id} className='flex items-center gap-1.5'>
-                                <label
-                                  htmlFor={feature.id}
-                                  className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                                >
-                                  <Checkbox
-                                    id={feature.id}
-                                    checked={!editingConfig[feature.configKey]}
-                                    onCheckedChange={(checked) =>
-                                      setEditingConfig((prev) => ({
-                                        ...prev,
-                                        [feature.configKey]: checked !== true,
-                                      }))
-                                    }
-                                  />
-                                  <span className='font-normal text-sm'>{feature.label}</span>
-                                </label>
-                                <Info side='top'>{feature.hint}</Info>
-                              </div>
-                            ))}
-                          </div>
+                {platformCategorySections.map(({ category, features }) => (
+                  <SettingsSection key={category} label={category}>
+                    <div className='flex flex-col gap-0.5'>
+                      {features.map((feature) => (
+                        <div key={feature.id} className='flex items-center gap-1.5'>
+                          <label
+                            htmlFor={feature.id}
+                            className='flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                          >
+                            <Checkbox
+                              id={feature.id}
+                              checked={!editingConfig[feature.configKey]}
+                              onCheckedChange={(checked) =>
+                                setEditingConfig((prev) => ({
+                                  ...prev,
+                                  [feature.configKey]: checked !== true,
+                                }))
+                              }
+                            />
+                            <span className='font-normal text-sm'>{feature.label}</span>
+                          </label>
+                          <Info side='top'>{feature.hint}</Info>
                         </div>
                       ))}
                     </div>
-                  ))}
-                </div>
-                <div className='mt-8 flex flex-col gap-1.5'>
-                  <span className='font-medium text-[var(--text-muted)] text-small'>Files</span>
-                  <label
-                    htmlFor='disable-public-file-sharing'
-                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <Checkbox
-                      id='disable-public-file-sharing'
-                      checked={!editingConfig.disablePublicFileSharing}
-                      onCheckedChange={(checked) =>
-                        setEditingConfig((prev) => ({
-                          ...prev,
-                          disablePublicFileSharing: checked !== true,
-                        }))
-                      }
-                    />
-                    <span className='font-normal text-sm'>Public Sharing</span>
-                  </label>
-                  <div
-                    className={cn(
-                      'flex flex-col gap-1 pt-1',
-                      editingConfig.disablePublicFileSharing && 'opacity-50'
-                    )}
-                  >
-                    <span className='px-2 text-[var(--text-secondary)] text-xs'>
-                      Auth modes public file-share links may use
-                    </span>
-                    <div className='flex flex-wrap gap-x-4'>
-                      {FILE_SHARE_AUTH_TYPE_OPTIONS.map(({ value, label }) => (
-                        <label
-                          key={value}
-                          htmlFor={`fsauth-${value}`}
-                          className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                        >
-                          <Checkbox
-                            id={`fsauth-${value}`}
-                            checked={isFileShareAuthAllowed(value)}
-                            onCheckedChange={() => toggleFileShareAuthType(value)}
-                            disabled={editingConfig.disablePublicFileSharing}
-                          />
-                          <span className='font-normal text-sm'>{label}</span>
-                        </label>
-                      ))}
+                  </SettingsSection>
+                ))}
+                <SettingsSection label='Files'>
+                  <div className='flex flex-col gap-1.5'>
+                    <label
+                      htmlFor='disable-public-file-sharing'
+                      className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                    >
+                      <Checkbox
+                        id='disable-public-file-sharing'
+                        checked={!editingConfig.disablePublicFileSharing}
+                        onCheckedChange={(checked) =>
+                          setEditingConfig((prev) => ({
+                            ...prev,
+                            disablePublicFileSharing: checked !== true,
+                          }))
+                        }
+                      />
+                      <span className='font-normal text-sm'>Public Sharing</span>
+                    </label>
+                    <div
+                      className={cn(
+                        'flex flex-col gap-1.5 px-2 pt-1',
+                        editingConfig.disablePublicFileSharing && 'opacity-50'
+                      )}
+                    >
+                      <span className='text-[var(--text-secondary)] text-xs'>
+                        Auth modes public file-share links may use
+                      </span>
+                      <ChipDropdown
+                        multiple
+                        showAllOption={false}
+                        allLabel='None'
+                        value={fileShareAuthValue}
+                        onChange={setFileShareAuthTypes}
+                        options={FILE_SHARE_AUTH_TYPE_OPTIONS}
+                        disabled={editingConfig.disablePublicFileSharing}
+                        matchTriggerWidth={false}
+                        className='w-[200px]'
+                      />
                     </div>
                   </div>
-                </div>
+                </SettingsSection>
               </div>
             )}
           </div>
         </div>
-
-        {hasConfigChanges && (
-          <div className='flex flex-shrink-0 items-center justify-end gap-2 border-[var(--border)] border-t bg-[var(--surface-3)] px-6 py-2.5'>
-            <span className='mr-auto text-[var(--text-muted)] text-small'>Unsaved changes</span>
-            <Chip onClick={handleDiscardConfig} disabled={updatePermissionGroup.isPending}>
-              Discard
-            </Chip>
-            <Chip
-              variant='primary'
-              onClick={handleSaveConfig}
-              disabled={updatePermissionGroup.isPending}
-            >
-              {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
-            </Chip>
-          </div>
-        )}
       </div>
 
       <AddMembersModal
