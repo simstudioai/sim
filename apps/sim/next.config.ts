@@ -95,7 +95,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizeCss: true,
+    optimizeCss: !isDev,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
@@ -125,8 +125,8 @@ const nextConfig: NextConfig = {
             }
           })()
         : []),
-      'localhost:3000',
-      'localhost:3001',
+      'localhost:12000',
+      'localhost:12009',
     ],
   }),
   transpilePackages: [
@@ -340,4 +340,8 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+import createNextIntlPlugin from 'next-intl/plugin'
+
+const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts')
+
+export default withNextIntl(nextConfig)

@@ -20,8 +20,8 @@ let adapterSubClient: RedisClientType | null = null
 function getAllowedOrigins(): string[] {
   const allowedOrigins = [
     getBaseUrl(),
-    'http://localhost:3000',
-    'http://localhost:3001',
+    'http://localhost:12000',
+    'http://localhost:12009',
     ...(env.ALLOWED_ORIGINS?.split(',') || []),
   ].filter((url): url is string => Boolean(url))
 

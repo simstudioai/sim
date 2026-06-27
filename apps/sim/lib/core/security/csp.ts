@@ -9,8 +9,8 @@ import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
  * Keep all URL constants local to this file.
  */
 
-const DEFAULT_SOCKET_URL = 'http://localhost:3002'
-const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
+const DEFAULT_SOCKET_URL = 'http://localhost:12001'
+const DEFAULT_OLLAMA_URL = 'http://localhost:12003'
 
 function toWebSocketUrl(httpUrl: string): string {
   return httpUrl.replace('http://', 'ws://').replace('https://', 'wss://')

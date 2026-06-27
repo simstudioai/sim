@@ -59,7 +59,7 @@ export default function WorkspacePage() {
     router.replace(`/workspace/${targetWorkspace.id}/home`)
   }, [session, isSessionPending, isWorkspacesLoading, data, router])
 
-  if (isSessionPending || isWorkspacesLoading) {
+  if (isSessionPending || isWorkspacesLoading || hasRedirectedRef.current) {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div
@@ -76,7 +76,20 @@ export default function WorkspacePage() {
     )
   }
 
-  return null
+  return (
+    <div className='flex h-screen w-full items-center justify-center'>
+      <div
+        className='size-[18px] animate-spin rounded-full'
+        style={{
+          background:
+            'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+          mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+          WebkitMask:
+            'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+        }}
+      />
+    </div>
+  )
 }
 
 async function handleWorkflowRedirect(

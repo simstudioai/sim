@@ -39,6 +39,8 @@ import {
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
+import { provisionLagoBillingForUser } from '@/lib/billing/lago/provision'
+import { promotePlatformAdminByEmail } from '@/lib/billing/platform-admin'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
@@ -69,11 +71,13 @@ import {
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
+  isLagoBillingProvider,
   isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupMxValidationEnabled,
   isSsoEnabled,
+  isStripeBillingProvider,
 } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -287,6 +291,26 @@ export const auth = betterAuth({
               userId: user.id,
               error,
             })
+          }
+
+          try {
+            await promotePlatformAdminByEmail(user.email)
+          } catch (error) {
+            logger.error('[databaseHooks.user.create.after] Failed to promote platform admin', {
+              userId: user.id,
+              error,
+            })
+          }
+
+          if (isLagoBillingProvider) {
+            try {
+              await provisionLagoBillingForUser(user.id)
+            } catch (error) {
+              logger.error('[databaseHooks.user.create.after] Failed to provision Lago billing', {
+                userId: user.id,
+                error,
+              })
+            }
           }
 
           if (isHosted && user.email && user.emailVerified) {
@@ -689,17 +713,21 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    ...(!isGithubAuthDisabled && {
+    ...(!isGithubAuthDisabled &&
+      env.GITHUB_CLIENT_ID &&
+      env.GITHUB_CLIENT_SECRET && {
       github: {
-        clientId: env.GITHUB_CLIENT_ID as string,
-        clientSecret: env.GITHUB_CLIENT_SECRET as string,
+        clientId: env.GITHUB_CLIENT_ID,
+        clientSecret: env.GITHUB_CLIENT_SECRET,
         scope: ['user:email', 'repo'],
       },
     }),
-    ...(!isGoogleAuthDisabled && {
+    ...(!isGoogleAuthDisabled &&
+      env.GOOGLE_CLIENT_ID &&
+      env.GOOGLE_CLIENT_SECRET && {
       google: {
-        clientId: env.GOOGLE_CLIENT_ID as string,
-        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
         scope: [
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
@@ -815,7 +843,7 @@ export const auth = betterAuth({
       banned: false,
       banReason: null,
       banExpires: null,
-      ...(isBillingEnabled && stripeClient ? { stripeCustomerId: null } : {}),
+      ...(isStripeBillingProvider && stripeClient ? { stripeCustomerId: null } : {}),
       ...additionalFields,
       id,
     }),
@@ -3009,8 +3037,8 @@ export const auth = betterAuth({
           }),
         ]
       : []),
-    // Only include the Stripe plugin when billing is enabled
-    ...(isBillingEnabled && stripeClient
+    // Only include the Stripe plugin when Stripe billing is enabled
+    ...(isStripeBillingProvider && stripeClient
       ? [
           stripe({
             stripeClient,

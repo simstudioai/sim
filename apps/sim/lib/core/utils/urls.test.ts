@@ -61,21 +61,21 @@ describe('getSocketUrl', () => {
     expect(getSocketUrl()).toBe('https://10.0.3.36')
   })
 
-  it('falls back to localhost:3002 when served from localhost', () => {
-    setLocation('http://localhost:3000/')
-    expect(getSocketUrl()).toBe('http://localhost:3002')
+  it('falls back to localhost:12001 when served from localhost', () => {
+    setLocation('http://localhost:12000/')
+    expect(getSocketUrl()).toBe('http://localhost:12001')
   })
 
-  it('falls back to localhost:3002 when served from 127.0.0.1', () => {
-    setLocation('http://127.0.0.1:3000/')
-    expect(getSocketUrl()).toBe('http://localhost:3002')
+  it('falls back to localhost:12001 when served from 127.0.0.1', () => {
+    setLocation('http://127.0.0.1:12000/')
+    expect(getSocketUrl()).toBe('http://localhost:12001')
   })
 
   it('explicit env var wins over the localhost fallback', () => {
     mockGetEnv.mockImplementation((key) =>
       key === 'NEXT_PUBLIC_SOCKET_URL' ? 'http://realtime.local:3002' : undefined
     )
-    setLocation('http://localhost:3000/')
+    setLocation('http://localhost:12000/')
     expect(getSocketUrl()).toBe('http://realtime.local:3002')
   })
 
@@ -121,7 +121,7 @@ describe('parseOriginList', () => {
 
 describe('isLocalhostUrl', () => {
   it('matches localhost variants', () => {
-    expect(isLocalhostUrl('http://localhost:3000')).toBe(true)
+    expect(isLocalhostUrl('http://localhost:12000')).toBe(true)
     expect(isLocalhostUrl('http://127.0.0.1')).toBe(true)
     expect(isLocalhostUrl('https://localhost')).toBe(true)
   })

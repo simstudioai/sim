@@ -90,7 +90,7 @@ export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
     if (rule.match(pathname)) return rule.policy(request)
   }
   return {
-    origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',
+    origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000',
     credentials: true,
     methods: 'GET,POST,OPTIONS,PUT,DELETE',
     headers: DEFAULT_API_ALLOWED_HEADERS,

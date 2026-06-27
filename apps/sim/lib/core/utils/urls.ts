@@ -20,7 +20,7 @@ function normalizeBaseUrl(url: string): string {
 /**
  * Returns the base URL of the application from NEXT_PUBLIC_APP_URL
  * This ensures webhooks, callbacks, and other integrations always use the correct public URL
- * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
+ * @returns The base URL string (e.g., 'http://localhost:12000' or 'https://example.com')
  * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */
 export function getBaseUrl(): string {
@@ -47,7 +47,7 @@ export function getInternalApiBaseUrl(): string {
 
   if (!hasHttpProtocol(internalBaseUrl)) {
     throw new Error(
-      'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:3000'
+      'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:12000'
     )
   }
 
@@ -72,18 +72,18 @@ export function ensureAbsoluteUrl(pathOrUrl: string): string {
 
 /**
  * Returns just the domain and port part of the application URL
- * @returns The domain with port if applicable (e.g., 'localhost:3000' or 'sim.ai')
+ * @returns The domain with port if applicable (e.g., 'localhost:12000' or 'sim.ai')
  */
 export function getBaseDomain(): string {
   try {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
   } catch (_e) {
-    const fallbackUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
+    const fallbackUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:12000'
     try {
       return new URL(fallbackUrl).host
     } catch {
-      return isProd ? 'sim.ai' : 'localhost:3000'
+      return isProd ? 'sim.ai' : 'localhost:12000'
     }
   }
 }
@@ -97,12 +97,12 @@ export function getEmailDomain(): string {
     const baseDomain = getBaseDomain()
     return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
   } catch (_e) {
-    return isProd ? 'sim.ai' : 'localhost:3000'
+    return isProd ? 'sim.ai' : 'localhost:12000'
   }
 }
 
-const DEFAULT_SOCKET_URL = 'http://localhost:3002'
-const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
+const DEFAULT_SOCKET_URL = 'http://localhost:12001'
+const DEFAULT_OLLAMA_URL = 'http://localhost:12003'
 export const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
   'localhost',
   '127.0.0.1',
@@ -184,9 +184,9 @@ export function getSocketServerUrl(): string {
  * 1. `NEXT_PUBLIC_SOCKET_URL` if explicitly set (subdomain, separate host:port)
  * 2. In the browser when the page is served from a non-localhost origin, the
  *    page's own origin — assumes the reverse proxy routes `/socket.io` to the
- *    realtime service. This avoids shipping a hardcoded `localhost:3002` to
+ *    realtime service. This avoids shipping a hardcoded `localhost:12001` to
  *    self-hosters behind nginx/Cloudflare.
- * 3. `http://localhost:3002` for local development and SSR.
+ * 3. `http://localhost:12001` for local development and SSR.
  */
 export function getSocketUrl(): string {
   const explicit = getEnv('NEXT_PUBLIC_SOCKET_URL')?.trim()
