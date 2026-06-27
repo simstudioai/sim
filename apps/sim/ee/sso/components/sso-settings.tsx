@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipInput,
   ChipSelect,
@@ -535,15 +536,22 @@ export function SSO() {
 
       <SettingsPanel
         actions={
-          <SaveDiscardActions
-            dirty={hasChanges}
-            saving={configureSSOMutation.isPending}
-            saveDisabled={hasAnyErrors(errors) || !isFormValid()}
-            saveLabel={isEditing ? 'Update' : 'Save'}
-            savingLabel={isEditing ? 'Updating...' : 'Saving...'}
-            onSave={() => void handleSubmit()}
-            onDiscard={handleDiscard}
-          />
+          <>
+            {isEditing && !hasChanges && (
+              <Chip onClick={handleDiscard} disabled={configureSSOMutation.isPending}>
+                Cancel
+              </Chip>
+            )}
+            <SaveDiscardActions
+              dirty={hasChanges}
+              saving={configureSSOMutation.isPending}
+              saveDisabled={hasAnyErrors(errors) || !isFormValid()}
+              saveLabel={isEditing ? 'Update' : 'Save'}
+              savingLabel={isEditing ? 'Updating...' : 'Saving...'}
+              onSave={() => void handleSubmit()}
+              onDiscard={handleDiscard}
+            />
+          </>
         }
       >
         <div className='flex flex-col gap-4.5'>
