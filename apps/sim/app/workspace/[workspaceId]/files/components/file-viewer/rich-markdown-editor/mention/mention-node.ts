@@ -1,5 +1,5 @@
 import type { JSONContent, MarkdownToken } from '@tiptap/core'
-import { Node } from '@tiptap/core'
+import { InputRule, Node } from '@tiptap/core'
 import { toSimHref } from './sim-link'
 import type { MentionKind } from './types'
 
@@ -102,5 +102,31 @@ export const MarkdownMention = Node.create({
   renderText: ({ node }) => {
     const { kind, id, label } = node.attrs as MentionAttrs
     return `[${escapeLabel(label)}](${toSimHref(kind, id)})`
+  },
+
+  /**
+   * Typing the portable `[label](sim:<kind>/<id>)` syntax inline turns it into a chip on the closing
+   * paren — so live typing matches the paste/load path (which converts it via the tokenizer above). The
+   * rule lives on this node, which sits before {@link MarkdownLinkInputRule} in the extension list, so it
+   * claims the `sim:` form first; every other `[text](url)` falls through to the link rule untouched.
+   */
+  addInputRules() {
+    const type = this.type
+    return [
+      new InputRule({
+        find: /\[((?:\\.|[^\]\\])+)\]\(sim:([a-z_]+)\/([^)\s]+)\)$/,
+        handler: ({ state, range, match }) => {
+          const [, rawLabel, kind, id] = match
+          if (!kind || !id) return null
+          // Replace the whole `[label](sim:…)` match with the chip (nodeInputRule would keep the
+          // surrounding brackets, as it only swaps the first capture group).
+          state.tr.replaceWith(
+            range.from,
+            range.to,
+            type.create({ kind, id, label: unescapeLabel(rawLabel ?? '') })
+          )
+        },
+      }),
+    ]
   },
 })
