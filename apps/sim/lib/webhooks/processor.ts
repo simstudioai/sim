@@ -39,6 +39,10 @@ export interface WebhookProcessorOptions {
   actorUserId?: string
   executionId?: string
   correlation?: AsyncExecutionCorrelation
+  /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
+  receivedAt?: number
+  /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
+  triggerTimestampMs?: number
 }
 
 export interface WebhookPreprocessingResult {
@@ -406,6 +410,16 @@ function resolveEnvVars(value: string, envVars: Record<string, string>): string 
   return resolveEnvVarReferences(value, envVars) as string
 }
 
+/** True when any string value in the provider config contains an env-var reference (`{{VAR}}`). */
+function providerConfigReferencesEnvVars(config: Record<string, unknown>): boolean {
+  for (const value of Object.values(config)) {
+    if (typeof value === 'string' && value.includes('{{')) {
+      return true
+    }
+  }
+  return false
+}
+
 function resolveProviderConfigEnvVars(
   config: Record<string, unknown>,
   envVars: Record<string, string>
@@ -432,22 +446,30 @@ export async function verifyProviderAuth(
   rawBody: string,
   requestId: string
 ): Promise<NextResponse | null> {
+  const handler = getProviderHandler(foundWebhook.provider)
+  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+
+  /**
+   * Only fetch + decrypt the effective env when there is auth to verify AND the
+   * provider config actually references env vars (`{{VAR}}`). This avoids a DB
+   * read and decryption on the synchronous pre-ack path for the common case.
+   */
   let decryptedEnvVars: Record<string, string> = {}
-  try {
-    decryptedEnvVars = await getEffectiveDecryptedEnv(
-      foundWorkflow.userId,
-      foundWorkflow.workspaceId
-    )
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to fetch environment variables`, {
-      error,
-    })
+  if (handler.verifyAuth && providerConfigReferencesEnvVars(rawProviderConfig)) {
+    try {
+      decryptedEnvVars = await getEffectiveDecryptedEnv(
+        foundWorkflow.userId,
+        foundWorkflow.workspaceId
+      )
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to fetch environment variables`, {
+        error,
+      })
+    }
   }
 
-  const rawProviderConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
   const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
 
-  const handler = getProviderHandler(foundWebhook.provider)
   if (handler.verifyAuth) {
     const authResult = await handler.verifyAuth({
       webhook: foundWebhook,
@@ -611,6 +633,10 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       workspaceId: foundWorkflow.workspaceId,
       ...(credentialId ? { credentialId } : {}),
+      ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
+      ...(options.triggerTimestampMs !== undefined
+        ? { triggerTimestampMs: options.triggerTimestampMs }
+        : {}),
     }
 
     const isPolling = isPollingWebhookProvider(payload.provider)
