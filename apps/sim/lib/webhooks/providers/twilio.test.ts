@@ -128,9 +128,22 @@ describe('twilioHandler', () => {
 
   describe('extractIdempotencyId', () => {
     it('prefers MessageSid, falls back to CallSid', () => {
-      expect(twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1' })).toBe('SM1')
+      expect(
+        twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', SmsStatus: 'received' })
+      ).toBe('SM1')
       expect(twilioHandler.extractIdempotencyId!({ CallSid: 'CA1' })).toBe('CA1')
       expect(twilioHandler.extractIdempotencyId!({})).toBeNull()
+    })
+
+    it('keys status callbacks by SID + status so each delivery state is distinct', () => {
+      const sent = twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', MessageStatus: 'sent' })
+      const delivered = twilioHandler.extractIdempotencyId!({
+        MessageSid: 'SM1',
+        MessageStatus: 'delivered',
+      })
+      expect(sent).toBe('SM1:sent')
+      expect(delivered).toBe('SM1:delivered')
+      expect(sent).not.toBe(delivered)
     })
   })
 
