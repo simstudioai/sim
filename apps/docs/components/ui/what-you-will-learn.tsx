@@ -14,14 +14,19 @@ interface WhatYouWillLearnProps {
 export function WhatYouWillLearn({ items, className }: WhatYouWillLearnProps) {
   return (
     <div
-      className={cn('not-prose rounded-xl border border-fd-border bg-fd-card/40 p-6', className)}
+      className={cn(
+        'not-prose rounded-xl border border-[var(--border-1)] bg-[var(--surface-3)] p-6',
+        className
+      )}
     >
-      <h2 className='mt-0 mb-5 font-semibold text-fd-foreground text-xl'>What you will learn</h2>
+      <h2 className='mt-0 mb-5 font-semibold text-[var(--text-primary)] text-xl'>
+        What you will learn
+      </h2>
       <div className='flex flex-col gap-5'>
         {items.map((item) => (
           <div key={item.title}>
-            <p className='mb-1 font-semibold text-fd-foreground text-sm'>{item.title}</p>
-            <p className='m-0 text-fd-muted-foreground text-sm leading-relaxed'>{item.body}</p>
+            <p className='mb-1 font-semibold text-[var(--text-primary)] text-sm'>{item.title}</p>
+            <p className='m-0 text-[var(--text-secondary)] text-sm leading-relaxed'>{item.body}</p>
           </div>
         ))}
       </div>

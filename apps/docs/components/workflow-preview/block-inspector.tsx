@@ -76,7 +76,7 @@ function FieldControl({ field }: { field: InspectorField }) {
       <div className='flex items-center gap-2'>
         <div
           className='flex h-[18px] w-[32px] items-center rounded-full px-[2px] transition-colors'
-          style={{ background: on ? '#33C482' : 'var(--wp-border-1)' }}
+          style={{ background: on ? 'var(--brand-accent)' : 'var(--wp-border-1)' }}
         >
           <div
             className='size-[14px] rounded-full bg-white'
@@ -94,7 +94,7 @@ function FieldControl({ field }: { field: InspectorField }) {
       <div className='flex w-full items-center gap-3'>
         <div className='relative h-[4px] flex-1 rounded-full bg-[var(--wp-border-1)]'>
           <div
-            className='absolute inset-y-0 left-0 rounded-full bg-[#33C482]'
+            className='absolute inset-y-0 left-0 rounded-full bg-[var(--brand-accent)]'
             style={{ width: `${percent}%` }}
           />
           <div

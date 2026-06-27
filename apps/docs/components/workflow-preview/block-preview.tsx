@@ -76,7 +76,7 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
               <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
                 error
               </span>
-              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[#ef4444]`} />
+              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[var(--text-error)]`} />
             </div>
           )}
         </div>
