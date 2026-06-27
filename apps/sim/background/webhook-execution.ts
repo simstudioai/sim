@@ -26,6 +26,7 @@ import {
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -682,6 +683,9 @@ export const webhookExecution = task({
   machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
+  },
+  queue: {
+    concurrencyLimit: WEBHOOK_EXECUTION_CONCURRENCY_LIMIT,
   },
   run: async (payload: WebhookExecutionPayload) => executeWebhookJob(payload),
 })
