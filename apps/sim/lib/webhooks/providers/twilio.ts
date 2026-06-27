@@ -28,17 +28,21 @@ export const twilioHandler: WebhookProviderHandler = {
   /**
    * Distinguish an inbound SMS from a delivery status callback so the two
    * triggers don't fire on each other's deliveries when they share a URL.
-   * Twilio reports `SmsStatus: 'received'` for inbound messages; status
-   * callbacks carry a delivery `MessageStatus` (queued/sent/delivered/…).
+   * Twilio reports status `received` for inbound messages; delivery callbacks
+   * carry a non-`received` `MessageStatus` (queued/sent/delivered/…). Each side
+   * requires a positive signal, so an ambiguous payload missing both fields
+   * matches neither trigger rather than misrouting.
    */
   matchEvent({ body, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId) return true
     const b = body as Record<string, unknown>
-    const status = (((b.MessageStatus as string) || (b.SmsStatus as string)) ?? '').toLowerCase()
-    const isInbound = status === 'received'
+    const messageStatus = ((b.MessageStatus as string) ?? '').toLowerCase()
+    const smsStatus = ((b.SmsStatus as string) ?? '').toLowerCase()
+    const isInbound = smsStatus === 'received' || messageStatus === 'received'
+    const isStatusCallback = !isInbound && (messageStatus !== '' || smsStatus !== '')
     if (triggerId === 'twilio_sms_received') return isInbound
-    if (triggerId === 'twilio_sms_status') return !isInbound
+    if (triggerId === 'twilio_sms_status') return isStatusCallback
     return true
   },
 

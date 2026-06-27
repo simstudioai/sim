@@ -175,6 +175,12 @@ describe('twilioHandler', () => {
     it('passes through when no triggerId is configured', () => {
       expect(match('', inbound)).toBe(true)
     })
+
+    it('matches neither trigger for an ambiguous payload missing status fields', () => {
+      const ambiguous = { MessageSid: 'SM1', From: '+1' }
+      expect(match('twilio_sms_received', ambiguous)).toBe(false)
+      expect(match('twilio_sms_status', ambiguous)).toBe(false)
+    })
   })
 
   describe('formatInput', () => {
