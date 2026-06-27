@@ -4,9 +4,11 @@ import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalSt
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { GithubOutlineIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { SessionContext } from '@/app/_shell/providers/session-provider'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -15,7 +17,6 @@ import { DocsDropdown } from '@/app/(landing)/components/navbar/components/docs-
 import { GitHubStars } from '@/app/(landing)/components/navbar/components/github-stars'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { getBrandConfig } from '@/ee/whitelabeling'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -233,10 +234,11 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
             aria-hidden={!shouldShow || undefined}
             inert={!shouldShow || undefined}
             className={cn(
-              'hidden items-center gap-2 pr-16 pl-5 transition-opacity duration-200 lg:flex',
+              'hidden items-center gap-4 pr-16 pl-5 transition-opacity duration-200 lg:flex',
               shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
             )}
           >
+            <LanguageSwitcher />
             {isAuthenticated ? (
               <Link
                 href='/workspace'
@@ -348,6 +350,12 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                   <GithubOutlineIcon className='size-[14px]' />
                   {t('github')}
                 </a>
+              </li>
+              <li className='border-[var(--landing-border)] border-b flex items-center justify-between px-5 py-3.5'>
+                <span className='text-[var(--landing-text)]'>{t('language')}</span>
+                <div className='w-[120px]'>
+                  <LanguageSwitcher />
+                </div>
               </li>
             </ul>
 
