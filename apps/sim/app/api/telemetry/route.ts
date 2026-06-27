@@ -2,8 +2,11 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
-import { env } from '@/lib/core/config/env'
-import { isProd } from '@/lib/core/config/env-flags'
+import { isDev } from '@/lib/core/config/env-flags'
+import {
+  isRemoteTelemetryEndpoint,
+  resolveTelemetryEndpoint,
+} from '@/lib/monitoring/server-telemetry'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -55,12 +58,17 @@ function createSafeAttributes(
  */
 async function forwardToCollector(data: Record<string, unknown>): Promise<boolean> {
   if (!data || typeof data !== 'object') {
-    logger.error('Invalid telemetry data format')
+    logger.warn('Invalid telemetry data format')
     return false
   }
 
-  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const endpoint = resolveTelemetryEndpoint()
   const timeout = DEFAULT_TIMEOUT
+
+  if (isDev && isRemoteTelemetryEndpoint(endpoint)) {
+    logger.debug('Skipping telemetry forward in development (no local collector configured)')
+    return false
+  }
 
   try {
     const timestamp = Date.now() * 1000000
@@ -75,7 +83,7 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
       },
       {
         key: 'deployment.environment',
-        value: { stringValue: isProd ? 'production' : 'development' },
+        value: { stringValue: isDev ? 'development' : 'production' },
       },
     ]
 
@@ -109,20 +117,18 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
     try {
-      const options = {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
-      }
-
-      const response = await fetch(endpoint, options)
+      })
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        logger.error('Telemetry collector returned error', {
+        logger.warn('Telemetry collector returned error', {
           status: response.status,
           statusText: response.statusText,
         })
@@ -133,14 +139,14 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
     } catch (fetchError) {
       clearTimeout(timeoutId)
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        logger.error('Telemetry request timed out', { endpoint })
+        logger.warn('Telemetry request timed out', { endpoint })
       } else {
-        logger.error('Failed to send telemetry to collector', fetchError)
+        logger.warn('Failed to send telemetry to collector', fetchError)
       }
       return false
     }
   } catch (error) {
-    logger.error('Error preparing telemetry payload', error)
+    logger.warn('Error preparing telemetry payload', error)
     return false
   }
 }
