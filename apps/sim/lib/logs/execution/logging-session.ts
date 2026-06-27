@@ -1018,8 +1018,14 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Force-fail the execution. Waits for any in-flight completion and drains
+   * pending per-block marker writes first, so a force-fail racing
+   * onBlockStart/onBlockComplete still captures the latest breadcrumb in the fold.
+   */
   async markAsFailed(errorMessage?: string): Promise<void> {
     await this.waitForCompletion()
+    await this.drainPendingProgressWrites()
     await LoggingSession.markExecutionAsFailed(
       this.executionId,
       errorMessage,
@@ -1060,10 +1066,18 @@ export class LoggingSession {
             to_jsonb('force_failed'::text)
           )`
       if (markers?.lastStartedBlock) {
-        executionData = sql`jsonb_set(${executionData}, ARRAY['lastStartedBlock'], ${JSON.stringify(markers.lastStartedBlock)}::jsonb)`
+        const startedAt = markers.lastStartedBlock.startedAt
+        const startedJson = JSON.stringify(markers.lastStartedBlock)
+        executionData = sql`CASE WHEN COALESCE(jsonb_extract_path_text(execution_data, 'lastStartedBlock', 'startedAt'), '') <= ${startedAt}
+            THEN jsonb_set(${executionData}, ARRAY['lastStartedBlock'], ${startedJson}::jsonb)
+            ELSE ${executionData} END`
       }
       if (markers?.lastCompletedBlock) {
-        executionData = sql`jsonb_set(${executionData}, ARRAY['lastCompletedBlock'], ${JSON.stringify(markers.lastCompletedBlock)}::jsonb)`
+        const endedAt = markers.lastCompletedBlock.endedAt
+        const completedJson = JSON.stringify(markers.lastCompletedBlock)
+        executionData = sql`CASE WHEN COALESCE(jsonb_extract_path_text(execution_data, 'lastCompletedBlock', 'endedAt'), '') <= ${endedAt}
+            THEN jsonb_set(${executionData}, ARRAY['lastCompletedBlock'], ${completedJson}::jsonb)
+            ELSE ${executionData} END`
       }
 
       await db

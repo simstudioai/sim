@@ -41,6 +41,8 @@ import {
   clearProgressMarkers,
   type ExecutionProgressMarkers,
   getProgressMarkers,
+  pickLatestCompletedMarker,
+  pickLatestStartedMarker,
 } from '@/lib/logs/execution/progress-markers'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import {
@@ -459,10 +461,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
     } = params
     const traceSpanCount = countTraceSpans(traceSpans)
 
-    const lastStartedBlock =
-      progressMarkers?.lastStartedBlock ?? existingExecutionData?.lastStartedBlock
-    const lastCompletedBlock =
-      progressMarkers?.lastCompletedBlock ?? existingExecutionData?.lastCompletedBlock
+    const lastStartedBlock = pickLatestStartedMarker(
+      progressMarkers?.lastStartedBlock,
+      existingExecutionData?.lastStartedBlock
+    )
+    const lastCompletedBlock = pickLatestCompletedMarker(
+      progressMarkers?.lastCompletedBlock,
+      existingExecutionData?.lastCompletedBlock
+    )
 
     return {
       ...(existingExecutionData?.environment

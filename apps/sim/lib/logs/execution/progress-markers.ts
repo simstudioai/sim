@@ -122,6 +122,32 @@ export interface ExecutionProgressMarkers {
   lastCompletedBlock?: ExecutionLastCompletedBlock
 }
 
+/**
+ * Pick the later of two last-started markers by `startedAt`. Markers can split
+ * across stores — a failed Redis write falls back to the row, so an earlier
+ * successful Redis write may coexist with a newer row marker (or vice versa).
+ * Choosing by timestamp keeps the freshest breadcrumb regardless of which store
+ * holds it. ISO UTC timestamps compare correctly lexicographically.
+ */
+export function pickLatestStartedMarker(
+  a: ExecutionLastStartedBlock | undefined,
+  b: ExecutionLastStartedBlock | undefined
+): ExecutionLastStartedBlock | undefined {
+  if (!a) return b
+  if (!b) return a
+  return a.startedAt >= b.startedAt ? a : b
+}
+
+/** Pick the later of two last-completed markers by `endedAt`. See {@link pickLatestStartedMarker}. */
+export function pickLatestCompletedMarker(
+  a: ExecutionLastCompletedBlock | undefined,
+  b: ExecutionLastCompletedBlock | undefined
+): ExecutionLastCompletedBlock | undefined {
+  if (!a) return b
+  if (!b) return a
+  return a.endedAt >= b.endedAt ? a : b
+}
+
 function safeJsonParse(raw: string | undefined): unknown {
   if (!raw) return undefined
   try {

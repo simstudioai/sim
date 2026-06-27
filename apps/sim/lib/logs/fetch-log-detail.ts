@@ -9,7 +9,12 @@ import {
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
-import { getProgressMarkers } from '@/lib/logs/execution/progress-markers'
+import {
+  type ExecutionProgressMarkers,
+  getProgressMarkers,
+  pickLatestCompletedMarker,
+  pickLatestStartedMarker,
+} from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -174,6 +179,15 @@ export async function fetchLogDetail({
       log.status === 'running' || log.status === 'pending'
         ? ((await getProgressMarkers(log.executionId)) ?? {})
         : {}
+    const rowMarkers = (executionData ?? {}) as ExecutionProgressMarkers
+    const mergedStartedBlock = pickLatestStartedMarker(
+      liveMarkers.lastStartedBlock,
+      rowMarkers.lastStartedBlock
+    )
+    const mergedCompletedBlock = pickLatestCompletedMarker(
+      liveMarkers.lastCompletedBlock,
+      rowMarkers.lastCompletedBlock
+    )
 
     return {
       id: log.id,
@@ -200,7 +214,8 @@ export async function fetchLogDetail({
       executionData: {
         totalDuration: log.totalDurationMs,
         ...executionData,
-        ...liveMarkers,
+        ...(mergedStartedBlock ? { lastStartedBlock: mergedStartedBlock } : {}),
+        ...(mergedCompletedBlock ? { lastCompletedBlock: mergedCompletedBlock } : {}),
         enhanced: true as const,
       },
       files: log.files ?? null,

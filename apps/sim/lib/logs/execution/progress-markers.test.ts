@@ -24,6 +24,8 @@ vi.mock('@/lib/core/execution-limits', () => ({
 import {
   clearProgressMarkers,
   getProgressMarkers,
+  pickLatestCompletedMarker,
+  pickLatestStartedMarker,
   setLastCompletedBlock,
   setLastStartedBlock,
 } from '@/lib/logs/execution/progress-markers'
@@ -173,6 +175,29 @@ describe('progress-markers', () => {
       mockGetRedisClient.mockReturnValue(null)
       await clearProgressMarkers(EXECUTION_ID)
       expect(mockRedis.del).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('latest-wins pickers (stale-store safety)', () => {
+    const older = { ...startedMarker, blockId: 'old', startedAt: '2026-06-27T10:00:00.000Z' }
+    const newer = { ...startedMarker, blockId: 'new', startedAt: '2026-06-27T10:00:05.000Z' }
+
+    it('returns the defined side when the other is undefined', () => {
+      expect(pickLatestStartedMarker(older, undefined)).toBe(older)
+      expect(pickLatestStartedMarker(undefined, newer)).toBe(newer)
+      expect(pickLatestStartedMarker(undefined, undefined)).toBeUndefined()
+    })
+
+    it('picks the later startedAt regardless of argument order (row newer than Redis still wins)', () => {
+      expect(pickLatestStartedMarker(older, newer)).toBe(newer)
+      expect(pickLatestStartedMarker(newer, older)).toBe(newer)
+    })
+
+    it('picks the later endedAt for completed markers', () => {
+      const c1 = { ...completedMarker, endedAt: '2026-06-27T10:00:01.000Z' }
+      const c2 = { ...completedMarker, endedAt: '2026-06-27T10:00:09.000Z' }
+      expect(pickLatestCompletedMarker(c1, c2)).toBe(c2)
+      expect(pickLatestCompletedMarker(c2, c1)).toBe(c2)
     })
   })
 })
