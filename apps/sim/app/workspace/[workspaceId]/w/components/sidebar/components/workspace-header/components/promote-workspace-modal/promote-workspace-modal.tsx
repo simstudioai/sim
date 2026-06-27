@@ -16,11 +16,13 @@ import {
   toast,
 } from '@/components/emcn'
 import type {
+  ForkDependentReconfig,
   ForkLineageNodeApi,
   ForkMappingEntry,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/dependent-field-selector'
 import {
   type ForkDirection,
   useForkDiff,
@@ -28,6 +30,7 @@ import {
   usePromoteFork,
   useUpdateForkMapping,
 } from '@/hooks/queries/workspace-fork'
+import type { SelectorKey } from '@/hooks/selectors/types'
 
 interface PromoteWorkspaceModalProps {
   open: boolean
@@ -37,6 +40,17 @@ interface PromoteWorkspaceModalProps {
 }
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
+
+/** Stable key for a per-target dependent re-pick (target workflow + block + subblock). */
+const dependentKey = (dependent: ForkDependentReconfig) =>
+  `${dependent.targetWorkflowId}:${dependent.targetBlockId}:${dependent.subBlockKey}`
+
+/** One block's worth of dependent fields to re-pick after its parent's target changed. */
+interface ReconfigBlock {
+  targetBlockId: string
+  blockName: string
+  fields: ForkDependentReconfig[]
+}
 
 /** Section label + display order per mapping kind (one mapping step per kind). */
 const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
@@ -101,6 +115,10 @@ export function PromoteWorkspaceModal({
   // though React Query's structural sharing keeps `entries` referentially stable
   // (a target-seeding effect gated on `entries` would never re-run there).
   const [targets, setTargets] = useState<Record<string, string>>({})
+  // In-session re-picks for dependent fields whose credential the user swapped, keyed
+  // by `dependentKey`. Sent as one-shot overrides on sync; not persisted (the engine
+  // preserves them on later syncs once the account is stable).
+  const [reconfig, setReconfig] = useState<Record<string, string>>({})
   // Wizard step: 0 is the overview; 1..N edit one resource kind each, entered via
   // "Edit mappings". Backing out of step 1 returns to the overview.
   const [step, setStep] = useState(0)
@@ -119,6 +137,7 @@ export function PromoteWorkspaceModal({
   useEffect(() => {
     setStep(0)
     setTargets({})
+    setReconfig({})
   }, [open, selectedKey])
 
   const selected = edgeOptions.find((option) => option.value === selectedKey)
@@ -131,6 +150,10 @@ export function PromoteWorkspaceModal({
   const promote = usePromoteFork()
 
   const entries = useMemo(() => mapping.data?.entries ?? [], [mapping.data])
+  const dependentReconfigs = useMemo(
+    () => diff.data?.dependentReconfigs ?? [],
+    [diff.data?.dependentReconfigs]
+  )
 
   // Effective target for an entry: the user's in-session override if present,
   // else the persisted mapping from the server. Read directly from `entries` so
@@ -138,6 +161,33 @@ export function PromoteWorkspaceModal({
   const targetFor = (entry: ForkMappingEntry) => targets[entryKey(entry)] ?? entry.targetId ?? ''
 
   const requiredComplete = entries.every((entry) => !entry.required || targetFor(entry) !== '')
+
+  // Affected blocks (block-grouped dependent fields) under an entry whose target the user
+  // changed - rendered inline beneath that mapping so the credential/KB stays in context.
+  const reconfigBlocksForEntry = (entry: ForkMappingEntry): ReconfigBlock[] => {
+    const next = targetFor(entry)
+    // Show the reconfigure when the target actually changed, OR when it's an unconfirmed
+    // suggestion (accepting it as-is would still remap + clear the dependents).
+    if (next === '') return []
+    if (!entry.suggested && next === (entry.targetId ?? '')) return []
+    const byBlock = new Map<string, ReconfigBlock>()
+    for (const dependent of dependentReconfigs) {
+      if (dependent.parentKind !== entry.kind || dependent.parentSourceId !== entry.sourceId) {
+        continue
+      }
+      let block = byBlock.get(dependent.targetBlockId)
+      if (!block) {
+        block = {
+          targetBlockId: dependent.targetBlockId,
+          blockName: dependent.blockName,
+          fields: [],
+        }
+        byBlock.set(dependent.targetBlockId, block)
+      }
+      block.fields.push(dependent)
+    }
+    return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
+  }
 
   // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
@@ -154,6 +204,42 @@ export function PromoteWorkspaceModal({
     })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
   }, [entries])
 
+  // Blocks whose dependent fields need re-picking because their parent's target changed
+  // in-session - one card (wizard step) each. Recomputes as the user edits mappings.
+  const reconfigBlocks = useMemo<ReconfigBlock[]>(() => {
+    const targetForEntry = (entry: ForkMappingEntry) =>
+      targets[entryKey(entry)] ?? entry.targetId ?? ''
+    const byBlock = new Map<string, ReconfigBlock>()
+    for (const dependent of dependentReconfigs) {
+      const parent = entries.find(
+        (candidate) =>
+          candidate.kind === dependent.parentKind && candidate.sourceId === dependent.parentSourceId
+      )
+      if (!parent) continue
+      const next = targetForEntry(parent)
+      // Only when the parent's target changed from what the target already has, or is an
+      // unconfirmed suggestion (accepting it still remaps + clears the dependents).
+      if (next === '') continue
+      if (!parent.suggested && next === (parent.targetId ?? '')) continue
+      let block = byBlock.get(dependent.targetBlockId)
+      if (!block) {
+        block = {
+          targetBlockId: dependent.targetBlockId,
+          blockName: dependent.blockName,
+          fields: [],
+        }
+        byBlock.set(dependent.targetBlockId, block)
+      }
+      block.fields.push(dependent)
+    }
+    return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
+  }, [dependentReconfigs, entries, targets])
+
+  // Every required re-pick is filled - a required dependent left empty must not be synced.
+  const reconfigComplete = reconfigBlocks.every((block) =>
+    block.fields.every((field) => !field.required || (reconfig[dependentKey(field)] ?? '') !== '')
+  )
+
   // Per-kind status for the overview listing: "Fully mapped" or "n/total mapped",
   // flagged when a REQUIRED target is still missing (which blocks Sync). Reads the
   // effective (override-or-persisted) target so it reflects both remembered mappings
@@ -165,14 +251,16 @@ export function PromoteWorkspaceModal({
     return { kind: group.kind, label: group.label, total, mapped, requiredPending }
   })
 
-  // Step 0 is the overview (direction, deployed-workflow preview, mapping status);
-  // each subsequent step edits one resource kind, entered via "Edit mappings".
-  // `safeStep` guards against a group count that shrank on refetch.
+  // Step 0 is the overview; each subsequent step edits one resource kind, entered via
+  // "Edit mappings". Reconfigure cards render inline under the changed mapping (not as
+  // their own steps) so the credential/KB context stays visible. `safeStep` guards
+  // against a group count that shrank on refetch.
   const stepCount = 1 + groupedEntries.length
   const safeStep = Math.min(step, Math.max(0, stepCount - 1))
   const isLastStep = safeStep >= stepCount - 1
   const currentGroup = safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
-  const syncDisabled = submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading
+  const syncDisabled =
+    submitting || !otherWorkspaceId || !requiredComplete || !reconfigComplete || mapping.isLoading
   const headsUp =
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
     (diff.data?.inlineSecretSources.length ?? 0) > 0
@@ -194,9 +282,31 @@ export function PromoteWorkspaceModal({
         },
       })
 
+      // Send the user's pre-sync re-picks (reconfigBlocks already holds only the fields
+      // whose parent's target changed; unchanged parents are preserved by the engine).
+      const dependentOverrides = reconfigBlocks.flatMap((block) =>
+        block.fields.flatMap((field) => {
+          const value = reconfig[dependentKey(field)]
+          if (!value) return []
+          return [
+            {
+              workflowId: field.targetWorkflowId,
+              blockId: field.targetBlockId,
+              subBlockKey: field.subBlockKey,
+              value,
+            },
+          ]
+        })
+      )
+
       const result = await promote.mutateAsync({
         workspaceId,
-        body: { otherWorkspaceId, direction, force },
+        body: {
+          otherWorkspaceId,
+          direction,
+          force,
+          ...(dependentOverrides.length > 0 ? { dependentOverrides } : {}),
+        },
       })
 
       if (!result.promoteRunId) {
@@ -214,10 +324,35 @@ export function PromoteWorkspaceModal({
 
       const target = parent?.name ?? 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
-      if (result.deployFailed > 0) {
+      const needsConfig = result.needsConfiguration
+      const clearedOptional = result.clearedOptional
+      // List the affected blocks, naming the workflow for a single one and falling back to
+      // a count across many. Block names ("Gmail 2") are far more actionable than the
+      // generic field titles ("Label") behind them.
+      const formatWhere = (list: Array<{ workflowName: string; blocks: string[] }>) => {
+        const totalBlocks = list.reduce((sum, workflow) => sum + workflow.blocks.length, 0)
+        if (list.length === 1) return `${list[0].blocks.join(', ')} in ${list[0].workflowName}`
+        return `${totalBlocks} block${totalBlocks === 1 ? '' : 's'} across ${list.length} workflows`
+      }
+      const optionalBlocks = clearedOptional.reduce(
+        (sum, workflow) => sum + workflow.blocks.length,
+        0
+      )
+      // Appended to a higher-priority warning so a cleared optional filter is never hidden.
+      const optionalSuffix =
+        optionalBlocks > 0
+          ? ` (+${optionalBlocks} block${optionalBlocks === 1 ? '' : 's'} with optional fields cleared)`
+          : ''
+      if (needsConfig.length > 0) {
+        toast.warning(`${label}. Re-check ${formatWhere(needsConfig)}.${optionalSuffix}`)
+      } else if (result.deployFailed > 0) {
         const n = result.deployFailed
         toast.warning(
-          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
+          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.${optionalSuffix}`
+        )
+      } else if (clearedOptional.length > 0) {
+        toast.warning(
+          `${label}. Optional settings cleared — re-check ${formatWhere(clearedOptional)}.`
         )
       } else {
         toast.success(label)
@@ -369,6 +504,76 @@ export function PromoteWorkspaceModal({
                       one, narrow it down by name.
                     </div>
                   ) : null}
+                  {/* Account changed: re-pick its dependent fields in place, block by block. */}
+                  {reconfigBlocksForEntry(entry).map((block) => {
+                    // Chain re-picks: a re-picked field feeds its SelectorContext key to its
+                    // in-block descendants (e.g. a new spreadsheet drives the sheet selector),
+                    // so deeper selectors query against the user's new upstream choice.
+                    const providedValues: Record<string, string> = {}
+                    const providerByKey = new Map<string, string>()
+                    for (const field of block.fields) {
+                      const picked = reconfig[dependentKey(field)]
+                      if (field.providesContextKey) {
+                        providerByKey.set(field.providesContextKey, dependentKey(field))
+                        if (picked) providedValues[field.providesContextKey] = picked
+                      }
+                    }
+                    return (
+                      <div
+                        key={block.targetBlockId}
+                        className='mt-3 flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-1)] p-3'
+                      >
+                        <span className='font-medium text-[var(--text-secondary)] text-small'>
+                          {block.blockName}
+                        </span>
+                        {block.fields.map((field) => {
+                          // Disabled until the credential is set AND every in-block parent it
+                          // depends on (a sibling re-pick) is chosen, so a child never queries a
+                          // stale upstream value (e.g. a sheet before its spreadsheet is re-picked).
+                          const ready = field.consumesContextKeys.every((key) => {
+                            const providerKey = providerByKey.get(key)
+                            return !providerKey || (reconfig[providerKey] ?? '') !== ''
+                          })
+                          return (
+                            <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                              <span className='text-[var(--text-tertiary)] text-caption'>
+                                {field.title}
+                                {field.required ? (
+                                  <span className='text-[var(--text-error)]'> *</span>
+                                ) : null}
+                              </span>
+                              <DependentFieldSelector
+                                selectorKey={field.selectorKey as SelectorKey}
+                                context={{
+                                  ...field.context,
+                                  ...providedValues,
+                                  [field.parentContextKey]: targetFor(entry),
+                                }}
+                                enabled={targetFor(entry) !== '' && ready}
+                                value={reconfig[dependentKey(field)] ?? ''}
+                                onChange={(value) =>
+                                  setReconfig((prev) => {
+                                    const nextState = { ...prev, [dependentKey(field)]: value }
+                                    // A changed parent invalidates its children's stale re-picks.
+                                    const providedKey = field.providesContextKey
+                                    if (providedKey) {
+                                      for (const sibling of block.fields) {
+                                        if (sibling.consumesContextKeys.includes(providedKey)) {
+                                          delete nextState[dependentKey(sibling)]
+                                        }
+                                      }
+                                    }
+                                    return nextState
+                                  })
+                                }
+                                title={field.title}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
                 </SettingsSection>
               ))}
             </div>
@@ -385,7 +590,11 @@ export function PromoteWorkspaceModal({
                   label: submitting ? 'Working...' : 'Sync',
                   onClick: () => void runPromote(false),
                   disabled: syncDisabled,
-                  disabledTooltip: requiredComplete ? undefined : 'Map all required secrets first',
+                  disabledTooltip: !requiredComplete
+                    ? 'Map all required secrets first'
+                    : !reconfigComplete
+                      ? 'Reconfigure all required fields first'
+                      : undefined,
                 }
           }
         />

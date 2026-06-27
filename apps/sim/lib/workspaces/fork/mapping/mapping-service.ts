@@ -191,6 +191,11 @@ export async function getForkMappingView(
     const targetId =
       currentTargetId ??
       suggestTarget(p.reference.kind, p.sourceLabel, p.sourceProviderId, candidates)
+    // True when `targetId` is an unconfirmed name/provider suggestion (no persisted
+    // mapping). The modal treats a suggestion as a pending change so it shows the
+    // pre-sync reconfigure rather than letting an accepted suggestion silently clear
+    // dependents and surface them only after the sync.
+    const suggested = currentTargetId == null && targetId != null
 
     entries.push({
       kind: p.reference.kind,
@@ -198,6 +203,7 @@ export async function getForkMappingView(
       sourceId: p.reference.sourceId,
       sourceLabel: p.sourceLabel,
       targetId,
+      suggested,
       required: p.reference.required,
       candidates,
       // The full (unfiltered) target list for this kind hit the cap, so the picker is

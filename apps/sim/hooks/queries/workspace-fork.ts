@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/hooks/queries/background-work'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type ForkDirection = 'push' | 'pull'
@@ -148,6 +149,12 @@ export function usePromoteFork() {
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
+      // A sync rewrites the target workflows' drafts AND redeploys them. The promote
+      // result doesn't expose the affected ids, so invalidate all deployment caches:
+      // otherwise a target workflow whose deployed state was already cached compares its
+      // fresh draft against the stale (pre-sync) deployed snapshot and falsely shows
+      // "Update" instead of "Live".
+      queryClient.invalidateQueries({ queryKey: deploymentKeys.all })
     },
   })
 }
@@ -164,6 +171,10 @@ export function useRollbackFork() {
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
+      // Rollback restores the target workflows' drafts + reactivates a prior deployment,
+      // so the cached deployed snapshots are stale - refresh them so change detection
+      // doesn't falsely show "Update" (mirrors usePromoteFork).
+      queryClient.invalidateQueries({ queryKey: deploymentKeys.all })
     },
   })
 }

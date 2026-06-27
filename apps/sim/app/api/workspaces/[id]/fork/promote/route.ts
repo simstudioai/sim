@@ -25,7 +25,7 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(promoteForkContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { otherWorkspaceId, direction, force } = parsed.data.body
+    const { otherWorkspaceId, direction, force, dependentOverrides } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
@@ -36,6 +36,7 @@ export const POST = withRouteHandler(
       direction,
       force,
       userId: session.user.id,
+      dependentOverrides,
       requestId,
     })
 
@@ -47,6 +48,8 @@ export const POST = withRouteHandler(
       redeployed: result.redeployed,
       deployFailed: result.deployFailed,
       unmappedRequired: result.unmappedRequired,
+      needsConfiguration: result.needsConfiguration,
+      clearedOptional: result.clearedOptional,
       drift: result.drift,
     }
 
@@ -84,7 +87,12 @@ export const POST = withRouteHandler(
     await recordBackgroundWork(db, {
       workspaceId: id,
       kind: 'fork_sync',
-      status: result.deployFailed > 0 ? 'completed_with_warnings' : 'completed',
+      status:
+        result.deployFailed > 0 ||
+        result.needsConfiguration.length > 0 ||
+        result.clearedOptional.length > 0
+          ? 'completed_with_warnings'
+          : 'completed',
       message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
@@ -98,6 +106,8 @@ export const POST = withRouteHandler(
         updatedNames: result.updatedNames,
         createdNames: result.createdNames,
         archivedNames: result.archivedNames,
+        needsConfiguration: result.needsConfiguration,
+        clearedOptional: result.clearedOptional,
       },
     }).catch((error) =>
       logger.error(`[${requestId}] Failed to record sync activity`, {

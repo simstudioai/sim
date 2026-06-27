@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
+import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 
 export const GET = withRouteHandler(
@@ -80,6 +81,7 @@ export const GET = withRouteHandler(
       unmappedOptional: plan.unmappedOptional.map(toRef),
       mcpReauthServerIds: plan.mcpReauthServerIds,
       inlineSecretSources: plan.inlineSecretSources,
+      dependentReconfigs: collectForkDependentReconfigs(plan.items, sourceStates),
       drift: plan.drift,
     })
   }

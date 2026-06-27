@@ -84,6 +84,21 @@ function jobReport(job: BackgroundWorkItem): JobReport {
       ])
       if (counts) notes.push({ value: counts })
     }
+    if (m.needsConfiguration && m.needsConfiguration.length > 0) {
+      for (const item of m.needsConfiguration) {
+        notes.push({
+          value: `${item.workflowName} — re-check ${item.blocks.join(', ')}`,
+          warning: true,
+        })
+      }
+    }
+    if (m.clearedOptional && m.clearedOptional.length > 0) {
+      for (const item of m.clearedOptional) {
+        notes.push({
+          value: `${item.workflowName} — optional cleared in ${item.blocks.join(', ')}`,
+        })
+      }
+    }
     if (m.deployFailed && m.deployFailed > 0) {
       notes.push({ value: `${plural(m.deployFailed, 'workflow')} failed to deploy`, warning: true })
     }

@@ -12,6 +12,7 @@ import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   copyWorkflowStateIntoTarget,
+  loadTargetDraftSubBlocks,
   loadWorkflowNameRegistry,
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
@@ -54,6 +55,17 @@ export interface PromoteForkParams {
   direction: 'push' | 'pull'
   force: boolean
   userId: string
+  /**
+   * Pre-sync re-picks from the modal for dependent fields whose credential the user
+   * swapped (target workflow id + deterministic block id + subblock key -> value).
+   * Applied during the merge so the new selection lands instead of being cleared.
+   */
+  dependentOverrides?: Array<{
+    workflowId: string
+    blockId: string
+    subBlockKey: string
+    value: string
+  }>
   requestId?: string
 }
 
@@ -76,6 +88,18 @@ export interface PromoteForkResult {
   updatedNames: string[]
   createdNames: string[]
   archivedNames: string[]
+  /**
+   * Workflows whose required dependent fields a parent change cleared - the target
+   * must re-pick them. These were written but intentionally NOT redeployed (the prior
+   * version keeps running), so the sync never deploys a broken workflow.
+   */
+  needsConfiguration: Array<{ workflowName: string; blocks: string[] }>
+  /**
+   * Workflows whose OPTIONAL dependent fields a parent change cleared (e.g. a trigger
+   * label filter). Redeployed as-is, but surfaced so a cleared filter that would broaden
+   * behavior is never silent.
+   */
+  clearedOptional: Array<{ workflowName: string; blocks: string[] }>
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -113,6 +137,13 @@ interface PromoteTxApplied {
   archivedNames: string[]
   /** Outbox event ids enqueued for archived orphans' undeploy side-effects. */
   undeployEventIds: string[]
+  /**
+   * Per-target required dependents a parent change cleared (with workflow id so the
+   * post-commit deploy loop can skip them, keeping the prior version running).
+   */
+  needsConfiguration: Array<{ workflowId: string; workflowName: string; blocks: string[] }>
+  /** Per-workflow optional dependents a parent change cleared (surfaced, not gated). */
+  clearedOptional: Array<{ workflowName: string; blocks: string[] }>
 }
 
 /**
@@ -129,6 +160,22 @@ interface PromoteTxApplied {
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, force, userId } = params
   const requestId = params.requestId ?? 'unknown'
+
+  // Group the modal's pre-sync re-picks as target workflow id -> block id -> subblock -> value.
+  const overridesByWorkflow = new Map<string, Map<string, Map<string, string>>>()
+  for (const override of params.dependentOverrides ?? []) {
+    let byBlock = overridesByWorkflow.get(override.workflowId)
+    if (!byBlock) {
+      byBlock = new Map()
+      overridesByWorkflow.set(override.workflowId, byBlock)
+    }
+    let byKey = byBlock.get(override.blockId)
+    if (!byKey) {
+      byKey = new Map()
+      byBlock.set(override.blockId, byKey)
+    }
+    byKey.set(override.subBlockKey, override.value)
+  }
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
 
@@ -198,9 +245,19 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // the correctness backstop (a stale snapshot only risks a rare, retry-able conflict).
     const nameRegistry = await loadWorkflowNameRegistry(tx, targetWorkspaceId)
 
+    // Preload the target's current draft subBlocks (replace targets only) so dependent
+    // fields the user configured against an unchanged parent are preserved rather than
+    // cleared. One batched query pre-write, so it reflects the pre-sync target state.
+    const targetDraftByWorkflow = await loadTargetDraftSubBlocks(
+      tx,
+      plan.items.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId)
+    )
+
     const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
     const createdTargetIds: string[] = []
     const writtenItems: typeof plan.items = []
+    const needsConfiguration: PromoteTxApplied['needsConfiguration'] = []
+    const clearedOptional: PromoteTxApplied['clearedOptional'] = []
     for (const item of plan.items) {
       // Use the pre-read source state (loaded above, before the tx). An item only
       // exists when its state was present at read time, so this lookup hits; the
@@ -213,7 +270,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       } else {
         createdTargetIds.push(item.targetWorkflowId)
       }
-      await copyWorkflowStateIntoTarget({
+      const copyResult = await copyWorkflowStateIntoTarget({
         tx,
         targetWorkflowId: item.targetWorkflowId,
         targetWorkspaceId,
@@ -225,9 +282,28 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         workflowIdMap: plan.workflowIdMap,
         folderIdMap,
         transformSubBlocks: transform,
+        targetCurrentBlocks:
+          item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
+        dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),
         nameRegistry,
         requestId,
       })
+      const requiredCleared = copyResult.clearedDependents.filter((field) => field.required)
+      const optionalCleared = copyResult.clearedDependents.filter((field) => !field.required)
+      if (requiredCleared.length > 0) {
+        needsConfiguration.push({
+          workflowId: item.targetWorkflowId,
+          workflowName: item.sourceMeta.name,
+          // Surface the block names (deduped) - the field titles ("Label") aren't useful.
+          blocks: [...new Set(requiredCleared.map((field) => field.blockName))],
+        })
+      }
+      if (optionalCleared.length > 0) {
+        clearedOptional.push({
+          workflowName: item.sourceMeta.name,
+          blocks: [...new Set(optionalCleared.map((field) => field.blockName))],
+        })
+      }
       writtenItems.push(item)
     }
 
@@ -421,6 +497,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         .map((item) => item.sourceMeta.name),
       archivedNames,
       undeployEventIds,
+      needsConfiguration,
+      clearedOptional,
     }
   })
 
@@ -439,6 +517,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       updatedNames: [],
       createdNames: [],
       archivedNames: [],
+      needsConfiguration: [],
+      clearedOptional: [],
     }
   }
 
@@ -458,6 +538,11 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   let redeployed = 0
   const deployFailures: string[] = []
   const deployWarnings: string[] = []
+  // Targets whose required dependents a parent change cleared: their draft holds the
+  // synced state, but we intentionally skip the redeploy so the prior deployed version
+  // keeps running instead of going live with an empty required field. The user re-picks
+  // the field (surfaced via `needsConfiguration`), then a redeploy/next sync deploys it.
+  const needsConfigTargetIds = new Set(txResult.needsConfiguration.map((n) => n.workflowId))
   // Deploy in a deterministic (sorted) order so this UNLOCKED loop acquires workflow
   // row locks in the same order as a concurrent rollback's atomic tx (and a sibling
   // promote's deploy loop), avoiding deadlocks - see rollback.ts lock ordering.
@@ -467,6 +552,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // canvas clients must adopt it (mothership-edit semantics) whether or not the
     // subsequent deploy succeeds - otherwise they keep, and may clobber, stale state.
     void notifyForkWorkflowChanged(targetWorkflowId)
+    if (needsConfigTargetIds.has(targetWorkflowId)) continue
     try {
       const result = await performFullDeploy({ workflowId: targetWorkflowId, userId, requestId })
       if (result.success) {
@@ -510,12 +596,20 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       skipped: txResult.skippedItems.map((item) => item.name),
     })
   }
+  if (txResult.needsConfiguration.length > 0) {
+    logger.warn(`[${requestId}] Promote left required dependent fields needing configuration`, {
+      sourceWorkspaceId,
+      targetWorkspaceId,
+      needsConfiguration: txResult.needsConfiguration.map((n) => n.workflowName),
+    })
+  }
   logger.info(`[${requestId}] Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
     updated: txResult.updated,
     created: txResult.created,
     archived: txResult.archived,
     redeployed,
     deployFailed: deployFailures.length,
+    needsConfiguration: txResult.needsConfiguration.length,
   })
 
   return {
@@ -531,5 +625,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     updatedNames: txResult.updatedNames,
     createdNames: txResult.createdNames,
     archivedNames: txResult.archivedNames,
+    needsConfiguration: txResult.needsConfiguration.map(({ workflowName, blocks }) => ({
+      workflowName,
+      blocks,
+    })),
+    clearedOptional: txResult.clearedOptional,
   }
 }

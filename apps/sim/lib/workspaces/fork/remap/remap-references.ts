@@ -17,9 +17,19 @@ import {
   parseWorkflowSearchSubBlockResources,
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  evaluateSubBlockCondition,
+  isNonEmptyValue,
+  normalizeDependencyValue,
+  parseDependsOn,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { remapForkFileUploadValue } from '@/lib/workspaces/fork/remap/remap-files'
 import { getBlock } from '@/blocks/registry'
+import type { SubBlockConfig } from '@/blocks/types'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -567,6 +577,407 @@ export function clearDependentsOnRemap(
     next ??= { ...subBlocks }
     next[id] = { ...existing, value: '' }
   }
+  return next ?? subBlocks
+}
+
+function subBlockValue(record: SubBlockRecord, id: string): unknown {
+  const entry = record[id]
+  return entry && typeof entry === 'object' ? entry.value : undefined
+}
+
+/** Structural equality for normalized dependency values (scalars or small id objects). */
+function dependencyValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  try {
+    return JSON.stringify(a) === JSON.stringify(b)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Core stable-dependent resolution shared by the subblock and nested-tool-param preserve
+ * paths. Returns the ids to restore: `dependsOn` children empty in `currentValues` but
+ * non-empty in `targetValues` whose every parent is non-empty AND equal between the two
+ * (canonical-pair aware). Mutates `currentValues` as it restores so a restored parent
+ * makes its own children eligible, carrying a stable chain (credential -> project ->
+ * issue) through. Both value maps are flat id -> value.
+ */
+function restoreStableDependentKeys(
+  config: NonNullable<ReturnType<typeof getBlock>>,
+  currentValues: Record<string, unknown>,
+  targetValues: Record<string, unknown>
+): Set<string> {
+  const restored = new Set<string>()
+  const candidates = config.subBlocks.filter((cfg) => {
+    if (!cfg.dependsOn || !cfg.id) return false
+    if (isNonEmptyValue(currentValues[cfg.id])) return false
+    return isNonEmptyValue(targetValues[cfg.id])
+  })
+  if (candidates.length === 0) return restored
+
+  const canonicalIndex = buildCanonicalIndex(config.subBlocks)
+  const parentStable = (parentKey: string): boolean => {
+    const current = normalizeDependencyValue(
+      resolveDependencyValue(parentKey, currentValues, canonicalIndex)
+    )
+    if (!isNonEmptyValue(current)) return false
+    const target = normalizeDependencyValue(
+      resolveDependencyValue(parentKey, targetValues, canonicalIndex)
+    )
+    return dependencyValuesEqual(current, target)
+  }
+  let restoredAny = true
+  while (restoredAny) {
+    restoredAny = false
+    for (const cfg of candidates) {
+      if (!cfg.id || restored.has(cfg.id)) continue
+      // Honor `all`/`any` dependsOn semantics: every `all` parent must be stable, and at
+      // least one `any` parent (a child like a Sheets sheet whose dep is
+      // `{ all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] }` must not
+      // require the unused manual branch to be filled).
+      const { allFields, anyFields } = parseDependsOn(cfg.dependsOn)
+      const stable =
+        allFields.every(parentStable) && (anyFields.length === 0 || anyFields.some(parentStable))
+      if (!stable) continue
+      currentValues[cfg.id] = targetValues[cfg.id]
+      restored.add(cfg.id)
+      restoredAny = true
+    }
+  }
+  return restored
+}
+
+/**
+ * Restore target-configured dependent subblock values that the remap blanked but
+ * whose `dependsOn` parents resolve to the SAME value the target's current draft
+ * already holds. A promote always rewrites a mapped parent's id (source -> target),
+ * so {@link clearDependentsOnRemap} blanks its dependents every sync even when the
+ * parent maps to the same target account as before; this puts the user's
+ * already-configured child value (a Gmail label, a Slack channel, a sheet tab) back
+ * so they don't reconfigure it on every sync. Also reaches inside `tool-input` subblocks
+ * (Agent/tool blocks) to preserve stable nested tool params. Pure and promote-only: pass
+ * the target draft's subBlocks for the matching deterministic block id; fork-create has
+ * no prior target state and never calls this.
+ */
+export function preserveStableDependents(
+  remappedSubBlocks: SubBlockRecord,
+  blockType: string,
+  targetCurrentSubBlocks: SubBlockRecord
+): SubBlockRecord {
+  const config = getBlock(blockType)
+  if (!config) return remappedSubBlocks
+
+  const currentValues = buildSubBlockValues(remappedSubBlocks)
+  const targetValues = buildSubBlockValues(targetCurrentSubBlocks)
+  const restored = restoreStableDependentKeys(config, currentValues, targetValues)
+
+  let next: SubBlockRecord | null = null
+  for (const id of restored) {
+    next ??= { ...remappedSubBlocks }
+    const existing = next[id]
+    next[id] =
+      existing && typeof existing === 'object'
+        ? { ...existing, value: subBlockValue(targetCurrentSubBlocks, id) }
+        : { ...(targetCurrentSubBlocks[id] as object) }
+  }
+
+  // Reach into tool-input arrays (Agent/tool blocks): preserve stable nested dependents
+  // inside each selected tool too, matched to the target's tool by position + type.
+  for (const cfg of config.subBlocks) {
+    if (cfg.type !== 'tool-input' || !cfg.id) continue
+    const remappedValue = subBlockValue(next ?? remappedSubBlocks, cfg.id)
+    const mergedValue = preserveStableToolInputValue(
+      remappedValue,
+      subBlockValue(targetCurrentSubBlocks, cfg.id)
+    )
+    if (mergedValue === remappedValue) continue
+    next ??= { ...remappedSubBlocks }
+    const existing = next[cfg.id]
+    next[cfg.id] =
+      existing && typeof existing === 'object'
+        ? { ...existing, value: mergedValue }
+        : { value: mergedValue }
+  }
+
+  return next ?? remappedSubBlocks
+}
+
+/** Preserve stable nested dependents within one tool's flat `params`. */
+export function preserveStableToolParams(
+  blockType: string,
+  remappedParams: Record<string, unknown>,
+  targetParams: Record<string, unknown>
+): Record<string, unknown> {
+  const config = getBlock(blockType)
+  if (!config) return remappedParams
+  const currentValues = { ...remappedParams }
+  const restored = restoreStableDependentKeys(config, currentValues, targetParams)
+  if (restored.size === 0) return remappedParams
+  const next = { ...remappedParams }
+  for (const id of restored) next[id] = targetParams[id]
+  return next
+}
+
+/**
+ * Preserve stable nested dependents across a `tool-input` array, matching each remapped
+ * tool to the target's by index + type (the copy keeps source order). Handles both the
+ * array and JSON-string stored shapes.
+ */
+function preserveStableToolInputValue(remappedValue: unknown, targetValue: unknown): unknown {
+  const { array: remappedTools, wasString } = coerceObjectArray(remappedValue)
+  if (!remappedTools) return remappedValue
+  const { array: targetTools } = coerceObjectArray(targetValue)
+  if (!targetTools) return remappedValue
+  // Index pairing is only safe when the tool sets line up; if the source added/removed a
+  // tool (lengths differ), skip nested preserve rather than risk restoring onto the wrong
+  // tool. The per-index type guard below still protects same-length reorders.
+  if (remappedTools.length !== targetTools.length) return remappedValue
+  let changed = false
+  const merged = remappedTools.map((tool, index) => {
+    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
+    const targetTool = targetTools[index]
+    if (!isRecord(targetTool) || targetTool.type !== tool.type) return tool
+    const remappedParams = isRecord(tool.params) ? tool.params : {}
+    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
+    const preserved = preserveStableToolParams(tool.type, remappedParams, targetParams)
+    if (preserved === remappedParams) return tool
+    changed = true
+    return { ...tool, params: preserved }
+  })
+  if (!changed) return remappedValue
+  return wasString ? JSON.stringify(merged) : merged
+}
+
+/**
+ * A dependent field a sync left empty (it had a source value). `required` ones gate Sync
+ * and skip redeploy; optional ones are surfaced so a cleared filter never broadens silently.
+ */
+export interface NeedsConfigurationField {
+  blockId: string
+  blockName: string
+  subBlockKey: string
+  title: string
+  required: boolean
+}
+
+/** Evaluate a subblock's `required` (boolean | condition | fn) against a value map. */
+export function isSubBlockRequired(
+  required: SubBlockConfig['required'],
+  values: Record<string, unknown>
+): boolean {
+  if (required === true) return true
+  if (!required) return false
+  // The object/function forms are structurally a SubBlockCondition.
+  return evaluateSubBlockCondition(
+    required as Parameters<typeof evaluateSubBlockCondition>[0],
+    values
+  )
+}
+
+/** Nested `tool-input` dependents (Agent/tool blocks) the TARGET configured that a remap cleared. */
+function collectClearedToolParamDependents(
+  toolInputKey: string,
+  blockId: string,
+  blockName: string,
+  targetCurrentValue: unknown,
+  mergedValue: unknown,
+  out: NeedsConfigurationField[]
+): void {
+  const { array: targetTools } = coerceObjectArray(targetCurrentValue)
+  const { array: mergedTools } = coerceObjectArray(mergedValue)
+  if (!mergedTools || !targetTools) return
+  // Index pairing is only safe when the tool sets line up; otherwise skip rather than
+  // pair a cleared param against the wrong tool.
+  if (targetTools.length !== mergedTools.length) return
+  for (let index = 0; index < mergedTools.length; index++) {
+    const tool = mergedTools[index]
+    const targetTool = targetTools[index]
+    if (!isRecord(tool) || typeof tool.type !== 'string') continue
+    if (!isRecord(targetTool) || targetTool.type !== tool.type) continue
+    const toolConfig = getBlock(tool.type)
+    if (!toolConfig) continue
+    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
+    const mergedParams = isRecord(tool.params) ? tool.params : {}
+    // A tool's `operation` lives at the tool level, not in params, but conditions
+    // reference it - merge it in so condition/required gating matches the editor.
+    const mergedValues =
+      typeof tool.operation === 'string'
+        ? { operation: tool.operation, ...mergedParams }
+        : mergedParams
+    const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
+    for (const cfg of toolConfig.subBlocks) {
+      if (!cfg.dependsOn || !cfg.id) continue
+      // Only flag a param the TARGET tool had configured (not one the source carried in).
+      if (!isNonEmptyValue(targetParams[cfg.id])) continue
+      if (isNonEmptyValue(mergedParams[cfg.id])) continue
+      // Skip fields gated off by their `condition` (a stale value under an inactive
+      // operation isn't actually required now).
+      if (cfg.condition && !evaluateSubBlockCondition(cfg.condition, mergedValues)) continue
+      out.push({
+        blockId,
+        blockName,
+        subBlockKey: `${toolInputKey}[${index}].${cfg.id}`,
+        title: `${toolLabel}: ${cfg.title ?? cfg.id}`,
+        required: isSubBlockRequired(cfg.required, mergedValues),
+      })
+    }
+  }
+}
+
+/**
+ * `dependsOn` children the TARGET workspace had configured (in its draft) that the merge
+ * left empty - the parent they hang off was swapped/remapped and the value wasn't restored
+ * or re-picked. Keyed on the TARGET draft (not the source) so a field the source carries
+ * but the target never configured is NOT flagged (e.g. a pull bringing in the parent's
+ * label filter the fork never set). Covers top-level subblocks AND nested `tool-input`
+ * params. `required` ones must be re-picked before the workflow can run (promote skips
+ * their redeploy); optional ones are surfaced so a filter the swap cleared never broadens
+ * behavior silently. Pure; `mergedSubBlocks` is the final state about to be written,
+ * `targetCurrentSubBlocks` the target's pre-sync draft.
+ */
+export function collectClearedDependents(
+  blockType: string,
+  blockId: string,
+  blockName: string,
+  targetCurrentSubBlocks: SubBlockRecord,
+  mergedSubBlocks: SubBlockRecord
+): NeedsConfigurationField[] {
+  const config = getBlock(blockType)
+  if (!config) return []
+  const targetValues = buildSubBlockValues(targetCurrentSubBlocks)
+  const mergedValues = buildSubBlockValues(mergedSubBlocks)
+  const fields: NeedsConfigurationField[] = []
+  for (const cfg of config.subBlocks) {
+    if (!cfg.id) continue
+    // Only flag a field the target had configured (so the user lost their own selection),
+    // still empty after merge, and currently active (a value under a now-inactive
+    // `condition`/operation isn't really in play).
+    if (
+      cfg.dependsOn &&
+      isNonEmptyValue(targetValues[cfg.id]) &&
+      !isNonEmptyValue(mergedValues[cfg.id]) &&
+      (!cfg.condition || evaluateSubBlockCondition(cfg.condition, mergedValues))
+    ) {
+      fields.push({
+        blockId,
+        blockName,
+        subBlockKey: cfg.id,
+        title: cfg.title ?? cfg.id,
+        required: isSubBlockRequired(cfg.required, mergedValues),
+      })
+    }
+    if (cfg.type === 'tool-input') {
+      collectClearedToolParamDependents(
+        cfg.id,
+        blockId,
+        blockName,
+        targetValues[cfg.id],
+        mergedValues[cfg.id],
+        fields
+      )
+    }
+  }
+  return fields
+}
+
+/** A nested override key `toolInput[index].paramId` (matches the needs-config key format). */
+const NESTED_OVERRIDE_KEY = /^([^[]+)\[(\d+)\]\.(.+)$/
+
+/**
+ * Apply nested `tool-input` overrides onto one tool array, matching by index and
+ * allowlisting each param to the tool's own reconfigurable dependents (dependsOn +
+ * selectorKey). Returns the same reference when nothing applied. Handles the array and
+ * JSON-string stored shapes.
+ */
+function applyNestedToolOverrides(
+  value: unknown,
+  items: ReadonlyArray<{ index: number; paramId: string; value: string }>
+): unknown {
+  const { array, wasString } = coerceObjectArray(value)
+  if (!array) return value
+  let changed = false
+  const merged = array.map((tool, index) => {
+    const forTool = items.filter((item) => item.index === index)
+    if (forTool.length === 0) return tool
+    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
+    const toolConfig = getBlock(tool.type)
+    if (!toolConfig) return tool
+    const allowed = new Set(
+      toolConfig.subBlocks
+        .filter((cfg) => cfg.id && cfg.dependsOn && cfg.selectorKey)
+        .map((cfg) => cfg.id)
+    )
+    const params = isRecord(tool.params) ? tool.params : {}
+    let nextParams: Record<string, unknown> | null = null
+    for (const item of forTool) {
+      if (!allowed.has(item.paramId)) continue
+      nextParams ??= { ...params }
+      nextParams[item.paramId] = item.value
+    }
+    if (!nextParams) return tool
+    changed = true
+    return { ...tool, params: nextParams }
+  })
+  if (!changed) return value
+  return wasString ? JSON.stringify(merged) : merged
+}
+
+/**
+ * Apply the sync modal's pre-sync re-picks onto the merged subBlocks (called last, after
+ * preserve, so a swapped account's new selection wins over the clear). Allowlisted to the
+ * block's reconfigurable dependent selectors (`dependsOn` + `selectorKey`) - top-level
+ * subblocks AND nested `tool-input` params keyed `toolInput[index].paramId` - so a crafted
+ * override can never set a parent/credential field (bypassing mapping validation) or inject
+ * a bogus subblock. Returns a new record only when something applied.
+ */
+export function applyDependentOverrides(
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  overrides: ReadonlyMap<string, string>
+): SubBlockRecord {
+  const config = getBlock(blockType)
+  if (!config || overrides.size === 0) return subBlocks
+
+  const allowedTopLevel = new Set<string>()
+  const toolInputIds = new Set<string>()
+  for (const cfg of config.subBlocks) {
+    if (!cfg.id) continue
+    if (cfg.dependsOn && cfg.selectorKey) allowedTopLevel.add(cfg.id)
+    if (cfg.type === 'tool-input') toolInputIds.add(cfg.id)
+  }
+
+  const nestedByTool = new Map<string, Array<{ index: number; paramId: string; value: string }>>()
+  let next: SubBlockRecord | null = null
+
+  for (const [key, value] of overrides) {
+    const nested = NESTED_OVERRIDE_KEY.exec(key)
+    if (nested) {
+      const [, toolInputId, indexStr, paramId] = nested
+      if (!toolInputIds.has(toolInputId)) continue
+      const list = nestedByTool.get(toolInputId) ?? []
+      list.push({ index: Number(indexStr), paramId, value })
+      nestedByTool.set(toolInputId, list)
+      continue
+    }
+    if (!allowedTopLevel.has(key)) continue
+    next ??= { ...subBlocks }
+    // The allowlist already proves this is a real dependent selector, so create the entry
+    // if the merge dropped it (don't silently skip a legitimate re-pick).
+    const existing = next[key]
+    next[key] = existing && typeof existing === 'object' ? { ...existing, value } : { value }
+  }
+
+  for (const [toolInputId, items] of nestedByTool) {
+    const existing = (next ?? subBlocks)[toolInputId]
+    if (!existing || typeof existing !== 'object') continue
+    const updated = applyNestedToolOverrides(existing.value, items)
+    if (updated === existing.value) continue
+    next ??= { ...subBlocks }
+    next[toolInputId] = { ...existing, value: updated }
+  }
+
   return next ?? subBlocks
 }
 

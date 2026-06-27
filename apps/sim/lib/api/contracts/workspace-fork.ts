@@ -137,6 +137,8 @@ export const forkMappingEntrySchema = z.object({
   sourceId: z.string(),
   sourceLabel: z.string(),
   targetId: z.string().nullable(),
+  /** True when `targetId` is an unconfirmed auto-suggestion (no persisted mapping yet). */
+  suggested: z.boolean(),
   required: z.boolean(),
   candidates: z.array(forkMappingCandidateSchema),
   /**
@@ -210,6 +212,50 @@ export const forkWorkflowChangeSchema = z.object({
   otherName: z.string(),
 })
 
+/**
+ * A configured selector field (Gmail label, Slack channel, KB document, ...) that
+ * `dependsOn` a remappable parent resource - a credential or a knowledge base - so a
+ * sync clears it whenever that parent's target changes. The modal renders a controlled
+ * selector against the newly-chosen parent (using `selectorKey` + `context` + the new
+ * parent value under `parentContextKey`) so the user re-picks the value in place,
+ * pre-sync, instead of having it cleared and reconfigured after. `targetBlockId` is the
+ * deterministic fork block id, matching the engine, so the re-pick lands on the right
+ * block. Only fields the source actually had set are emitted (the active operation's),
+ * so blocks aren't padded with every operation variant.
+ */
+export const forkDependentReconfigSchema = z.object({
+  /** The remappable parent resource kind whose target swap clears this field. */
+  parentKind: z.enum(['credential', 'knowledge-base', 'table']),
+  /** Source id of that parent (matches a mapping entry's `sourceId`). */
+  parentSourceId: z.string(),
+  /** SelectorContext key the new parent value is supplied under (`oauthCredential` | `knowledgeBaseId` | `tableId`). */
+  parentContextKey: z.string(),
+  targetWorkflowId: z.string(),
+  targetBlockId: z.string(),
+  blockName: z.string(),
+  subBlockKey: z.string(),
+  selectorKey: z.string(),
+  title: z.string(),
+  /** Whether the field is required - a required empty field blocks Sync. */
+  required: z.boolean(),
+  /**
+   * SelectorContext key this field's own value supplies to its in-block descendants
+   * (e.g. a spreadsheet feeds `spreadsheetId` to the sheet selector). Lets the modal
+   * chain re-picks: a re-picked parent updates its children's selector context.
+   */
+  providesContextKey: z.string().optional(),
+  /**
+   * SelectorContext keys this field needs from in-block siblings (excluding the parent
+   * the modal already supplies). The modal keeps the field disabled until each sibling
+   * that provides one of these keys has been re-picked, so a child never queries a stale
+   * upstream value.
+   */
+  consumesContextKeys: z.array(z.string()),
+  /** Source-derived selector context (sans the parent key the modal supplies). */
+  context: z.record(z.string(), z.string()),
+})
+export type ForkDependentReconfig = z.output<typeof forkDependentReconfigSchema>
+
 export const getForkDiffQuerySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -235,6 +281,8 @@ export const getForkDiffContract = defineRouteContract({
       mcpReauthServerIds: z.array(z.string()),
       /** Review-only descriptions of inline secrets that cannot be id-mapped. */
       inlineSecretSources: z.array(z.string()),
+      /** Configured selector fields per parent (credential/KB), for the pre-sync reconfigure. */
+      dependentReconfigs: z.array(forkDependentReconfigSchema),
       drift: z.boolean(),
     }),
   },
@@ -242,10 +290,39 @@ export const getForkDiffContract = defineRouteContract({
 export type GetForkDiffResponse = z.output<typeof getForkDiffContract.response.schema>
 export type ForkWorkflowChange = z.output<typeof forkWorkflowChangeSchema>
 
+/**
+ * A workflow whose required dependent fields a sync cleared because their parent
+ * (e.g. a credential) was changed - the target must re-pick them. The workflow's
+ * draft holds the synced state but it was NOT redeployed (the prior version keeps
+ * running), so nothing runs broken until the user reconfigures.
+ */
+export const forkNeedsConfigurationSchema = z.object({
+  workflowName: z.string(),
+  /** Names of the blocks in the workflow that need a re-check (deduplicated). */
+  blocks: z.array(z.string()).min(1),
+})
+export type ForkNeedsConfiguration = z.output<typeof forkNeedsConfigurationSchema>
+
+/**
+ * A one-shot value the user re-picked in the sync modal for a dependent field whose
+ * credential they swapped. Applied during the merge (after preserve) so the new
+ * selection lands instead of being cleared; not persisted - subsequent syncs keep it
+ * via the stable-parent preserve. `blockId` is the deterministic fork block id.
+ */
+export const forkDependentOverrideSchema = z.object({
+  workflowId: nonEmptyIdSchema,
+  blockId: nonEmptyIdSchema,
+  subBlockKey: z.string().min(1, 'subBlockKey is required'),
+  value: z.string(),
+})
+export type ForkDependentOverride = z.input<typeof forkDependentOverrideSchema>
+
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
   force: z.boolean().optional().default(false),
+  /** Pre-sync re-picks for dependent fields whose credential the user swapped. */
+  dependentOverrides: z.array(forkDependentOverrideSchema).max(2000).optional(),
 })
 export const promoteForkContract = defineRouteContract({
   method: 'POST',
@@ -262,6 +339,10 @@ export const promoteForkContract = defineRouteContract({
       redeployed: z.number().int(),
       deployFailed: z.number().int(),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
+      /** Workflows whose required dependent fields the target must re-pick post-sync. */
+      needsConfiguration: z.array(forkNeedsConfigurationSchema),
+      /** Workflows whose optional dependent fields a swap cleared (surfaced, not gated). */
+      clearedOptional: z.array(forkNeedsConfigurationSchema),
       drift: z.boolean(),
     }),
   },
@@ -307,6 +388,10 @@ export const backgroundWorkMetadataSchema = z
     updatedNames: z.array(z.string()).optional(),
     createdNames: z.array(z.string()).optional(),
     archivedNames: z.array(z.string()).optional(),
+    /** Workflows whose required dependent fields a sync left for the target to re-pick. */
+    needsConfiguration: z.array(forkNeedsConfigurationSchema).optional(),
+    /** Workflows whose optional dependent fields a sync cleared (FYI, non-blocking). */
+    clearedOptional: z.array(forkNeedsConfigurationSchema).optional(),
   })
   .nullable()
 export const backgroundWorkItemSchema = z.object({

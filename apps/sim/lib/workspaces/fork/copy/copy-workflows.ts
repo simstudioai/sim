@@ -1,7 +1,7 @@
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflow, workflowBlocks, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -13,6 +13,12 @@ import {
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
+import {
+  applyDependentOverrides,
+  collectClearedDependents,
+  type NeedsConfigurationField,
+  preserveStableDependents,
+} from '@/lib/workspaces/fork/remap/remap-references'
 import type {
   BlockData,
   BlockState,
@@ -183,6 +189,39 @@ export async function loadWorkflowNameRegistry(
   return buildWorkflowNameRegistry(rows)
 }
 
+/**
+ * Batched read of the current DRAFT subBlocks for a set of (replace) target
+ * workflows, keyed `workflowId -> blockId -> subBlocks`. One query for the whole
+ * promote so the locked apply phase doesn't do N per-workflow loads; called
+ * pre-write so it reflects the target state the user configured before this sync
+ * overwrites it. Promote uses it to preserve stable dependent fields (see
+ * {@link preserveStableDependents}); fork-create has no prior target and skips it.
+ */
+export async function loadTargetDraftSubBlocks(
+  executor: DbOrTx,
+  workflowIds: string[]
+): Promise<Map<string, Map<string, SubBlockRecord>>> {
+  const byWorkflow = new Map<string, Map<string, SubBlockRecord>>()
+  if (workflowIds.length === 0) return byWorkflow
+  const rows = await executor
+    .select({
+      workflowId: workflowBlocks.workflowId,
+      blockId: workflowBlocks.id,
+      subBlocks: workflowBlocks.subBlocks,
+    })
+    .from(workflowBlocks)
+    .where(inArray(workflowBlocks.workflowId, workflowIds))
+  for (const row of rows) {
+    let blocks = byWorkflow.get(row.workflowId)
+    if (!blocks) {
+      blocks = new Map<string, SubBlockRecord>()
+      byWorkflow.set(row.workflowId, blocks)
+    }
+    blocks.set(row.blockId, (row.subBlocks ?? {}) as SubBlockRecord)
+  }
+  return byWorkflow
+}
+
 async function resolveTargetWorkflowName(
   tx: DbOrTx,
   workspaceId: string,
@@ -227,6 +266,13 @@ export interface CopyWorkflowResult {
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+  /**
+   * `dependsOn` fields (top-level and nested tool-input) a remapped parent left empty
+   * that weren't restored from the target draft - the parent legitimately changed.
+   * Carries `required` per field: promote skips redeploy + gates on required ones and
+   * surfaces optional ones so a cleared filter never broadens behavior silently.
+   */
+  clearedDependents: NeedsConfigurationField[]
 }
 
 export interface CopyWorkflowStateParams {
@@ -251,6 +297,19 @@ export interface CopyWorkflowStateParams {
   folderIdMap: Map<string, string>
   /** Optional resource-reference remap applied to every block's subBlocks. */
   transformSubBlocks?: SubBlockTransform
+  /**
+   * The target workflow's current draft subBlocks (block id -> subBlocks), for
+   * `replace` mode only. When present, dependent fields whose parent maps to the
+   * same target value are preserved instead of cleared (see
+   * {@link preserveStableDependents}), and required dependents the parent change
+   * cleared are reported in {@link CopyWorkflowResult.needsConfiguration}.
+   */
+  targetCurrentBlocks?: Map<string, SubBlockRecord>
+  /**
+   * Per-block (block id -> subBlock key -> value) one-shot overrides applied last,
+   * after preserve, so the modal's pre-sync re-picks for a swapped account land.
+   */
+  dependentOverrides?: Map<string, Map<string, string>>
   /**
    * Preloaded name registry so name-collision resolution reads from memory instead of one
    * query per workflow inside the tx. Build once per copy loop via {@link loadWorkflowNameRegistry}.
@@ -284,6 +343,8 @@ export async function copyWorkflowStateIntoTarget(
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
+    targetCurrentBlocks,
+    dependentOverrides,
     nameRegistry,
     requestId = 'unknown',
   } = params
@@ -304,6 +365,7 @@ export async function copyWorkflowStateIntoTarget(
   }
 
   const newBlocks: Record<string, BlockState> = {}
+  const clearedDependents: NeedsConfigurationField[] = []
   for (const [oldBlockId, block] of Object.entries(sourceState.blocks)) {
     const newBlockId = blockIdMapping.get(oldBlockId)!
 
@@ -321,7 +383,8 @@ export async function copyWorkflowStateIntoTarget(
 
     // double-cast-allowed: SubBlockState is structurally a SubBlockRecord entry but lacks the open index signature SubBlockRecord declares
     const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
-    let subBlocks: SubBlockRecord = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
+    const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
+    let subBlocks: SubBlockRecord = sanitizedSource
     if (transformSubBlocks) {
       subBlocks = transformSubBlocks(subBlocks, block.type)
     }
@@ -334,6 +397,30 @@ export async function copyWorkflowStateIntoTarget(
       clearUnmapped: true,
     })
     subBlocks = remapConditionIdsInSubBlocks(subBlocks, oldBlockId, newBlockId) as SubBlockRecord
+
+    // Preserve target-configured dependents whose parent maps to the same target as
+    // before, so the user doesn't reconfigure them every sync (replace mode only).
+    const targetCurrent = targetCurrentBlocks?.get(newBlockId)
+    if (mode === 'replace' && targetCurrent) {
+      subBlocks = preserveStableDependents(subBlocks, block.type, targetCurrent)
+    }
+    // Apply the modal's pre-sync re-picks last so a swapped account's new selection wins.
+    // Allowlisted (top-level + nested tool params) inside applyDependentOverrides so a
+    // crafted override can't touch a parent/credential field or inject a bogus subblock.
+    const blockOverrides = dependentOverrides?.get(newBlockId)
+    if (blockOverrides && blockOverrides.size > 0) {
+      subBlocks = applyDependentOverrides(subBlocks, block.type, blockOverrides)
+    }
+
+    // Dependents the TARGET had configured that the parent change cleared and nothing
+    // restored: the target must re-pick required ones (promote skips this workflow's
+    // redeploy) and is told about optional ones. Keyed on the target draft so a field the
+    // source carried but the target never set isn't flagged.
+    if (mode === 'replace' && targetCurrent) {
+      clearedDependents.push(
+        ...collectClearedDependents(block.type, newBlockId, block.name, targetCurrent, subBlocks)
+      )
+    }
 
     newBlocks[newBlockId] = {
       ...block,
@@ -456,5 +543,6 @@ export async function copyWorkflowStateIntoTarget(
     blocksCount: Object.keys(newBlocks).length,
     edgesCount: newEdges.length,
     subflowsCount: Object.keys(newLoops).length + Object.keys(newParallels).length,
+    clearedDependents,
   }
 }
