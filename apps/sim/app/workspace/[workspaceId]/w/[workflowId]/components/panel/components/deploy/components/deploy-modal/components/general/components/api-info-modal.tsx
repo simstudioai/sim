@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   ButtonGroup,
@@ -26,7 +27,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useTranslations } from 'next-intl'
 
 type NormalizedField = InputFormatField & { name: string }
 

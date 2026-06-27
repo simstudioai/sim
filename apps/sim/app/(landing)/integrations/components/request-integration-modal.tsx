@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +12,6 @@ import {
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { integrationRequestContract } from '@/lib/api/contracts/common'
-import { useTranslations } from 'next-intl'
 
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
@@ -123,7 +123,8 @@ export function RequestIntegrationModal() {
                 type='textarea'
                 title={
                   <>
-                    {t('use_case')} <span className='text-[var(--text-tertiary)]'>{t('optional')}</span>
+                    {t('use_case')}{' '}
+                    <span className='text-[var(--text-tertiary)]'>{t('optional')}</span>
                   </>
                 }
                 value={useCase}

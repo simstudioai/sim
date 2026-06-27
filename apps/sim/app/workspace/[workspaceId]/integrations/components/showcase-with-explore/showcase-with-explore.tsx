@@ -2,10 +2,10 @@
 
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip } from '@/components/emcn'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
-import { useTranslations } from 'next-intl'
 
 interface ShowcaseWithExploreProps {
   /**

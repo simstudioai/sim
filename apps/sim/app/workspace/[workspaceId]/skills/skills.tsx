@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
@@ -13,7 +14,6 @@ import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { skillIdParam, skillIdUrlKeys } from '@/app/workspace/[workspaceId]/skills/search-params'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SkillsSettings')
 
@@ -169,7 +169,8 @@ export function Skills() {
               </SkillSection>
             ) : showNoResults ? (
               <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                {t('no_skills_found_matching')}{searchTerm}”
+                {t('no_skills_found_matching')}
+                {searchTerm}”
               </div>
             ) : null}
           </div>

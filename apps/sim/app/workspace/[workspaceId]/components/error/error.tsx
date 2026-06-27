@@ -3,8 +3,8 @@
 import { type ReactNode, useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { TriangleAlert } from 'lucide-react'
-import { Button } from '@/components/emcn'
 import { useTranslations } from 'next-intl'
+import { Button } from '@/components/emcn'
 
 /** Props shape required by Next.js error boundary files (`error.tsx`). */
 export interface ErrorBoundaryProps {

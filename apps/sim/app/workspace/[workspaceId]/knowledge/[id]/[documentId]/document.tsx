@@ -4,6 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
 import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
@@ -51,7 +52,6 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Document')
 
@@ -604,7 +604,9 @@ export function Document({
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('status')}</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>
+            {t('status')}
+          </span>
           <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },

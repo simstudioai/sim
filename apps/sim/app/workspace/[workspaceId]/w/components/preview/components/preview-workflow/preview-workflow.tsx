@@ -14,6 +14,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -22,7 +23,6 @@ import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('PreviewWorkflow')
 
@@ -563,9 +563,7 @@ export function PreviewWorkflow({
       >
         <div className='text-center text-gray-500 dark:text-gray-400'>
           <div className='mb-2 font-medium text-lg'>{t('logged_state_not_found')}</div>
-          <div className='text-sm'>
-            {t('this_log_was_migrated_from_the')}
-          </div>
+          <div className='text-sm'>{t('this_log_was_migrated_from_the')}</div>
         </div>
       </div>
     )

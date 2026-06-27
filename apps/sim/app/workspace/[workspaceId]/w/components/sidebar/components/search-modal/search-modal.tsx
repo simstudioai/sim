@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
 import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
@@ -71,7 +72,6 @@ import type {
   WorkspaceItem,
 } from './utils'
 import { filterAndSort } from './utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SearchModal')
 

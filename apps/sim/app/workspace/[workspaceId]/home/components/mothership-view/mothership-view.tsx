@@ -19,7 +19,6 @@ import type {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
-import { useTranslations } from 'next-intl'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',

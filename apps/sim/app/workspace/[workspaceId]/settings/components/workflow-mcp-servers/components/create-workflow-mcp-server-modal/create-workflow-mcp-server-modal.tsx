@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -15,7 +16,6 @@ import {
   type ComboboxOption,
 } from '@/components/emcn'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateWorkflowMcpServerModal')
 
@@ -76,7 +76,9 @@ export function CreateWorkflowMcpServerModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Add New MCP Server'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('add_new_mcp_server')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        {t('add_new_mcp_server')}
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
@@ -125,7 +127,9 @@ export function CreateWorkflowMcpServerModal({
               <ButtonGroupItem value='public'>{t('public')}</ButtonGroupItem>
             </ButtonGroup>
             {formData.isPublic && (
-              <span className='text-[var(--text-muted)] text-xs'>{t('no_authentication_required')}</span>
+              <span className='text-[var(--text-muted)] text-xs'>
+                {t('no_authentication_required')}
+              </span>
             )}
           </div>
         </ChipModalField>

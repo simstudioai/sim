@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Chip,
@@ -21,6 +21,7 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
@@ -41,7 +42,6 @@ import {
   useUserProfile,
 } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('General')
 
@@ -566,7 +566,8 @@ export function General() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             {t('a_password_reset_link_will_be')}{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>{t('click_the_link_in_the_email')}
+            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>
+            {t('click_the_link_in_the_email')}
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>

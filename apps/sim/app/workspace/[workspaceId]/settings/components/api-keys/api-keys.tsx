@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipConfirmModal, Switch, Tooltip, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -20,7 +21,6 @@ import {
 } from '@/hooks/queries/api-keys'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from './components'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ApiKeys')
 
@@ -164,7 +164,9 @@ export function ApiKeys() {
             {!searchTerm.trim() ? (
               <SettingsSection label={t('workspace')}>
                 {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>{t('no_workspace_api_keys_yet')}</div>
+                  <div className='text-[var(--text-muted)] text-sm'>
+                    {t('no_workspace_api_keys_yet')}
+                  </div>
                 ) : (
                   <div className='flex flex-col gap-2'>
                     {workspaceKeys.map((key) => (
@@ -273,7 +275,8 @@ export function ApiKeys() {
               filteredWorkspaceKeys.length === 0 &&
               (personalKeys.length > 0 || workspaceKeys.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  {t('no_api_keys_found_matching')}{searchTerm}"
+                  {t('no_api_keys_found_matching')}
+                  {searchTerm}"
                 </SettingsEmptyState>
               )}
           </div>

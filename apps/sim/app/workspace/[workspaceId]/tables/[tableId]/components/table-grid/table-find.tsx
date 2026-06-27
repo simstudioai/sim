@@ -2,9 +2,9 @@
 
 import type React from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, ChipInput } from '@/components/emcn'
 import { Loader, X } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 export interface TableFindProps {
   query: string

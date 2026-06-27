@@ -16,6 +16,7 @@ import {
 import { generateId } from '@sim/utils/id'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/emcn/components/button/button'
 import { Chip } from '@/components/emcn/components/chip/chip'
@@ -30,7 +31,6 @@ import { CircleInfo } from '@/components/emcn/icons/circle-info'
 import { TriangleAlert } from '@/components/emcn/icons/triangle-alert'
 import { X } from '@/components/emcn/icons/x'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 const AUTO_DISMISS_MS = 5000
 

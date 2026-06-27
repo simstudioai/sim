@@ -3,13 +3,13 @@
 import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),

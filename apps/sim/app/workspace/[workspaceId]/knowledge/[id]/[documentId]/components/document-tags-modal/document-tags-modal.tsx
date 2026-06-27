@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -26,7 +27,6 @@ import {
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-definitions'
 import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DocumentTagsModal')
 

@@ -2,6 +2,7 @@
 
 import { format, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Check,
   Chip,
@@ -12,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import type { CalendarScope } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
-import { useTranslations } from 'next-intl'
 
 const SCOPE_OPTIONS: { value: CalendarScope; label: string }[] = [
   { value: 'day', label: 'Day' },

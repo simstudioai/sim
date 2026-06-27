@@ -1,9 +1,9 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -269,9 +269,7 @@ export default function Pricing() {
           >
             {t('pricing')}
           </h2>
-          <p className='sr-only'>
-            {t('sim_pricing_community_plan_is_free')}
-          </p>
+          <p className='sr-only'>{t('sim_pricing_community_plan_is_free')}</p>
         </div>
 
         <div className='mt-8 grid grid-cols-1 gap-4 sm:mt-10 sm:grid-cols-2 md:mt-12 lg:grid-cols-4'>

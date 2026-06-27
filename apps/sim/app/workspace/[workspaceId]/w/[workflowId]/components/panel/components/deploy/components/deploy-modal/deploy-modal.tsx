@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -65,7 +66,6 @@ import {
   McpDeploy,
 } from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DeployModal')
 

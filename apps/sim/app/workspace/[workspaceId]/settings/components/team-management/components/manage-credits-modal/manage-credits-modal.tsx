@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -15,7 +16,6 @@ import {
   useOrganizationMemberUsageLimit,
   useUpdateOrganizationMemberUsageLimit,
 } from '@/hooks/queries/organization'
-import { useTranslations } from 'next-intl'
 
 export interface ManageCreditsTarget {
   userId: string

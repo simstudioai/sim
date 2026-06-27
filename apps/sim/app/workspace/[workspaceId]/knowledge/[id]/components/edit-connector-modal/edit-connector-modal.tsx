@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ExternalLink, RotateCcw } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,
@@ -37,7 +38,6 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -436,8 +436,14 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   return (
     <div className='flex flex-col gap-3 px-2'>
       <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
-        <ButtonGroupItem value='active'>{t('active')}{counts.active})</ButtonGroupItem>
-        <ButtonGroupItem value='excluded'>{t('excluded')}{counts.excluded})</ButtonGroupItem>
+        <ButtonGroupItem value='active'>
+          {t('active')}
+          {counts.active})
+        </ButtonGroupItem>
+        <ButtonGroupItem value='excluded'>
+          {t('excluded')}
+          {counts.excluded})
+        </ButtonGroupItem>
       </ButtonGroup>
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>

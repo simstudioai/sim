@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -29,7 +30,6 @@ import { captureClientEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LoginForm')
 

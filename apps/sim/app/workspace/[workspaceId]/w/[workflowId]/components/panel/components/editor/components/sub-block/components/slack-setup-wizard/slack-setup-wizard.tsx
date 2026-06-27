@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
 import { Checkbox, Input, Label, SecretInput, Tooltip, Wizard } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -15,7 +16,6 @@ import {
   type SlackCapability,
   type SlackCapabilityGroup,
 } from '@/triggers/slack/capabilities'
-import { useTranslations } from 'next-intl'
 
 const DEFAULT_APP_NAME = 'Sim Workflow Bot'
 
@@ -326,10 +326,12 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
           .
         </SubStep>
         <SubStep n={3}>
-          {t('click')} <strong>{t('create_new_app')}</strong> → <strong>{t('from_a_manifest')}</strong> {t('and_pick_your_workspace')}
+          {t('click')} <strong>{t('create_new_app')}</strong> →{' '}
+          <strong>{t('from_a_manifest')}</strong> {t('and_pick_your_workspace')}
         </SubStep>
         <SubStep n={4}>
-          {t('paste_your_manifest_then_click')} <strong>{t('next')}</strong> → <strong>{t('create')}</strong>.
+          {t('paste_your_manifest_then_click')} <strong>{t('next')}</strong> →{' '}
+          <strong>{t('create')}</strong>.
         </SubStep>
       </SubStepList>
     </div>
@@ -352,7 +354,9 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
           {t('in_your_new_slack_app_open')} <strong>{t('basic_information')}</strong>.
         </SubStep>
         <SubStep n={2}>
-          {t('find')} <strong>{t('signing_secret')}</strong> {t('and_click')} <strong>{t('show')}</strong>{t('then_copy_it')}
+          {t('find')} <strong>{t('signing_secret')}</strong> {t('and_click')}{' '}
+          <strong>{t('show')}</strong>
+          {t('then_copy_it')}
         </SubStep>
         <SubStep n={3}>{t('paste_it_into_the_field_below')}</SubStep>
       </SubStepList>
@@ -381,10 +385,12 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          {t('in_slack_open')} <strong>{t('install_app')}</strong> → <strong>{t('install_to_workspace')}</strong> {t('and_authorize')}
+          {t('in_slack_open')} <strong>{t('install_app')}</strong> →{' '}
+          <strong>{t('install_to_workspace')}</strong> {t('and_authorize')}
         </SubStep>
         <SubStep n={2}>
-          {t('copy_the')} <strong>{t('bot_user_oauth_token')}</strong> {t('starts_with')} <code>{t('xoxb')}</code>).
+          {t('copy_the')} <strong>{t('bot_user_oauth_token')}</strong> {t('starts_with')}{' '}
+          <code>{t('xoxb')}</code>).
         </SubStep>
         <SubStep n={3}>{t('paste_it_into_the_field_below')}</SubStep>
       </SubStepList>
@@ -449,7 +455,9 @@ function StepDone({ hasSigningSecret, hasBotToken }: StepDoneProps) {
         <StatusRow label={t('signing_secret')} ok={hasSigningSecret} />
         <StatusRow label={t('bot_token')} ok={hasBotToken} />
       </div>
-      <p className='text-[var(--text-secondary)] text-sm'>{t('click_done_and_save_this_workflow')}</p>
+      <p className='text-[var(--text-secondary)] text-sm'>
+        {t('click_done_and_save_this_workflow')}
+      </p>
     </div>
   )
 }

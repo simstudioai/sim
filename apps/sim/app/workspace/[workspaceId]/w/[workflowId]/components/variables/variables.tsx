@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Editor from 'react-simple-code-editor'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -38,7 +39,6 @@ import {
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useTranslations } from 'next-intl'
 
 /**
  * Type options for variable type selection

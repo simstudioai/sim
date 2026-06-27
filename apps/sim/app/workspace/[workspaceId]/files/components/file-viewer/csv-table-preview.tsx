@@ -1,12 +1,12 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
-import { useTranslations } from 'next-intl'
 
 /**
  * Read-only preview for a CSV that is too large to load fully into the editor. Streams only the

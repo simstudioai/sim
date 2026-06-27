@@ -2,11 +2,11 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { InputOTP, InputOTPGroup, InputOTPSlot, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
-import { useTranslations } from 'next-intl'
 
 interface VerifyContentProps {
   hasEmailService: boolean

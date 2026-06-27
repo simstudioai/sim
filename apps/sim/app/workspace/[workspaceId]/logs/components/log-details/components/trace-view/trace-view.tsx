@@ -13,6 +13,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Badge,
@@ -47,7 +48,6 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { useTranslations } from 'next-intl'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -360,7 +360,8 @@ const TraceTreeRow = memo(function TraceTreeRow({
               </span>
               {pctOfTotal !== null && pctOfTotal >= 0.1 && (
                 <span className='text-[var(--text-tertiary)] text-caption'>
-                  {pctOfTotal.toFixed(pctOfTotal >= 10 ? 0 : 1)}{t('of_total')}
+                  {pctOfTotal.toFixed(pctOfTotal >= 10 ? 0 : 1)}
+                  {t('of_total')}
                   {pctOfParent !== null &&
                     pctOfParent >= 0.1 &&
                     ` · ${pctOfParent.toFixed(pctOfParent >= 10 ? 0 : 1)}% of parent`}
@@ -763,7 +764,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
           isError={isDirectError}
         />
       )}
-      {span.thinking && <DetailCodeSection key='thinking' label={t('thinking')} data={span.thinking} />}
+      {span.thinking && (
+        <DetailCodeSection key='thinking' label={t('thinking')} data={span.thinking} />
+      )}
       {span.modelToolCalls && span.modelToolCalls.length > 0 && (
         <DetailCodeSection key='tool-calls' label={t('tool_calls')} data={span.modelToolCalls} />
       )}
@@ -1083,7 +1086,9 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           role='tree'
         >
           {flatList.length === 0 && (
-            <div className='p-3 text-[var(--text-tertiary)] text-caption'>{t('no_matching_spans')}</div>
+            <div className='p-3 text-[var(--text-tertiary)] text-caption'>
+              {t('no_matching_spans')}
+            </div>
           )}
           {flatList.map((entry) => {
             const id = getSpanId(entry.span)

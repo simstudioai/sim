@@ -1,12 +1,12 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { Button, Checkbox } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
 import type { DisplayColumn } from './types'
-import { useTranslations } from 'next-intl'
 
 export const TableColGroup = React.memo(function TableColGroup({
   columns,

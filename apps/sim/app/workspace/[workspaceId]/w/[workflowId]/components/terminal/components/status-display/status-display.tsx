@@ -1,9 +1,9 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
-import { useTranslations } from 'next-intl'
 
 /**
  * Running badge component - displays a consistent "Running" indicator

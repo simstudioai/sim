@@ -13,6 +13,7 @@ import {
   Unlock,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -58,7 +59,6 @@ import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useTranslations } from 'next-intl'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>

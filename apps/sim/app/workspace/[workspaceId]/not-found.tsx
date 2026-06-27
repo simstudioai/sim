@@ -3,10 +3,10 @@
 import { Compass } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button, buttonVariants } from '@/components/emcn'
 import { ArrowLeft, Home } from '@/components/emcn/icons'
 import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
-import { useTranslations } from 'next-intl'
 
 export default function WorkspaceNotFound() {
   const t = useTranslations('auto')

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChipInput,
@@ -24,7 +25,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { useMcpServerTest } from '@/hooks/queries/mcp'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpServerFormModal')
 

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
@@ -67,7 +68,6 @@ import {
 } from './search-params'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Table')
 

@@ -4,6 +4,7 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
@@ -55,7 +56,6 @@ import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/ter
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FloatingChat')
 

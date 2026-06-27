@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -15,7 +16,6 @@ import {
   SecretReveal,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateApiKeyModal')
 

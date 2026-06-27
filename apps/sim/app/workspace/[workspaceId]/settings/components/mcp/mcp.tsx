@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { Badge, Button, Chip, ChipConfirmModal, Tooltip } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
@@ -45,7 +46,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { McpServerFormModal } from './components'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpSettings')
 
@@ -438,7 +438,9 @@ export function MCP() {
 
                 {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
                   <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>{t('authentication')}</span>
+                    <span className='text-[12px] text-[var(--text-muted)]'>
+                      {t('authentication')}
+                    </span>
                     <div>
                       <Chip
                         variant='primary'
@@ -657,7 +659,9 @@ export function MCP() {
             })}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                {t('no_servers_found_matching_quot')}{searchTerm}{t('quot')}
+                {t('no_servers_found_matching_quot')}
+                {searchTerm}
+                {t('quot')}
               </SettingsEmptyState>
             )}
           </div>

@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -10,7 +11,6 @@ import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
-import { useTranslations } from 'next-intl'
 
 export type CellRenderKind =
   // Workflow-output cells

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { toast, useToast } from '@/components/emcn'
 import { Loader, TableX } from '@/components/emcn/icons'
@@ -68,7 +69,6 @@ import {
   rowSelectionIsEmpty,
   rowSelectionMaterialize,
 } from './utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('TableView')
 
@@ -3558,7 +3558,9 @@ export function TableGrid({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <TableX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>{tI18n('table_not_found')}</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
+            {tI18n('table_not_found')}
+          </h2>
           <p className='text-[var(--text-muted)] text-small'>
             {tI18n('this_table_may_have_been_deleted')}
           </p>

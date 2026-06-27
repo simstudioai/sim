@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ReactFlowProvider } from 'reactflow'
 import {
   Badge,
@@ -51,7 +52,6 @@ import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 /**
  * CSS override to show full opacity and prevent interaction in readonly preview mode.
@@ -1148,7 +1148,9 @@ function PreviewEditorContent({
           </span>
         </div>
         <div className='p-3'>
-          <p className='text-[var(--text-secondary)] text-small'>{t('block_configuration_not_found')}</p>
+          <p className='text-[var(--text-secondary)] text-small'>
+            {t('block_configuration_not_found')}
+          </p>
         </div>
       </div>
     )
@@ -1555,7 +1557,12 @@ function PreviewEditorContent({
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label={t('close_search')}>
+          <Button
+            variant='ghost'
+            className='!p-1'
+            onClick={closeSearch}
+            aria-label={t('close_search')}
+          >
             <X className='size-[12px]' />
           </Button>
         </div>

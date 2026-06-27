@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -46,7 +47,6 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FolderItem')
 

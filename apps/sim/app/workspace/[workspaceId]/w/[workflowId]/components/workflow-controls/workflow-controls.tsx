@@ -3,6 +3,7 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Scan } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useReactFlow } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -28,7 +29,6 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowControls')
 

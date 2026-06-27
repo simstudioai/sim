@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowUp, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -8,7 +9,6 @@ import {
   SEND_BUTTON_BASE,
   SEND_BUTTON_DISABLED,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
-import { useTranslations } from 'next-intl'
 
 interface SendButtonProps {
   isSending: boolean

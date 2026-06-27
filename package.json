@@ -15,6 +15,7 @@
     "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
     "dev:full:capped": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev:capped\" \"cd apps/realtime && bun run dev\"",
     "test": "turbo run test",
+    "integrate": "bun run packages/universal-integrator/src/index.ts",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "lint": "turbo run lint",

@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -42,7 +43,6 @@ import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useTranslations } from 'next-intl'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata

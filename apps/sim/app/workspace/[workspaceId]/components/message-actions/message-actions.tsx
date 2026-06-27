@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Check,
   ChipModal,
@@ -21,7 +22,6 @@ import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/ch
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
-import { useTranslations } from 'next-intl'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
 
@@ -240,7 +240,9 @@ export const MessageActions = memo(function MessageActions({
         onOpenChange={handleModalClose}
         srTitle='Give feedback'
       >
-        <ChipModalHeader onClose={() => handleModalClose(false)}>{t('give_feedback')}</ChipModalHeader>
+        <ChipModalHeader onClose={() => handleModalClose(false)}>
+          {t('give_feedback')}
+        </ChipModalHeader>
         <ChipModalBody>
           <div className='flex items-start justify-between gap-2 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>

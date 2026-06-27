@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Calendar,
   ChipModal,
@@ -20,7 +21,6 @@ import type {
   ScheduledTask,
   ScheduledTaskStatus,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
-import { useTranslations } from 'next-intl'
 
 /**
  * Plaintext copy per task state: the status label and the verb that titles the

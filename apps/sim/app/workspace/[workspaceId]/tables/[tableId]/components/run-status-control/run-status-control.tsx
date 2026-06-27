@@ -1,9 +1,9 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { Loader, Square } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface RunStatusControlProps {
   running: number

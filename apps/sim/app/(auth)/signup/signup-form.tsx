@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { Input, Label, Loader } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
@@ -17,7 +18,6 @@ import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SignupForm')
 
@@ -622,7 +622,9 @@ export default function SignupPage({
 }: SignupFormProps) {
   const t = useTranslations('auto')
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}>
+    <Suspense
+      fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}
+    >
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

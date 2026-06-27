@@ -1,6 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -15,7 +16,6 @@ import {
 } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
-import { useTranslations } from 'next-intl'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -59,7 +59,9 @@ export function NewColumnDropdown({
             disabled={disabled}
           >
             <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>{t('new_column')}</span>
+            <span className='font-medium text-[var(--text-body)] text-small'>
+              {t('new_column')}
+            </span>
           </button>
         )}
       </DropdownMenuTrigger>

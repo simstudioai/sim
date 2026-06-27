@@ -1,9 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
-import { useTranslations } from 'next-intl'
 
 interface ChatErrorStateProps {
   error: string

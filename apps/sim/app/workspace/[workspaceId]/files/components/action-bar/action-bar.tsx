@@ -1,6 +1,7 @@
 'use client'
 
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   DropdownMenu,
@@ -16,7 +17,6 @@ import { Download } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
-import { useTranslations } from 'next-intl'
 
 interface FilesActionBarProps {
   selectedCount: number

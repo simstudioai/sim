@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   Calendar,
   ChipConfirmModal,
@@ -9,7 +10,6 @@ import {
   ChipModalHeader,
 } from '@/components/emcn'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
-import { useTranslations } from 'next-intl'
 
 interface TaskDeleteDialogProps {
   /** The task targeted for deletion, or `null` to keep the dialog closed. */

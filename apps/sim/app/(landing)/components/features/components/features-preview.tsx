@@ -4,6 +4,7 @@ import { type SVGProps, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m, useInView } from 'framer-motion'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+import { useTranslations } from 'next-intl'
 import { ChevronDown } from '@/components/emcn'
 import { Database, File, Library, Table, Workflow } from '@/components/emcn/icons'
 import {
@@ -18,7 +19,6 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -885,7 +885,10 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
               <div key={i} className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}>
                 <div className='flex items-center justify-between'>
                   <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
-                  <span className='font-medium text-[#999] text-[11px]'>{span.ms}{t('ms')}</span>
+                  <span className='font-medium text-[#999] text-[11px]'>
+                    {span.ms}
+                    {t('ms')}
+                  </span>
                 </div>
                 <div className='h-[4px] w-full overflow-hidden rounded-full bg-[#F0F0F0]'>
                   <div

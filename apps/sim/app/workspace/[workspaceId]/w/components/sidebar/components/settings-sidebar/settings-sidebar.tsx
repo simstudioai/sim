@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, ChipConfirmModal, chipVariants } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -29,7 +30,6 @@ import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/s
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-import { useTranslations } from 'next-intl'
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -263,7 +263,9 @@ export function SettingsSidebar({
             <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='size-[10px] rotate-90' />
             </div>
-            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>{t('back')}</span>
+            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>
+              {t('back')}
+            </span>
           </button>
         </SidebarTooltip>
       </div>

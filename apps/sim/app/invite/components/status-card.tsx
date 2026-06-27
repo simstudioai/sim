@@ -1,10 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
-import { useTranslations } from 'next-intl'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'

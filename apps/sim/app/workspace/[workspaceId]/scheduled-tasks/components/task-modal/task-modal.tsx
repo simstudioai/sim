@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Calendar,
   ChipDatePicker,
@@ -26,7 +27,6 @@ import {
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import type { ChatContext } from '@/stores/panel'
-import { useTranslations } from 'next-intl'
 
 const DEFAULT_TIME = '09:00'
 const PAST_LAUNCH_MESSAGE = "You can't schedule a one-time task in the past"

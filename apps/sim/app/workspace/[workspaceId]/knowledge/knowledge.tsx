@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import type { ChipDropdownOption } from '@/components/emcn'
 import { Button, ChipDropdown, Plus, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
@@ -39,7 +40,6 @@ import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Knowledge')
 

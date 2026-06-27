@@ -1,8 +1,8 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Button, Combobox, Input } from '@/components/emcn'
 import type { WorkflowSearchReplacementOption } from '@/lib/workflows/search-replace/types'
-import { useTranslations } from 'next-intl'
 
 interface ReplacementControlsProps {
   replacement: string
@@ -59,7 +59,8 @@ export function ReplacementControls({
 
       <div className='flex items-center justify-between gap-2'>
         <span className='text-[var(--text-muted)] text-xs'>
-          {eligibleCount} {t('replaceable_match')}{eligibleCount === 1 ? '' : 'es'}
+          {eligibleCount} {t('replaceable_match')}
+          {eligibleCount === 1 ? '' : 'es'}
         </span>
         <div className='flex gap-1.5'>
           <Button

@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,6 @@ import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
-import { useTranslations } from 'next-intl'
 
 /** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
  *  group-header options menu and the inline quick-run dropdown so the two
@@ -447,7 +447,9 @@ export function WorkflowGroupMetaCell({
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onSelect={handleRunAll}>{t('run_all_rows')}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleRunIncomplete}>{t('run_empty_rows')}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunIncomplete}>
+                {t('run_empty_rows')}
+              </DropdownMenuItem>
               {LIMITED_RUN_PRESETS.map((max) => (
                 <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
                   {`Run ${max.toLocaleString()} empty rows`}

@@ -3,6 +3,7 @@
 import { type ComponentType, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { debounce, useQueryStates } from 'nuqs'
 import {
   ArrowRight,
@@ -34,7 +35,6 @@ import {
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
-import { useTranslations } from 'next-intl'
 
 /** Debounce window for `search` URL writes; the input itself stays instant. */
 const SEARCH_DEBOUNCE_MS = 300 as const

@@ -2,10 +2,10 @@
 
 import type React from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { useTranslations } from 'next-intl'
 import { Button, Tooltip } from '@/components/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface TableActionBarProps {
   /** Number of (row × group) cells the run/stop buttons would target. Drives

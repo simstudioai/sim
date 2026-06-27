@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -11,7 +12,6 @@ import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-bu
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EmailAuth')
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDateTime } from '@sim/utils/formatting'
 import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Input,
@@ -18,7 +19,6 @@ import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persiste
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
-import { useTranslations } from 'next-intl'
 
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
 const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
@@ -275,7 +275,9 @@ export function Versions({
                         <span className='shrink-0 text-[var(--text-tertiary)]'>{t('live')}</span>
                       )}
                       {isSelected && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>{t('selected')}</span>
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>
+                          {t('selected')}
+                        </span>
                       )}
                     </span>
                   )}

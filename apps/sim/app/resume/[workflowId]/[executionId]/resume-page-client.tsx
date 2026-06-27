@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -37,7 +38,6 @@ import {
   useResumeContext,
   useResumeExecutionDetail,
 } from '@/hooks/queries/resume-execution'
-import { useTranslations } from 'next-intl'
 
 interface NormalizedInputField {
   id: string
@@ -828,7 +828,9 @@ export default function ResumeExecutionPage({
                     borderRadius: '8px',
                   }}
                 >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{t('loading')}</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    {t('loading')}
+                  </span>
                 </div>
               ) : !selectedContextId ? (
                 <div
@@ -886,7 +888,8 @@ export default function ResumeExecutionPage({
                       <StatusBadge status={selectedStatus} />
                       {queuePosition && queuePosition > 0 && (
                         <Badge variant='gray' size='sm'>
-                          {t('queue')}{queuePosition}
+                          {t('queue')}
+                          {queuePosition}
                         </Badge>
                       )}
                     </div>

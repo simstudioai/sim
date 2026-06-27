@@ -1,8 +1,8 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Check, ChipTag, Credit, chipVariants, Info, RefreshCw } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 /**
  * Props for {@link UpgradePlanCard}.

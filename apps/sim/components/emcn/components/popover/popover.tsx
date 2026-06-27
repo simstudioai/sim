@@ -53,9 +53,9 @@ import * as React from 'react'
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
@@ -1053,7 +1053,7 @@ interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size, colorScheme } =
       usePopoverContext()
 

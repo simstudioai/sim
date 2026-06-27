@@ -1,9 +1,9 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -42,9 +42,7 @@ export default function Hero() {
       itemType='https://schema.org/WebApplication'
       className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
     >
-      <p className='sr-only'>
-        {t('sim_is_the_open_source_ai')}
-      </p>
+      <p className='sr-only'>{t('sim_is_the_open_source_ai')}</p>
 
       <div className='relative z-10 flex flex-col items-center gap-3'>
         <h1

@@ -3,6 +3,7 @@
 import { type ComponentType, type CSSProperties, useMemo, useState } from 'react'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import {
   ArrowRight,
@@ -29,7 +30,6 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useTranslations } from 'next-intl'
 
 type Icon = ComponentType<{ className?: string; style?: CSSProperties }>
 

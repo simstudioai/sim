@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +10,6 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Database, Download, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface TableContextMenuProps {
   isOpen: boolean

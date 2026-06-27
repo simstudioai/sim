@@ -1,9 +1,9 @@
 'use client'
 
 import { CheckCircle2, Circle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import type { ValidationRuleResult } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface ValidationChecklistProps {
   results: ValidationRuleResult[]

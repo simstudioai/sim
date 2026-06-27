@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Calendar, Plus } from '@/components/emcn'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
@@ -20,7 +21,6 @@ import { visibleRange } from '@/app/workspace/[workspaceId]/scheduled-tasks/util
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useTimezone } from '@/hooks/queries/general-settings'
-import { useTranslations } from 'next-intl'
 
 export function ScheduledTasks() {
   const t = useTranslations('auto')

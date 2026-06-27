@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
@@ -28,7 +29,6 @@ import {
 import { TextEditor } from './text-editor'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 import { XlsxPreview } from './xlsx-preview'
-import { useTranslations } from 'next-intl'
 
 const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
   ssr: false,
@@ -407,11 +407,10 @@ const UnsupportedPreview = memo(function UnsupportedPreview({
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        {t('preview_not_available')}{ext ? ` for .${ext} files` : ' for this file'}
+        {t('preview_not_available')}
+        {ext ? ` for .${ext} files` : ' for this file'}
       </p>
-      <p className='text-[13px] text-[var(--text-muted)]'>
-        {t('use_the_download_button_to_view')}
-      </p>
+      <p className='text-[13px] text-[var(--text-muted)]'>{t('use_the_download_button_to_view')}</p>
     </div>
   )
 })

@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { CalendarDayCell } from '@/components/emcn/components/calendar/calendar-day-cell'
 import { Chip, chipVariants } from '@/components/emcn/components/chip/chip'
 import { chipContentLabelClass } from '@/components/emcn/components/chip/chip-chrome'
 import { ChipTimePicker } from '@/components/emcn/components/chip-time-picker/chip-time-picker'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 const MONTHS = [
   'January',

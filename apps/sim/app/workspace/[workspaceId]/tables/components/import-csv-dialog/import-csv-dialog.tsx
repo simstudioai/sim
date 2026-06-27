@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,
@@ -33,7 +34,6 @@ import {
   useImportCsvIntoTableAsync,
 } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ImportCsvDialog')
 
@@ -496,7 +496,8 @@ export function ImportCsvDialog({
 
             {mode === 'replace' && !hasWarning && (
               <ChipModalError>
-                {t('replace_will_permanently_delete_the')} {table.rowCount.toLocaleString()} {t('existing_row_s_before_inserting_the')}
+                {t('replace_will_permanently_delete_the')} {table.rowCount.toLocaleString()}{' '}
+                {t('existing_row_s_before_inserting_the')}
               </ChipModalError>
             )}
 

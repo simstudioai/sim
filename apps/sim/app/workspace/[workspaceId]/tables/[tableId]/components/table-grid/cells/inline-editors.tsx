@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/components/calendar/calendar'
 import { cn } from '@/lib/core/utils/cn'
@@ -12,7 +13,6 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../../utils'
-import { useTranslations } from 'next-intl'
 
 interface InlineEditorProps {
   value: unknown

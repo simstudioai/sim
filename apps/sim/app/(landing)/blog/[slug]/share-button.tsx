@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Share2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,6 @@ import {
 } from '@/components/emcn'
 import { Duplicate } from '@/components/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
-import { useTranslations } from 'next-intl'
 
 interface ShareButtonProps {
   url: string

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Avatar,
   AvatarFallback,
@@ -15,7 +16,6 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
-import { useTranslations } from 'next-intl'
 
 interface TransferOwnershipDialogProps {
   open: boolean
@@ -151,7 +151,8 @@ export function TransferOwnershipDialog({
             <div className='max-h-[280px] overflow-y-auto rounded-md border border-[var(--border-1)]'>
               {candidates.length === 0 ? (
                 <div className='px-3 py-4 text-center text-[var(--text-muted)] text-small'>
-                  {t('no_members_match')}{search}"
+                  {t('no_members_match')}
+                  {search}"
                 </div>
               ) : (
                 <ul className='divide-y divide-[var(--border-1)]'>

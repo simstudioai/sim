@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button, ChipInput } from '@/components/emcn'
 import { Search, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -9,7 +10,6 @@ import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import { EnrichmentConfig } from './enrichment-config'
-import { useTranslations } from 'next-intl'
 
 interface EnrichmentsSidebarProps {
   open: boolean
@@ -89,7 +89,9 @@ function EnrichmentsSidebarBody({
         </div>
         <div className='flex flex-1 items-center justify-center px-6 text-center'>
           <p className='text-[var(--text-tertiary)] text-small'>
-            {t('this_enrichment')}{editGroup.enrichmentId}{t('is_no_longer_available_delete_the')}
+            {t('this_enrichment')}
+            {editGroup.enrichmentId}
+            {t('is_no_longer_available_delete_the')}
           </p>
         </div>
       </div>
@@ -146,7 +148,9 @@ function EnrichmentsSidebarBody({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 [overflow-anchor:none]'>
         {filtered.length === 0 ? (
-          <p className='px-1 pt-2 text-[var(--text-tertiary)] text-small'>{t('no_enrichments_found')}</p>
+          <p className='px-1 pt-2 text-[var(--text-tertiary)] text-small'>
+            {t('no_enrichments_found')}
+          </p>
         ) : (
           <ul className='flex flex-col'>
             {filtered.map((enrichment) => {

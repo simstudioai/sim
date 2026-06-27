@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
 import { Button, Input, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -46,7 +47,6 @@ import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useTranslations } from 'next-intl'
 
 const SEARCH_PANEL_WIDTH = 360
 const SEARCH_PANEL_COLLAPSED_HEIGHT = 82

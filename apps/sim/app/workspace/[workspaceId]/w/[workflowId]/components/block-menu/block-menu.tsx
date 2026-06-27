@@ -1,6 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -9,7 +10,6 @@ import {
   PopoverItem,
 } from '@/components/emcn'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { useTranslations } from 'next-intl'
 
 /**
  * Block information for context menu actions

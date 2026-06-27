@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Chip,
   ChipConfirmModal,
@@ -23,7 +24,6 @@ import {
   useDeleteCopilotKey,
   useGenerateCopilotKey,
 } from '@/hooks/queries/copilot-keys'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CopilotSettings')
 
@@ -157,7 +157,8 @@ export function Copilot() {
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                {t('no_api_keys_found_matching')}{searchTerm}"
+                {t('no_api_keys_found_matching')}
+                {searchTerm}"
               </SettingsEmptyState>
             )}
           </div>

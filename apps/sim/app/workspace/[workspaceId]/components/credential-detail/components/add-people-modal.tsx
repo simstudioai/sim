@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -19,7 +20,6 @@ import {
 } from '@/hooks/queries/credentials'
 import { ROLE_OPTIONS } from '../roles'
 import { partitionSettledFailures, resolveAddEmail } from '../sharing'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AddPeopleModal')
 

@@ -3,13 +3,13 @@
 import { useCallback, useMemo } from 'react'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, type ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SortRuleRow } from './components/sort-rule-row'
-import { useTranslations } from 'next-intl'
 
 interface SortBuilderProps {
   blockId: string

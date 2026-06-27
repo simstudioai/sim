@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { ChevronDown, Home, Library } from '@/components/emcn'
 import {
   Calendar,
@@ -13,7 +14,6 @@ import {
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
-import { useTranslations } from 'next-intl'
 
 export type SidebarView =
   | 'home'

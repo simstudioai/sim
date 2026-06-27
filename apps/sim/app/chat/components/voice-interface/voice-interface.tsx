@@ -4,6 +4,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { requestJson } from '@/lib/api/client/request'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'
@@ -15,7 +16,6 @@ import {
   MAX_CHAT_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
-import { useTranslations } from 'next-intl'
 
 const ParticlesVisualization = dynamic(
   () =>

@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { PillsRing } from '@/components/emcn'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
-import { useTranslations } from 'next-intl'
 
 interface GenericResourceContentProps {
   data: GenericResourceData

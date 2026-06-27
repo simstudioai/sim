@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ArrowRight,
   Button,
@@ -42,7 +43,6 @@ import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useTranslations } from 'next-intl'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 

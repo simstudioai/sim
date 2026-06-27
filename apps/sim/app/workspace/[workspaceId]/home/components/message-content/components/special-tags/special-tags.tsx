@@ -2,6 +2,7 @@
 
 import { createElement, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ArrowRight,
   ChevronDown,
@@ -21,7 +22,6 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useTranslations } from 'next-intl'
 
 export interface OptionsItemData {
   title: string
@@ -635,7 +635,9 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
         className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
       >
         {createElement(Icon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>{t('connect')} {data.provider}</span>
+        <span className='flex-1 text-[var(--text-body)] text-sm'>
+          {t('connect')} {data.provider}
+        </span>
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       </a>
     )

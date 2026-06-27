@@ -1,24 +1,24 @@
 ---
-title: Slack-бот для сортировки IT-запросов
-description: Агент, который следит за каналом Slack, классифицирует входящие IT-запросы, отвечает на то, что может, из вашей документации и направляет остальное.
+title: Бот для triage-а проблем в IT-системе Slack
+description: Агент, который следит за каналом Slack, классифицирует входящие запросы в области ИТ, отвечает на вопросы, используя информацию из ваших документов, и перенаправляет остальные запросы.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
 
-<VideoPlaceholder eyebrow="Пример использования" title="Slack-бот для сортировки IT-запросов" className="mt-2" />
+<VideoPlaceholder eyebrow="Use case" title="Slack IT Triage Bot" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Постройте агента, который живёт в канале Slack: он читает каждый входящий IT-запрос, определяет его тип, отвечает на те, на которые может, из вашей внутренней документации и направляет остальные нужному человеку.
+Создайте агента, который будет жить в канале Slack: он будет читать каждое входящее запросы от ИТ-отдела, определять его тип и отвечать на те, на которые у вас есть ответы из внутренних документов, а остальные – перенаправлять нужному специалисту.
 
 <WhatYouWillLearn
   items={[
-    { title: 'Запуск по реальным событиям', body: 'Запускайте воркфлоу из сообщения Slack и читайте его содержимое.' },
-    { title: 'Позвольте агенту решать', body: 'Классифицируйте запрос и направьте его — ответ, эскалация или создание тикета.' },
-    { title: 'Обоснование ответа', body: 'Ищите в базе знаний IT-документов, чтобы ответы были точными и с цитированием.' },
+    { title: 'Trigger on real events', body: 'Start a workflow from a Slack message and read its contents.' },
+    { title: 'Let an agent decide', body: 'Classify the request and route it — answer, escalate, or file a ticket.' },
+    { title: 'Ground the answer', body: 'Search a knowledge base of IT docs so replies are accurate and cited.' },
   ]}
 />
 
@@ -26,18 +26,17 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 
 <VideoChapters
   chapters={[
-    { title: 'Проблема', time: '0:00' },
-    { title: 'Триггер Slack', time: '0:30' },
-    { title: 'Классификация и маршрутизация', time: '1:10' },
-    { title: 'Ответ из документации', time: '2:00' },
-    { title: 'Эскалация остального', time: '2:50' },
+    { title: 'The problem', time: '0:00' },
+    { title: 'Slack trigger', time: '0:30' },
+    { title: 'Classify and route', time: '1:10' },
+    { title: 'Answer from the docs', time: '2:00' },
+    { title: 'Escalate the rest', time: '2:50' },
   ]}
 />
 
 </div>
 
-## Что вы построите
+## Что вы создадите
+**Триггер Slack** запускает рабочий процесс при получении каждого нового сообщения. Блок "**Agent**" классифицирует запрос и определяет дальнейший путь: поиск в базе знаний предлагает ответ на распространенные вопросы, а все, что не может быть решено автоматически, передается человеку или оформляется как задача. Каждый запуск записывается в[журналы](/logs-debugging)журналы/журнал отладки.
 
-**Триггер Slack** запускает воркфлоу при каждом новом сообщении. Блок **Agent** классифицирует запрос и выбирает путь: **поиск по базе знаний** составляет ответ для типовых вопросов, а всё, что он не может решить, направляется человеку или оформляется как тикет. Каждый запуск записывается в [логах](/logs-debugging).
-
-Это объединяет [воркфлоу](/academy/workflows/intro), [агентов](/academy/agents/intro) и [базы знаний](/academy/knowledge-bases/intro) в одну систему — основы, скомпонованные вместе.
+Это объединяет[рабочие процессы](/academy/workflows/intro)рабочие процессы/курсы/рабочие процессы /введение, [агенты](/academy/agents/intro)агенты/академия/представители/введениеи[базы знаний](/academy/knowledge-bases/intro)базы знаний/академия/базы знаний /введениев одну систему – основные компоненты, собранные вместе.

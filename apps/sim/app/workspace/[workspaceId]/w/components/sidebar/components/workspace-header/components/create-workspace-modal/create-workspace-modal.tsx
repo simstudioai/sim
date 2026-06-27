@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -9,7 +10,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
-import { useTranslations } from 'next-intl'
 
 interface CreateWorkspaceModalProps {
   open: boolean

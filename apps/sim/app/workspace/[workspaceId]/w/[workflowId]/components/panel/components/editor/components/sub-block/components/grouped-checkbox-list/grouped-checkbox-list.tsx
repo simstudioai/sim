@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Settings2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Checkbox,
@@ -15,7 +16,6 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { useTranslations } from 'next-intl'
 
 interface SelectedCountDisplayProps {
   noneSelected: boolean
@@ -27,12 +27,16 @@ function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCoun
   const t = useTranslations('auto')
   if (noneSelected) {
     return (
-      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>{t('none_selected')}</span>
+      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>
+        {t('none_selected')}
+      </span>
     )
   }
   if (allSelected) {
     return (
-      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>{t('all_selected')}</span>
+      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+        {t('all_selected')}
+      </span>
     )
   }
   return (
@@ -148,7 +152,9 @@ export function GroupedCheckboxList({
         />
       </Button>
       <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
-        <ChipModalHeader onClose={() => setOpen(false)}>{t('select_pii_types_to_detect')}</ChipModalHeader>
+        <ChipModalHeader onClose={() => setOpen(false)}>
+          {t('select_pii_types_to_detect')}
+        </ChipModalHeader>
         <ChipModalBody onWheel={(e) => e.stopPropagation()}>
           <ChipModalField
             type='custom'
@@ -178,7 +184,8 @@ export function GroupedCheckboxList({
               </div>
               <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
                 <span className='flex items-center gap-1'>
-                  {t('clear')}{!noneSelected && <span>({selectedValues.length})</span>}
+                  {t('clear')}
+                  {!noneSelected && <span>({selectedValues.length})</span>}
                 </span>
               </Button>
             </div>

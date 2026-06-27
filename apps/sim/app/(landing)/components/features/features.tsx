@@ -11,10 +11,10 @@ import {
 } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -187,9 +187,7 @@ export default function Features() {
             >
               {t('workspace')}
             </Badge>
-            <p className='sr-only'>
-              {t('sim_s_workspace_includes_four_core')}
-            </p>
+            <p className='sr-only'>{t('sim_s_workspace_includes_four_core')}</p>
             <h2
               id='features-heading'
               className='max-w-[900px] text-balance font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[36px]'

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import { ChipDropdown, ChipInput, Search, toast } from '@/components/emcn'
 import {
   type OrgRole,
@@ -40,7 +41,6 @@ import {
   useUpdateInvitation,
   useUpdateOrganizationMemberRole,
 } from '@/hooks/queries/organization'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('OrganizationMemberLists')
 

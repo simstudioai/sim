@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { AlertTriangle, Check } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -39,7 +40,6 @@ import {
   hasExistingPassword,
   isPasswordRequired,
 } from './utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ChatDeploy')
 

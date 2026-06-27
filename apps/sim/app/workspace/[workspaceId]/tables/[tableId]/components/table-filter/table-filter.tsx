@@ -2,13 +2,13 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { generateShortId } from '@sim/utils/id'
+import { useTranslations } from 'next-intl'
 import { Button, ChipDropdown, ChipInput } from '@/components/emcn'
 import { Plus, X } from '@/components/emcn/icons'
 import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
-import { useTranslations } from 'next-intl'
 
 interface TableFilterProps {
   columns: ColumnDefinition[]
@@ -153,7 +153,9 @@ const FilterRuleRow = memo(function FilterRuleRow({
   return (
     <div className='flex items-center gap-1.5'>
       {isFirst ? (
-        <span className='w-[42px] shrink-0 text-right text-[var(--text-muted)] text-xs'>{t('where')}</span>
+        <span className='w-[42px] shrink-0 text-right text-[var(--text-muted)] text-xs'>
+          {t('where')}
+        </span>
       ) : (
         <button
           onClick={() => onToggleLogical(rule.id)}

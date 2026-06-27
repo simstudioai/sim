@@ -1,8 +1,8 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { ChipSwitch, ChipTag } from '@/components/emcn'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
-import { useTranslations } from 'next-intl'
 
 /**
  * Props for {@link BillingPeriodToggle}.

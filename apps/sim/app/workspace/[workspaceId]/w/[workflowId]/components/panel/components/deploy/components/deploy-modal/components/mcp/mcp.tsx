@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -34,7 +35,6 @@ import {
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpToolDeploy')
 
@@ -582,7 +582,8 @@ export function McpDeploy({
       {inputFormat.length > 0 && (
         <div>
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            {t('parameters')}{inputFormat.length})
+            {t('parameters')}
+            {inputFormat.length})
           </Label>
           <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
             {t('descriptions_default_to_your_start_block')}

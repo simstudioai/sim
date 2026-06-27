@@ -4,11 +4,11 @@ import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
-import { useTranslations } from 'next-intl'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },

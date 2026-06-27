@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -12,7 +13,6 @@ import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
-import { useTranslations } from 'next-intl'
 
 const FILE_SUBAGENT_ID = 'file'
 

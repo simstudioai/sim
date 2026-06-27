@@ -1,8 +1,8 @@
 'use client'
 
 import { ArrowLeft } from 'lucide-react'
-import { ChipLink } from '@/components/emcn'
 import { useTranslations } from 'next-intl'
+import { ChipLink } from '@/components/emcn'
 
 interface IntegrationBlockFallbackProps {
   workspaceId: string

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -18,7 +19,6 @@ import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/ski
 import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
-import { useTranslations } from 'next-intl'
 
 const RichMarkdownField = dynamic(
   () =>

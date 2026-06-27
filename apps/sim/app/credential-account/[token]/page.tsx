@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -16,7 +17,6 @@ import { listOAuthConnectionsContract } from '@/lib/api/contracts/oauth-connecti
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CredentialAccount')
 
@@ -254,7 +254,10 @@ export default function CredentialAccountInvitePage() {
             {t('you_ve_been_invited_to_join')} {invitation?.credentialSetName} {t('by')}{' '}
             {invitation?.organizationName}.
             {invitation?.providerId && (
-              <> {t('you_ll_be_asked_to_connect')} {providerWithIcon} {t('account_after_accepting')}</>
+              <>
+                {' '}
+                {t('you_ll_be_asked_to_connect')} {providerWithIcon} {t('account_after_accepting')}
+              </>
             )}
           </>
         }

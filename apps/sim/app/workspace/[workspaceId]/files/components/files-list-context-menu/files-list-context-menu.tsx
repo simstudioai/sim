@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { FolderPlus, Plus, Upload } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface FilesListContextMenuProps {
   isOpen: boolean

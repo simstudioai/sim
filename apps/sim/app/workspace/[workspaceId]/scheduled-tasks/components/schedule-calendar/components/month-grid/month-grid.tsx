@@ -1,6 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
+import { useTranslations } from 'next-intl'
 import { chipPrimaryFillTokens } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { CalendarEventChip } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-event-chip'
@@ -14,7 +15,6 @@ import {
   dayKey,
   type ScheduledTask,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
-import { useTranslations } from 'next-intl'
 
 /**
  * Lines of task content a month day cell shows before collapsing the rest

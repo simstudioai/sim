@@ -1,10 +1,10 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
-import { useTranslations } from 'next-intl'
 
 export default function TableError({ error, reset }: ErrorBoundaryProps) {
   const t = useTranslations('auto')

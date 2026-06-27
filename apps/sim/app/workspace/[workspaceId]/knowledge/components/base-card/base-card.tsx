@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { formatAbsoluteDate, formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -11,7 +12,6 @@ import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { DeleteKnowledgeBaseModal } from '../delete-knowledge-base-modal/delete-knowledge-base-modal'
 import { EditKnowledgeBaseModal } from '../edit-knowledge-base-modal/edit-knowledge-base-modal'
 import { KnowledgeBaseContextMenu } from '../knowledge-base-context-menu/knowledge-base-context-menu'
-import { useTranslations } from 'next-intl'
 
 interface BaseCardProps {
   id?: string

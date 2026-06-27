@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -13,7 +14,6 @@ import {
   Switch,
 } from '@/components/emcn'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InboxEnableToggle')
 
@@ -80,7 +80,9 @@ export function InboxEnableToggle() {
       </div>
 
       <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
-        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>{t('enable_email_inbox')}</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>
+          {t('enable_email_inbox')}
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             {t('an_email_address_will_be_created')}

@@ -2,13 +2,13 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import '@/components/emcn/components/code/code.css'
+import { useTranslations } from 'next-intl'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
-import { useTranslations } from 'next-intl'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
 

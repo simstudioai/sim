@@ -1,6 +1,6 @@
 ---
 title: Начало работы
-description: Базовый URL, первый вызов API, формат ответа, обработка ошибок и пагинация
+description: Базовый URL, первый вызов API, формат ответа, обработка ошибок и постраничная навигация.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,43 +8,41 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 
 ## Базовый URL
-
-Все запросы к API выполняются по адресу:
+Все запросы к API направляются на:
 
 ```
 https://www.sim.ai
 ```
 
 ## Быстрый старт
-
 <Steps>
 
 <Step>
-### Получите ваш API-ключ
+### Get your API key
 
-Перейдите на платформу Sim, откройте **Settings**, затем перейдите в **Sim Keys** и нажмите **Create**. Подробнее о типах ключей см. в разделе [Аутентификация](/api-reference/authentication).
+Go to the Sim platform and navigate to **Settings**, then go to **Sim Keys** and click **Create**. See [Authentication](/api-reference/authentication) for details on key types.
 </Step>
 
 <Step>
-### Найдите ID вашего рабочего процесса
+### Find your workflow ID
 
-Откройте рабочий процесс в редакторе Sim. ID рабочего процесса находится в URL:
+Open a workflow in the Sim editor. The workflow ID is in the URL:
 
 ```
 https://www.sim.ai/workspace/{workspaceId}/w/{workflowId}
 ```
 
-Вы также можете использовать эндпоинт [List Workflows](/api-reference/workflows/listWorkflows) для получения всех ID рабочих процессов в рабочей области.
+You can also use the [List Workflows](/api-reference/workflows/listWorkflows) endpoint to get all workflow IDs in a workspace.
 </Step>
 
 <Step>
-### Разверните рабочий процесс
+### Deploy your workflow
 
-Рабочий процесс должен быть развёрнут, прежде чем его можно будет выполнить через API. Нажмите кнопку **Deploy** на панели инструментов редактора или используйте панель управления для управления развёртываниями.
+A workflow must be deployed before it can be executed via the API. Click the **Deploy** button in the editor toolbar, or use the dashboard to manage deployments.
 </Step>
 
 <Step>
-### Выполните первый запрос
+### Make your first request
 
 <Tabs items={['curl', 'TypeScript', 'Python']}>
   <Tab value="curl">
@@ -96,11 +94,10 @@ https://www.sim.ai/workspace/{workspaceId}/w/{workflowId}
 
 </Steps>
 
-## Синхронное и асинхронное выполнение
+## Синхронное выполнение против асинхронного выполнения
+По умолчанию, выполнение рабочих процессов является **синхронным**: API ждет завершения рабочего процесса и возвращает результат напрямую.
 
-По умолчанию выполнение рабочих процессов является **синхронным** — API блокируется до завершения рабочего процесса и возвращает результат напрямую.
-
-Для длительных рабочих процессов используйте **асинхронное выполнение**, передав `async: true`:
+Для длительных рабочих процессов используйте **асинхронное выполнение**, передавая параметр ``async: true``:
 
 ```bash
 curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
@@ -109,7 +106,7 @@ curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
   -d '{"inputs": {}, "async": true}'
 ```
 
-Запрос возвращается немедленно с `jobId` и `statusUrl`:
+Это возвращает результат немедленно с кодами `jobId` и `statusUrl`:
 
 ```json
 {
@@ -121,7 +118,7 @@ curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
 }
 ```
 
-Опрашивайте эндпоинт [Get Job Status](/api-reference/workflows/getJobStatus), пока статус не станет `completed` или `failed`:
+Проведите опрос[Узнать статус работы](/api-reference/workflows/getJobStatus)Узнать статус работы/api-reference/рабочие_процессы/получить_статус_задачиконец, пока статус не станет `completed` или `failed`:
 
 ```bash
 curl https://www.sim.ai/api/jobs/{jobId} \
@@ -129,12 +126,11 @@ curl https://www.sim.ai/api/jobs/{jobId} \
 ```
 
 <Callout type="info">
-  Переходы статуса задания: `queued` → `processing` → `completed` или `failed`. Поле `output` присутствует только при статусе `completed`.
+  Job status transitions follow: `queued` → `processing` → `completed` or `failed`. The `output` field is only present when status is `completed`.
 </Callout>
 
 ## Формат ответа
-
-Успешные ответы включают объект `output` с результатами вашего рабочего процесса и объект `limits` с текущим состоянием лимита запросов и использования:
+Успешные ответы включают объект `output` с результатами вашей работы и объект `limits` с текущим лимитом использования и статусом.
 
 ```json
 {
@@ -168,8 +164,7 @@ curl https://www.sim.ai/api/jobs/{jobId} \
 ```
 
 ## Обработка ошибок
-
-API использует стандартные коды состояния HTTP. Ответы с ошибками включают читаемое сообщение `error`:
+API использует стандартные коды состояния HTTP. Ответы об ошибках содержат понятное для человека сообщение `error`:
 
 ```json
 {
@@ -177,36 +172,28 @@ API использует стандартные коды состояния HTTP
 }
 ```
 
-| Статус | Значение | Что делать |
-| --- | --- | --- |
-| `400` | Неверные параметры запроса | Проверьте массив `details` на наличие конкретных ошибок полей |
-| `401` | Отсутствует или неверный API-ключ | Проверьте заголовок `X-API-Key` |
-| `403` | Доступ запрещён | Убедитесь, что у вас есть разрешение на этот ресурс |
-| `404` | Ресурс не найден | Проверьте, что ID существует и принадлежит вашей рабочей области |
-| `429` | Превышен лимит запросов | Подождите в течение времени, указанного в заголовке `Retry-After` |
-
+|  | Статус | Значение | Что делать? |  || --- | --- | --- |
+|  | `400` | Неверные параметры запроса | Проверьте массив `details` на наличие конкретных ошибок в полях. |  ||  | `401` | Отсутствующий или недействительный ключ API | Проверьте заголовок "`X-API-Key`" |  ||  | `403` | Доступ запрещен | Убедитесь, что у вас есть необходимые разрешения для доступа к этому ресурсу. |  ||  | `404` | Ресурс не найден | Убедитесь, что идентификатор существует и принадлежит вашему рабочему пространству. |  ||  | `429` | Превышен лимит запросов. | Дождитесь указанного времени в заголовке "`Retry-After`" |  |
 <Callout type="info">
-  Используйте эндпоинт [Get Usage Limits](/api-reference/usage/getUsageLimits), чтобы в любое время проверить текущее состояние лимита запросов и использование биллинга.
+  Use the [Get Usage Limits](/api-reference/usage/getUsageLimits) endpoint to check your current rate limit status and billing usage at any time.
 </Callout>
 
-## Лимиты запросов
+## Ограничения по количеству запросов
+Ограничения на количество запросов зависят от вашего тарифного плана и применяются отдельно для синхронных и асинхронных операций. Каждый ответ на запрос включает объект ``limits``, который показывает текущий статус ваших ограничений.
 
-Лимиты запросов зависят от вашего тарифного плана и применяются отдельно к синхронным и асинхронным выполнениям. Каждый ответ выполнения включает объект `limits`, показывающий текущее состояние вашего лимита запросов.
+При ограничении скорости, API возвращает ответ с кодом `429` и заголовком `Retry-After`, который указывает, сколько секунд нужно подождать перед повторной попыткой.
 
-При превышении лимита API возвращает ответ `429` с заголовком `Retry-After`, указывающим, сколько секунд подождать перед повторной попыткой.
-
-## Пагинация
-
-Эндпоинты списков (рабочие процессы, журналы, аудит) используют **курсорную пагинацию**:
+## Разбиение на страницы
+Конечные точки для списков (рабочие процессы, журналы, журналы аудита) используют **страничную навигацию с помощью курсора**:
 
 ```bash
-# Первая страница
+# First page
 curl "https://www.sim.ai/api/v1/logs?limit=20" \
   -H "X-API-Key: YOUR_API_KEY"
 
-# Следующая страница — используйте nextCursor из предыдущего ответа
+# Next page — use the nextCursor from the previous response
 curl "https://www.sim.ai/api/v1/logs?limit=20&cursor=abc123" \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-Ответ включает поле `nextCursor`. Если `nextCursor` отсутствует или равен `null`, вы достигли последней страницы.
+Ответ включает поле ``nextCursor``. Если поле ``nextCursor`` отсутствует или равно ``null``, вы перешли на последнюю страницу.

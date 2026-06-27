@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowUpDown, ListFilter, Plus, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 export interface PreviewColumn {
   id: string

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Avatar,
   AvatarFallback,
@@ -53,7 +54,6 @@ import {
 } from '@/hooks/queries/credential-sets'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EmailPolling')
 
@@ -435,12 +435,16 @@ export function CredentialSets() {
             <SettingsSection label={t('details')}>
               <div className='flex items-center gap-4.5'>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>{t('group_name')}</span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>
+                    {t('group_name')}
+                  </span>
                   <span className='text-[var(--text-secondary)] text-sm'>{viewingSet.name}</span>
                 </div>
                 <div className='h-4 w-px bg-[var(--border)]' />
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>{t('provider')}</span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>
+                    {t('provider')}
+                  </span>
                   <div className='flex items-center gap-1.5'>
                     {getProviderIcon(viewingSet.providerId)}
                     <span className='text-[var(--text-secondary)] text-sm'>
@@ -623,12 +627,11 @@ export function CredentialSets() {
       >
         <div className='relative'>
           {hasNoContent && !canManageCredentialSets ? (
-            <SettingsEmptyState>
-              {t('you_re_not_a_member_of')}
-            </SettingsEmptyState>
+            <SettingsEmptyState>{t('you_re_not_a_member_of')}</SettingsEmptyState>
           ) : hasNoResults ? (
             <SettingsEmptyState variant='inline'>
-              {t('no_results_found_matching')}{searchTerm}"
+              {t('no_results_found_matching')}
+              {searchTerm}"
             </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-4.5'>
@@ -726,7 +729,8 @@ export function CredentialSets() {
                                   {set.name}
                                 </span>
                                 <span className='text-[12px] text-[var(--text-muted)]'>
-                                  {set.memberCount} {t('member')}{set.memberCount !== 1 ? 's' : ''}
+                                  {set.memberCount} {t('member')}
+                                  {set.memberCount !== 1 ? 's' : ''}
                                 </span>
                               </div>
                             </div>
@@ -760,7 +764,9 @@ export function CredentialSets() {
         onOpenChange={handleCloseCreateModal}
         srTitle='Create Polling Group'
       >
-        <ChipModalHeader onClose={handleCloseCreateModal}>{t('create_polling_group')}</ChipModalHeader>
+        <ChipModalHeader onClose={handleCloseCreateModal}>
+          {t('create_polling_group')}
+        </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='input'
@@ -789,7 +795,8 @@ export function CredentialSets() {
               <ButtonGroupItem value='outlook'>{t('outlook')}</ButtonGroupItem>
             </ButtonGroup>
             <p className='mt-1 text-[var(--text-muted)] text-small'>
-              {t('members_will_connect_their')} {getProviderDisplayName(newSetProvider)} {t('account')}
+              {t('members_will_connect_their')} {getProviderDisplayName(newSetProvider)}{' '}
+              {t('account')}
             </p>
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>

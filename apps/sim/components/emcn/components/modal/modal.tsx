@@ -44,7 +44,6 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
-import { useTranslations } from 'next-intl'
 
 /**
  * Shared animation classes for modal transitions.

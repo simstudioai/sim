@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
@@ -11,7 +12,6 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { FilterRuleRow } from './components/filter-rule-row'
-import { useTranslations } from 'next-intl'
 
 interface FilterBuilderProps {
   blockId: string

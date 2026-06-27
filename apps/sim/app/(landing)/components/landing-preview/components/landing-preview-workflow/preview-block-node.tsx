@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Database } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { Blimp } from '@/components/emcn'
 import {
@@ -40,7 +41,6 @@ import {
   EASE_OUT,
   type PreviewTool,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
-import { useTranslations } from 'next-intl'
 
 /** Map block type strings to their icon components. */
 const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {

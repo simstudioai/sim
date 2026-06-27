@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -9,7 +10,6 @@ import {
   PopoverItem,
 } from '@/components/emcn'
 import type { ContextMenuPosition } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
-import { useTranslations } from 'next-intl'
 
 export interface OutputContextMenuProps {
   isOpen: boolean

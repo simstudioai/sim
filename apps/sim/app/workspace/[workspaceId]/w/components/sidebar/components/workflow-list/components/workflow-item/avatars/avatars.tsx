@@ -1,13 +1,13 @@
 'use client'
 
 import { type CSSProperties, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { usePresenceStore } from '@/stores/presence/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { useTranslations } from 'next-intl'
 
 /**
  * Avatar display configuration for responsive layout.
@@ -142,7 +142,8 @@ export function Avatars({ workflowId }: AvatarsProps) {
             </Avatar>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
-            {overflowCount} {t('more_user')}{overflowCount > 1 ? 's' : ''}
+            {overflowCount} {t('more_user')}
+            {overflowCount > 1 ? 's' : ''}
           </Tooltip.Content>
         </Tooltip.Root>
       )}

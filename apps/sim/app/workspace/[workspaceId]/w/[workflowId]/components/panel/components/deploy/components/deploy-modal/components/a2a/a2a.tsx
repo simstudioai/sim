@@ -652,7 +652,8 @@ console.log(data);`
           </div>
           <div className='relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]'>
             <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
-              {baseUrl.replace(/^https?:\/\//, '')}{t('api_a2a_serve')}
+              {baseUrl.replace(/^https?:\/\//, '')}
+              {t('api_a2a_serve')}
             </div>
             <div className='relative flex-1'>
               <Input
@@ -825,9 +826,9 @@ console.log(data);`
             <div className='mt-[6.5px] flex items-start justify-between gap-2'>
               <p className='text-[var(--text-secondary)] text-xs'>
                 {t('external_a2a_clients_can_discover_and')}{' '}
-                <code className='text-micro'>{t('lt_start_input_gt')}</code>{t('datapart')}{' '}
-                <code className='text-micro'>{t('lt_start_data_gt')}</code>{t('filepart')}{' '}
-                <code className='text-micro'>{t('lt_start_files_gt')}</code>.
+                <code className='text-micro'>{t('lt_start_input_gt')}</code>
+                {t('datapart')} <code className='text-micro'>{t('lt_start_data_gt')}</code>
+                {t('filepart')} <code className='text-micro'>{t('lt_start_files_gt')}</code>.
               </p>
               {missingFields.any && (
                 <Button

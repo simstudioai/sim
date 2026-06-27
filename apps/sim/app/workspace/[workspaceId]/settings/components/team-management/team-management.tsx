@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Chip, Plus } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
@@ -27,7 +28,6 @@ import {
 } from '@/hooks/queries/organization'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('TeamManagement')
 

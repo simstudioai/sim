@@ -3,10 +3,10 @@
 import type React from 'react'
 import { useRef, useState } from 'react'
 import { ArrowLeftRight, ArrowUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, Input, Label, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
-import { useTranslations } from 'next-intl'
 
 /**
  * Props for a generic parameter with label component

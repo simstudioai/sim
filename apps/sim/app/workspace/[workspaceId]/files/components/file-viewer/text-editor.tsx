@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -12,7 +13,6 @@ import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
 import { useEditableFileContent } from './use-editable-file-content'
-import { useTranslations } from 'next-intl'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },

@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
@@ -29,7 +30,6 @@ import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/f
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateBaseModal')
 
@@ -292,7 +292,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
-      <ChipModalHeader onClose={() => handleClose(false)}>{t('create_knowledge_base')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleClose(false)}>
+        {t('create_knowledge_base')}
+      </ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />

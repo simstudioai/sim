@@ -1,6 +1,7 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import { Avatar, AvatarFallback, Chip, ChipDropdown } from '@/components/emcn'
 import { credentialRoleLockReason, RoleLockTooltip } from '@/components/permissions'
 import { cn } from '@/lib/core/utils/cn'
@@ -13,7 +14,6 @@ import {
 } from '@/hooks/queries/credentials'
 import { ROLE_OPTIONS } from '../roles'
 import { DetailSection } from './detail-section'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CredentialMembersSection')
 

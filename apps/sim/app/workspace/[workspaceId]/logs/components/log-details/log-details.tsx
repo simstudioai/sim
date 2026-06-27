@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
 import {
@@ -52,7 +53,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
-import { useTranslations } from 'next-intl'
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -66,7 +66,7 @@ function creditLabel(credits: number, dollars: number): string {
 
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     const contentRef = useRef<HTMLDivElement>(null)
     const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
@@ -577,13 +577,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                         {t('tokens')}
                       </span>
                       <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                        {costBreakdown.tokens.input} {t('in')} {costBreakdown.tokens.output} {t('out')}
+                        {costBreakdown.tokens.input} {t('in')} {costBreakdown.tokens.output}{' '}
+                        {t('out')}
                       </span>
                     </div>
                   )}
                   <div className='px-3 py-2'>
                     <p className='font-medium text-[var(--text-tertiary)] text-xs'>
-                      {t('total_includes_a')} {formatCost(BASE_EXECUTION_CHARGE)} {t('base_charge_plus_model_and_tool')}
+                      {t('total_includes_a')} {formatCost(BASE_EXECUTION_CHARGE)}{' '}
+                      {t('base_charge_plus_model_and_tool')}
                     </p>
                   </div>
                 </div>

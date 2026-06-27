@@ -4,6 +4,7 @@ import { type ComponentType, useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Chip,
   ChipConfirmModal,
@@ -40,7 +41,6 @@ import {
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectedCredentialDetail')
 
@@ -230,7 +230,9 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('credential_not_found')}</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>
+          {t('credential_not_found')}
+        </p>
       </CredentialDetailLayout>
     )
   }

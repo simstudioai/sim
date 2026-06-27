@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
@@ -110,7 +111,6 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Sidebar')
 

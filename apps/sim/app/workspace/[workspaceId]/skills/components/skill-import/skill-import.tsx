@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipInput, ChipModalField, Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
@@ -9,7 +10,6 @@ import {
   extractSkillFromZip,
   parseSkillMarkdown,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
-import { useTranslations } from 'next-intl'
 
 interface ImportedSkill {
   name: string
@@ -109,7 +109,11 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
   return (
     <div className='flex flex-col gap-4'>
-      <ChipModalField type='custom' title={t('import_from_github')} error={githubError || undefined}>
+      <ChipModalField
+        type='custom'
+        title={t('import_from_github')}
+        error={githubError || undefined}
+      >
         <div className='flex gap-2'>
           <ChipInput
             placeholder={t('https_github_com_owner_repo_blob')}

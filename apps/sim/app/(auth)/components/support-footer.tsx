@@ -1,7 +1,7 @@
 'use client'
 
-import { useBrandConfig } from '@/ee/whitelabeling'
 import { useTranslations } from 'next-intl'
+import { useBrandConfig } from '@/ee/whitelabeling'
 
 export interface SupportFooterProps {
   position?: 'fixed' | 'absolute'

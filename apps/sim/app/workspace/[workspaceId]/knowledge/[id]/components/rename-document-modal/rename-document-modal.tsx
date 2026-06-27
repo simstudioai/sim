@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -11,7 +12,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('RenameDocumentModal')
 

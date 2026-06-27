@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react'
 import { useMemo } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { getProviderColor } from '@/app/(landing)/models/components/consts'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 import {
@@ -10,7 +11,6 @@ import {
   formatTokenCount,
   MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
-import { useTranslations } from 'next-intl'
 
 /** Providers that host other providers' models — deprioritized to avoid duplicates. */
 const RESELLER_PROVIDERS = new Set(

@@ -5,13 +5,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipConfirmModal } from '@/components/emcn'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CustomToolsSettings')
 
@@ -148,7 +148,8 @@ export function CustomTools() {
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                {t('no_tools_found_matching')}{searchTerm}"
+                {t('no_tools_found_matching')}
+                {searchTerm}"
               </SettingsEmptyState>
             )}
           </div>

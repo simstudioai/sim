@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChipCombobox,
@@ -21,7 +22,6 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
-import { useTranslations } from 'next-intl'
 
 /**
  * Discriminates the two flows the column-config sidebar handles. Workflow
@@ -168,7 +168,9 @@ function ColumnConfigBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>{t('configure_column')}</h2>
+        <h2 className='font-medium text-[var(--text-primary)] text-small'>
+          {t('configure_column')}
+        </h2>
         <Button
           variant='ghost'
           size='sm'

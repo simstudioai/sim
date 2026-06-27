@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipInput, Tooltip, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -31,7 +32,6 @@ import {
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SecretsManager')
 
@@ -1056,7 +1056,9 @@ export function SecretsManager() {
                 Object.keys(workspaceVars).length > 0 ||
                 newWorkspaceRows.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  {t('no_secrets_found_matching_ldquo')}{searchTerm}{t('rdquo')}
+                  {t('no_secrets_found_matching_ldquo')}
+                  {searchTerm}
+                  {t('rdquo')}
                 </SettingsEmptyState>
               )}
           </div>

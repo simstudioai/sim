@@ -5,7 +5,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
 import { AgentSkillsIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { SkillDefinition } from '@/hooks/queries/skills'
-import { useTranslations } from 'next-intl'
 
 /**
  * Imperative handle for driving the skills menu from the host textarea's

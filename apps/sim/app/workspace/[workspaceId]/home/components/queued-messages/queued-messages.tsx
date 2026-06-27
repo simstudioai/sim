@@ -2,11 +2,11 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
-import { useTranslations } from 'next-intl'
 
 const NARROW_WIDTH_PX = 320
 

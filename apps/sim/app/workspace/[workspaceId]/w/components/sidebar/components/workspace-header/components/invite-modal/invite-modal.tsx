@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -18,7 +19,6 @@ import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/pr
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useBatchSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InviteModal')
 
@@ -171,7 +171,9 @@ export function InviteModal({
       onOpenChange={handleOpenChange}
       srTitle={`Invite teammates to ${workspaceName || 'workspace'}`}
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('invite_teammates')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>
+        {t('invite_teammates')}
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'

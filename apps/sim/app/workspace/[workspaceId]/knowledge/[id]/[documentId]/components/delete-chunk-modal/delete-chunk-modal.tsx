@@ -1,9 +1,9 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { ChipConfirmModal } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
-import { useTranslations } from 'next-intl'
 
 interface DeleteChunkModalProps {
   chunk: ChunkData | null

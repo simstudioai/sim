@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
 import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
@@ -23,7 +24,6 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
-import { useTranslations } from 'next-intl'
 
 const PAGE_SIZE = 20 as const
 
@@ -175,7 +175,9 @@ export function Admin() {
           <>
             <div className='flex items-center justify-between gap-3'>
               <div className='flex flex-col gap-1'>
-                <Label className='text-[var(--text-primary)] text-sm'>{t('mothership_environment')}</Label>
+                <Label className='text-[var(--text-primary)] text-sm'>
+                  {t('mothership_environment')}
+                </Label>
                 <p className='text-[var(--text-secondary)] text-xs'>
                   {t('default_uses_the_configured_sim_agent')}
                 </p>
@@ -199,9 +201,7 @@ export function Admin() {
       <div className='h-px bg-[var(--border)]' />
 
       <div className='flex flex-col gap-2'>
-        <p className='text-[var(--text-secondary)] text-sm'>
-          {t('import_a_workflow_by_id_along')}
-        </p>
+        <p className='text-[var(--text-secondary)] text-sm'>{t('import_a_workflow_by_id_along')}</p>
         <div className='flex gap-2'>
           <ChipInput
             value={workflowId}

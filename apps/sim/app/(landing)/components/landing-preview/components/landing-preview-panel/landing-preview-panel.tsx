@@ -5,6 +5,7 @@ import { AnimatePresence, domMax, LazyMotion, m } from 'framer-motion'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
@@ -20,7 +21,6 @@ import {
   TYPE_START_BUFFER_MS,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -372,7 +372,9 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
   if (!editorPrompt) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <span className='font-medium text-[#787878] text-[13px]'>{t('select_a_block_to_edit')}</span>
+        <span className='font-medium text-[#787878] text-[13px]'>
+          {t('select_a_block_to_edit')}
+        </span>
       </div>
     )
   }

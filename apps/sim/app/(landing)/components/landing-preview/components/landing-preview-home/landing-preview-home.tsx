@@ -3,13 +3,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { ArrowUp, Table } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Blimp, Checkbox, ChevronDown } from '@/components/emcn'
 import { TypeBoolean, TypeNumber, TypeText } from '@/components/emcn/icons'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
-import { useTranslations } from 'next-intl'
 
 const C = {
   SURFACE: '#292929',

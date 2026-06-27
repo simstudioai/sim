@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowGroup } from '@/lib/table'
@@ -9,7 +10,6 @@ import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
 import { ColumnTypeIcon } from './column-type-icon'
 import { ColumnOptionsMenu } from './workflow-group-meta-cell'
-import { useTranslations } from 'next-intl'
 
 interface ColumnHeaderMenuProps {
   column: DisplayColumn

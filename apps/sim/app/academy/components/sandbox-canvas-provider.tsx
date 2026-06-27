@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { useTranslations } from 'next-intl'
 import type { Edge } from 'reactflow'
 import { buildMockExecutionPlan } from '@/lib/academy/mock-execution'
 import type {
@@ -30,7 +31,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { LessonVideo } from './lesson-video'
 import { ValidationChecklist } from './validation-checklist'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SandboxCanvasProvider')
 

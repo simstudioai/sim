@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   DropdownMenu,
@@ -21,7 +22,6 @@ import { cn } from '@/lib/core/utils/cn'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 interface TraceSpan {
   blockId?: string
@@ -112,7 +112,9 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
             <AlertCircle className='size-[16px]' />
-            <span className='text-small'>{t('failed_to_load_run_snapshot')} {error.message}</span>
+            <span className='text-small'>
+              {t('failed_to_load_run_snapshot')} {error.message}
+            </span>
           </div>
         </div>
       )

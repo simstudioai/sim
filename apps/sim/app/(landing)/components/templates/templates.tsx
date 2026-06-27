@@ -5,12 +5,12 @@ import { createLogger } from '@sim/logger'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(landing)/components/templates/template-workflows'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LandingTemplates')
 
@@ -316,7 +316,8 @@ export default function Templates() {
         className='pt-[60px] lg:pt-[100px]'
       >
         <p className='sr-only'>
-          {t('sim_includes')} {TEMPLATE_WORKFLOWS.length} {t('pre_built_workflow_templates_covering_ocr')}
+          {t('sim_includes')} {TEMPLATE_WORKFLOWS.length}{' '}
+          {t('pre_built_workflow_templates_covering_ocr')}
         </p>
         <ul className='sr-only'>
           {TEMPLATE_WORKFLOWS.map((workflow) => (
@@ -349,8 +350,7 @@ export default function Templates() {
                 </h2>
 
                 <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] lg:text-lg'>
-                  {t('pre_built_templates_for_every_use')}{' '}
-                  <br className='hidden lg:inline' />
+                  {t('pre_built_templates_for_every_use')} <br className='hidden lg:inline' />
                   {t('models_and_tools_to_fit_your')}
                 </p>
               </div>

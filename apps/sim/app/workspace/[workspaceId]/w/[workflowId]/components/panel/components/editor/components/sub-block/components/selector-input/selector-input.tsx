@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Tooltip } from '@/components/emcn'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useSelectorSetup } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
@@ -8,7 +9,6 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useTranslations } from 'next-intl'
 
 export interface SelectorOverrides {
   transformContext?: (context: SelectorContext, deps: Record<string, unknown>) => SelectorContext
@@ -81,7 +81,9 @@ export function SelectorInput({
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>{t('this_selector_is_not_implemented_for')} {serviceId}</p>
+          <p>
+            {t('this_selector_is_not_implemented_for')} {serviceId}
+          </p>
         </Tooltip.Content>
       </Tooltip.Root>
     )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +10,6 @@ import {
 } from '@/components/emcn'
 import { Duplicate as DuplicateIcon, Pause, Pencil, Play, Trash } from '@/components/emcn/icons'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
-import { useTranslations } from 'next-intl'
 
 interface TaskContextMenuProps {
   isOpen: boolean

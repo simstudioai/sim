@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Label, Switch } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -10,7 +11,6 @@ import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
 import { useAutosave } from '@/hooks/use-autosave'
-import { useTranslations } from 'next-intl'
 
 const TOKEN_BG_COLORS = [
   'rgba(239, 68, 68, 0.55)',
@@ -285,7 +285,8 @@ const TokenizerToggle = React.memo(function TokenizerToggle({
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
       {checked && hoveredTokenIndex !== null && (
         <span className='text-[var(--text-tertiary)] text-caption'>
-          {t('token')}{hoveredTokenIndex + 1}
+          {t('token')}
+          {hoveredTokenIndex + 1}
         </span>
       )}
     </div>

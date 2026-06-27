@@ -1,6 +1,7 @@
 'use client'
 
 import { Pin, PinOff } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +24,6 @@ import {
   Trash,
   Unlock,
 } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface ContextMenuProps {
   isOpen: boolean

@@ -2,10 +2,10 @@
 
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FileCards')
 
@@ -125,7 +125,8 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   return (
     <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-        {t('files')}{files.length})
+        {t('files')}
+        {files.length})
       </span>
       {files.map((file, index) => (
         <FileCard

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChipModal,
@@ -18,7 +19,6 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AddDocumentsModal')
 
@@ -149,7 +149,9 @@ export function AddDocumentsModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='New Documents' size='md'>
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('new_documents')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>
+        {t('new_documents')}
+      </ChipModalHeader>
 
       <ChipModalBody>
         <ChipModalField

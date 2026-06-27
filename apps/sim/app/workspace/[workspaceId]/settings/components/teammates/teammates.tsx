@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipDropdown, Plus, toast } from '@/components/emcn'
 import {
   RoleLockTooltip,
@@ -34,7 +35,6 @@ import {
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },

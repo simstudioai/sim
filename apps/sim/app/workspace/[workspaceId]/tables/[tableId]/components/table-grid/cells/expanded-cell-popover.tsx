@@ -2,12 +2,12 @@
 
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
 import type { EditingCell, SaveReason } from '../../../types'
 import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'
 import type { DisplayColumn } from '../types'
-import { useTranslations } from 'next-intl'
 
 interface ExpandedCellPopoverProps {
   expandedCell: EditingCell | null
@@ -230,7 +230,8 @@ function ExpandedCellEditor({
       />
       <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
         <span className='text-[var(--text-tertiary)] text-caption'>
-          <kbd className='font-mono'>↵</kbd> {t('save')} <kbd className='font-mono'>{t('esc')}</kbd> {t('cancel')}
+          <kbd className='font-mono'>↵</kbd> {t('save')} <kbd className='font-mono'>{t('esc')}</kbd>{' '}
+          {t('cancel')}
         </span>
         <div className='flex items-center gap-1.5'>
           <Button variant='ghost' size='sm' onClick={onClose}>

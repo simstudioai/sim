@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
@@ -12,7 +13,6 @@ import {
   PreviewWorkflow,
 } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 interface TraceSpan {
   blockId?: string

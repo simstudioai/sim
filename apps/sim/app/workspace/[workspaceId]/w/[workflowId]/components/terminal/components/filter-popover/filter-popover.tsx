@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import clsx from 'clsx'
 import { Filter } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Popover,
@@ -18,7 +19,6 @@ import type {
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import { getBlockIcon } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
-import { useTranslations } from 'next-intl'
 
 /**
  * Props for the FilterPopover component

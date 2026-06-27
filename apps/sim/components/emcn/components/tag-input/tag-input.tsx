@@ -40,11 +40,11 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Paperclip, Plus, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { ChipTag, chipTagVariants } from '@/components/emcn/components/chip-tag/chip-tag'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { useTranslations } from 'next-intl'
 
 /**
  * Variant styles for the TagInput container.
@@ -229,7 +229,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     },
     ref
   ) => {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     const effectiveMaxHeight = maxHeight ?? (variant === 'block' ? 'max-h-48' : 'max-h-32')
     const [inputValue, setInputValue] = React.useState('')
     const [isDragging, setIsDragging] = React.useState(false)

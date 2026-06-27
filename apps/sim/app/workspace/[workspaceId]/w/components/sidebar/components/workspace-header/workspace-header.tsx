@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   ChevronDown,
   Chip,
@@ -26,7 +27,6 @@ import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkspaceHeader')
 

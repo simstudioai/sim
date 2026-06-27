@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +17,6 @@ import {
   X,
 } from '@/components/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
-import { useTranslations } from 'next-intl'
 
 interface LogRowContextMenuProps {
   isOpen: boolean

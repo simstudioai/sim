@@ -4,6 +4,7 @@ import { useId, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Checkbox,
   ChipConfirmModal,
@@ -19,7 +20,6 @@ import {
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { cleanCellValue, formatValueForInput } from '../../utils'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('RowModal')
 
@@ -196,7 +196,9 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     <>
       {column.name}
       {column.unique && (
-        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>{t('unique')}</span>
+        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>
+          {t('unique')}
+        </span>
       )}
     </>
   )

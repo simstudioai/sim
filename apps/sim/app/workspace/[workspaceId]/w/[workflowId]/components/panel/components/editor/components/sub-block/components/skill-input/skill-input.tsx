@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
@@ -13,7 +14,6 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 interface StoredSkill {
   skillId: string

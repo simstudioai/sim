@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Chip, ChipCopyInput, ChipLink, Send } from '@/components/emcn'
 import { ArrowLeft, Key } from '@/components/emcn/icons'
 import {
@@ -16,7 +17,6 @@ import {
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
-import { useTranslations } from 'next-intl'
 
 interface SecretDetailProps {
   workspaceId: string
@@ -71,7 +71,9 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('secret_not_found')}</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>
+          {t('secret_not_found')}
+        </p>
       </CredentialDetailLayout>
     )
   }

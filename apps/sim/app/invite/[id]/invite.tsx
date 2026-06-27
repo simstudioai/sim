@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -15,7 +16,6 @@ import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InviteById')
 

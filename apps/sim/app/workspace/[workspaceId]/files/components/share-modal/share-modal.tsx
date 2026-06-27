@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { generateShortId } from '@sim/utils/id'
+import { useTranslations } from 'next-intl'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -21,7 +22,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 interface ShareModalProps {
   open: boolean

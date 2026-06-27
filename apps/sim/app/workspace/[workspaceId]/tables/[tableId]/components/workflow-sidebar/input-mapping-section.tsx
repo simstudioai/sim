@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Badge, ChipCombobox, CollapsibleCard, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { useTranslations } from 'next-intl'
 
 interface InputMappingSectionProps {
   /** The workflow Start block's input fields. Each gets one collapsible row. */

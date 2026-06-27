@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
@@ -56,7 +57,6 @@ import {
 } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Home')
 
@@ -416,7 +416,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
         <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
           <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
-            {t('what_should_we_get_done')}{firstName ? `, ${firstName}` : ''}?
+            {t('what_should_we_get_done')}
+            {firstName ? `, ${firstName}` : ''}?
           </h1>
           <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
             <ChatSurfaceProvider

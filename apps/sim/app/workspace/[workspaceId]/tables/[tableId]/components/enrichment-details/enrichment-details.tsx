@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
+import { useTranslations } from 'next-intl'
 import { Badge, Button, ChipModalTabs, X } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
@@ -16,7 +17,6 @@ import { useEnrichmentDetail } from '@/hooks/queries/tables'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
-import { useTranslations } from 'next-intl'
 
 type EnrichmentDetailsTab = 'result' | 'cascade'
 
@@ -212,7 +212,9 @@ function EnrichmentDetailsContent({
 
             {lastError && (
               <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                <span className='font-medium text-[var(--text-error)] text-caption'>{t('error')}</span>
+                <span className='font-medium text-[var(--text-error)] text-caption'>
+                  {t('error')}
+                </span>
                 <p className='break-words text-[var(--text-secondary)] text-caption'>{lastError}</p>
               </div>
             )}
@@ -371,7 +373,9 @@ export function EnrichmentDetails({
         {rowId && groupId && (
           <div className='flex h-full flex-col px-3.5 pt-3'>
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>{t('enrichment_details')}</h2>
+              <h2 className='font-medium text-[var(--text-primary)] text-sm'>
+                {t('enrichment_details')}
+              </h2>
               <Button variant='ghost' className='!p-1' onClick={onClose} aria-label={t('close')}>
                 <X className='size-[14px]' />
               </Button>

@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
+import { useTranslations } from 'next-intl'
 import { File, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -10,7 +11,6 @@ import {
   COMMAND_ITEM_CLASSNAME,
   fuzzyMatch,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-import { useTranslations } from 'next-intl'
 
 interface Segment {
   text: string
@@ -150,7 +150,7 @@ export const MemoizedWorkflowItem = memo(
     isCurrent?: boolean
     query?: string
   }) {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
@@ -274,7 +274,7 @@ export const MemoizedWorkspaceItem = memo(
     isCurrent?: boolean
     query?: string
   }) {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <span className='flex min-w-0 text-[var(--text-body)]'>

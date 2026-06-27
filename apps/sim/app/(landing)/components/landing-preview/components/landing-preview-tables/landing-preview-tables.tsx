@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { useTranslations } from 'next-intl'
 import { Checkbox } from '@/components/emcn'
 import {
   ChevronDown,
@@ -21,7 +22,6 @@ import {
   LandingPreviewResource,
   ownerCell,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
-import { useTranslations } from 'next-intl'
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =

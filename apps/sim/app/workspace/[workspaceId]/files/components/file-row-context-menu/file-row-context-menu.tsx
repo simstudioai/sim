@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +19,6 @@ import {
 import { Download, Link, Trash } from '@/components/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
-import { useTranslations } from 'next-intl'
 
 interface FileRowContextMenuProps {
   isOpen: boolean

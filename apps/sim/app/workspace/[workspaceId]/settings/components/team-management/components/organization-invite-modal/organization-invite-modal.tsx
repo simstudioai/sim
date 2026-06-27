@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   ChipDropdown,
   type ChipDropdownOption,
@@ -15,7 +16,6 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useInviteMember } from '@/hooks/queries/organization'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('OrganizationInviteModal')
 
@@ -187,7 +187,9 @@ export function OrganizationInviteModal({
       onOpenChange={handleOpenChange}
       srTitle='Invite teammates to organization'
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('invite_teammates')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>
+        {t('invite_teammates')}
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'

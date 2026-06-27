@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { debounce, useQueryStates } from 'nuqs'
 import type { ComboboxOption } from '@/components/emcn'
 import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
@@ -50,7 +51,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Tables')
 
@@ -341,7 +341,9 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('row_count')}</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>
+            {t('row_count')}
+          </span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -361,7 +363,9 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('owner')}</span>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+              {t('owner')}
+            </span>
             <ChipCombobox
               options={memberOptions}
               multiSelect

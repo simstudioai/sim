@@ -1,6 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -8,7 +9,6 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import { useTranslations } from 'next-intl'
 
 /**
  * Props for CanvasMenu component

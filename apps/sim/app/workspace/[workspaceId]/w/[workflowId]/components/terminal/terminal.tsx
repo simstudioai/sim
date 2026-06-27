@@ -7,6 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
 import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChevronDown,
@@ -61,7 +62,6 @@ import {
 } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useTranslations } from 'next-intl'
 
 /**
  * Terminal height configuration constants

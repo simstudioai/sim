@@ -3,6 +3,7 @@
 import { type ComponentType, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   ChipModal,
@@ -27,7 +28,6 @@ import {
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectOAuthModal')
 
@@ -388,7 +388,9 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalBody onKeyDown={handleBodyKeyDown}>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
-            {t('the')}{props.toolName}{t('tool_requires_access_to_your_account')}
+            {t('the')}
+            {props.toolName}
+            {t('tool_requires_access_to_your_account')}
           </p>
         )}
 

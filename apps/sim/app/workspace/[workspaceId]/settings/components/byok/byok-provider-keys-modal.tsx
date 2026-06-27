@@ -1,11 +1,11 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 import type {
   BYOKManagerKey,
   BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
-import { useTranslations } from 'next-intl'
 
 interface BYOKProviderKeysModalProps {
   open: boolean
@@ -67,7 +67,8 @@ export function BYOKProviderKeysModal({
         </div>
         {atCapacity && (
           <p className='px-2 text-[12px] text-[var(--text-muted)]'>
-            {t('key_limit_reached')}{maxKeys} {t('keys_per_provider')}
+            {t('key_limit_reached')}
+            {maxKeys} {t('keys_per_provider')}
           </p>
         )}
       </ChipModalBody>

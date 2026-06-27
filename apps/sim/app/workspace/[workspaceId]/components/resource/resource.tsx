@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Checkbox,
@@ -27,7 +28,6 @@ import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inli
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { useTranslations } from 'next-intl'
 
 export interface ResourceColumn {
   id: string

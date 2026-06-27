@@ -3,11 +3,11 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ChipLink } from '@/components/emcn'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { prefetchUpgradeBillingData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
-import { useTranslations } from 'next-intl'
 
 interface DeployUpgradeGateProps {
   feature: 'API' | 'MCP' | 'A2A'

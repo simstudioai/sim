@@ -4,6 +4,7 @@ import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'reac
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
   Calendar,
@@ -60,7 +61,6 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useTranslations } from 'next-intl'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
@@ -594,7 +594,9 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('workflow_not_found')}</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
+            {t('workflow_not_found')}
+          </h2>
           <p className='text-[var(--text-body)] text-small'>
             {t('this_workflow_may_have_been_deleted')}
           </p>
@@ -654,7 +656,9 @@ function EmbeddedFile({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('file_not_found')}</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
+            {t('file_not_found')}
+          </h2>
           <p className='text-[var(--text-body)] text-small'>
             {t('this_file_may_have_been_deleted')}
           </p>
@@ -701,7 +705,9 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('folder_not_found')}</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
+            {t('folder_not_found')}
+          </h2>
           <p className='text-[var(--text-body)] text-small'>
             {t('this_folder_may_have_been_deleted')}
           </p>
@@ -803,8 +809,14 @@ function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
       <div className='grid grid-cols-2 gap-4'>
         <ScheduledTaskField title={t('status')} value={status} />
         <ScheduledTaskField title={t('schedule')} value={timing} />
-        <ScheduledTaskField title={t('next_run')} value={formatScheduleInstant(schedule.nextRunAt)} />
-        <ScheduledTaskField title={t('last_run')} value={formatScheduleInstant(schedule.lastRanAt)} />
+        <ScheduledTaskField
+          title={t('next_run')}
+          value={formatScheduleInstant(schedule.nextRunAt)}
+        />
+        <ScheduledTaskField
+          title={t('last_run')}
+          value={formatScheduleInstant(schedule.lastRanAt)}
+        />
       </div>
 
       <div className='flex flex-col gap-1'>
@@ -893,7 +905,9 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('log_not_found')}</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
+            {t('log_not_found')}
+          </h2>
           <p className='text-[var(--text-body)] text-small'>
             {t('this_log_may_have_been_deleted')}
           </p>

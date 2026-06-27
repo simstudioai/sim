@@ -3,6 +3,7 @@
 import { memo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -12,7 +13,6 @@ import {
   ChipModalHeader,
 } from '@/components/emcn'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EditKnowledgeBaseModal')
 
@@ -107,7 +107,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('edit_knowledge_base')}</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        {t('edit_knowledge_base')}
+      </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
@@ -132,7 +134,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
           <ChipModalField type='custom' title={t('chunking_configuration')}>
             <div className='grid grid-cols-3 gap-2'>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('max_size')}</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                  {t('max_size')}
+                </p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.maxSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
@@ -141,7 +145,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('min_size')}</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                  {t('min_size')}
+                </p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.minSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
@@ -150,7 +156,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('overlap')}</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                  {t('overlap')}
+                </p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.overlap.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>

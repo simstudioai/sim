@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
+import { useTranslations } from 'next-intl'
 import { useShallow } from 'zustand/react/shallow'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
@@ -23,7 +24,6 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useTranslations } from 'next-intl'
 
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,

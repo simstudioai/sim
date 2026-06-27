@@ -3,6 +3,7 @@
 import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button, Combobox } from '@/components/emcn/components'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -24,7 +25,6 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useTranslations } from 'next-intl'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
   const { baseProvider } = parseProvider(providerName)

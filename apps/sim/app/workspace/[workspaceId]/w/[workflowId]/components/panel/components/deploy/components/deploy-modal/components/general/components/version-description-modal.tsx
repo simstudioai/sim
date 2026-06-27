@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -18,7 +19,6 @@ import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
 } from '@/hooks/queries/deployments'
-import { useTranslations } from 'next-intl'
 
 const RichMarkdownField = dynamic(
   () =>
@@ -128,7 +128,9 @@ export function VersionDescriptionModal({
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
         srTitle='Version Description'
       >
-        <ChipModalHeader onClose={() => handleCloseAttempt()}>{t('version_description')}</ChipModalHeader>
+        <ChipModalHeader onClose={() => handleCloseAttempt()}>
+          {t('version_description')}
+        </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='custom'

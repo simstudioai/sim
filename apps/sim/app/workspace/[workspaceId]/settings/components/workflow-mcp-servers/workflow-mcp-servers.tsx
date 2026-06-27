@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -49,7 +50,6 @@ import {
 } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from '../api-keys/components'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -402,9 +402,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 </Chip>
               </div>
             </Tooltip.Trigger>
-            <Tooltip.Content>
-              {t('all_deployed_workflows_have_been_added')}
-            </Tooltip.Content>
+            <Tooltip.Content>{t('all_deployed_workflows_have_been_added')}</Tooltip.Content>
           </Tooltip.Root>
         ) : (
           <Chip
@@ -499,7 +497,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
                           {t('transport')}
                         </span>
-                        <p className='text-[var(--text-secondary)] text-base'>{t('streamable_http')}</p>
+                        <p className='text-[var(--text-secondary)] text-base'>
+                          {t('streamable_http')}
+                        </p>
                       </div>
                       <div className='flex flex-col gap-1'>
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
@@ -541,7 +541,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       >
                         <ButtonGroupItem value='cursor'>{t('cursor')}</ButtonGroupItem>
                         <ButtonGroupItem value='claude-code'>{t('claude_code')}</ButtonGroupItem>
-                        <ButtonGroupItem value='claude-desktop'>{t('claude_desktop')}</ButtonGroupItem>
+                        <ButtonGroupItem value='claude-desktop'>
+                          {t('claude_desktop')}
+                        </ButtonGroupItem>
                         <ButtonGroupItem value='vscode'>{t('vs_code')}</ButtonGroupItem>
                         <ButtonGroupItem value='sim'>{t('sim')}</ButtonGroupItem>
                       </ButtonGroup>
@@ -831,7 +833,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         }}
         srTitle='Edit Server'
       >
-        <ChipModalHeader onClose={() => setShowEditServer(false)}>{t('edit_server')}</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowEditServer(false)}>
+          {t('edit_server')}
+        </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='input'
@@ -992,9 +996,7 @@ export function WorkflowMcpServers() {
               </p>
             </div>
           ) : isLoading ? null : !hasServers ? (
-            <SettingsEmptyState>
-              {t('click_quot_add_server_quot_above')}
-            </SettingsEmptyState>
+            <SettingsEmptyState>{t('click_quot_add_server_quot_above')}</SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-2'>
               {filteredServers.map((server) => {
@@ -1035,7 +1037,8 @@ export function WorkflowMcpServers() {
               })}
               {showNoResults && (
                 <SettingsEmptyState variant='inline'>
-                  {t('no_servers_found_matching')}{searchTerm}"
+                  {t('no_servers_found_matching')}
+                  {searchTerm}"
                 </SettingsEmptyState>
               )}
             </div>

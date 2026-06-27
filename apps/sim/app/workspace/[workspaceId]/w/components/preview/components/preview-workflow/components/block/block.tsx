@@ -1,6 +1,7 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
@@ -22,7 +23,6 @@ import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useTranslations } from 'next-intl'
 
 /** Execution status for blocks in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'

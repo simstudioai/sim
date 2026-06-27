@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useTranslations } from 'next-intl'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
@@ -13,7 +14,6 @@ import {
 } from '@/components/emcn/components/dropdown-menu/dropdown-menu'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 /** A selectable option in a {@link ChipSelect}. */
 export interface ChipSelectOption {

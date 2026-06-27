@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -27,7 +28,6 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { useTranslations } from 'next-intl'
 
 interface TagFilter {
   id: string

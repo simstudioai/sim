@@ -1,10 +1,10 @@
 'use client'
 
 import React from 'react'
+import { useTranslations } from 'next-intl'
 import { ButtonGroup, ButtonGroupItem } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
-import { useTranslations } from 'next-intl'
 
 export type { PermissionType }
 
@@ -22,7 +22,7 @@ const COMPACT_ITEM_CLASS = 'h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
 
 export const PermissionSelector = React.memo<PermissionSelectorProps>(
   ({ value, onChange, disabled = false, className, size = 'default' }) => {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     const itemClass = size === 'compact' ? COMPACT_ITEM_CLASS : undefined
     return (
       <ButtonGroup
@@ -60,7 +60,7 @@ const COMPACT_ORG_ITEM_CLASS = 'h-[22px] min-w-[58px] px-1.5 py-0 text-xs'
 
 export const OrgRoleSelector = React.memo<OrgRoleSelectorProps>(
   ({ value, onChange, disabled = false, className, size = 'compact' }) => {
-  const t = useTranslations('auto')
+    const t = useTranslations('auto')
     const itemClass = size === 'compact' ? COMPACT_ORG_ITEM_CLASS : undefined
     return (
       <ButtonGroup

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { truncate } from '@sim/utils/string'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   DropdownMenu,
@@ -36,7 +37,6 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useTranslations } from 'next-intl'
 
 export interface AddResourceDropdownProps {
   workspaceId: string

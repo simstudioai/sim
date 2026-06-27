@@ -154,6 +154,13 @@ transformResponse (error-shape ladder + unwrap + Telegram {ok,result} / Bitrix24
 ==================================================================
 PHASE 5 - VALIDATE
 ==================================================================
+- Registry Completeness CHECK (CRITICAL):
+  1. Bash: ls -1 apps/sim/tools/{provider}/*.ts | grep -v index | grep -v types | sed 's|.*/||;s|\.ts||' | sort > /tmp/gen.txt
+  2. Bash: grep '{provider}_' apps/sim/tools/registry.ts | sed 's/.*{provider}_//;s/:.*//;' | sort > /tmp/reg.txt
+  3. Bash: comm -23 /tmp/gen.txt /tmp/reg.txt -> MUST BE EMPTY. If not, ADD MISSING.
+  4. If mismatch found, Read registry, manually Edit to add missing tools (in alphabetical order by {provider}_id), re-run check.
+  5. Verify imports at top also include all missing tools.
+  6. HALT and report mismatch if not fixed — do NOT skip this.
 - bunx --yes tsc --noEmit --project apps/sim/tsconfig.json 2>&1 | head -40 -> fix.
 - Coverage: sum(methods) == endpointCount (or TODOs listed).
 - IDs consistent: ToolConfig.id == tools/index.ts key == BlockConfig.tools.access[].
@@ -162,7 +169,19 @@ PHASE 5 - VALIDATE
 - condition fields reference real subBlock ids; no coercion in tools.config.tool.
 
 ==================================================================
-PHASE 6 - REPORT
+PHASE 6 - FINAL REGISTRY VERIFICATION (MANDATORY)
+==================================================================
+BEFORE REPORT, run this check one final time:
+1. Bash: find apps/sim/tools/{provider} -name '*.ts' ! -name 'index.ts' ! -name 'types.ts' | wc -l -> COUNT_GENERATED
+2. Bash: grep -c '{provider}_.*:' apps/sim/tools/registry.ts -> COUNT_REGISTERED
+3. If COUNT_GENERATED != COUNT_REGISTERED: **HALT. DO NOT PROCEED.**
+   - Run: ls -1 apps/sim/tools/{provider}/*.ts | sed 's|.*/||;s|\.ts||;' > /tmp/all.txt && grep '{provider}_' apps/sim/tools/registry.ts | sed 's/.*{provider}_//;s/:.*//;' | sort > /tmp/reg.txt && comm -23 /tmp/all.txt /tmp/reg.txt
+   - For EACH missing tool, Read registry, manually add to imports AND to the registry object.
+   - Re-run this check until COUNT_GENERATED == COUNT_REGISTERED.
+4. **Do not skip this check. Do not proceed to PHASE 7 until this passes.**
+
+==================================================================
+PHASE 7 - REPORT
 ==================================================================
 State: probe results; chosen extraction tier + libs vs native; auth model; tool
 distribution (per-action vs category) + why; full coverage table (category ->
@@ -170,6 +189,7 @@ actions -> endpoint count) with endpointCount reconciliation; which sim construc
 were used (OAuth provider?, subBlock types, conditions, triggers, file routes,
 pagination); TODOs/deferred endpoints; provider-specific notes (Telegram token-in-URL
 & {ok,result}; Bitrix24 webhook URL & {result,total,next}); registries touched;
+**REGISTRY VERIFICATION RESULT: [PASSED / tool counts match]**;
 git/PR commands (branch feat/integrations/add-{provider}, conventional commit).
 
 ABSOLUTE RULES:
@@ -181,6 +201,9 @@ simplest, ALWAYS keep native fallback, never hard-depend the sim repo on a parse
 11 map EVERY endpoint; cover EVERY applicable sim.ai construct (auth, subBlock
 types, conditions, triggers, files, pagination, agent-tool) - not a generic stub.
 12 no coercion in tools.config.tool (serialization phase) - coerce in config.params.
+13 **MANDATORY: Every generated tool file MUST be registered in tools/registry.ts
+   imports AND in the registry object. VALIDATE before reporting (Phase 6). Tool
+   count mismatch = FAILURE - do not proceed.**
 
 Begin PHASE 0 on "${service}". Probe -> ingest -> inventory(full coverage) ->
 design(all constructs) -> codegen -> validate -> report.`

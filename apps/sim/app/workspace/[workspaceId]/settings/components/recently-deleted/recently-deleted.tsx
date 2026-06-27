@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { debounce, useQueryStates } from 'nuqs'
 import { Button, ChipInput, ChipModalTabs } from '@/components/emcn'
 import { Folder, Search, Workflow } from '@/components/emcn/icons'
@@ -32,7 +33,6 @@ import {
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useTranslations } from 'next-intl'
 
 type ResourceType =
   | 'all'

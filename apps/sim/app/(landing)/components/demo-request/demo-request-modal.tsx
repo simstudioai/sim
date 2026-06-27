@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
+import { useTranslations } from 'next-intl'
 import {
   ChipCombobox,
   ChipInput,
@@ -26,7 +27,6 @@ import {
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
-import { useTranslations } from 'next-intl'
 
 interface DemoRequestModalProps {
   children: React.ReactNode
@@ -160,7 +160,11 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
               </ModalDescription>
               <div className='space-y-3'>
                 <div className='grid gap-3 sm:grid-cols-2'>
-                  <LandingField htmlFor='firstName' label={t('first_name')} error={errors.firstName}>
+                  <LandingField
+                    htmlFor='firstName'
+                    label={t('first_name')}
+                    error={errors.firstName}
+                  >
                     <ChipInput
                       id='firstName'
                       value={form.firstName}
@@ -215,7 +219,11 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   />
                 </LandingField>
 
-                <LandingField htmlFor='companySize' label={t('company_size')} error={errors.companySize}>
+                <LandingField
+                  htmlFor='companySize'
+                  label={t('company_size')}
+                  error={errors.companySize}
+                >
                   <ChipCombobox
                     options={COMBOBOX_COMPANY_SIZES}
                     value={form.companySize}

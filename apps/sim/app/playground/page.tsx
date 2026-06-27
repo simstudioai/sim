@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
 import { notFound, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Avatar,
   AvatarFallback,
@@ -88,7 +89,6 @@ import {
   ZoomOut,
 } from '@/components/emcn'
 import { env, isTruthy } from '@/lib/core/config/env'
-import { useTranslations } from 'next-intl'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -748,7 +748,11 @@ export default function PlaygroundPage() {
             <Section title={t('timepicker')}>
               <VariantRow label={t('default')}>
                 <div className='w-48'>
-                  <TimePicker value={timeValue} onChange={setTimeValue} placeholder={t('select_time')} />
+                  <TimePicker
+                    value={timeValue}
+                    onChange={setTimeValue}
+                    placeholder={t('select_time')}
+                  />
                 </div>
                 <span className='text-[var(--text-secondary)] text-sm'>{timeValue}</span>
               </VariantRow>
@@ -939,7 +943,9 @@ export default function PlaygroundPage() {
                       <Button variant='default'>{size}</Button>
                     </ModalTrigger>
                     <ModalContent size={size}>
-                      <ModalHeader>{t('modal')} {size.toUpperCase()}</ModalHeader>
+                      <ModalHeader>
+                        {t('modal')} {size.toUpperCase()}
+                      </ModalHeader>
                       <ModalBody>
                         <ModalDescription className='text-[var(--text-secondary)]'>
                           {t('this_is_a')} {size} {t('sized_modal')}
@@ -970,10 +976,14 @@ export default function PlaygroundPage() {
                           {t('modal_settings_with_general_and_advanced')}
                         </ModalDescription>
                         <ModalTabsContent value='tab1'>
-                          <p className='text-[var(--text-secondary)]'>{t('general_settings_content')}</p>
+                          <p className='text-[var(--text-secondary)]'>
+                            {t('general_settings_content')}
+                          </p>
                         </ModalTabsContent>
                         <ModalTabsContent value='tab2'>
-                          <p className='text-[var(--text-secondary)]'>{t('advanced_settings_content')}</p>
+                          <p className='text-[var(--text-secondary)]'>
+                            {t('advanced_settings_content')}
+                          </p>
                         </ModalTabsContent>
                       </ModalBody>
                     </ModalTabs>

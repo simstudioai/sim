@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
 import { Badge, Button, ChipInput, ChipSelect, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
@@ -28,7 +29,6 @@ import {
   useMothershipUserBreakdown,
   useUpsertMothershipByok,
 } from '@/hooks/queries/mothership-admin'
-import { useTranslations } from 'next-intl'
 
 const ENTERPRISE_BYOK_PROVIDERS: BYOKManagerProvider[] = [
   {
@@ -226,7 +226,11 @@ function OverviewTab({
           value={breakdown?.total_requests}
           loading={breakdownLoading}
         />
-        <StatCard label={t('unique_users')} value={breakdown?.total_users} loading={breakdownLoading} />
+        <StatCard
+          label={t('unique_users')}
+          value={breakdown?.total_users}
+          loading={breakdownLoading}
+        />
         <StatCard
           label={t('total_cost')}
           value={
@@ -303,7 +307,10 @@ function OverviewTab({
       )}
 
       <Divider />
-      <SectionLabel>{t('recent_requests')}{requests?.count ?? '…'})</SectionLabel>
+      <SectionLabel>
+        {t('recent_requests')}
+        {requests?.count ?? '…'})
+      </SectionLabel>
       {requestsLoading && (
         <div className='flex flex-col gap-2'>
           {Array.from({ length: 5 }).map((_, i) => (
@@ -408,7 +415,9 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       <SectionLabel>{t('generate_license')}</SectionLabel>
       <div className='flex items-end gap-2'>
         <div className='flex flex-col gap-1'>
-          <Label className='text-[var(--text-secondary)] text-caption'>{t('enterprise_name')}</Label>
+          <Label className='text-[var(--text-secondary)] text-caption'>
+            {t('enterprise_name')}
+          </Label>
           <ChipInput
             value={newName}
             onChange={(e) => {
@@ -420,7 +429,9 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           />
         </div>
         <div className='flex flex-col gap-1'>
-          <Label className='text-[var(--text-secondary)] text-caption'>{t('expiration_optional')}</Label>
+          <Label className='text-[var(--text-secondary)] text-caption'>
+            {t('expiration_optional')}
+          </Label>
           <ChipInput
             type='date'
             value={newExpiry}

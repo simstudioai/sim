@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { ExerciseBlockState, ExerciseDefinition, ExerciseEdgeState } from '@/lib/academy/types'
 import { SandboxCanvasProvider } from '@/app/academy/components/sandbox-canvas-provider'
-import { useTranslations } from 'next-intl'
 
 interface ExerciseViewProps {
   lessonId: string

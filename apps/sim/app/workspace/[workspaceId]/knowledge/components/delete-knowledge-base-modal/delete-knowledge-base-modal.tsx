@@ -1,8 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { ChipConfirmModal } from '@/components/emcn'
 import { useTranslations } from 'next-intl'
+import { ChipConfirmModal } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
   /**

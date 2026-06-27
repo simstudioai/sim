@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Code,
@@ -36,7 +37,6 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
-import { useTranslations } from 'next-intl'
 
 interface OutputCodeContentProps {
   code: string

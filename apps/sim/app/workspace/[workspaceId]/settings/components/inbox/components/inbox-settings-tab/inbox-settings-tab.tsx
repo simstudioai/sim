@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Chip,
@@ -24,7 +25,6 @@ import {
   useRemoveInboxSender,
   useUpdateInboxAddress,
 } from '@/hooks/queries/inbox'
-import { useTranslations } from 'next-intl'
 
 export function InboxSettingsTab() {
   const t = useTranslations('auto')

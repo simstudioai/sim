@@ -6,6 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,
@@ -67,7 +68,6 @@ import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { InputMappingSection } from './input-mapping-section'
 import { RunSettingsSection } from './run-settings-section'
-import { useTranslations } from 'next-intl'
 
 /**
  * Distinguishes a user-built workflow column (`manual`) from one spawned off a
@@ -822,7 +822,9 @@ export function WorkflowSidebarBody({
         {isEditOutputMode && (
           <>
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel htmlFor='workflow-sidebar-column-name'>{t('column_name')}</RequiredLabel>
+              <RequiredLabel htmlFor='workflow-sidebar-column-name'>
+                {t('column_name')}
+              </RequiredLabel>
               <ChipInput
                 id='workflow-sidebar-column-name'
                 value={columnNameInput}
@@ -872,7 +874,8 @@ export function WorkflowSidebarBody({
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top'>
-                        {t('adds')} {missingInputColumnNames.join(', ')} {t('to_the_workflow_s_start_block')}
+                        {t('adds')} {missingInputColumnNames.join(', ')}{' '}
+                        {t('to_the_workflow_s_start_block')}
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

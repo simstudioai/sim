@@ -81,6 +81,10 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         // Events
         { label: 'Retrieve Event', id: 'retrieve_event' },
         { label: 'List Events', id: 'list_events' },
+        // Refunds
+        { label: 'Create Refund', id: 'create_refund' },
+        { label: 'Retrieve Refund', id: 'retrieve_refund' },
+        { label: 'List Refunds', id: 'list_refunds' },
       ],
       value: () => 'create_payment_intent',
     },
@@ -129,6 +133,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
           'retrieve_price',
           'update_price',
           'retrieve_event',
+          'retrieve_refund',
         ],
       },
       required: true,
@@ -634,6 +639,43 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
+    // Refund specific fields
+    {
+      id: 'chargeId',
+      title: 'Charge ID',
+      type: 'short-input',
+      placeholder: 'e.g., ch_1234567890',
+      condition: {
+        field: 'operation',
+        value: ['create_refund', 'list_refunds'],
+      },
+    },
+    {
+      id: 'paymentIntentId',
+      title: 'Payment Intent ID',
+      type: 'short-input',
+      placeholder: 'e.g., pi_1234567890',
+      condition: {
+        field: 'operation',
+        value: ['create_refund', 'list_refunds'],
+      },
+    },
+    {
+      id: 'reason',
+      title: 'Reason',
+      type: 'dropdown',
+      options: [
+        { label: 'Requested by Customer', id: 'requested_by_customer' },
+        { label: 'Duplicate', id: 'duplicate' },
+        { label: 'Fraudulent', id: 'fraudulent' },
+        { label: 'Other', id: 'other' },
+      ],
+      condition: {
+        field: 'operation',
+        value: 'create_refund',
+      },
+      mode: 'advanced',
+    },
     ...getTrigger('stripe_webhook').subBlocks,
   ],
   tools: {
@@ -696,6 +738,10 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       // Events
       'stripe_retrieve_event',
       'stripe_list_events',
+      // Refunds
+      'stripe_create_refund',
+      'stripe_retrieve_refund',
+      'stripe_list_refunds',
     ],
     config: {
       tool: (params) => {
@@ -802,6 +848,10 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
     product: { type: 'string', description: 'Product ID' },
     unit_amount: { type: 'number', description: 'Unit amount in cents' },
     recurring: { type: 'json', description: 'Recurring billing configuration' },
+    // Refund inputs
+    chargeId: { type: 'string', description: 'Charge ID to refund' },
+    paymentIntentId: { type: 'string', description: 'Payment intent ID to refund' },
+    reason: { type: 'string', description: 'Reason for refund' },
     // List/Search inputs
     limit: { type: 'number', description: 'Maximum results to return' },
     query: { type: 'string', description: 'Search query' },
@@ -830,6 +880,9 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
     // Price outputs
     price: { type: 'json', description: 'Price object' },
     prices: { type: 'json', description: 'Array of prices' },
+    // Refund outputs
+    refund: { type: 'json', description: 'Refund object' },
+    refunds: { type: 'json', description: 'Array of refunds' },
     // Event outputs
     event: { type: 'json', description: 'Event object' },
     events: { type: 'json', description: 'Array of events' },

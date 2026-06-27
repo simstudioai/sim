@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Popover,
   PopoverAnchor,
@@ -13,7 +14,6 @@ import type {
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTranslations } from 'next-intl'
 
 export interface LogRowContextMenuProps {
   isOpen: boolean

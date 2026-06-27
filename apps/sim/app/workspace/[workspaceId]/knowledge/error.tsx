@@ -1,7 +1,7 @@
 'use client'
 
-import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 import { useTranslations } from 'next-intl'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
 export default function KnowledgeError({ error, reset }: ErrorBoundaryProps) {
   const t = useTranslations('auto')

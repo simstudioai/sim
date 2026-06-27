@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button, ChipInput, Tooltip } from '@/components/emcn'
 import { generatePassword } from '@/lib/core/security/encryption'
-import { useTranslations } from 'next-intl'
 
 interface GeneratedPasswordInputProps {
   value: string

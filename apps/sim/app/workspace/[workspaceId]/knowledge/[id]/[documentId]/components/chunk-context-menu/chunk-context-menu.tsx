@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface ChunkContextMenuProps {
   isOpen: boolean

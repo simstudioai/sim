@@ -1,11 +1,11 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Calendar, Plus } from '@/components/emcn'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
-import { useTranslations } from 'next-intl'
 
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New scheduled task', icon: Plus, variant: 'primary' }]
 

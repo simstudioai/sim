@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChipInput, Search } from '@/components/emcn'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
-import { useTranslations } from 'next-intl'
 
 const PILL_BASE =
   'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
@@ -84,8 +84,20 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       {filtered.length === 0 ? (
         <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
           {t('no_integrations_found')}
-          {query ? <> {t('for_ldquo')}{query}{t('rdquo')}</> : null}
-          {activeCategory ? <> {t('in')} {formatIntegrationType(activeCategory)}</> : null}
+          {query ? (
+            <>
+              {' '}
+              {t('for_ldquo')}
+              {query}
+              {t('rdquo')}
+            </>
+          ) : null}
+          {activeCategory ? (
+            <>
+              {' '}
+              {t('in')} {formatIntegrationType(activeCategory)}
+            </>
+          ) : null}
         </p>
       ) : (
         <div>

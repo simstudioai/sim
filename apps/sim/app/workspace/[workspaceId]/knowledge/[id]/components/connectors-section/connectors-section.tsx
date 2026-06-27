@@ -15,6 +15,7 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -33,7 +34,6 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectorsSection')
 
@@ -372,12 +372,16 @@ function ConnectorCard({
             </div>
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
               {connector.lastSyncAt && (
-                <span>{t('last_sync')} {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
+                <span>
+                  {t('last_sync')} {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}
+                </span>
               )}
               {connector.lastSyncDocCount !== null && (
                 <>
                   <span>·</span>
-                  <span>{connector.lastSyncDocCount} {t('docs')}</span>
+                  <span>
+                    {connector.lastSyncDocCount} {t('docs')}
+                  </span>
                 </>
               )}
               {connector.nextSyncAt && connector.status === 'active' && (
@@ -506,7 +510,8 @@ function ConnectorCard({
               {t('connector_disabled_after_repeated_sync_failures')}
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              {t('syncing_has_been_paused_due_to')} {connector.consecutiveFailures} {t('consecutive_failures')}
+              {t('syncing_has_been_paused_due_to')} {connector.consecutiveFailures}{' '}
+              {t('consecutive_failures')}
               {serviceId
                 ? ' Reconnect your account to resume syncing.'
                 : ' Use the resume button to re-enable syncing.'}

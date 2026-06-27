@@ -1,6 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { useTranslations } from 'next-intl'
 import { createPortal } from 'react-dom'
 import {
   Popover,
@@ -9,7 +10,6 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
-import { useTranslations } from 'next-intl'
 
 interface PreviewContextMenuProps {
   isOpen: boolean

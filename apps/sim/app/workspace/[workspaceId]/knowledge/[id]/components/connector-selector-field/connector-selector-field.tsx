@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
@@ -11,7 +12,6 @@ import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
-import { useTranslations } from 'next-intl'
 
 interface ConnectorSelectorFieldProps {
   field: ConnectorConfigField & { selectorKey: SelectorKey }

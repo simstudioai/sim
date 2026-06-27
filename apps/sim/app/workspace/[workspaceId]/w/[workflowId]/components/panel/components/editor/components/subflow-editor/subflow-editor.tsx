@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import {
   Code as CodeEditor,
@@ -23,7 +24,6 @@ import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
-import { useTranslations } from 'next-intl'
 
 const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
 
@@ -285,7 +285,9 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[var(--text-primary)] text-small'>{t('connections')}</div>
+            <div className='font-medium text-[var(--text-primary)] text-small'>
+              {t('connections')}
+            </div>
           </div>
 
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>

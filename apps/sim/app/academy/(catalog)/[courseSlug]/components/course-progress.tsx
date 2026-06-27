@@ -3,6 +3,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { CheckCircle2, Circle, ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Loader } from '@/components/emcn'
 import {
   getCompletedLessonsFromSnapshot,
@@ -13,7 +14,6 @@ import {
 import type { Course } from '@/lib/academy/types'
 import { useSession } from '@/lib/auth/auth-client'
 import { useCourseCertificate, useIssueCertificate } from '@/hooks/queries/academy'
-import { useTranslations } from 'next-intl'
 
 interface CourseProgressProps {
   course: Course
@@ -67,7 +67,9 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
           {course.modules.map((mod, modIndex) => (
             <div key={mod.id}>
               <div className='mb-4 flex items-center gap-3'>
-                <span className='text-[#555] text-[12px]'>{t('module')} {modIndex + 1}</span>
+                <span className='text-[#555] text-[12px]'>
+                  {t('module')} {modIndex + 1}
+                </span>
                 <div className='h-px flex-1 bg-[#2A2A2A]' />
               </div>
               <h2 className='mb-4 font-[430] text-[#ECECEC] text-[18px]'>{mod.title}</h2>
@@ -106,7 +108,9 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                 <div className='flex items-center gap-3'>
                   <GraduationCap className='size-6 text-[#4CAF50]' />
                   <div>
-                    <p className='font-[430] text-[#ECECEC] text-[15px]'>{t('certificate_issued')}</p>
+                    <p className='font-[430] text-[#ECECEC] text-[15px]'>
+                      {t('certificate_issued')}
+                    </p>
                     <p className='font-mono text-[#666] text-[13px]'>
                       {certificate.certificateNumber}
                     </p>

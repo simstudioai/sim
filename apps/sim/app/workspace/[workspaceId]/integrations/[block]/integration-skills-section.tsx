@@ -2,13 +2,13 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { Chip, toast } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
-import { useTranslations } from 'next-intl'
 
 interface IntegrationSkillsSectionProps {
   skills: readonly SuggestedSkill[]

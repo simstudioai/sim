@@ -18,10 +18,10 @@
  */
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Button, Check, Duplicate } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { useTranslations } from 'next-intl'
 
 const REDACTED_DOTS = '••••••••••••••••••••••••••••••••'
 

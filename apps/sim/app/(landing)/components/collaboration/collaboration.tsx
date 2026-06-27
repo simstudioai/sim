@@ -4,9 +4,9 @@ import { useCallback, useId, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -247,9 +247,7 @@ export default function Collaboration() {
               {t('collaboration')}
             </h2>
 
-            <p className='sr-only'>
-              {t('sim_supports_real_time_multiplayer_collaboration')}
-            </p>
+            <p className='sr-only'>{t('sim_supports_real_time_multiplayer_collaboration')}</p>
 
             <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] md:text-lg'>
               {t('grab_your_team_build_agents_together')} <br className='hidden md:block' />

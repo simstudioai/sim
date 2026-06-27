@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Input } from '@/components/emcn'
 import { ChevronArrow, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
@@ -12,7 +13,6 @@ import {
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
 } from '@/app/(landing)/models/utils'
-import { useTranslations } from 'next-intl'
 
 export function ModelDirectory() {
   const t = useTranslations('auto')
@@ -199,7 +199,10 @@ export function ModelDirectory() {
 
               <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-              <nav aria-label={t('dynamic_catalog_providers')} className='flex flex-col lg:flex-row'>
+              <nav
+                aria-label={t('dynamic_catalog_providers')}
+                className='flex flex-col lg:flex-row'
+              >
                 {filteredDynamicProviders.map((provider) => (
                   <div
                     key={provider.id}
@@ -247,8 +250,9 @@ function ModelRow({ provider, model }: { provider: CatalogProvider; model: Catal
             {model.displayName}
           </h3>
           <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
-            {model.id} {t('middot_input')} {formatPrice(model.pricing.input)}{t('1m_middot_output')}{' '}
-            {formatPrice(model.pricing.output)}{t('1m')}
+            {model.id} {t('middot_input')} {formatPrice(model.pricing.input)}
+            {t('1m_middot_output')} {formatPrice(model.pricing.output)}
+            {t('1m')}
             {model.contextWindow ? ` · ${formatTokenCount(model.contextWindow)} context` : ''}
           </p>
         </div>

@@ -4,6 +4,7 @@ import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -96,7 +97,6 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { useTranslations } from 'next-intl'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
@@ -1757,7 +1757,9 @@ export function Files() {
     return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('file_type')}</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>
+            {t('file_type')}
+          </span>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },

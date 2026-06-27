@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -11,7 +12,6 @@ import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('PasswordAuth')
 

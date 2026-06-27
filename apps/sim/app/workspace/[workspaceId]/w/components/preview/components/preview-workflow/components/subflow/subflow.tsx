@@ -2,11 +2,11 @@
 
 import { memo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
-import { useTranslations } from 'next-intl'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'

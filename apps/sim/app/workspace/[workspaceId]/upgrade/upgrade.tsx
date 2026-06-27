@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { ArrowLeft, Chip, toast } from '@/components/emcn'
 import {
@@ -33,7 +34,6 @@ import {
   upgradeUrlKeys,
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
-import { useTranslations } from 'next-intl'
 
 const TYPEFORM_ENTERPRISE_URL = 'https://form.typeform.com/to/jqCO12pF' as const
 

@@ -1,9 +1,9 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { ChipCombobox, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { useTranslations } from 'next-intl'
 
 interface RunSettingsSectionProps {
   /** All columns the group can depend on (left-of-current scalar + workflow
@@ -33,7 +33,9 @@ export function RunSettingsSection({
 
   return (
     <div className='flex flex-col gap-[9.5px]'>
-      <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>{t('run_after')}</Label>
+      <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
+        {t('run_after')}
+      </Label>
       <ChipCombobox
         multiSelect
         searchable

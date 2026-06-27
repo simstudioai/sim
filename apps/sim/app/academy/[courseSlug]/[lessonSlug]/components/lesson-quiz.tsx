@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { CheckCircle2, XCircle } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { QuizDefinition, QuizQuestion } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface LessonQuizProps {
   lessonId: string
@@ -94,7 +94,8 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
       <div>
         <h2 className='font-[430] text-[#ECECEC] text-[20px]'>{t('quiz')}</h2>
         <p className='mt-1 text-[#666] text-[14px]'>
-          {t('score')} {quizConfig.passingScore}{t('or_higher_to_pass')}
+          {t('score')} {quizConfig.passingScore}
+          {t('or_higher_to_pass')}
         </p>
       </div>
 
@@ -226,7 +227,8 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
         >
           <p className='font-[430] text-[15px]'>{result.passed ? 'Passed!' : 'Keep trying!'}</p>
           <p className='mt-1 text-[13px] opacity-80'>
-            {t('score_2')} {result.score}{t('passing')} {quizConfig.passingScore}%)
+            {t('score_2')} {result.score}
+            {t('passing')} {quizConfig.passingScore}%)
           </p>
           {!result.passed && (
             <button

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ChipCombobox,
@@ -28,7 +29,6 @@ import {
   useDeleteTagDefinition,
   useTagUsageQuery,
 } from '@/hooks/queries/kb/knowledge'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('BaseTagsModal')
 
@@ -291,7 +291,8 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     </span>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
                     <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
-                      {usage.documentCount} {t('document')}{usage.documentCount !== 1 ? 's' : ''}
+                      {usage.documentCount} {t('document')}
+                      {usage.documentCount !== 1 ? 's' : ''}
                     </span>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button
@@ -442,13 +443,15 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         size='sm'
       >
         <ChipModalHeader onClose={() => setViewDocumentsDialogOpen(false)}>
-          {t('documents_using')}{selectedTag?.displayName}"
+          {t('documents_using')}
+          {selectedTag?.displayName}"
         </ChipModalHeader>
         <ChipModalBody>
           <div className='flex flex-col gap-2 px-2'>
             <p className='text-[var(--text-secondary)]'>
               {selectedTagUsage?.documentCount || 0} {t('document')}
-              {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} {t('currently_using_this_tag_definition')}
+              {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'}{' '}
+              {t('currently_using_this_tag_definition')}
             </p>
 
             {selectedTagUsage?.documentCount === 0 ? (

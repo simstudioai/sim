@@ -40,6 +40,7 @@
 
 import * as React from 'react'
 import { X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn/components/button/button'
 import { Chip, type ChipProps } from '@/components/emcn/components/chip/chip'
 import {
@@ -61,7 +62,6 @@ import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { Loader } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { useTranslations } from 'next-intl'
 
 /**
  * The modal's hairline divider — used by the header and footer edges, and

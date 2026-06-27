@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff, Search } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   Chip,
@@ -24,7 +25,6 @@ import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/co
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('BYOKKeyManager')
 
@@ -327,7 +327,8 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           </div>
         ) : showNoResults ? (
           <SettingsEmptyState variant='inline'>
-            {t('no_providers_found_matching')}{searchTerm}"
+            {t('no_providers_found_matching')}
+            {searchTerm}"
           </SettingsEmptyState>
         ) : sections ? (
           <div className='flex flex-col gap-7'>

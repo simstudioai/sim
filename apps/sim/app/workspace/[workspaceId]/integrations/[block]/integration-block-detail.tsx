@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -28,7 +29,6 @@ import {
 } from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { useTranslations } from 'next-intl'
 
 /** Maximum number of overlapping icon tiles rendered per template row. */
 const TEMPLATE_CLUSTER_MAX = 3 as const

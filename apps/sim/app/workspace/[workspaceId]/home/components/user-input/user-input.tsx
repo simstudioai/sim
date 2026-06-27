@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button, Paperclip, Plus, Slash, Tooltip, toast } from '@/components/emcn'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -39,7 +40,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTranslations } from 'next-intl'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 

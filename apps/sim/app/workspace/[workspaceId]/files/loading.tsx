@@ -1,11 +1,11 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { File as FilesIcon, FolderPlus, Plus, Upload } from '@/components/emcn'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
-import { useTranslations } from 'next-intl'
 
 const COLUMNS = [
   { id: 'name', header: 'Name', widthMultiplier: 1.15 },

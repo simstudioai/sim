@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ExternalLink, KeyRound, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
@@ -32,7 +33,6 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useTranslations } from 'next-intl'
 
 interface CredentialSelectorProps {
   blockId: string

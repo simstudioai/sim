@@ -26,7 +26,6 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useTranslations } from 'next-intl'
 
 export type AvailableResourceGroup = ReturnType<typeof useAvailableResources>[number]
 

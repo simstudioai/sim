@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   ButtonGroup,
@@ -26,7 +27,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 import { formatVersionLabel } from './format-version-label'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('GeneralDeploy')
 

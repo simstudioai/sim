@@ -1,9 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 /**
  * Tooltip placement side.

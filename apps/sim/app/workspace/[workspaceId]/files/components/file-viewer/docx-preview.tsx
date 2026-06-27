@@ -3,13 +3,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DocxPreview')
 

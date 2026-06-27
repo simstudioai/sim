@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Duplicate, SquareArrowUpRight } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface NavItemContextMenuProps {
   isOpen: boolean

@@ -1,6 +1,7 @@
 'use client'
 
 import type React from 'react'
+import { useTranslations } from 'next-intl'
 import { Tooltip } from '@/components/emcn'
 import {
   Calendar as CalendarIcon,
@@ -12,7 +13,6 @@ import {
   WorkflowX,
 } from '@/components/emcn/icons'
 import type { BlockIconInfo } from '../types'
-import { useTranslations } from 'next-intl'
 
 export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
   string: TypeText,
@@ -63,9 +63,7 @@ export function ColumnTypeIcon({
               <WorkflowX className='size-3 shrink-0 text-[var(--text-icon)]' />
             </span>
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            {t('this_column_s_source_block_no')}
-          </Tooltip.Content>
+          <Tooltip.Content side='top'>{t('this_column_s_source_block_no')}</Tooltip.Content>
         </Tooltip.Root>
       )
     }

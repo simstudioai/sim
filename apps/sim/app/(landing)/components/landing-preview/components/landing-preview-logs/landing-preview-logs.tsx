@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
 import { Download, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { useTranslations } from 'next-intl'
 
 interface LogRow {
   id: string

@@ -6,6 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -90,7 +91,6 @@ import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []

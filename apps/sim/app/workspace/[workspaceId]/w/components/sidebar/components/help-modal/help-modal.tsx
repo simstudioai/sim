@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
 import { X } from 'lucide-react'
 import Image from 'next/image'
+import { useTranslations } from 'next-intl'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
@@ -16,7 +17,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('HelpModal')
 

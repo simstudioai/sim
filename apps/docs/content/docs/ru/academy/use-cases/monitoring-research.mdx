@@ -1,24 +1,24 @@
 ---
-title: Мониторинг и автоматизированное исследование
-description: Агент по расписанию, который следит за интересующими вас источниками, исследует изменения и сообщает о них — самостоятельно.
+title: Мониторинг и автоматизированные исследования
+description: Автоматизированный агент, который следит за источниками, которые вам важны, анализирует изменения и предоставляет отчеты – самостоятельно.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
 
-<VideoPlaceholder eyebrow="Пример использования" title="Мониторинг и автоматизированное исследование" className="mt-2" />
+<VideoPlaceholder eyebrow="Use case" title="Monitoring & Automated Research" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Постройте систему, которая работает по расписанию, проверяет интересующие вас источники, исследует, что нового, и предоставляет сводный отчёт — движения конкурентов, рыночные сигналы, всё, за чем стоит следить — без вашего запроса каждый раз.
+Создайте систему, которая работает по расписанию, проверяет источники, которые вам интересны, отслеживает новые данные и предоставляет синтезированный отчет – о действиях конкурентов, рыночных сигналах, всем, что стоит отслеживать – без необходимости каждый раз запрашивать эту информацию.
 
 <WhatYouWillLearn
   items={[
-    { title: 'Запуск по расписанию', body: 'Запускайте воркфлоу по таймеру, чтобы работа происходила сама по себе.' },
-    { title: 'Исследование с помощью инструментов', body: 'Позвольте агенту искать в интернете, читать страницы и обобщать результаты.' },
-    { title: 'Доставка результата', body: 'Отправляйте сводку в Slack или сохраняйте файл отчёта при каждом запуске.' },
+    { title: 'Run on a schedule', body: 'Trigger a workflow on a timer so the work happens on its own.' },
+    { title: 'Research with tools', body: 'Let an agent search the web, read pages, and synthesize findings.' },
+    { title: 'Deliver the result', body: 'Post a summary to Slack or save a report file each run.' },
   ]}
 />
 
@@ -26,18 +26,17 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 
 <VideoChapters
   chapters={[
-    { title: 'Проблема', time: '0:00' },
-    { title: 'Триггер по расписанию', time: '0:35' },
-    { title: 'Исследование с помощью инструментов', time: '1:25' },
-    { title: 'Обобщение результатов', time: '2:20' },
-    { title: 'Доставка отчёта', time: '3:10' },
+    { title: 'The problem', time: '0:00' },
+    { title: 'Schedule trigger', time: '0:35' },
+    { title: 'Research with tools', time: '1:25' },
+    { title: 'Synthesize findings', time: '2:20' },
+    { title: 'Deliver the report', time: '3:10' },
   ]}
 />
 
 </div>
 
-## Что вы построите
+## Что вы создадите
+**Триггер расписания** запускает рабочий процесс. Блок "Агент" с инструментами поиска собирает и читает источники, анализирует изменения и в конечном итоге отправляет результат – сообщение в Slack или сохранённый отчет.[файл](/academy/files/intro)файл/academy/файлы/введение.
 
-**Триггер Schedule** запускает воркфлоу. Блок **Agent** с поисковыми инструментами собирает и читает источники, обобщает изменения, а финальный шаг доставляет результат — сообщение в Slack или сохранённый [файл](/academy/files/intro) отчёта.
-
-Это объединяет [воркфлоу](/academy/workflows/intro), [агентов](/academy/agents/intro) и [файлы](/academy/files/intro).
+Это включает в себя[рабочие процессы](/academy/workflows/intro)рабочие процессы/курсы/рабочие процессы /введение, [представители](/academy/agents/intro)представители/академия/представители/введениеи[файлы](/academy/files/intro)файлы/academy/файлы/введение.

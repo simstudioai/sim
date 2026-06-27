@@ -1,6 +1,7 @@
 'use client'
 
 import { Scissors } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Clipboard, Duplicate, Search, SelectAll } from '@/components/emcn/icons'
-import { useTranslations } from 'next-intl'
 
 interface EditorContextMenuProps {
   isOpen: boolean

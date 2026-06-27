@@ -1,6 +1,7 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
+import { useTranslations } from 'next-intl'
 import {
   Button,
   DropdownMenu,
@@ -14,7 +15,6 @@ import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { type ImportRow, useWorkspaceImports } from './use-workspace-imports'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ImportProgressMenu')
 

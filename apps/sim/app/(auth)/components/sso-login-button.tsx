@@ -1,11 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
-import { useTranslations } from 'next-intl'
 
 interface SSOLoginButtonProps {
   callbackURL?: string

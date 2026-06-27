@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   Button,
@@ -26,7 +27,6 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { RunSettingsSection } from '../workflow-sidebar/run-settings-section'
-import { useTranslations } from 'next-intl'
 
 interface EnrichmentConfigProps {
   enrichment: EnrichmentDef
@@ -246,7 +246,9 @@ export function EnrichmentConfig({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         <div className='flex flex-col gap-[9.5px]'>
-          <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>{t('inputs')}</Label>
+          <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
+            {t('inputs')}
+          </Label>
           {enrichment.inputs.length === 0 ? (
             <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
               {t('this_enrichment_needs_no_inputs')}

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   Loader,
   Modal,
@@ -22,7 +23,6 @@ import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { getBrandConfig } from '@/ee/whitelabeling'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AuthModal')
 
@@ -253,7 +253,9 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
                 </span>
                 {view === 'login' && providerStatus.registrationDisabled ? (
-                  <span className='text-[var(--landing-text-muted)]'>{t('registration_is_disabled')}</span>
+                  <span className='text-[var(--landing-text-muted)]'>
+                    {t('registration_is_disabled')}
+                  </span>
                 ) : (
                   <button
                     type='button'

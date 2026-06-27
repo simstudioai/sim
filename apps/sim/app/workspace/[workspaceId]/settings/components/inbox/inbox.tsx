@@ -2,6 +2,7 @@
 
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import {
@@ -14,7 +15,6 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import { useTranslations } from 'next-intl'
 
 export function Inbox() {
   const t = useTranslations('auto')

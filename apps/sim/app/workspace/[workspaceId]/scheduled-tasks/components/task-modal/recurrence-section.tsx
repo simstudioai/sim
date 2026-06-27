@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
+import { useTranslations } from 'next-intl'
 import {
   CalendarDayCell,
   ChipDatePicker,
@@ -14,7 +15,6 @@ import type {
   Recurrence,
   RecurrenceFrequency,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
-import { useTranslations } from 'next-intl'
 
 const WEEKDAY_PRESET = [1, 2, 3, 4, 5]
 /** Seed count when the user first chooses "ends after N runs". */

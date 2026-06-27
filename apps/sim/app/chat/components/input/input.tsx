@@ -5,12 +5,12 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { Badge, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ChatInput')
 

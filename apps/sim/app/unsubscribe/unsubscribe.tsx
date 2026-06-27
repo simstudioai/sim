@@ -3,12 +3,12 @@
 import { Suspense } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Loader } from '@/components/emcn'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
-import { useTranslations } from 'next-intl'
 
 function UnsubscribeContent() {
   const t = useTranslations('auto')

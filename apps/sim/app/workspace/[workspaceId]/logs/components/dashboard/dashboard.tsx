@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Loader } from '@/components/emcn'
 import {
   DashboardSegmentsContext,
@@ -12,7 +13,6 @@ import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { LineChart, WorkflowsList } from './components'
-import { useTranslations } from 'next-intl'
 
 interface WorkflowExecution {
   workflowId: string

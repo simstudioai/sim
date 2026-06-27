@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useTranslations } from 'next-intl'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
@@ -20,7 +21,6 @@ import {
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { useTranslations } from 'next-intl'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
 type BadgeVariant = 'green' | 'blue' | 'orange' | 'purple' | 'gray' | 'red'

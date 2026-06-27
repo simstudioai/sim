@@ -5,10 +5,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { requestJson } from '@/lib/api/client/request'
 import { resetPasswordContract } from '@/lib/api/contracts'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ResetPasswordPage')
 
@@ -99,7 +99,9 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   const t = useTranslations('auto')
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}>
+    <Suspense
+      fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}
+    >
       <ResetPasswordContent />
     </Suspense>
   )

@@ -5,6 +5,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { toError } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
@@ -19,7 +20,6 @@ import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
-import { useTranslations } from 'next-intl'
 
 type ContactField = keyof ContactRequestPayload
 type ContactErrors = Partial<Record<ContactField, string>>

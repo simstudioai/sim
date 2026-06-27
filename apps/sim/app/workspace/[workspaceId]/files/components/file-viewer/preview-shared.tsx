@@ -2,8 +2,8 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { createLogger } from '@sim/logger'
-import { cn } from '@/lib/core/utils/cn'
 import { useTranslations } from 'next-intl'
+import { cn } from '@/lib/core/utils/cn'
 
 const logger = createLogger('FilePreview')
 

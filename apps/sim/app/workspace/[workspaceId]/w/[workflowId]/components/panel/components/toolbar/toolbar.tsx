@@ -29,7 +29,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
 import type { ToolbarSectionKey } from '@/stores/panel/toolbar/store'
-import { useTranslations } from 'next-intl'
 
 interface BlockItem {
   name: string

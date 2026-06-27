@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { debounce, useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -93,7 +94,6 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('KnowledgeBase')
 

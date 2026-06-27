@@ -12,6 +12,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import {
   Button,
@@ -95,7 +96,6 @@ import {
   StatusBadge,
   TriggerBadge,
 } from './utils'
-import { useTranslations } from 'next-intl'
 
 const LOGS_PER_PAGE = 50 as const
 const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const

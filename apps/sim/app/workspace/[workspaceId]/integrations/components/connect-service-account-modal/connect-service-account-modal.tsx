@@ -3,6 +3,7 @@
 import { type ComponentType, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import {
   ChipModal,
   ChipModalBody,
@@ -16,7 +17,6 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { useCreateWorkspaceCredential } from '@/hooks/queries/credentials'
-import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectServiceAccountModal')
 

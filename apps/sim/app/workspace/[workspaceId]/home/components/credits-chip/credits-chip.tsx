@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Chip } from '@/components/emcn'
 import { Credit } from '@/components/emcn/icons'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
@@ -13,7 +14,6 @@ import { useMyMemberCredits } from '@/hooks/queries/organization'
 import { usePlanView } from '@/hooks/queries/plan-view'
 import { prefetchUpgradeBillingData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
-import { useTranslations } from 'next-intl'
 
 export function CreditsChip() {
   if (!isBillingEnabled) return null

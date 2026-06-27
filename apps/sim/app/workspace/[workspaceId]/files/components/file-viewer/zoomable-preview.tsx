@@ -2,10 +2,10 @@
 
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
-import { useTranslations } from 'next-intl'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4
