@@ -1,11 +1,14 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { promoteForkContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { recordBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
 import { promoteFork } from '@/lib/workspaces/fork/promote/promote'
 
@@ -76,6 +79,28 @@ export const POST = withRouteHandler(
       },
       request: req,
     })
+
+    const otherName =
+      otherWorkspaceId === auth.sourceWorkspaceId ? auth.source.name : auth.target.name
+    await recordBackgroundWork(db, {
+      workspaceId: id,
+      kind: 'fork_sync',
+      status: result.deployFailed > 0 ? 'completed_with_warnings' : 'completed',
+      message: direction === 'pull' ? `Pulled from "${otherName}"` : `Synced to "${otherName}"`,
+      metadata: {
+        otherWorkspaceName: otherName,
+        direction,
+        updated: result.updated,
+        created: result.created,
+        archived: result.archived,
+        redeployed: result.redeployed,
+        deployFailed: result.deployFailed,
+      },
+    }).catch((error) =>
+      logger.error(`[${requestId}] Failed to record sync activity`, {
+        error: getErrorMessage(error),
+      })
+    )
 
     return NextResponse.json(body)
   }

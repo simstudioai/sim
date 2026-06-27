@@ -5,7 +5,6 @@ import { formatDateTime } from '@sim/utils/formatting'
 import { Badge, ChevronDown, Loader } from '@/components/emcn'
 import type {
   BackgroundWorkItem,
-  BackgroundWorkMetadata,
   ForkOperationReport,
   ForkReportGroup,
 } from '@/lib/api/contracts/workspace-fork'
@@ -32,23 +31,77 @@ const SEVERITY_DOT: Record<ForkReportGroup['severity'], string> = {
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
-/** "what was copied" lines for a job's expand row, built from its metadata. */
-function jobDetailLines(metadata: BackgroundWorkMetadata): string[] {
-  if (!metadata) return []
+/** Join "N verb" segments (verbs like "updated" aren't pluralized), dropping zero counts. */
+function countList(pairs: Array<[number | undefined, string]>): string {
+  return pairs
+    .filter(([n]) => (n ?? 0) > 0)
+    .map(([n, verb]) => `${n} ${verb}`)
+    .join(' · ')
+}
+
+/** The audit-row title, derived per kind from the job's metadata. */
+function jobTitle(job: BackgroundWorkItem): string {
+  const m = job.metadata
+  switch (job.kind) {
+    case 'fork_content_copy':
+      return m?.childWorkspaceName ? `Forked to "${m.childWorkspaceName}"` : (job.message ?? 'Fork')
+    case 'fork_sync':
+      if (!m?.otherWorkspaceName) return job.message ?? 'Sync'
+      return m.direction === 'pull'
+        ? `Pulled from "${m.otherWorkspaceName}"`
+        : `Synced to "${m.otherWorkspaceName}"`
+    case 'fork_rollback':
+      return m?.otherWorkspaceName
+        ? `Undid sync from "${m.otherWorkspaceName}"`
+        : (job.message ?? 'Rollback')
+    default:
+      return job.message ?? 'Activity'
+  }
+}
+
+/** The expand-row detail lines for a job, built per kind from its metadata. */
+function jobDetailLines(job: BackgroundWorkItem): string[] {
+  const m = job.metadata
+  if (!m) return []
+
+  if (job.kind === 'fork_sync') {
+    const lines: string[] = []
+    const counts = countList([
+      [m.updated, 'updated'],
+      [m.created, 'created'],
+      [m.archived, 'archived'],
+      [m.redeployed, 'redeployed'],
+    ])
+    if (counts) lines.push(counts)
+    if (m.deployFailed && m.deployFailed > 0) lines.push(`${m.deployFailed} failed to deploy`)
+    return lines
+  }
+
+  if (job.kind === 'fork_rollback') {
+    const counts = countList([
+      [m.restored, 'restored'],
+      [m.unarchived, 'unarchived'],
+      [m.removed, 'removed'],
+      [m.skipped, 'skipped'],
+    ])
+    return counts ? [counts] : []
+  }
+
+  // fork_content_copy: countable resource breakdown + the copy outcome.
   const lines: string[] = []
   const kinds: Array<[number | undefined, string]> = [
-    [metadata.workflowsCopied, 'workflow'],
-    [metadata.tables, 'table'],
-    [metadata.knowledgeBases, 'knowledge base'],
-    [metadata.files, 'file'],
+    [m.workflowsCopied, 'workflow'],
+    [m.tables, 'table'],
+    [m.knowledgeBases, 'knowledge base'],
+    [m.files, 'file'],
   ]
   const selected = kinds.filter(([n]) => (n ?? 0) > 0).map(([n, noun]) => plural(n as number, noun))
   if (selected.length > 0) lines.push(selected.join(' · '))
-  if (metadata.copied != null) {
+  if (m.copied != null) {
     lines.push(
-      metadata.failed && metadata.failed > 0
-        ? `${plural(metadata.copied, 'item')} copied, ${metadata.failed} failed`
-        : `${plural(metadata.copied, 'item')} copied`
+      m.failed && m.failed > 0
+        ? `${plural(m.copied, 'item')} copied, ${m.failed} failed`
+        : `${plural(m.copied, 'item')} copied`
     )
   }
   return lines
@@ -77,11 +130,9 @@ function JobStatusIndicator({ status }: { status: BackgroundWorkItem['status'] }
 /** One audit-log row: status + "Forked to ...", expanding to what was copied. */
 function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
   const [expanded, setExpanded] = useState(false)
-  const detailLines = jobDetailLines(job.metadata)
+  const detailLines = jobDetailLines(job)
   const hasDetail = detailLines.length > 0 || Boolean(job.error)
-  const title = job.metadata?.childWorkspaceName
-    ? `Forked to "${job.metadata.childWorkspaceName}"`
-    : (job.message ?? 'Fork')
+  const title = jobTitle(job)
 
   return (
     <Fragment>

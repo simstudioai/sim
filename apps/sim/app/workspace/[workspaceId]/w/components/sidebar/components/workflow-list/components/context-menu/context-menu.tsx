@@ -314,7 +314,7 @@ export function ContextMenu({
             }}
           >
             <Shuffle />
-            Fork workspace
+            Manage Forks
           </DropdownMenuItem>
         )}
         {showSync && onSync && (

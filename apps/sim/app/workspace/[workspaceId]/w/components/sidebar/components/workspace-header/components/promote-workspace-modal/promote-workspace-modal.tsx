@@ -198,6 +198,7 @@ export function PromoteWorkspaceModal({
   const runPromote = async (force: boolean) => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
+    setActiveTab('activity')
     try {
       await updateMapping.mutateAsync({
         workspaceId,
@@ -218,6 +219,7 @@ export function PromoteWorkspaceModal({
       })
 
       if (!result.promoteRunId) {
+        setActiveTab('config')
         if (result.unmappedRequired.length > 0) {
           toast.error('Map all required credentials and secrets first')
           return
@@ -249,6 +251,7 @@ export function PromoteWorkspaceModal({
       setLastReport(result.report)
       setActiveTab('activity')
     } catch (error) {
+      setActiveTab('config')
       toast.error(getErrorMessage(error, 'Sync failed'))
     } finally {
       setSubmitting(false)

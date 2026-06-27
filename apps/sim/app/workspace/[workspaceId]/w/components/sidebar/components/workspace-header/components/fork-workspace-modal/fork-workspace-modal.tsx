@@ -314,8 +314,8 @@ export function ForkWorkspaceModal({
 
   return (
     <>
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Fork workspace'>
-        <ChipModalHeader onClose={() => onOpenChange(false)}>Fork workspace</ChipModalHeader>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Manage Forks'>
+        <ChipModalHeader onClose={() => onOpenChange(false)}>Manage Forks</ChipModalHeader>
         <ChipModalBody>
           <ChipModalTabs
             tabs={[

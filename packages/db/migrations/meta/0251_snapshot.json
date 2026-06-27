@@ -1,5 +1,5 @@
 {
-  "id": "2329fe26-3655-419b-914d-8d3bcc70c86e",
+  "id": "4b6c34c6-9c5d-43e1-bd85-b87523e7737b",
   "prevId": "5e9026af-bce0-4abc-b4f6-82ca3b396ed1",
   "version": "7",
   "dialect": "postgresql",
@@ -17074,7 +17074,7 @@
     "public.background_work_kind": {
       "name": "background_work_kind",
       "schema": "public",
-      "values": ["deployment_side_effects", "fork_content_copy"]
+      "values": ["deployment_side_effects", "fork_content_copy", "fork_sync", "fork_rollback"]
     },
     "public.background_work_status_value": {
       "name": "background_work_status_value",

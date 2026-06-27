@@ -301,6 +301,7 @@ export type PromoteForkResponse = z.output<typeof promoteForkContract.response.s
 /** Structured detail for a background job, surfaced in the Activity tab's expand row. */
 export const backgroundWorkMetadataSchema = z
   .object({
+    // Fork content copy
     childWorkspaceId: z.string().optional(),
     childWorkspaceName: z.string().optional(),
     workflowsCopied: z.number().int().optional(),
@@ -309,13 +310,25 @@ export const backgroundWorkMetadataSchema = z
     files: z.number().int().optional(),
     copied: z.number().int().optional(),
     failed: z.number().int().optional(),
+    // Sync / rollback
+    otherWorkspaceName: z.string().optional(),
+    direction: z.enum(['push', 'pull']).optional(),
+    updated: z.number().int().optional(),
+    created: z.number().int().optional(),
+    archived: z.number().int().optional(),
+    redeployed: z.number().int().optional(),
+    deployFailed: z.number().int().optional(),
+    restored: z.number().int().optional(),
+    unarchived: z.number().int().optional(),
+    removed: z.number().int().optional(),
+    skipped: z.number().int().optional(),
   })
   .nullable()
 export const backgroundWorkItemSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   workflowId: z.string().nullable(),
-  kind: z.enum(['deployment_side_effects', 'fork_content_copy']),
+  kind: z.enum(['deployment_side_effects', 'fork_content_copy', 'fork_sync', 'fork_rollback']),
   status: z.enum(['pending', 'processing', 'completed', 'completed_with_warnings', 'failed']),
   message: z.string().nullable(),
   error: z.string().nullable(),

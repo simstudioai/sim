@@ -1,4 +1,4 @@
-CREATE TYPE "public"."background_work_kind" AS ENUM('deployment_side_effects', 'fork_content_copy');--> statement-breakpoint
+CREATE TYPE "public"."background_work_kind" AS ENUM('deployment_side_effects', 'fork_content_copy', 'fork_sync', 'fork_rollback');--> statement-breakpoint
 CREATE TYPE "public"."background_work_status_value" AS ENUM('pending', 'processing', 'completed', 'completed_with_warnings', 'failed');--> statement-breakpoint
 CREATE TABLE "background_work_status" (
 	"id" text PRIMARY KEY NOT NULL,

@@ -1423,6 +1423,8 @@ export const workspaceForkPromoteRun = pgTable(
 export const backgroundWorkKindEnum = pgEnum('background_work_kind', [
   'deployment_side_effects',
   'fork_content_copy',
+  'fork_sync',
+  'fork_rollback',
 ])
 
 export const backgroundWorkStatusValueEnum = pgEnum('background_work_status_value', [

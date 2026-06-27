@@ -6,7 +6,11 @@ import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('ForkBackgroundWork')
 
-export type BackgroundWorkKind = 'deployment_side_effects' | 'fork_content_copy'
+export type BackgroundWorkKind =
+  | 'deployment_side_effects'
+  | 'fork_content_copy'
+  | 'fork_sync'
+  | 'fork_rollback'
 export type BackgroundWorkStatusValue =
   | 'pending'
   | 'processing'
@@ -101,6 +105,38 @@ export async function startBackgroundWork(
     updatedAt: now,
   })
   return id
+}
+
+/**
+ * Record a synchronous operation directly as a terminal audit entry (no `processing`
+ * phase). Append-only - used by sync/rollback, which complete in-request, so they show
+ * up in the same workspace audit log as fork jobs.
+ */
+export async function recordBackgroundWork(
+  executor: DbOrTx,
+  params: {
+    workspaceId: string
+    kind: BackgroundWorkKind
+    status: Extract<BackgroundWorkStatusValue, 'completed' | 'completed_with_warnings' | 'failed'>
+    message?: string
+    error?: string
+    metadata?: unknown
+  }
+): Promise<void> {
+  const now = new Date()
+  await executor.insert(backgroundWorkStatus).values({
+    id: generateId(),
+    workspaceId: params.workspaceId,
+    workflowId: null,
+    kind: params.kind,
+    status: params.status,
+    message: params.message ?? null,
+    error: params.error ?? null,
+    metadata: params.metadata ?? null,
+    startedAt: now,
+    completedAt: now,
+    updatedAt: now,
+  })
 }
 
 /** Mark a tracked unit of work terminal (completed / completed_with_warnings / failed). */
