@@ -528,7 +528,7 @@ export const ClickHouseBlockMeta = {
       icon: Trash,
       title: 'Partition retention cleanup',
       prompt:
-        'Build a scheduled workflow that lists the partitions of my ClickHouse events table and drops partitions older than the retention window to keep storage under control.',
+        'Build a scheduled workflow that enforces a retention policy on my ClickHouse events table: take an explicit cutoff date as input, list the table partitions, select only the partitions on that exact table whose range ends strictly before the cutoff, and drop just those. Never infer the cutoff and never drop a partition that is not clearly past it.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['data-warehouse', 'maintenance'],
@@ -537,7 +537,7 @@ export const ClickHouseBlockMeta = {
       icon: Bell,
       title: 'Alert on long-running queries',
       prompt:
-        'Create a scheduled workflow that checks ClickHouse for running queries, and if any has been running too long, posts an alert to Slack and optionally kills the query.',
+        'Create a scheduled workflow that lists ClickHouse running queries and alerts Slack about any whose elapsed time exceeds an explicit threshold I set. Alert only by default; only kill a query when it is clearly past the threshold, is not a write or system/replication job, and a human has confirmed the specific query_id.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['monitoring', 'data-warehouse'],
@@ -597,7 +597,7 @@ export const ClickHouseBlockMeta = {
       description:
         'Keep ClickHouse tables healthy by inspecting parts, optimizing tables, and dropping stale partitions. Use for scheduled maintenance or when storage or part counts grow.',
       content:
-        '# Maintain Tables\n\nRun routine ClickHouse table maintenance.\n\n## Steps\n1. Use Table Stats and List Partitions to see size on disk, part counts, and per-partition rows.\n2. For tables with many small parts, run Optimize Table (optionally with Force Final Merge) to consolidate them.\n3. For time-partitioned tables past their retention window, use Drop Partition on the oldest partitions.\n4. Re-check Table Stats to confirm the part count and size dropped.\n\n## Output\nReport what was optimized or dropped, the before/after part count and size on disk, and any partitions intentionally retained. Never drop a partition unless it is clearly outside the retention window.',
+        "# Maintain Tables\n\nRun routine ClickHouse table maintenance. Optimize is safe; dropping partitions is destructive and irreversible, so treat it with care.\n\n## Steps\n1. Use Table Stats and List Partitions to see size on disk, part counts, and per-partition rows.\n2. For tables with many small parts, run Optimize Table (optionally with Force Final Merge) to consolidate them.\n3. Dropping partitions requires an explicit retention cutoff supplied by the caller — never infer or guess one. List the partitions of the intended table, select only those whose range ends strictly before that cutoff, and confirm each target's table and partition id before acting. Drop them one at a time with Drop Partition.\n4. Re-check Table Stats to confirm the part count and size dropped.\n\n## Output\nReport what was optimized or dropped, the before/after part count and size on disk, and any partitions intentionally retained. If no explicit cutoff was given, do not drop anything — optimize and report only. Never drop a partition unless it is clearly older than the cutoff and on the intended table.",
     },
   ],
 } as const satisfies BlockMeta
