@@ -23,7 +23,7 @@ export const DB_POOL_PROFILES = {
 type DbRole = keyof typeof DB_POOL_PROFILES
 
 const roleEnv = process.env.SIM_DB_ROLE?.trim()
-if (roleEnv && !(roleEnv in DB_POOL_PROFILES)) {
+if (roleEnv && !Object.hasOwn(DB_POOL_PROFILES, roleEnv)) {
   throw new Error(
     `Invalid SIM_DB_ROLE '${roleEnv}' — expected one of ${Object.keys(DB_POOL_PROFILES).join(', ')} (or unset for web)`
   )
