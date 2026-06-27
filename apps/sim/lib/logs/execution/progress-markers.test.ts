@@ -151,6 +151,11 @@ describe('progress-markers', () => {
       expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
       expect(mockRedis.hgetall).not.toHaveBeenCalled()
     })
+
+    it('returns null when the Redis read fails so callers do not clear the only copy', async () => {
+      mockRedis.hgetall.mockRejectedValueOnce(new Error('redis down'))
+      expect(await getProgressMarkers(EXECUTION_ID)).toBeNull()
+    })
   })
 
   describe('clearProgressMarkers', () => {

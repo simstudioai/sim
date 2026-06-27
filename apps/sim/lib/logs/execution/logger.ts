@@ -749,7 +749,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const builtExecutionData = this.buildCompletedExecutionData({
       existingExecutionData,
-      progressMarkers,
+      progressMarkers: progressMarkers ?? undefined,
       traceSpans: mergedTraceSpans,
       finalOutput,
       finalizationPath,
@@ -910,7 +910,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       return log
     })
 
-    void clearProgressMarkers(executionId)
+    if (progressMarkers !== null) void clearProgressMarkers(executionId)
 
     try {
       // Skip workflow lookup if workflow was deleted.

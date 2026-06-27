@@ -172,7 +172,7 @@ export async function fetchLogDetail({
 
     const liveMarkers =
       log.status === 'running' || log.status === 'pending'
-        ? await getProgressMarkers(log.executionId)
+        ? ((await getProgressMarkers(log.executionId)) ?? {})
         : {}
 
     return {

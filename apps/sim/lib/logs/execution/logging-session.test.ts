@@ -699,6 +699,12 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     expect(folded).toContain('lastCompletedBlock')
     expect(clearProgressMarkersMock).toHaveBeenCalledWith('exec-9')
   })
+
+  it('does not clear markers when the Redis read fails (avoids wiping the only copy)', async () => {
+    getProgressMarkersMock.mockResolvedValueOnce(null)
+    await LoggingSession.markExecutionAsFailed('exec-readfail', 'boom', undefined, 'wf-x')
+    expect(clearProgressMarkersMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('LoggingSession progress-marker write path', () => {

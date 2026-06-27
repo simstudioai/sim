@@ -1059,10 +1059,10 @@ export class LoggingSession {
             ARRAY['finalizationPath'],
             to_jsonb('force_failed'::text)
           )`
-      if (markers.lastStartedBlock) {
+      if (markers?.lastStartedBlock) {
         executionData = sql`jsonb_set(${executionData}, ARRAY['lastStartedBlock'], ${JSON.stringify(markers.lastStartedBlock)}::jsonb)`
       }
-      if (markers.lastCompletedBlock) {
+      if (markers?.lastCompletedBlock) {
         executionData = sql`jsonb_set(${executionData}, ARRAY['lastCompletedBlock'], ${JSON.stringify(markers.lastCompletedBlock)}::jsonb)`
       }
 
@@ -1076,7 +1076,7 @@ export class LoggingSession {
           )
         )
 
-      void clearProgressMarkers(executionId)
+      if (markers !== null) void clearProgressMarkers(executionId)
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {

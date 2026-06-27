@@ -176,9 +176,14 @@ function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBl
 
 /**
  * Read both markers for an execution. Returns an empty object when Redis is
- * unavailable, the key has expired, or nothing has been written yet.
+ * unavailable (markers were never stored here) or the key holds nothing, and
+ * `null` when the Redis read itself failed — callers must treat `null` as
+ * "unknown" and skip {@link clearProgressMarkers}, so a transient read error
+ * never wipes the only copy of markers that are still in Redis.
  */
-export async function getProgressMarkers(executionId: string): Promise<ExecutionProgressMarkers> {
+export async function getProgressMarkers(
+  executionId: string
+): Promise<ExecutionProgressMarkers | null> {
   const redis = getMarkerClient()
   if (!redis) return {}
 
@@ -196,7 +201,7 @@ export async function getProgressMarkers(executionId: string): Promise<Execution
     logger.error(`Failed to read progress markers for execution ${executionId}`, {
       error: toError(error).message,
     })
-    return {}
+    return null
   }
 }
 
