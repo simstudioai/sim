@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { inArray } from 'drizzle-orm'
-import type { ForkOperationReport } from '@/lib/api/contracts/workspace-fork'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -20,7 +19,6 @@ import {
   getLatestPromoteRunForTarget,
 } from '@/lib/workspaces/fork/promote/promote-run-store'
 import { reactivateDeployedVersionInTx } from '@/lib/workspaces/fork/promote/reactivate-in-tx'
-import { buildForkReport } from '@/lib/workspaces/fork/report'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 
 const logger = createLogger('WorkspaceForkRollback')
@@ -40,8 +38,6 @@ export interface RollbackForkResult {
   skipped: number
   /** Ids of the skipped workflows (surfaced so the partial restore is never silent). */
   skippedIds: string[]
-  /** Clean, grouped result report for the post-rollback UI. */
-  report: ForkOperationReport
 }
 
 /** A single restore action, sorted by workflow id for a deterministic lock order. */
@@ -275,33 +271,12 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   const archivedCount = created.length - skippedCreated
   const unarchived = archived.length - skippedArchived
 
-  const report = buildForkReport({
-    status: skipped.size > 0 ? 'succeeded_with_warnings' : 'succeeded',
-    headline: 'Undid the last sync',
-    groups: [
-      { id: 'restored', label: 'Restored', severity: 'info', count: restored, items: [] },
-      { id: 'unarchived', label: 'Unarchived', severity: 'info', count: unarchived, items: [] },
-      { id: 'archived', label: 'Removed', severity: 'info', count: archivedCount, items: [] },
-      {
-        id: 'skipped',
-        label: 'Skipped',
-        severity: 'warning',
-        count: skipped.size,
-        items: Array.from(skipped).map((id) => ({
-          label: id,
-          detail: 'No longer exists in the workspace.',
-        })),
-      },
-    ],
-  })
-
   const result: RollbackForkResult = {
     restored,
     archived: archivedCount,
     unarchived,
     skipped: skipped.size,
     skippedIds: Array.from(skipped),
-    report,
   }
 
   logger.info(`[${requestId}] Rolled back promote into ${targetWorkspaceId}`, {

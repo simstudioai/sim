@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import type { ForkOperationReport } from '@/lib/api/contracts/workspace-fork'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
@@ -37,7 +36,6 @@ import {
   createForkSubBlockTransform,
   type ForkReference,
 } from '@/lib/workspaces/fork/remap/remap-references'
-import { buildForkReport } from '@/lib/workspaces/fork/report'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -68,8 +66,6 @@ export interface PromoteForkResult {
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
   drift: boolean
   blocked: 'unmapped' | 'drift' | null
-  /** Clean, grouped result report for the post-sync UI (never-silent surfacing). */
-  report: ForkOperationReport
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -363,25 +359,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
   if (txResult.blocked !== null) {
     const unmappedRequired = txResult.blocked === 'unmapped' ? txResult.unmappedRequired : []
-    const blockedReport = buildForkReport({
-      status: 'failed',
-      headline:
-        txResult.blocked === 'drift'
-          ? 'The target changed since the last sync - force sync to overwrite it'
-          : 'Map all required references before syncing',
-      groups: [
-        {
-          id: 'unmapped-required',
-          label: 'Required references to map',
-          severity: 'error',
-          count: unmappedRequired.length,
-          items: unmappedRequired.map((reference) => ({
-            label: reference.blockName ?? reference.sourceId,
-            detail: reference.kind,
-          })),
-        },
-      ],
-    })
     return {
       promoteRunId: '',
       updated: 0,
@@ -392,7 +369,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       unmappedRequired,
       drift: txResult.drift,
       blocked: txResult.blocked,
-      report: blockedReport,
     }
   }
 
@@ -443,55 +419,20 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     })
   }
 
+  if (deployWarnings.length > 0) {
+    logger.warn(`[${requestId}] Promote deploys emitted warnings`, { deployWarnings })
+  }
+  if (txResult.skippedItems.length > 0) {
+    logger.warn(`[${requestId}] Promote skipped undeployed source workflows`, {
+      skipped: txResult.skippedItems.map((item) => item.name),
+    })
+  }
   logger.info(`[${requestId}] Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
     updated: txResult.updated,
     created: txResult.created,
     archived: txResult.archived,
     redeployed,
     deployFailed: deployFailures.length,
-  })
-
-  const hasWarnings =
-    deployFailures.length > 0 || txResult.skippedItems.length > 0 || deployWarnings.length > 0
-  const totalSynced = txResult.updated + txResult.created
-  const report = buildForkReport({
-    status: hasWarnings ? 'succeeded_with_warnings' : 'succeeded',
-    headline:
-      totalSynced > 0
-        ? `Synced ${totalSynced} workflow${totalSynced === 1 ? '' : 's'}`
-        : 'Sync complete',
-    groups: [
-      { id: 'updated', label: 'Updated', severity: 'info', count: txResult.updated, items: [] },
-      { id: 'created', label: 'Created', severity: 'info', count: txResult.created, items: [] },
-      { id: 'archived', label: 'Archived', severity: 'info', count: txResult.archived, items: [] },
-      {
-        id: 'deploy-failed',
-        label: 'Synced but not deployed',
-        severity: 'error',
-        count: deployFailures.length,
-        items: deployFailures.map((id) => ({
-          label: txResult.writtenNames[id] ?? id,
-          detail: 'Open the workflow and redeploy it.',
-        })),
-      },
-      {
-        id: 'skipped',
-        label: 'Skipped',
-        severity: 'warning',
-        count: txResult.skippedItems.length,
-        items: txResult.skippedItems.map((item) => ({
-          label: item.name,
-          detail: 'Source workflow was undeployed before the sync applied.',
-        })),
-      },
-      {
-        id: 'deploy-warnings',
-        label: 'Deployed with warnings',
-        severity: 'warning',
-        count: deployWarnings.length,
-        items: deployWarnings.map((warning) => ({ label: warning })),
-      },
-    ],
   })
 
   return {
@@ -504,6 +445,5 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     unmappedRequired: [],
     drift: txResult.drift,
     blocked: null,
-    report,
   }
 }

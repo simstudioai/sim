@@ -13,17 +13,14 @@ import {
   ChipModalFooter,
   type ChipModalFooterSlotAction,
   ChipModalHeader,
-  ChipModalTabs,
   toast,
 } from '@/components/emcn'
 import type {
   ForkLineageNodeApi,
   ForkMappingEntry,
-  ForkOperationReport,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { ForkActivityPanel } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-activity-panel/fork-activity-panel'
 import {
   type ForkDirection,
   useForkDiff,
@@ -70,13 +67,13 @@ interface EdgeOption {
 }
 
 /**
- * Fork sync surface. From a fork (has a parent) it force pushes/pulls along the
- * parent edge: the overview picks a direction and lists each resource kind's
- * mapping status, then Sync. "Edit mappings" steps through every kind (Back/Next,
- * each source a settings-style section + full-width target) to set or review
- * targets before landing back on Sync - with a force-confirm on drift. From a fork
- * root (no parent) it lists the forks for management. Either way, the last sync into
- * this workspace can be rolled back to its prior deployed versions.
+ * Fork sync surface. Along the parent edge it force pushes/pulls: the overview
+ * picks a direction and lists each resource kind's mapping status, then Sync.
+ * "Edit mappings" steps through every kind (Back/Next, each source a
+ * settings-style section + full-width target) to set or review targets before
+ * landing back on Sync - with a force-confirm on drift. The durable record of
+ * every sync is the Activity log in Manage Forks, so this modal just closes on
+ * success.
  */
 export function PromoteWorkspaceModal({
   open,
@@ -117,17 +114,10 @@ export function PromoteWorkspaceModal({
   const [step, setStep] = useState(0)
   const [confirmDriftOpen, setConfirmDriftOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  // Tabs: 'config' is the sync/manage wizard; 'activity' is the live + last-result
-  // report. A completed sync/rollback flips to 'activity' so the outcome is reviewable
-  // in-place instead of the modal vanishing.
-  const [activeTab, setActiveTab] = useState<'config' | 'activity'>('config')
-  const [lastReport, setLastReport] = useState<ForkOperationReport | null>(null)
 
   useEffect(() => {
     if (open) {
       setSelectedKey(edgeOptions[0]?.value ?? '')
-      setActiveTab('config')
-      setLastReport(null)
     }
   }, [open, edgeOptions])
 
@@ -198,7 +188,6 @@ export function PromoteWorkspaceModal({
   const runPromote = async (force: boolean) => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
-    setActiveTab('activity')
     try {
       await updateMapping.mutateAsync({
         workspaceId,
@@ -219,7 +208,6 @@ export function PromoteWorkspaceModal({
       })
 
       if (!result.promoteRunId) {
-        setActiveTab('config')
         if (result.unmappedRequired.length > 0) {
           toast.error('Map all required credentials and secrets first')
           return
@@ -247,11 +235,8 @@ export function PromoteWorkspaceModal({
       } else {
         toast.success(summary)
       }
-      // Keep the modal open on the Activity tab so the result report is reviewable.
-      setLastReport(result.report)
-      setActiveTab('activity')
+      onOpenChange(false)
     } catch (error) {
-      setActiveTab('config')
       toast.error(getErrorMessage(error, 'Sync failed'))
     } finally {
       setSubmitting(false)
@@ -283,18 +268,7 @@ export function PromoteWorkspaceModal({
           {currentGroup ? `Sync workspace: ${currentGroup.label}` : 'Sync workspace'}
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalTabs
-            tabs={[
-              { value: 'config', label: 'Sync' },
-              { value: 'activity', label: 'Activity' },
-            ]}
-            value={activeTab}
-            onChange={(value) => setActiveTab(value as 'config' | 'activity')}
-            className='mx-2'
-          />
-          {activeTab === 'activity' ? (
-            <ForkActivityPanel report={lastReport} pending={submitting} pendingLabel='Syncing…' />
-          ) : safeStep === 0 ? (
+          {safeStep === 0 ? (
             <div className='flex flex-col gap-7 px-2'>
               <SettingsSection label='Sync'>
                 <ChipDropdown
@@ -416,24 +390,16 @@ export function PromoteWorkspaceModal({
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
           hideCancel
-          primaryAdjacentAction={activeTab === 'activity' ? undefined : syncPrimaryAdjacent}
+          primaryAdjacentAction={syncPrimaryAdjacent}
           primaryAction={
-            activeTab === 'activity'
-              ? {
-                  label: submitting ? 'Working...' : 'Done',
-                  onClick: () => onOpenChange(false),
-                  disabled: submitting,
+            safeStep >= 1 && !isLastStep
+              ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
+              : {
+                  label: submitting ? 'Working...' : 'Sync',
+                  onClick: () => void runPromote(false),
+                  disabled: syncDisabled,
+                  disabledTooltip: requiredComplete ? undefined : 'Map all required secrets first',
                 }
-              : safeStep >= 1 && !isLastStep
-                ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
-                : {
-                    label: submitting ? 'Working...' : 'Sync',
-                    onClick: () => void runPromote(false),
-                    disabled: syncDisabled,
-                    disabledTooltip: requiredComplete
-                      ? undefined
-                      : 'Map all required secrets first',
-                  }
           }
         />
       </ChipModal>

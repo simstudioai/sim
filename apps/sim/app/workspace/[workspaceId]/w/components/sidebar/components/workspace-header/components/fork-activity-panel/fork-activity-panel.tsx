@@ -2,32 +2,13 @@
 
 import { Fragment, useState } from 'react'
 import { formatDateTime } from '@sim/utils/formatting'
-import { Badge, ChevronDown, Loader } from '@/components/emcn'
-import type {
-  BackgroundWorkItem,
-  ForkOperationReport,
-  ForkReportGroup,
-} from '@/lib/api/contracts/workspace-fork'
+import { ChevronDown, Loader } from '@/components/emcn'
+import type { BackgroundWorkItem } from '@/lib/api/contracts/workspace-fork'
 import { cn } from '@/lib/core/utils/cn'
 import { useWorkspaceBackgroundWork } from '@/hooks/queries/background-work'
 
 const HEADER_TEXT = 'font-medium text-[var(--text-tertiary)] text-caption'
 const ROW_TEXT = 'font-medium text-[var(--text-primary)] text-caption'
-
-const STATUS_BADGE: Record<
-  ForkOperationReport['status'],
-  { variant: 'green' | 'amber' | 'red'; label: string }
-> = {
-  succeeded: { variant: 'green', label: 'Succeeded' },
-  succeeded_with_warnings: { variant: 'amber', label: 'Warnings' },
-  failed: { variant: 'red', label: 'Failed' },
-}
-
-const SEVERITY_DOT: Record<ForkReportGroup['severity'], string> = {
-  info: 'bg-[var(--text-muted)]',
-  warning: 'bg-[var(--badge-amber-text)]',
-  error: 'bg-[var(--text-error)]',
-}
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
@@ -44,12 +25,14 @@ function jobTitle(job: BackgroundWorkItem): string {
   const m = job.metadata
   switch (job.kind) {
     case 'fork_content_copy':
-      return m?.childWorkspaceName ? `Forked to "${m.childWorkspaceName}"` : (job.message ?? 'Fork')
+      return m?.childWorkspaceName
+        ? `Forked into "${m.childWorkspaceName}"`
+        : (job.message ?? 'Fork')
     case 'fork_sync':
       if (!m?.otherWorkspaceName) return job.message ?? 'Sync'
       return m.direction === 'pull'
         ? `Pulled from "${m.otherWorkspaceName}"`
-        : `Synced to "${m.otherWorkspaceName}"`
+        : `Pushed to "${m.otherWorkspaceName}"`
     case 'fork_rollback':
       return m?.otherWorkspaceName
         ? `Undid sync from "${m.otherWorkspaceName}"`
@@ -127,7 +110,7 @@ function JobStatusIndicator({ status }: { status: BackgroundWorkItem['status'] }
   return <span className={cn('size-[6px] shrink-0 rounded-full', color)} title={label} />
 }
 
-/** One audit-log row: status + "Forked to ...", expanding to what was copied. */
+/** One audit-log row: status + "Forked into ...", expanding to what was copied. */
 function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
   const [expanded, setExpanded] = useState(false)
   const detailLines = jobDetailLines(job)
@@ -206,54 +189,7 @@ function ForkJobsTable({ jobs }: { jobs: BackgroundWorkItem[] }) {
   )
 }
 
-/** One collapsed report group: severity dot + label + count, expanding to its items. */
-function ReportGroupRow({ group }: { group: ForkReportGroup }) {
-  const [expanded, setExpanded] = useState(false)
-  const hasItems = group.items.length > 0
-  return (
-    <div className='flex flex-col gap-1'>
-      <button
-        type='button'
-        className={cn(
-          'flex w-full items-center gap-2 text-left text-[var(--text-body)] text-sm',
-          hasItems ? 'hover:text-[var(--text-primary)]' : 'cursor-default'
-        )}
-        onClick={() => hasItems && setExpanded((value) => !value)}
-        disabled={!hasItems}
-      >
-        <span className={cn('size-1.5 shrink-0 rounded-full', SEVERITY_DOT[group.severity])} />
-        <span className='min-w-0 flex-1 truncate'>{group.label}</span>
-        <span className='shrink-0 text-[var(--text-muted)] text-small'>{group.count}</span>
-        {hasItems ? (
-          <ChevronDown
-            className={cn(
-              'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        ) : (
-          <span className='w-[10px] shrink-0' />
-        )}
-      </button>
-      {expanded && hasItems ? (
-        <div className='ml-[18px] flex max-h-44 flex-col gap-1 overflow-y-auto'>
-          {group.items.map((item, index) => (
-            <div key={`${item.label}:${index}`} className='flex min-w-0 flex-col'>
-              <span className='truncate text-[var(--text-body)] text-sm'>{item.label}</span>
-              {item.detail ? (
-                <span className='text-[var(--text-muted)] text-xs'>{item.detail}</span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 interface ForkActivityPanelProps {
-  /** The most recent in-session operation report (sync / rollback), if any. */
-  report: ForkOperationReport | null
   /** The triggering operation is currently running (mutation in flight). */
   pending?: boolean
   pendingLabel?: string
@@ -262,23 +198,21 @@ interface ForkActivityPanelProps {
 }
 
 /**
- * The "Activity" tab for the Sync / Fork modals: a durable audit log of fork jobs
- * (a deployment-versions-style table - status, "Forked to ...", timestamp, expand for
- * what was copied) plus the in-session report of the last synchronous operation.
+ * The "Activity" tab for Manage Forks: a durable audit log of every fork, sync, and
+ * rollback as its own row (a deployment-versions-style table - status, "Forked into ...",
+ * timestamp, expand for what changed), with a loader while the current action runs.
  */
 export function ForkActivityPanel({
-  report,
   pending = false,
   pendingLabel = 'Working…',
   backgroundWorkspaceId,
 }: ForkActivityPanelProps) {
   const { data: jobs = [] } = useWorkspaceBackgroundWork(backgroundWorkspaceId)
 
-  const hasAnything = pending || jobs.length > 0 || Boolean(report)
-  if (!hasAnything) {
+  if (!pending && jobs.length === 0) {
     return (
       <div className='px-2 py-8 text-center text-[var(--text-muted)] text-small'>
-        Nothing here yet. Results from your last action will appear here.
+        Nothing here yet. Forks, syncs, and rollbacks will appear here.
       </div>
     )
   }
@@ -293,26 +227,6 @@ export function ForkActivityPanel({
       ) : null}
 
       {jobs.length > 0 ? <ForkJobsTable jobs={jobs} /> : null}
-
-      {report ? (
-        <div className='flex flex-col gap-3'>
-          <div className='flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-              {report.headline}
-            </span>
-            <Badge variant={STATUS_BADGE[report.status].variant} size='sm' dot>
-              {STATUS_BADGE[report.status].label}
-            </Badge>
-          </div>
-          {report.groups.length > 0 ? (
-            <div className='flex flex-col gap-2'>
-              {report.groups.map((group) => (
-                <ReportGroupRow key={group.id} group={group} />
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   )
 }

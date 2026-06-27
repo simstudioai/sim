@@ -15,6 +15,7 @@ import {
   updateForkMappingContract,
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
+import { backgroundWorkKeys } from '@/hooks/queries/background-work'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type ForkDirection = 'push' | 'pull'
@@ -78,6 +79,7 @@ export function useForkWorkspace() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
 }
@@ -141,6 +143,7 @@ export function usePromoteFork() {
       requestJson(promoteForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.all })
+      queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
 }
@@ -152,6 +155,7 @@ export function useRollbackFork() {
       requestJson(rollbackForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.all })
+      queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
 }

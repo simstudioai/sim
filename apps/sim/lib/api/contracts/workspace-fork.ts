@@ -244,32 +244,6 @@ export const getForkDiffContract = defineRouteContract({
 export type GetForkDiffResponse = z.output<typeof getForkDiffContract.response.schema>
 export type ForkWorkflowChange = z.output<typeof forkWorkflowChangeSchema>
 
-/**
- * A clean, CodeDeploy-style result report for a fork/sync/rollback. A flat list of
- * severity-tagged groups (each with a count and optional per-item detail) the UI
- * renders summary-first with progressive disclosure - so nothing an operation did is
- * ever silent, without being an information dump.
- */
-export const forkReportItemSchema = z.object({
-  label: z.string(),
-  detail: z.string().optional(),
-})
-export const forkReportGroupSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  severity: z.enum(['info', 'warning', 'error']),
-  count: z.number().int(),
-  items: z.array(forkReportItemSchema),
-})
-export const forkOperationReportSchema = z.object({
-  status: z.enum(['succeeded', 'succeeded_with_warnings', 'failed']),
-  headline: z.string(),
-  groups: z.array(forkReportGroupSchema),
-})
-export type ForkOperationReport = z.output<typeof forkOperationReportSchema>
-export type ForkReportGroup = z.output<typeof forkReportGroupSchema>
-export type ForkReportItem = z.output<typeof forkReportItemSchema>
-
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -291,7 +265,6 @@ export const promoteForkContract = defineRouteContract({
       deployFailed: z.number().int(),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
       drift: z.boolean(),
-      report: forkOperationReportSchema,
     }),
   },
 })
@@ -367,7 +340,6 @@ export const rollbackForkContract = defineRouteContract({
       unarchived: z.number().int(),
       /** Snapshot workflows that no longer exist and couldn't be reactivated. */
       skipped: z.number().int(),
-      report: forkOperationReportSchema,
     }),
   },
 })

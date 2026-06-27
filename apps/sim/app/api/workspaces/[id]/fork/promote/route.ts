@@ -48,7 +48,6 @@ export const POST = withRouteHandler(
       deployFailed: result.deployFailed,
       unmappedRequired: result.unmappedRequired,
       drift: result.drift,
-      report: result.report,
     }
 
     if (result.blocked) {
@@ -86,7 +85,7 @@ export const POST = withRouteHandler(
       workspaceId: id,
       kind: 'fork_sync',
       status: result.deployFailed > 0 ? 'completed_with_warnings' : 'completed',
-      message: direction === 'pull' ? `Pulled from "${otherName}"` : `Synced to "${otherName}"`,
+      message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
       metadata: {
         otherWorkspaceName: otherName,
         direction,

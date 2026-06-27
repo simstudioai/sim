@@ -23,7 +23,6 @@ import {
 } from '@/components/emcn'
 import type {
   ForkCopyableResource,
-  ForkOperationReport,
   GetForkResourcesResponse,
 } from '@/lib/api/contracts/workspace-fork'
 import { cn } from '@/lib/core/utils/cn'
@@ -207,8 +206,6 @@ export function ForkWorkspaceModal({
 
   const [activeTab, setActiveTab] = useState<'config' | 'activity'>('config')
   const [forkedWorkspace, setForkedWorkspace] = useState<{ id: string; name: string } | null>(null)
-  // In-session report of a rollback run, shown alongside the fork audit log.
-  const [report, setReport] = useState<ForkOperationReport | null>(null)
   const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
 
   useEffect(() => {
@@ -218,7 +215,6 @@ export function ForkWorkspaceModal({
       setError(null)
       setActiveTab('config')
       setForkedWorkspace(null)
-      setReport(null)
       setConfirmRollbackOpen(false)
     }
   }, [open, sourceWorkspaceName])
@@ -280,7 +276,6 @@ export function ForkWorkspaceModal({
       ])
       toast.success(summary ? `Undone · ${summary}` : 'Undone')
       setConfirmRollbackOpen(false)
-      setReport(result.report)
       setActiveTab('activity')
     } catch (err) {
       toast.error(getErrorMessage(err, 'Undo failed'))
@@ -328,7 +323,6 @@ export function ForkWorkspaceModal({
           />
           {activeTab === 'activity' ? (
             <ForkActivityPanel
-              report={report}
               pending={isForking || rollback.isPending}
               pendingLabel={rollback.isPending ? 'Undoing last sync…' : 'Creating fork…'}
               backgroundWorkspaceId={sourceWorkspaceId}
