@@ -32,7 +32,7 @@ const {
   mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
-  mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
+  mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:12000' } as Record<string, string | undefined>,
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
@@ -497,8 +497,8 @@ describe('executeTool Function', () => {
       headers: { 'content-type': 'application/json' },
     })
 
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
   })
 
   afterEach(() => {
@@ -675,8 +675,8 @@ describe('Automatic Internal Route Detection', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
 
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue({
@@ -720,7 +720,7 @@ describe('Automatic Internal Route Detection', () => {
 
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (url) => {
-        expect(url).toBe('http://localhost:3000/api/test/endpoint')
+        expect(url).toBe('http://localhost:12000/api/test/endpoint')
         const responseData = { success: true, data: 'test' }
         return {
           ok: true,
@@ -904,7 +904,7 @@ describe('Automatic Internal Route Detection', () => {
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (url) => {
         // Should call the internal API directly with the resolved dynamic URL
-        expect(url).toBe('http://localhost:3000/api/resources/123')
+        expect(url).toBe('http://localhost:12000/api/resources/123')
         const responseData = { success: true, data: 'test' }
         return {
           ok: true,
@@ -1025,8 +1025,8 @@ describe('Copilot File Parameter Normalization', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
     mockResolveWorkspaceFileReference.mockReset()
   })
 
@@ -1213,8 +1213,8 @@ describe('Copilot OAuth Credential Enforcement', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
   })
 
   afterEach(() => {
@@ -1244,8 +1244,8 @@ describe('Centralized Error Handling', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
   })
 
   afterEach(() => {
@@ -1473,8 +1473,8 @@ describe('MCP Tool Execution', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
   })
 
   afterEach(() => {
@@ -1485,7 +1485,7 @@ describe('MCP Tool Execution', () => {
   it('should execute MCP tool with valid tool ID', async () => {
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (url, options) => {
-        expect(url).toBe('http://localhost:3000/api/mcp/tools/execute')
+        expect(url).toBe('http://localhost:12000/api/mcp/tools/execute')
         expect(options?.method).toBe('POST')
 
         const body = JSON.parse(options?.body as string)
@@ -1949,8 +1949,8 @@ describe('Hosted Key Injection', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
     vi.clearAllMocks()
     mockGetBYOKKey.mockReset()
   })
@@ -2195,9 +2195,9 @@ describe('Rate Limiting and Retry Logic', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
     cleanupEnvVars = setupEnvVars({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:12000',
     })
     vi.clearAllMocks()
     mockIsHosted.value = true
@@ -2426,8 +2426,8 @@ describe('stripInternalFields Safety', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:12000' })
   })
 
   afterEach(() => {
@@ -2579,9 +2579,9 @@ describe('Cost Field Handling', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
     cleanupEnvVars = setupEnvVars({
-      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:12000',
     })
     vi.clearAllMocks()
     mockIsHosted.value = true

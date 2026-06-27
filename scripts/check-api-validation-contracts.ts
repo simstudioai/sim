@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 864,
-  zodRoutes: 864,
+  totalRoutes: 866,
+  zodRoutes: 866,
   nonZodRoutes: 0,
 } as const
 
@@ -39,6 +39,8 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/auth/[...all]/route.ts',
   // Better Auth handles validation for the Stripe webhook handler.
   'apps/sim/app/api/auth/webhook/stripe/route.ts',
+  // Lago webhook validates HMAC signature on raw body before JSON parse.
+  'apps/sim/app/api/billing/lago/webhook/route.ts',
   // Routes with no client-supplied input that previously had no-op
   // `z.object({}).strict().parse({})` guards. The boundary contract for
   // these routes is "no input", and they consume validated data only via

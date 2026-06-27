@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  */
 export const defaultMockEnv = {
   // Core
-  DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+  DATABASE_URL: 'postgresql://test:test@localhost:12002/test',
   BETTER_AUTH_URL: 'https://test.sim.ai',
   BETTER_AUTH_SECRET: 'test-secret-that-is-at-least-32-chars-long',
   ENCRYPTION_KEY: 'test-encryption-key-32-chars-long!',

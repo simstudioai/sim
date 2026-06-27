@@ -47,7 +47,7 @@ export function setupNodeEnvironment(): void {
   // Mock window if not present
   if (typeof window === 'undefined') {
     vi.stubGlobal('window', {
-      location: { href: 'http://localhost:3000' },
+      location: { href: 'http://localhost:12000' },
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })

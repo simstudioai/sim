@@ -73,7 +73,7 @@ vi.mock('@/executor/resolver', () => ({
 }))
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
-  buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
+  buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:12000')),
   extractAPIErrorMessage: vi.fn(async (response: Response) => {
     const defaultMessage = `API request failed with status ${response.status}`
     try {
@@ -95,4 +95,4 @@ vi.mock('@/blocks')
 setupGlobalFetchMock()
 
 // Mock process.env
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'

@@ -15,7 +15,7 @@ import { vi } from 'vitest'
  * @param method - HTTP method (GET, POST, PUT, DELETE, etc.)
  * @param body - Optional request body (will be JSON stringified)
  * @param headers - Optional headers to include
- * @param url - Optional custom URL (defaults to http://localhost:3000/api/test)
+ * @param url - Optional custom URL (defaults to http://localhost:12000/api/test)
  * @returns NextRequest instance
  *
  * @example
@@ -30,7 +30,7 @@ export function createMockRequest(
   method = 'GET',
   body?: unknown,
   headers: Record<string, string> = {},
-  url = 'http://localhost:3000/api/test'
+  url = 'http://localhost:12000/api/test'
 ): NextRequest {
   const init: NextRequestInit = {
     method,
@@ -58,7 +58,7 @@ export function createMockRequest(
 export function createMockFormDataRequest(
   formData: FormData,
   method = 'POST',
-  url = 'http://localhost:3000/api/test'
+  url = 'http://localhost:12000/api/test'
 ): Request {
   return new Request(new URL(url), {
     method,

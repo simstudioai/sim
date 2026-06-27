@@ -13,7 +13,7 @@ const DB_CONTAINER = 'simstudio-db'
 const MIGRATIONS_CONTAINER = 'simstudio-migrations'
 const REALTIME_CONTAINER = 'simstudio-realtime'
 const APP_CONTAINER = 'simstudio-app'
-const DEFAULT_PORT = '3000'
+const DEFAULT_PORT = '12000'
 
 const program = new Command()
 
@@ -96,7 +96,7 @@ async function main() {
     process.exit(1)
   }
 
-  // Use port from options, with 3000 as default
+  // Use port from options, with 12000 as default
   const port = options.port
 
   // Pull latest images if not skipped

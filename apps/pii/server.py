@@ -8,7 +8,12 @@ endpoints so a single PRESIDIO_URL serves both.
 from typing import Any
 
 from fastapi import FastAPI
-from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer, RecognizerResult
+from presidio_analyzer import (
+    AnalyzerEngine,
+    Pattern,
+    PatternRecognizer,
+    RecognizerResult,
+)
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer.predefined_recognizers import (
     AuAbnRecognizer,
@@ -91,9 +96,29 @@ class VinRecognizer(PatternRecognizer):
 
     _TRANSLIT = {
         **{str(d): d for d in range(10)},
-        "A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7, "H": 8,
-        "J": 1, "K": 2, "L": 3, "M": 4, "N": 5, "P": 7, "R": 9,
-        "S": 2, "T": 3, "U": 4, "V": 5, "W": 6, "X": 7, "Y": 8, "Z": 9,
+        "A": 1,
+        "B": 2,
+        "C": 3,
+        "D": 4,
+        "E": 5,
+        "F": 6,
+        "G": 7,
+        "H": 8,
+        "J": 1,
+        "K": 2,
+        "L": 3,
+        "M": 4,
+        "N": 5,
+        "P": 7,
+        "R": 9,
+        "S": 2,
+        "T": 3,
+        "U": 4,
+        "V": 5,
+        "W": 6,
+        "X": 7,
+        "Y": 8,
+        "Z": 9,
     }
     _WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2]
 
@@ -112,7 +137,9 @@ class VinRecognizer(PatternRecognizer):
 
 def build_analyzer() -> AnalyzerEngine:
     nlp_engine = NlpEngineProvider(nlp_configuration=NLP_CONFIGURATION).create_engine()
-    analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES)
+    analyzer = AnalyzerEngine(
+        nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES
+    )
     # VIN is language-agnostic, so register it under every served language —
     # a recognizer only fires for the language the caller routes to.
     vin_pattern = Pattern(name="vin", regex=r"\b[A-HJ-NPR-Z0-9]{17}\b", score=0.7)

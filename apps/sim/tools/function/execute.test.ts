@@ -18,7 +18,7 @@ describe('Function Execute Tool', () => {
 
   beforeEach(() => {
     tester = new ToolTester(functionExecuteTool as any)
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:12000'
   })
 
   afterEach(() => {

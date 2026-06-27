@@ -41,10 +41,10 @@ vi.mock('@/env', () => ({
     DATABASE_URL: 'postgres://localhost/test',
     NODE_ENV: 'test',
     REDIS_URL: undefined,
-    BETTER_AUTH_URL: 'http://localhost:3000',
+    BETTER_AUTH_URL: 'http://localhost:12000',
     BETTER_AUTH_SECRET: 'test-better-auth-secret-at-least-32-chars',
     INTERNAL_API_SECRET: 'test-internal-api-secret-at-least-32-chars',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    NEXT_PUBLIC_APP_URL: 'http://localhost:12000',
     PORT: 3002,
     DISABLE_AUTH: false,
   },
@@ -53,7 +53,7 @@ vi.mock('@/env', () => ({
   isTest: true,
   isHosted: false,
   isAuthDisabled: false,
-  getBaseUrl: () => 'http://localhost:3000',
+  getBaseUrl: () => 'http://localhost:12000',
 }))
 
 vi.mock('@/middleware/auth', () => ({
