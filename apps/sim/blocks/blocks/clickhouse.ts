@@ -1,5 +1,14 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { ClipboardList, File } from '@/components/emcn/icons'
+import {
+  Bell,
+  ClipboardList,
+  Database,
+  File,
+  Search,
+  Server,
+  Trash,
+  Wrench,
+} from '@/components/emcn/icons'
 import { ClickHouseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -497,6 +506,62 @@ export const ClickHouseBlockMeta = {
       category: 'engineering',
       tags: ['data-analytics', 'data-warehouse'],
     },
+    {
+      icon: Search,
+      title: 'Document a ClickHouse schema',
+      prompt:
+        'Build a workflow that introspects my ClickHouse database schema, then has an agent write clear documentation describing each table, its columns, types, and engine.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-warehouse', 'documentation'],
+    },
+    {
+      icon: Wrench,
+      title: 'Scheduled table maintenance',
+      prompt:
+        'Create a scheduled workflow that runs OPTIMIZE TABLE on my high-write ClickHouse tables each night to merge parts, then reports the resulting part counts and storage size.',
+      modules: ['scheduled', 'workflows'],
+      category: 'engineering',
+      tags: ['data-warehouse', 'maintenance'],
+    },
+    {
+      icon: Trash,
+      title: 'Partition retention cleanup',
+      prompt:
+        'Build a scheduled workflow that lists the partitions of my ClickHouse events table and drops partitions older than the retention window to keep storage under control.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-warehouse', 'maintenance'],
+    },
+    {
+      icon: Bell,
+      title: 'Alert on long-running queries',
+      prompt:
+        'Create a scheduled workflow that checks ClickHouse for running queries, and if any has been running too long, posts an alert to Slack and optionally kills the query.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['monitoring', 'data-warehouse'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Database,
+      title: 'Provision a ClickHouse table from a spec',
+      prompt:
+        'Build a workflow where I describe the table I need in plain English, an agent designs the columns, engine, and ORDER BY key, and the workflow creates the ClickHouse table.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-warehouse', 'schema'],
+    },
+    {
+      icon: Server,
+      title: 'Weekly storage growth report',
+      prompt:
+        'Create a scheduled workflow that collects ClickHouse table stats (rows and size on disk) each week, has an agent summarize the largest tables and fastest growth, and posts the report to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
   ],
   skills: [
     {
@@ -519,6 +584,20 @@ export const ClickHouseBlockMeta = {
         'Insert a batch of rows into a ClickHouse table after mapping them to the right columns. Use to ingest event or record payloads into ClickHouse.',
       content:
         '# Bulk Insert Events\n\nLoad a batch of records into a ClickHouse table.\n\n## Steps\n1. Use Describe Table to confirm the target column names and types.\n2. Map each incoming payload to those columns, coercing types (e.g. timestamps to DateTime format, numbers to the right width).\n3. Build a JSON array of row objects with consistent keys, then use Insert Rows (Bulk) against the table.\n4. Verify with Count Rows or a small SELECT.\n\n## Output\nReturn the number of rows inserted and any rows that were skipped or failed validation, with the reason. Confirm the new total row count so the caller knows ingestion succeeded.',
+    },
+    {
+      name: 'document-schema',
+      description:
+        'Introspect a ClickHouse database and produce readable documentation of its tables, columns, and engines. Use when onboarding to an unfamiliar ClickHouse instance or refreshing schema docs.',
+      content:
+        '# Document Schema\n\nInspect a ClickHouse database and describe its structure.\n\n## Steps\n1. Use Introspect Schema to pull every table with its columns, types, and engine in one call. For a single table, use Describe Table or Show Create Table instead.\n2. Group columns by table and note primary/sorting key membership and defaults.\n3. Summarize each table: what it appears to store, its engine, key columns, and approximate row count.\n\n## Output\nReturn a per-table summary (name, engine, key columns, row count) followed by a column reference. Keep it concise and skimmable; call out anything unusual such as missing ORDER BY keys or very wide tables.',
+    },
+    {
+      name: 'maintain-tables',
+      description:
+        'Keep ClickHouse tables healthy by inspecting parts, optimizing tables, and dropping stale partitions. Use for scheduled maintenance or when storage or part counts grow.',
+      content:
+        '# Maintain Tables\n\nRun routine ClickHouse table maintenance.\n\n## Steps\n1. Use Table Stats and List Partitions to see size on disk, part counts, and per-partition rows.\n2. For tables with many small parts, run Optimize Table (optionally with Force Final Merge) to consolidate them.\n3. For time-partitioned tables past their retention window, use Drop Partition on the oldest partitions.\n4. Re-check Table Stats to confirm the part count and size dropped.\n\n## Output\nReport what was optimized or dropped, the before/after part count and size on disk, and any partitions intentionally retained. Never drop a partition unless it is clearly outside the retention window.',
     },
   ],
 } as const satisfies BlockMeta
