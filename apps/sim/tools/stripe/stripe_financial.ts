@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-stripeFINANCIALTOOL: ToolConfig = {
+export const stripeFINANCIALTOOL: ToolConfig = {
   id: 'stripe_financial',
   name: 'Stripe Financial Connections',
   description: 'Manage Stripe financial connections operations through the Stripe API.',

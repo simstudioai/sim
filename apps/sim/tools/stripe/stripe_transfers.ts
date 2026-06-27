@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-stripeTRANSFERSTOOL: ToolConfig = {
+export const stripeTRANSFERSTOOL: ToolConfig = {
   id: 'stripe_transfers',
   name: 'Stripe Transfers & Payouts',
   description: 'Manage Stripe transfers & payouts operations through the Stripe API.',

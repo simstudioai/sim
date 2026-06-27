@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-stripeDISPUTESTOOL: ToolConfig = {
+export const stripeDISPUTESTOOL: ToolConfig = {
   id: 'stripe_disputes',
   name: 'Stripe Disputes',
   description: 'Manage Stripe disputes operations through the Stripe API.',

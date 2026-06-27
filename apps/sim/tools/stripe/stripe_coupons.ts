@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 
-stripeCOUPONSTOOL: ToolConfig = {
+export const stripeCOUPONSTOOL: ToolConfig = {
   id: 'stripe_coupons',
   name: 'Stripe Coupons & Promotions',
   description: 'Manage Stripe coupons & promotions operations through the Stripe API.',
