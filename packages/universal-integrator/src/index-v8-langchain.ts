@@ -19,6 +19,15 @@ import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
 import { SIM_KNOWLEDGE, SIM_ARCHITECTURE_RULES, SIM_CANONICAL_PATTERNS } from "./sim-knowledge.js";
+import {
+  SIM_TRIGGERS_COMPLETE,
+  SIM_SELECTORS_COMPLETE,
+  SIM_FILES_COMPLETE,
+  SIM_BLOCKMETA_COMPLETE,
+  SIM_ICONS_COMPLETE,
+  SIM_DOCS_COMPLETE,
+  SIM_COMPLETE_CHECKLIST
+} from "./sim-knowledge-extended.js";
 
 // ============================================================================
 // DATA STRUCTURES (Type-safe throughout)
@@ -410,6 +419,100 @@ Ready to generate Sim.ai integrations with complete knowledge.`,
 8. Dynamic Selector Pattern
 9. Conditional Field Pattern
 10. V2 Migration Pattern`,
+      }
+    );
+
+    // Load Triggers knowledge
+    await this.memory.saveContext(
+      { input: "How do I create Sim.ai triggers?" },
+      {
+        output: `✅ Loaded Complete Trigger Knowledge:
+- Webhook triggers (primary + event-specific)
+- Polling triggers (when no webhooks)
+- Provider handlers (HMAC, auto-registration, challenges)
+- Signature verification (safeCompare)
+- Idempotency & dedup patterns
+- CRITICAL: formatInput outputs must match trigger outputs EXACTLY
+- Hard rule: never guess webhook payloads`,
+      }
+    );
+
+    // Load Selectors knowledge
+    await this.memory.saveContext(
+      { input: "How do I create dynamic fields in Sim.ai?" },
+      {
+        output: `✅ Loaded Complete Selectors Knowledge:
+- Selector types: channel, user, file, sheet, folder, project, knowledge, workflow, document, variables, mcp, table
+- fetchOptions pattern (dropdown lists)
+- fetchOptionById pattern (individual option details)
+- dependsOn pattern (cascading selectors)
+- reactiveCondition pattern (credential-reactive fields)
+- conditional fields (condition function)
+- All selector types documented with examples`,
+      }
+    );
+
+    // Load Files knowledge
+    await this.memory.saveContext(
+      { input: "How do I handle file uploads in Sim.ai?" },
+      {
+        output: `✅ Loaded Complete File Handling Knowledge:
+- File upload pattern: basic visual + advanced manual reference
+- canonicalParamId linking basic/advanced
+- Internal API routes (NOT direct external upload)
+- normalizeFileInput() helper (dual-mode)
+- API contracts for file operations
+- FileToolProcessor for file outputs
+- File download pattern (UserFile format)
+- Hard rule: never upload directly to external API`,
+      }
+    );
+
+    // Load BlockMeta knowledge
+    await this.memory.saveContext(
+      { input: "What is BlockMeta and how to use it?" },
+      {
+        output: `✅ Loaded Complete BlockMeta Knowledge:
+- BlockMeta: catalog, templates, skills
+- Tags: only whitelisted enum values (AI, Analytics, Bot, etc)
+- Templates: 2-4 concrete use cases (not generic)
+- Skills: 3-5 suggested actions (map to tool IDs)
+- All tag values documented
+- Template prompt format ("Build a workflow that...")
+- Skill structure with action mapping`,
+      }
+    );
+
+    // Load Icons & Docs knowledge
+    await this.memory.saveContext(
+      { input: "How do I add icons and generate docs?" },
+      {
+        output: `✅ Loaded Icons & Docs Knowledge:
+- Icons: SVG in components/icons.tsx (never separate file)
+- Brand color preservation
+- 24x24 viewBox standard
+- Docs: auto-generated via bun run scripts/generate-docs.ts
+- Docs structure: Actions, Triggers, Manual content block
+- Only manual block is editable
+- Generated sections auto-update`,
+      }
+    );
+
+    // Load complete validation checklist
+    await this.memory.saveContext(
+      { input: "What is the complete validation checklist?" },
+      {
+        output: `✅ Loaded 50+ Item Validation Checklist:
+- Source & API Documentation (8 items)
+- Tools per tool (multiple items per tool)
+- Block single item (20+ checks)
+- BlockMeta (tags, templates, skills)
+- Auth (OAuth, ApiKey, BotToken)
+- Triggers (webhooks, event matching, outputs)
+- Files (if file operations)
+- Icons & Docs
+- Registries (alphabetical, complete)
+- Final validation (type-check, lint, coverage)`,
       }
     );
 
