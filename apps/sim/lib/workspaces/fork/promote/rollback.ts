@@ -12,6 +12,7 @@ import {
   acquireForkEdgeLock,
   acquireForkTargetLock,
   resolveForkEdge,
+  setForkLockTimeout,
 } from '@/lib/workspaces/fork/lineage/lineage'
 import { deleteWorkflowIdentityByIds } from '@/lib/workspaces/fork/mapping/mapping-store'
 import {
@@ -112,6 +113,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   const outboxEventIds: string[] = []
 
   await db.transaction(async (tx) => {
+    await setForkLockTimeout(tx)
     await acquireForkTargetLock(tx, targetWorkspaceId)
     await acquireForkEdgeLock(tx, edge.childWorkspaceId)
 

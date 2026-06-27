@@ -1,7 +1,7 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
 import { workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, exists, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
@@ -86,6 +86,32 @@ export async function getActiveDeploymentVersionNumber(
     )
     .limit(1)
   return row?.version ?? null
+}
+
+/**
+ * Batched {@link getActiveDeploymentVersionNumber}: the active deployed version per
+ * workflow id, so promote's apply phase resolves every prior version in one query
+ * instead of N round-trips inside the (locked) transaction. Workflows with no active
+ * version are absent from the map.
+ */
+export async function getActiveDeploymentVersionNumbers(
+  executor: DbOrTx,
+  workflowIds: string[]
+): Promise<Map<string, number>> {
+  if (workflowIds.length === 0) return new Map()
+  const rows = await executor
+    .select({
+      workflowId: workflowDeploymentVersion.workflowId,
+      version: workflowDeploymentVersion.version,
+    })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        inArray(workflowDeploymentVersion.workflowId, workflowIds),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+  return new Map(rows.map((row) => [row.workflowId, row.version]))
 }
 
 /**

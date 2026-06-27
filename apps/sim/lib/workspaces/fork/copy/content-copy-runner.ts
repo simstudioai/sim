@@ -15,9 +15,9 @@ export interface ForkContentCopyPayload {
   contentPlan: ForkContentPlan
   blobTasks: BlobCopyTask[]
   /**
-   * `background_work_status` row to finish when the copy ends, so the child
-   * workspace's "copying in the background" banner clears (or shows a warning/error).
-   * Started in the fork transaction so it's visible the moment the user opens the fork.
+   * `background_work_status` row to finish when the copy ends, so the source workspace's
+   * Manage Forks -> Activity entry resolves (completed / warning / error). Started right
+   * after the fork commits so it's visible immediately.
    */
   statusId?: string
   requestId?: string

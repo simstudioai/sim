@@ -33,6 +33,7 @@ vi.mock('@/lib/workspaces/fork/lineage/lineage', () => ({
   resolveForkEdge: mockResolveForkEdge,
   acquireForkTargetLock: mockAcquireTargetLock,
   acquireForkEdgeLock: mockAcquireEdgeLock,
+  setForkLockTimeout: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/fork/promote/promote-run-store', () => ({

@@ -57,8 +57,6 @@ export const getForkLineageContract = defineRouteContract({
     schema: z.object({
       workspaceId: z.string(),
       parent: forkLineageNodeSchema.nullable(),
-      children: z.array(forkLineageNodeSchema),
-      hasUndoableRun: z.boolean(),
       /** The most recent undoable promote into this workspace, for the rollback UI. */
       undoableRun: z
         .object({

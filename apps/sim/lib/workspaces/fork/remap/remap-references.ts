@@ -61,6 +61,8 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 // `remapForkFileUploadValue`; `file-selector` (external provider file ids,
 // credential-scoped) carries over unchanged; `document-selector` is cleared by the
 // `dependsOn` rule (clearDependentsOnRemap) when its parent knowledge base is remapped.
+// `mcp-tool-selector` is likewise cleared by `dependsOn` when its `mcp-server-selector`
+// parent is remapped - the tool list is server-scoped and may differ in the target.
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
@@ -402,25 +404,6 @@ function remapForkSkillInputValue(
 }
 
 /**
- * Rewrite the server id embedded in an `mcp-tool-selector` value
- * (`<prefix><serverId>-<toolName>`) when the sibling MCP server was remapped.
- * Server ids are UUIDs, so substring replacement is unambiguous. Without this the
- * tool reference keeps the old server id and resolves to a malformed tool id at
- * runtime after the server is remapped.
- */
-export function rewriteMcpToolSelectorValue(
-  value: unknown,
-  serverRemaps: Map<string, string>
-): unknown {
-  if (typeof value !== 'string' || value.length === 0 || serverRemaps.size === 0) return value
-  let next = value
-  for (const [sourceId, targetId] of serverRemaps) {
-    if (next.includes(sourceId)) next = next.split(sourceId).join(targetId)
-  }
-  return next
-}
-
-/**
  * Single subblock remapper shared by fork-create and promote (the `mode` selects
  * the policy - see below). Structured selectors use the search-replace registry
  * codecs; advanced-mode `manual*` overrides and nested tool params are handled by
@@ -433,17 +416,11 @@ export function remapForkSubBlocks(
   mode: 'create' | 'promote',
   context?: { blockId?: string; blockName?: string }
 ): RemapSubBlocksResult {
-  // create (initial fork): clear/drop refs that weren't copied; leave `{{ENV}}` by
-  // name. promote: keep unresolved refs + record them (so the mapping UI can surface
-  // and block on required credentials) and rewrite `{{ENV}}`.
-  const clearUnresolved = mode === 'create'
+  const clearUnresolved = true
   const result: SubBlockRecord = {}
   const references = new Map<string, ForkReference>()
   const unmapped = new Map<string, ForkReference>()
   const remappedKeys = new Set<string>()
-  // Source→target ids for any remapped MCP server, applied to sibling
-  // `mcp-tool-selector` values (which embed the server id) in a post-pass.
-  const mcpServerRemaps = new Map<string, string>()
 
   const recordReference = (key: string, reference: ForkReference, mapped: boolean) => {
     if (mode !== 'promote') return
@@ -488,9 +465,6 @@ export function remapForkSubBlocks(
         const mapped = target != null
         recordReference(`${forkKind}:${ref.rawValue}`, reference, mapped)
         if (mapped) {
-          if (forkKind === 'mcp-server' && target !== ref.rawValue) {
-            mcpServerRemaps.set(ref.rawValue, target)
-          }
           if (target !== ref.rawValue) {
             const replaceResult = definition.codec.replace(value, ref.rawValue, target)
             if (replaceResult.success) value = replaceResult.nextValue
@@ -550,14 +524,6 @@ export function remapForkSubBlocks(
     }
 
     result[subBlockKey] = { ...subBlock, value }
-  }
-
-  if (mcpServerRemaps.size > 0) {
-    for (const [subBlockKey, subBlock] of Object.entries(result)) {
-      if (!isRecord(subBlock) || subBlock.type !== 'mcp-tool-selector') continue
-      const rewritten = rewriteMcpToolSelectorValue(subBlock.value, mcpServerRemaps)
-      if (rewritten !== subBlock.value) result[subBlockKey] = { ...subBlock, value: rewritten }
-    }
   }
 
   return {

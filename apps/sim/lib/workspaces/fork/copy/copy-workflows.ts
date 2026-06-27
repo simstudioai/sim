@@ -114,16 +114,89 @@ export async function resolveForkFolderMapping({
   return map
 }
 
+// `\u0000` (a NUL byte) can never appear in a Postgres text column, so it is a
+// collision-free separator between the folder id and the name.
+const workflowNameKey = (folderId: string | null, name: string) => `${folderId ?? ''}\u0000${name}`
+
+/**
+ * In-memory registry of a workspace's active workflow names, keyed by
+ * (folderId, name) - the exact columns of the `workflow_workspace_folder_name_active_unique`
+ * partial index. Lets fork/promote resolve name collisions across many copied workflows
+ * from a single load instead of one `nameTaken` query per workflow inside the (locked)
+ * transaction.
+ *
+ * Correctness is still guaranteed by that DB unique index; this is only a proactive
+ * collision avoider. A stale snapshot (e.g. a concurrent non-fork rename mid-promote) can
+ * therefore only cause a rare, retry-able unique violation - never a duplicate name -
+ * exactly as the prior per-workflow check-then-write already could.
+ */
+export interface WorkflowNameRegistry {
+  /** True when (folderId, name) is held by any active workflow other than `excludeWorkflowId`. */
+  isTaken(folderId: string | null, name: string, excludeWorkflowId: string | null): boolean
+  /** Record that `workflowId` now holds (folderId, name), releasing any name it held before. */
+  claim(folderId: string | null, name: string, workflowId: string): void
+}
+
+/** Build a {@link WorkflowNameRegistry} from already-loaded rows (pure - unit-testable). */
+export function buildWorkflowNameRegistry(
+  rows: Array<{ id: string; folderId: string | null; name: string }>
+): WorkflowNameRegistry {
+  const holdersByKey = new Map<string, Set<string>>()
+  const keyByWorkflow = new Map<string, string>()
+  for (const row of rows) {
+    const key = workflowNameKey(row.folderId, row.name)
+    const holders = holdersByKey.get(key)
+    if (holders) holders.add(row.id)
+    else holdersByKey.set(key, new Set([row.id]))
+    keyByWorkflow.set(row.id, key)
+  }
+
+  return {
+    isTaken(folderId, name, excludeWorkflowId) {
+      const holders = holdersByKey.get(workflowNameKey(folderId, name))
+      if (!holders) return false
+      for (const id of holders) if (id !== excludeWorkflowId) return true
+      return false
+    },
+    claim(folderId, name, workflowId) {
+      const newKey = workflowNameKey(folderId, name)
+      const prevKey = keyByWorkflow.get(workflowId)
+      if (prevKey === newKey) return
+      if (prevKey) holdersByKey.get(prevKey)?.delete(workflowId)
+      const holders = holdersByKey.get(newKey)
+      if (holders) holders.add(workflowId)
+      else holdersByKey.set(newKey, new Set([workflowId]))
+      keyByWorkflow.set(workflowId, newKey)
+    },
+  }
+}
+
+/** Load every active workflow name in a workspace into a {@link WorkflowNameRegistry}. */
+export async function loadWorkflowNameRegistry(
+  executor: DbOrTx,
+  workspaceId: string
+): Promise<WorkflowNameRegistry> {
+  const rows = await executor
+    .select({ id: workflow.id, folderId: workflow.folderId, name: workflow.name })
+    .from(workflow)
+    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+  return buildWorkflowNameRegistry(rows)
+}
+
 async function resolveTargetWorkflowName(
   tx: DbOrTx,
   workspaceId: string,
   folderId: string | null,
   name: string,
-  excludeWorkflowId: string | null
+  excludeWorkflowId: string | null,
+  registry?: WorkflowNameRegistry
 ): Promise<string> {
   const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
 
   const nameTaken = async (candidate: string): Promise<boolean> => {
+    // The registry mirrors the same (workspace, folder, name, not-archived, exclude-self)
+    // predicate as the DB query below, from one preload instead of a query per call.
+    if (registry) return registry.isTaken(folderId, candidate, excludeWorkflowId)
     const conditions = [
       eq(workflow.workspaceId, workspaceId),
       folderCondition,
@@ -178,6 +251,11 @@ export interface CopyWorkflowStateParams {
   folderIdMap: Map<string, string>
   /** Optional resource-reference remap applied to every block's subBlocks. */
   transformSubBlocks?: SubBlockTransform
+  /**
+   * Preloaded name registry so name-collision resolution reads from memory instead of one
+   * query per workflow inside the tx. Build once per copy loop via {@link loadWorkflowNameRegistry}.
+   */
+  nameRegistry?: WorkflowNameRegistry
   requestId?: string
 }
 
@@ -206,6 +284,7 @@ export async function copyWorkflowStateIntoTarget(
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
+    nameRegistry,
     requestId = 'unknown',
   } = params
 
@@ -320,8 +399,12 @@ export async function copyWorkflowStateIntoTarget(
     targetWorkspaceId,
     targetFolderId,
     sourceMeta.name,
-    mode === 'replace' ? targetWorkflowId : null
+    mode === 'replace' ? targetWorkflowId : null,
+    nameRegistry
   )
+  // Claim the resolved name so the next workflow in this copy loop sees it taken. The DB
+  // write below uses the same (folderId, name), so the registry stays consistent with it.
+  nameRegistry?.claim(targetFolderId, resolvedName, targetWorkflowId)
 
   if (mode === 'create') {
     await tx.insert(workflow).values({

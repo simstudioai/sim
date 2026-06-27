@@ -4,20 +4,26 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import {
+  enqueueWorkflowUndeploySideEffects,
+  processWorkflowDeploymentOutboxEvent,
+} from '@/lib/workflows/deployment-outbox'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   copyWorkflowStateIntoTarget,
+  loadWorkflowNameRegistry,
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
 import {
-  getActiveDeploymentVersionNumber,
+  getActiveDeploymentVersionNumbers,
   loadSourceDeployedStates,
 } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import {
   acquireForkEdgeLock,
   acquireForkTargetLock,
   type ForkEdge,
+  setForkLockTimeout,
 } from '@/lib/workspaces/fork/lineage/lineage'
 import {
   deleteWorkflowIdentityByIds,
@@ -101,6 +107,12 @@ interface PromoteTxApplied {
   skippedItems: Array<{ id: string; name: string }>
   /** Target workflow id -> source name, so the deploy-failure report can show names. */
   writtenNames: Record<string, string>
+  /** Names of the changed workflows, by action, for the activity report. */
+  updatedNames: string[]
+  createdNames: string[]
+  archivedNames: string[]
+  /** Outbox event ids enqueued for archived orphans' undeploy side-effects. */
+  undeployEventIds: string[]
 }
 
 /**
@@ -127,6 +139,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(sourceWorkspaceId)
 
   const txResult: PromoteTxBlocked | PromoteTxApplied = await db.transaction(async (tx) => {
+    // Bound lock waits so a contended sync into this target fails fast instead of
+    // stagnating the pool. Must run before acquiring the advisory locks below.
+    await setForkLockTimeout(tx)
     // Target lock before edge lock (consistent ordering): the target lock serializes
     // every sync into this target so sibling forks can't interleave writes, and so
     // rollback's "newest sync" check stays race-free against a concurrent promote.
@@ -170,6 +185,19 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       now,
     })
 
+    // Batch every prior-version read (replace + archive targets) into one query before any
+    // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
+    // they still reflect the active version each target had before this sync.
+    const priorVersionByTarget = await getActiveDeploymentVersionNumbers(tx, [
+      ...plan.items.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId),
+      ...plan.archivedTargetIds,
+    ])
+
+    // Preload the target's active workflow names so per-workflow collision checks read from
+    // memory instead of one query each inside this locked tx. The DB unique index remains
+    // the correctness backstop (a stale snapshot only risks a rare, retry-able conflict).
+    const nameRegistry = await loadWorkflowNameRegistry(tx, targetWorkspaceId)
+
     const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
     const createdTargetIds: string[] = []
     const writtenItems: typeof plan.items = []
@@ -180,7 +208,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       const sourceState = sourceStates.get(item.sourceWorkflowId)
       if (!sourceState) continue
       if (item.mode === 'replace') {
-        const priorVersion = await getActiveDeploymentVersionNumber(tx, item.targetWorkflowId)
+        const priorVersion = priorVersionByTarget.get(item.targetWorkflowId) ?? null
         updatedSnapshots.push({ workflowId: item.targetWorkflowId, priorVersion })
       } else {
         createdTargetIds.push(item.targetWorkflowId)
@@ -197,6 +225,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         workflowIdMap: plan.workflowIdMap,
         folderIdMap,
         transformSubBlocks: transform,
+        nameRegistry,
         requestId,
       })
       writtenItems.push(item)
@@ -212,11 +241,27 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           ).map((row) => row.name)
         : []
 
+    const undeployEventIds: string[] = []
     const archivedSnapshots: PromoteRunWorkflowSnapshot[] = []
     for (const targetWorkflowId of plan.archivedTargetIds) {
-      const priorVersion = await getActiveDeploymentVersionNumber(tx, targetWorkflowId)
+      const priorVersion = priorVersionByTarget.get(targetWorkflowId) ?? null
       archivedSnapshots.push({ workflowId: targetWorkflowId, priorVersion })
-      await undeployWorkflow({ workflowId: targetWorkflowId, tx })
+      // Enqueue undeploy side-effects (webhook + MCP-tool cleanup) so an archived orphan
+      // doesn't leak its subscriptions/registrations - mirrors rollback's undeploy path.
+      await undeployWorkflow({
+        workflowId: targetWorkflowId,
+        tx,
+        onUndeployTransaction: async (innerTx, { deploymentVersionIds }) => {
+          if (deploymentVersionIds.length === 0) return
+          const eventId = await enqueueWorkflowUndeploySideEffects(innerTx, {
+            workflowId: targetWorkflowId,
+            deploymentVersionIds,
+            userId,
+            requestId,
+          })
+          undeployEventIds.push(eventId)
+        },
+      })
       await tx
         .update(workflow)
         .set({ archivedAt: now, updatedAt: now })
@@ -375,6 +420,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         .filter((item) => item.mode !== 'replace')
         .map((item) => item.sourceMeta.name),
       archivedNames,
+      undeployEventIds,
     }
   })
 
@@ -393,6 +439,19 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       updatedNames: [],
       createdNames: [],
       archivedNames: [],
+    }
+  }
+
+  // Process archived orphans' undeploy side-effects after commit (durably retried by the
+  // outbox cron if this dies first), so the locked transaction never held a network call.
+  for (const eventId of txResult.undeployEventIds) {
+    try {
+      await processWorkflowDeploymentOutboxEvent(eventId)
+    } catch (error) {
+      logger.warn(`[${requestId}] Deferred archive undeploy side-effect failed (will retry)`, {
+        eventId,
+        error: getErrorMessage(error),
+      })
     }
   }
 

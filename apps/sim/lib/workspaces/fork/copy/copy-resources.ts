@@ -137,9 +137,10 @@ export async function copyForkResourceContainers(
           eq(customTools.workspaceId, sourceWorkspaceId)
         )
       )
+    const inserts: (typeof customTools.$inferInsert)[] = []
     for (const row of rows) {
       const childId = generateId()
-      await tx.insert(customTools).values({
+      inserts.push({
         ...row,
         id: childId,
         workspaceId: childWorkspaceId,
@@ -150,6 +151,7 @@ export async function copyForkResourceContainers(
       record('custom_tool', row.id, childId)
       names.customTools.push(row.title)
     }
+    if (inserts.length > 0) await tx.insert(customTools).values(inserts)
   }
 
   if (selection.skills.length > 0) {
@@ -157,9 +159,10 @@ export async function copyForkResourceContainers(
       .select()
       .from(skill)
       .where(and(inArray(skill.id, selection.skills), eq(skill.workspaceId, sourceWorkspaceId)))
+    const inserts: (typeof skill.$inferInsert)[] = []
     for (const row of rows) {
       const childId = generateId()
-      await tx.insert(skill).values({
+      inserts.push({
         ...row,
         id: childId,
         workspaceId: childWorkspaceId,
@@ -170,6 +173,7 @@ export async function copyForkResourceContainers(
       record('skill', row.id, childId)
       names.skills.push(row.name)
     }
+    if (inserts.length > 0) await tx.insert(skill).values(inserts)
   }
 
   if (selection.mcpServers.length > 0) {
@@ -186,32 +190,34 @@ export async function copyForkResourceContainers(
     // `generateMcpServerId` is deterministic on (workspace, url), so two selected
     // servers with the same normalized URL derive the same child id. Insert once
     // and map both source ids to the surviving child rather than aborting the fork.
-    const insertedMcpIds = new Set<string>()
+    const insertsByChildId = new Map<string, typeof mcpServers.$inferInsert>()
     for (const row of rows) {
       const childId = row.url ? generateMcpServerId(childWorkspaceId, row.url) : generateId()
       record('mcp_server', row.id, childId)
-      if (insertedMcpIds.has(childId)) continue
-      insertedMcpIds.add(childId)
+      if (insertsByChildId.has(childId)) continue
       names.mcpServers.push(row.name)
+      insertsByChildId.set(childId, {
+        ...row,
+        id: childId,
+        workspaceId: childWorkspaceId,
+        createdBy: userId,
+        // Secrets are never copied across workspaces: drop the registered OAuth
+        // client + any auth headers so the child re-authenticates from scratch.
+        oauthClientId: null,
+        oauthClientSecret: null,
+        headers: {},
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    if (insertsByChildId.size > 0) {
       await tx
         .insert(mcpServers)
-        .values({
-          ...row,
-          id: childId,
-          workspaceId: childWorkspaceId,
-          createdBy: userId,
-          // Secrets are never copied across workspaces: drop the registered OAuth
-          // client + any auth headers so the child re-authenticates from scratch.
-          oauthClientId: null,
-          oauthClientSecret: null,
-          headers: {},
-          connectionStatus: 'disconnected',
-          lastConnected: null,
-          lastError: null,
-          deletedAt: null,
-          createdAt: now,
-          updatedAt: now,
-        })
+        .values([...insertsByChildId.values()])
         .onConflictDoNothing()
     }
   }
@@ -227,13 +233,14 @@ export async function copyForkResourceContainers(
           isNull(userTableDefinitions.archivedAt)
         )
       )
+    const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
     for (const definition of definitions) {
       const childTableId = generateId()
       const remappedSchema = remapForkTableWorkflowGroups(
         definition.schema as TableSchema,
         workflowIdMap
       )
-      await tx.insert(userTableDefinitions).values({
+      inserts.push({
         ...definition,
         id: childTableId,
         workspaceId: childWorkspaceId,
@@ -251,6 +258,7 @@ export async function copyForkResourceContainers(
       contentPlan.tables.push({ sourceId: definition.id, childId: childTableId })
       names.tables.push(definition.name)
     }
+    if (inserts.length > 0) await tx.insert(userTableDefinitions).values(inserts)
   }
 
   if (selection.knowledgeBases.length > 0) {
@@ -264,9 +272,10 @@ export async function copyForkResourceContainers(
           isNull(knowledgeBase.deletedAt)
         )
       )
+    const inserts: (typeof knowledgeBase.$inferInsert)[] = []
     for (const base of bases) {
       const childKbId = generateId()
-      await tx.insert(knowledgeBase).values({
+      inserts.push({
         ...base,
         id: childKbId,
         workspaceId: childWorkspaceId,
@@ -279,6 +288,7 @@ export async function copyForkResourceContainers(
       contentPlan.knowledgeBases.push({ sourceId: base.id, childId: childKbId })
       names.knowledgeBases.push(base.name)
     }
+    if (inserts.length > 0) await tx.insert(knowledgeBase).values(inserts)
   }
 
   return { idMap, mappingEntries, contentPlan, names }

@@ -25,9 +25,11 @@ import {
 } from '@/lib/workspaces/fork/copy/copy-resources'
 import {
   copyWorkflowStateIntoTarget,
+  loadWorkflowNameRegistry,
   resolveForkFolderMapping,
 } from '@/lib/workspaces/fork/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
+import { setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
   type ForkMappingUpsert,
   type ForkResourceType,
@@ -113,6 +115,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     mcpServers: [],
   }
   const { result, blobTasks, contentPlan } = await db.transaction(async (tx) => {
+    await setForkLockTimeout(tx)
     const now = new Date()
     const childWorkspaceId = generateId()
 
@@ -204,6 +207,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       now,
     })
 
+    // The child is brand new, so this loads an empty registry; name collisions can only
+    // arise among the copied workflows themselves, which the in-loop claims resolve.
+    const nameRegistry = await loadWorkflowNameRegistry(tx, childWorkspaceId)
+
     let workflowsCopied = 0
     for (const wf of deployedWorkflows) {
       const sourceState = sourceStates.get(wf.id)
@@ -225,6 +232,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         workflowIdMap,
         folderIdMap,
         transformSubBlocks: transform,
+        nameRegistry,
         requestId,
       })
       workflowsCopied += 1

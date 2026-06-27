@@ -38,6 +38,50 @@ export async function getWorkspaceEnvKeys(
   return new Set(Object.keys(variables as Record<string, unknown>))
 }
 
+// Shared `{ id, label }` candidate queries for the content resource kinds that BOTH the
+// mapping-target picker and the fork-copy picker list - one source of the archived/deleted
+// filters so the two pickers can never drift apart. Credentials, env vars (mapping-only),
+// and files (copy-only) stay inline in their respective functions.
+const tableCandidatesQuery = (executor: DbOrTx, workspaceId: string) =>
+  executor
+    .select({ id: userTableDefinitions.id, label: userTableDefinitions.name })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .limit(CANDIDATE_LIMIT)
+
+const knowledgeBaseCandidatesQuery = (executor: DbOrTx, workspaceId: string) =>
+  executor
+    .select({ id: knowledgeBase.id, label: knowledgeBase.name })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+    .limit(CANDIDATE_LIMIT)
+
+const customToolCandidatesQuery = (executor: DbOrTx, workspaceId: string) =>
+  executor
+    .select({ id: customTools.id, label: customTools.title })
+    .from(customTools)
+    .where(eq(customTools.workspaceId, workspaceId))
+    .limit(CANDIDATE_LIMIT)
+
+const skillCandidatesQuery = (executor: DbOrTx, workspaceId: string) =>
+  executor
+    .select({ id: skill.id, label: skill.name })
+    .from(skill)
+    .where(eq(skill.workspaceId, workspaceId))
+    .limit(CANDIDATE_LIMIT)
+
+const mcpServerCandidatesQuery = (executor: DbOrTx, workspaceId: string) =>
+  executor
+    .select({ id: mcpServers.id, label: mcpServers.name })
+    .from(mcpServers)
+    .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+    .limit(CANDIDATE_LIMIT)
+
 /**
  * List the resources in a workspace that can serve as mapping targets, grouped by
  * remap kind. Used to populate the mapping UI's target pickers and to label the
@@ -71,36 +115,11 @@ export async function listForkResourceCandidates(
       .from(workspaceEnvironment)
       .where(eq(workspaceEnvironment.workspaceId, workspaceId))
       .limit(1),
-    executor
-      .select({ id: userTableDefinitions.id, name: userTableDefinitions.name })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, workspaceId),
-          isNull(userTableDefinitions.archivedAt)
-        )
-      )
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: knowledgeBase.id, name: knowledgeBase.name })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: mcpServers.id, name: mcpServers.name })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: customTools.id, title: customTools.title })
-      .from(customTools)
-      .where(eq(customTools.workspaceId, workspaceId))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: skill.id, name: skill.name })
-      .from(skill)
-      .where(eq(skill.workspaceId, workspaceId))
-      .limit(CANDIDATE_LIMIT),
+    tableCandidatesQuery(executor, workspaceId),
+    knowledgeBaseCandidatesQuery(executor, workspaceId),
+    mcpServerCandidatesQuery(executor, workspaceId),
+    customToolCandidatesQuery(executor, workspaceId),
+    skillCandidatesQuery(executor, workspaceId),
   ])
 
   const envVariables = wsEnvRows[0]?.variables
@@ -116,11 +135,11 @@ export async function listForkResourceCandidates(
       providerId: c.providerId ?? undefined,
     })),
     'env-var': envKeys.map((key) => ({ id: key, label: key })),
-    table: tables.map((t) => ({ id: t.id, label: t.name })),
-    'knowledge-base': kbs.map((kb) => ({ id: kb.id, label: kb.name })),
-    'mcp-server': servers.map((server) => ({ id: server.id, label: server.name })),
-    'custom-tool': tools.map((tool) => ({ id: tool.id, label: tool.title })),
-    skill: skills.map((s) => ({ id: s.id, label: s.name })),
+    table: tables,
+    'knowledge-base': kbs,
+    'mcp-server': servers,
+    'custom-tool': tools,
+    skill: skills,
     'knowledge-document': [],
     file: [],
   }
@@ -257,9 +276,9 @@ export interface ForkCopyableResources {
   skills: ForkResourceCandidate[]
   mcpServers: ForkResourceCandidate[]
   /**
-   * Count of deployed workflows that the fork would copy. The fork modal disables
-   * the action (with a reason) when this is 0 and there are no copyable resources,
-   * since the fork would otherwise produce an empty workspace.
+   * Count of deployed workflows that the fork would copy. When 0, the fork modal shows an
+   * informational note (forking is never blocked) - create-fork seeds a blank starter
+   * workflow so the child is still a usable workspace.
    */
   deployedWorkflowCount: number
 }
@@ -291,36 +310,11 @@ export async function listForkCopyableResources(
         )
       )
       .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: userTableDefinitions.id, label: userTableDefinitions.name })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, workspaceId),
-          isNull(userTableDefinitions.archivedAt)
-        )
-      )
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: knowledgeBase.id, label: knowledgeBase.name })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: customTools.id, label: customTools.title })
-      .from(customTools)
-      .where(eq(customTools.workspaceId, workspaceId))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: skill.id, label: skill.name })
-      .from(skill)
-      .where(eq(skill.workspaceId, workspaceId))
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ id: mcpServers.id, label: mcpServers.name })
-      .from(mcpServers)
-      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
-      .limit(CANDIDATE_LIMIT),
+    tableCandidatesQuery(executor, workspaceId),
+    knowledgeBaseCandidatesQuery(executor, workspaceId),
+    customToolCandidatesQuery(executor, workspaceId),
+    skillCandidatesQuery(executor, workspaceId),
+    mcpServerCandidatesQuery(executor, workspaceId),
     executor
       .select({ value: count() })
       .from(workflow)

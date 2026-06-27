@@ -8,6 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
+import { acquireForkEdgeLock, setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
   applyForkMappingEntries,
   getForkMappingView,
@@ -60,9 +61,14 @@ export const PUT = withRouteHandler(
 
     await validateForkMappingTargets(auth.sourceWorkspaceId, auth.targetWorkspaceId, entries)
 
-    const updated = await db.transaction((tx) =>
-      applyForkMappingEntries(tx, auth.edge, session.user.id, direction, entries)
-    )
+    // Serialize concurrent mapping saves on this edge so a push (keyed child-side, deleted
+    // then re-upserted parent-side) can't leave duplicate rows for the same source. Same
+    // edge lock promote/rollback use, with a bounded wait.
+    const updated = await db.transaction(async (tx) => {
+      await setForkLockTimeout(tx)
+      await acquireForkEdgeLock(tx, auth.edge.childWorkspaceId)
+      return applyForkMappingEntries(tx, auth.edge, session.user.id, direction, entries)
+    })
 
     return NextResponse.json({ success: true as const, updated })
   }

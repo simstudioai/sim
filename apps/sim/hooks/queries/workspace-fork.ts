@@ -142,7 +142,11 @@ export function usePromoteFork() {
     mutationFn: (vars: { workspaceId: string; body: PromoteForkBody }) =>
       requestJson(promoteForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: forkKeys.all })
+      // A sync changes lineage (undoable run), mappings, and the diff - not the
+      // workspace's copyable resource inventory, so leave `resources` cached.
+      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
@@ -154,7 +158,11 @@ export function useRollbackFork() {
     mutationFn: (vars: { workspaceId: string; body: RollbackForkBody }) =>
       requestJson(rollbackForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: forkKeys.all })
+      // Rollback changes lineage, mappings, and the diff - not the copyable resource
+      // inventory, so leave `resources` cached (mirrors usePromoteFork).
+      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })

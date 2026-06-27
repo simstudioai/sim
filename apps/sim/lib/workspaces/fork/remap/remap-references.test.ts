@@ -23,7 +23,6 @@ import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-
 import {
   remapForkSubBlocks,
   remapToolBlockResources,
-  rewriteMcpToolSelectorValue,
 } from '@/lib/workspaces/fork/remap/remap-references'
 
 const blockConfigs: Record<string, { subBlocks: SubBlockConfig[] }> = {
@@ -224,9 +223,10 @@ describe('remapForkSubBlocks', () => {
       (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
       'promote'
     )
-    // The basic credential is kept (not cleared) and surfaced as required; the
-    // advanced manualCredential is an escape hatch - preserved verbatim, not recorded.
-    expect(result.subBlocks.credential.value).toBe('c-src')
+    // The basic credential is cleared (never carry an invalid cross-workspace id) but
+    // still surfaced as required so the sync blocks; the advanced manualCredential is an
+    // escape hatch - preserved verbatim, not recorded.
+    expect(result.subBlocks.credential.value).toBe('')
     expect(result.subBlocks.manualCredential.value).toBe('mc-src')
     expect(result.subBlocks.knowledgeBaseId.value).toBe('kb-dst')
     const unmappedKinds = result.unmapped.map((r) => `${r.kind}:${r.sourceId}`)
@@ -277,24 +277,5 @@ describe('remapForkSubBlocks', () => {
     )
     const tools = result.subBlocks.tools.value as Array<{ params: { subject: string } }>
     expect(tools[0].params.subject).toBe('Hi {{NEW}}')
-  })
-})
-
-describe('rewriteMcpToolSelectorValue', () => {
-  const remaps = new Map([['server-old', 'server-new']])
-
-  it('rewrites the embedded server id', () => {
-    expect(rewriteMcpToolSelectorValue('mcp-server-old-search', remaps)).toBe(
-      'mcp-server-new-search'
-    )
-  })
-
-  it('leaves values without the old server id', () => {
-    expect(rewriteMcpToolSelectorValue('mcp-other-search', remaps)).toBe('mcp-other-search')
-  })
-
-  it('is a no-op for empty values or empty remaps', () => {
-    expect(rewriteMcpToolSelectorValue('', remaps)).toBe('')
-    expect(rewriteMcpToolSelectorValue('mcp-server-old-x', new Map())).toBe('mcp-server-old-x')
   })
 })

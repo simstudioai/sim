@@ -43,29 +43,6 @@ export async function getForkParent(workspaceId: string): Promise<ForkLineageNod
   return row ?? null
 }
 
-/** The live direct children forked from this workspace. */
-export async function getForkChildren(workspaceId: string): Promise<ForkLineageNode[]> {
-  return db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      organizationId: workspace.organizationId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.forkedFromWorkspaceId, workspaceId), isNull(workspace.archivedAt)))
-}
-
-/** The parent plus direct children of a workspace, for lineage display. */
-export async function getForkLineage(
-  workspaceId: string
-): Promise<{ parent: ForkLineageNode | null; children: ForkLineageNode[] }> {
-  const [parent, children] = await Promise.all([
-    getForkParent(workspaceId),
-    getForkChildren(workspaceId),
-  ])
-  return { parent, children }
-}
-
 /**
  * Resolve the strict fork edge between two workspaces, identifying which is the
  * child (the one whose `forkedFromWorkspaceId` points at the other). Returns
@@ -83,6 +60,25 @@ export async function resolveForkEdge(
     return { childWorkspaceId: workspaceBId, parentWorkspaceId: workspaceAId }
   }
   return null
+}
+
+/**
+ * How long a fork transaction waits for a lock before aborting. Bounds the wait on the
+ * target/edge advisory locks (and any incidental row lock) so a contended sync into the
+ * same target fails fast and returns its pooled connection instead of piling waiters up
+ * and stagnating the pool at scale. 10s favors completing a legit sync queued behind an
+ * in-flight one, while still tripping on a pathological hold. Connection-level timeouts
+ * are not used (PlanetScale rejects them) - this is transaction-scoped only.
+ */
+const FORK_LOCK_TIMEOUT_MS = 10_000
+
+/**
+ * Apply {@link FORK_LOCK_TIMEOUT_MS} to the current transaction (`set_config(local)`),
+ * so it covers `pg_advisory_xact_lock` waits too. Call at the very start of a fork
+ * transaction, before acquiring any lock.
+ */
+export async function setForkLockTimeout(tx: DbOrTx): Promise<void> {
+  await tx.execute(sql`select set_config('lock_timeout', ${`${FORK_LOCK_TIMEOUT_MS}ms`}, true)`)
 }
 
 /**
