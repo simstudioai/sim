@@ -22,7 +22,9 @@ package-lock.json
 # next.js
 /.next/
 /apps/**/out/
+/apps/**/.next
 /apps/**/.next/
+/apps/**/.next.slowfs.old/
 /apps/**/build
 
 # production
@@ -42,6 +44,9 @@ dump.rdb
 # env files
 .env
 *.env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
 .env.development
 .env.test
@@ -78,8 +83,12 @@ start-collector.sh
 # Turborepo
 .turbo
 
-# VSCode
-.vscode
+# VSCode / Cursor workspace defaults (commit shared config; ignore local overrides)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
 
 # IntelliJ
 .idea
@@ -88,11 +97,27 @@ start-collector.sh
 helm/sim/test
 i18n.cache
 
-## Claude Code
+## Claude Code (ignore local state; commands/rules/skills stay tracked)
+.claude.json
+.claude/.credentials.json
+.claude/settings.json
 .claude/launch.json
+.claude/history.jsonl
 .claude/worktrees/
+.claude/backups/
+.claude/cache/
+.claude/file-history/
+.claude/plugins/
+.claude/projects/
 .claude/scheduled_tasks.lock
+.deepseek/
 .deepsec/
+
+# Local caches & machine-specific dirs
+.bun/
+.cache/
+.config/
+.local/
 
 # Personal Cursor Skills
 .cursor/skills/ask-sim/

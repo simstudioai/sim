@@ -1,0 +1,17 @@
+{
+  "recommendations": [
+    "anysphere.remote-containers",
+    "ms-azuretools.vscode-containers",
+    "biomejs.biome",
+    "oven.bun-vscode",
+    "bradlc.vscode-tailwindcss",
+    "mikestead.dotenv",
+    "dsznajder.es7-react-js-snippets",
+    "vitest.explorer"
+  ],
+  "unwantedRecommendations": [
+    "esbenp.prettier-vscode",
+    "ms-vscode-remote.remote-containers",
+    "ms-azuretools.vscode-docker"
+  ]
+}
