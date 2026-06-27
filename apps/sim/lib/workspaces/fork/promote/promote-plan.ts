@@ -5,12 +5,20 @@ import type { DbOrTx } from '@/lib/db/types'
 import type { DeployedWorkflowSummary } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import type { ForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
 import { detectForkCascadeReferences } from '@/lib/workspaces/fork/mapping/cascade'
-import { buildForkResolver, getEdgeMappingRows } from '@/lib/workspaces/fork/mapping/mapping-store'
-import { getWorkspaceEnvKeys } from '@/lib/workspaces/fork/mapping/resources'
+import {
+  buildForkResolver,
+  getEdgeMappingRows,
+  resourceTypeToForkKind,
+} from '@/lib/workspaces/fork/mapping/mapping-store'
+import {
+  filterExistingForkTargets,
+  getWorkspaceEnvKeys,
+} from '@/lib/workspaces/fork/mapping/resources'
 import { getPromoteRunForEdge } from '@/lib/workspaces/fork/promote/promote-run-store'
 import {
   type ForkReference,
   type ForkReferenceResolver,
+  type ForkRemapKind,
   scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -125,7 +133,32 @@ export async function computeForkPromotePlan(params: {
     getWorkspaceEnvKeys(executor, sourceWorkspaceId),
   ])
   const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
-  const resolver = buildForkResolver(mappingRows, { sourceIsParent, targetEnvKeys, sourceEnvKeys })
+
+  // Collect each mapping's chosen target id (per kind) and keep only those that still
+  // exist in the target workspace, so a target deleted after the mapping was saved
+  // resolves as unmapped instead of writing a dead id into the promoted workflow.
+  const mappedTargetIdsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  for (const row of mappingRows) {
+    const kind = resourceTypeToForkKind(row.resourceType)
+    if (!kind) continue
+    const targetId = sourceIsParent ? row.childResourceId : row.parentResourceId
+    if (targetId == null) continue
+    const set = mappedTargetIdsByKind[kind] ?? new Set<string>()
+    set.add(targetId)
+    mappedTargetIdsByKind[kind] = set
+  }
+  const validTargetIdsByKind = await filterExistingForkTargets(
+    executor,
+    targetWorkspaceId,
+    mappedTargetIdsByKind
+  )
+
+  const resolver = buildForkResolver(mappingRows, {
+    sourceIsParent,
+    targetEnvKeys,
+    sourceEnvKeys,
+    validTargetIdsByKind,
+  })
 
   const identityMap = new Map<string, string>()
   for (const row of mappingRows) {

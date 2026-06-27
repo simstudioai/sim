@@ -6,10 +6,11 @@ import {
   skill,
   userTableDefinitions,
   workflow,
+  workflowDeploymentVersion,
   workspaceEnvironment,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkResourceType } from '@/lib/workspaces/fork/mapping/mapping-store'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
@@ -20,7 +21,7 @@ export interface ForkResourceCandidate {
   providerId?: string
 }
 
-const CANDIDATE_LIMIT = 1000
+export const CANDIDATE_LIMIT = 1000
 
 /** The set of env-var keys defined in a workspace (for resolver identity + gating). */
 export async function getWorkspaceEnvKeys(
@@ -125,6 +126,129 @@ export async function listForkResourceCandidates(
   }
 }
 
+/**
+ * Given mapped target ids grouped by kind, return the subset that still EXISTS in the
+ * target workspace (same archived/deleted filters as `listForkResourceCandidates`).
+ * Used at promote time so a mapping whose target was deleted after it was saved
+ * resolves as unmapped (surfaced/cleared) instead of writing a dead id into the
+ * promoted workflow. Queries the exact ids (not the capped candidate list) so a valid
+ * target is never wrongly dropped, and only the DB-backed kinds are checked - env-var
+ * existence is handled by the resolver's `targetEnvKeys`, and `file`/`workflow` are
+ * resolved by other paths.
+ */
+export async function filterExistingForkTargets(
+  executor: DbOrTx,
+  workspaceId: string,
+  idsByKind: Partial<Record<ForkRemapKind, Set<string>>>
+): Promise<Partial<Record<ForkRemapKind, Set<string>>>> {
+  const ids = (kind: ForkRemapKind): string[] => {
+    const set = idsByKind[kind]
+    return set && set.size > 0 ? Array.from(set) : []
+  }
+  const credIds = ids('credential')
+  const tableIds = ids('table')
+  const kbIds = ids('knowledge-base')
+  const mcpIds = ids('mcp-server')
+  const toolIds = ids('custom-tool')
+  const skillIds = ids('skill')
+
+  const [creds, tables, kbs, servers, tools, skills] = await Promise.all([
+    credIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: credential.id })
+          .from(credential)
+          .where(
+            and(
+              eq(credential.workspaceId, workspaceId),
+              inArray(credential.type, ['oauth', 'service_account']),
+              inArray(credential.id, credIds)
+            )
+          ),
+    tableIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: userTableDefinitions.id })
+          .from(userTableDefinitions)
+          .where(
+            and(
+              eq(userTableDefinitions.workspaceId, workspaceId),
+              isNull(userTableDefinitions.archivedAt),
+              inArray(userTableDefinitions.id, tableIds)
+            )
+          ),
+    kbIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: knowledgeBase.id })
+          .from(knowledgeBase)
+          .where(
+            and(
+              eq(knowledgeBase.workspaceId, workspaceId),
+              isNull(knowledgeBase.deletedAt),
+              inArray(knowledgeBase.id, kbIds)
+            )
+          ),
+    mcpIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: mcpServers.id })
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt),
+              inArray(mcpServers.id, mcpIds)
+            )
+          ),
+    toolIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: customTools.id })
+          .from(customTools)
+          .where(and(eq(customTools.workspaceId, workspaceId), inArray(customTools.id, toolIds))),
+    skillIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : executor
+          .select({ id: skill.id })
+          .from(skill)
+          .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, skillIds))),
+  ])
+
+  const result: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  if (credIds.length > 0) result.credential = new Set(creds.map((r) => r.id))
+  if (tableIds.length > 0) result.table = new Set(tables.map((r) => r.id))
+  if (kbIds.length > 0) result['knowledge-base'] = new Set(kbs.map((r) => r.id))
+  if (mcpIds.length > 0) result['mcp-server'] = new Set(servers.map((r) => r.id))
+  if (toolIds.length > 0) result['custom-tool'] = new Set(tools.map((r) => r.id))
+  if (skillIds.length > 0) result.skill = new Set(skills.map((r) => r.id))
+  return result
+}
+
+/**
+ * Provider id for each given credential id in a workspace, looked up by exact id (no
+ * candidate cap). Presence in the returned map means the credential exists in the
+ * workspace, so this doubles as a cap-free existence + provider check for validation.
+ */
+export async function getCredentialProvidersByIds(
+  executor: DbOrTx,
+  workspaceId: string,
+  ids: string[]
+): Promise<Map<string, string | null>> {
+  if (ids.length === 0) return new Map()
+  const rows = await executor
+    .select({ id: credential.id, providerId: credential.providerId })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        inArray(credential.type, ['oauth', 'service_account']),
+        inArray(credential.id, ids)
+      )
+    )
+  return new Map(rows.map((row) => [row.id, row.providerId ?? null]))
+}
+
 export interface ForkCopyableResources {
   files: ForkResourceCandidate[]
   tables: ForkResourceCandidate[]
@@ -157,7 +281,15 @@ export async function listForkCopyableResources(
         label: sql<string>`coalesce(${workspaceFiles.displayName}, ${workspaceFiles.originalName})`,
       })
       .from(workspaceFiles)
-      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+      // Only durable workspace files are forkable - chat/copilot/mothership uploads are
+      // session-scoped attachments (and their chat-bound unique index can't be copied).
+      .where(
+        and(
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
       .limit(CANDIDATE_LIMIT),
     executor
       .select({ id: userTableDefinitions.id, label: userTableDefinitions.name })
@@ -192,11 +324,25 @@ export async function listForkCopyableResources(
     executor
       .select({ value: count() })
       .from(workflow)
+      // Match listDeployedWorkflows: a workflow only counts as copyable when it has an
+      // actually-active deployment version, not just the isDeployed flag, so the fork
+      // modal's preflight count never over-reports "ghost" deployed workflows.
       .where(
         and(
           eq(workflow.workspaceId, workspaceId),
           eq(workflow.isDeployed, true),
-          isNull(workflow.archivedAt)
+          isNull(workflow.archivedAt),
+          exists(
+            executor
+              .select({ one: sql`1` })
+              .from(workflowDeploymentVersion)
+              .where(
+                and(
+                  eq(workflowDeploymentVersion.workflowId, workflow.id),
+                  eq(workflowDeploymentVersion.isActive, true)
+                )
+              )
+          )
         )
       ),
   ])

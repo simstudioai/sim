@@ -8,7 +8,6 @@ import { detectForkCascadeReferences } from '@/lib/workspaces/fork/mapping/casca
 import {
   buildForkResolver,
   deleteEdgeMappingsByChildResources,
-  type ForkMappingRow,
   type ForkResourceType,
   getEdgeMappingRows,
   nonCredentialForkKindToResourceType,
@@ -16,8 +15,11 @@ import {
   upsertEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
 import {
+  CANDIDATE_LIMIT,
   classifyCredentialResourceType,
   type ForkResourceCandidate,
+  filterExistingForkTargets,
+  getCredentialProvidersByIds,
   getWorkspaceEnvKeys,
   listForkResourceCandidates,
 } from '@/lib/workspaces/fork/mapping/resources'
@@ -109,7 +111,20 @@ export async function getForkMappingView(
   }
   const references: ForkReference[] = Array.from(referenceByKey.values())
 
-  const entries: ForkMappingEntry[] = []
+  // First pass: resolve each reference's stored target + the data to build its entry,
+  // collecting stored target ids so existence is checked by exact id (cap-free) - a
+  // valid mapping to a target past the display cap must be RETAINED, not shown unmapped.
+  interface PendingEntry {
+    reference: ForkReference
+    resourceType: Exclude<ForkResourceType, 'workflow'>
+    sourceLabel: string
+    sourceProviderId: string | undefined
+    candidates: ForkResourceCandidate[]
+    storedTargetId: string | null
+  }
+  const pending: PendingEntry[] = []
+  const storedTargetIdsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+
   for (const reference of references) {
     // Only SOURCE workspace secrets are mappable; a `{{KEY}}` that isn't a source
     // workspace env var is a personal (user-scoped) secret - leave it as-is.
@@ -136,27 +151,58 @@ export async function getForkMappingView(
             (candidate) => candidate.providerId === sourceProviderId
           )
         : targetCandidates[reference.kind]
-    // Drop a stored target that no longer exists in (or no longer qualifies for) the
-    // target workspace - e.g. the parent disconnected/deleted the resource since the
-    // mapping was set. The entry then resurfaces as needing a mapping (re-suggested or
-    // required-empty) instead of silently pointing at a dangling id, and the stale row
-    // is overwritten on the next sync.
-    const storedTargetId = resolver(reference.kind, reference.sourceId)
-    const currentTargetId =
-      storedTargetId && candidates.some((candidate) => candidate.id === storedTargetId)
-        ? storedTargetId
-        : null
+    const storedTargetId = resolver(reference.kind, reference.sourceId) ?? null
+    if (storedTargetId && reference.kind !== 'env-var') {
+      ;(storedTargetIdsByKind[reference.kind] ??= new Set()).add(storedTargetId)
+    }
+    pending.push({
+      reference,
+      resourceType,
+      sourceLabel,
+      sourceProviderId,
+      candidates,
+      storedTargetId,
+    })
+  }
+
+  // Cap-free existence of every stored target (env vars validated against env keys).
+  const existingStoredTargets = await filterExistingForkTargets(
+    db,
+    targetWorkspaceId,
+    storedTargetIdsByKind
+  )
+
+  const entries: ForkMappingEntry[] = []
+  for (const p of pending) {
+    const targetExists =
+      p.storedTargetId != null &&
+      (p.reference.kind === 'env-var'
+        ? targetEnvKeys.has(p.storedTargetId)
+        : (existingStoredTargets[p.reference.kind]?.has(p.storedTargetId) ?? false))
+    const currentTargetId = targetExists ? p.storedTargetId : null
+
+    // If the retained current target isn't in the (capped) candidate list, append it
+    // so the picker can still display the current selection.
+    let candidates = p.candidates
+    if (currentTargetId && !candidates.some((candidate) => candidate.id === currentTargetId)) {
+      candidates = [...candidates, { id: currentTargetId, label: currentTargetId }]
+    }
+
     const targetId =
-      currentTargetId ?? suggestTarget(reference.kind, sourceLabel, sourceProviderId, candidates)
+      currentTargetId ??
+      suggestTarget(p.reference.kind, p.sourceLabel, p.sourceProviderId, candidates)
 
     entries.push({
-      kind: reference.kind,
-      resourceType,
-      sourceId: reference.sourceId,
-      sourceLabel,
+      kind: p.reference.kind,
+      resourceType: p.resourceType,
+      sourceId: p.reference.sourceId,
+      sourceLabel: p.sourceLabel,
       targetId,
-      required: reference.required,
+      required: p.reference.required,
       candidates,
+      // The full (unfiltered) target list for this kind hit the cap, so the picker is
+      // showing a partial list - the UI tells the user to refine.
+      candidatesTruncated: targetCandidates[p.reference.kind].length >= CANDIDATE_LIMIT,
     })
   }
 
@@ -226,38 +272,101 @@ export async function applyForkMappingEntries(
  * workspace, so a caller cannot point a remapped reference (or credential-access
  * propagation) at a resource in a workspace they do not administer. Entries whose
  * resource type is not user-mappable (only `workflow`, whose identity is
- * system-managed) are rejected outright.
+ * system-managed) are rejected outright. Credential targets must additionally share
+ * the source credential's OAuth provider, so a Gmail reference can never be pointed
+ * at a Google Calendar credential (the UI enforces this; this is the write-side
+ * boundary that catches direct API calls and stale rows).
  */
 export async function validateForkMappingTargets(
+  sourceWorkspaceId: string,
   targetWorkspaceId: string,
   entries: ApplyForkMappingEntry[]
 ): Promise<void> {
-  const hasTargets = entries.some((entry) => entry.targetId != null)
-  if (!hasTargets) return
-  const candidates = await listForkResourceCandidates(db, targetWorkspaceId)
-  for (const entry of entries) {
-    if (entry.targetId == null) continue
+  const withTarget = entries.filter((entry) => entry.targetId != null)
+  if (withTarget.length === 0) return
+
+  // Collect the exact target ids per kind so existence is checked by id, NOT against
+  // the display-capped candidate list - a valid target that simply sits past the cap
+  // must never be rejected on save.
+  const targetIdsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  let hasEnvVar = false
+  for (const entry of withTarget) {
     const kind = resourceTypeToForkKind(entry.resourceType)
     if (!kind) {
       // `workflow` is the only null-kind type, and its identity is system-managed by
       // fork/promote/rollback. A non-null target for it here is an invalid (or
-      // crafted) entry the editor must never persist - reject instead of skipping.
+      // crafted) entry the editor must never persist.
       throw new ForkError(
         `Resource type "${entry.resourceType}" cannot be mapped via the mapping editor`,
         400
       )
     }
-    const list = candidates[kind]
-    // An empty candidate list means the target workspace has no admissible
-    // resource of this kind, so ANY non-null target is invalid - reject rather
-    // than wave it through (the previous early-continue was the security hole).
-    if (!list.some((candidate) => candidate.id === entry.targetId)) {
+    if (kind === 'env-var') {
+      hasEnvVar = true
+      continue
+    }
+    ;(targetIdsByKind[kind] ??= new Set()).add(entry.targetId as string)
+  }
+
+  const credentialEntries = withTarget.filter(
+    (entry) => resourceTypeToForkKind(entry.resourceType) === 'credential'
+  )
+
+  const [existingTargets, targetEnvKeys, sourceProviders, targetProviders] = await Promise.all([
+    filterExistingForkTargets(db, targetWorkspaceId, targetIdsByKind),
+    hasEnvVar ? getWorkspaceEnvKeys(db, targetWorkspaceId) : Promise.resolve(new Set<string>()),
+    getCredentialProvidersByIds(
+      db,
+      sourceWorkspaceId,
+      credentialEntries.map((entry) => entry.sourceId)
+    ),
+    getCredentialProvidersByIds(
+      db,
+      targetWorkspaceId,
+      credentialEntries.map((entry) => entry.targetId as string)
+    ),
+  ])
+
+  for (const entry of withTarget) {
+    const kind = resourceTypeToForkKind(entry.resourceType)
+    if (!kind) continue
+    const targetId = entry.targetId as string
+
+    if (kind === 'env-var') {
+      if (!targetEnvKeys.has(targetId)) {
+        throw new ForkError(
+          `Mapping target "${targetId}" is not an environment variable in the target workspace`,
+          400
+        )
+      }
+      continue
+    }
+
+    if (!existingTargets[kind]?.has(targetId)) {
       throw new ForkError(
-        `Mapping target "${entry.targetId}" is not a valid ${kind} in the target workspace`,
+        `Mapping target "${targetId}" is not a valid ${kind} in the target workspace`,
         400
       )
     }
+
+    if (kind === 'credential') {
+      // The source must be a real credential in the source workspace. A foreign id
+      // (not present) would skip the provider check and let a crafted mapping drive
+      // cross-workspace credential-access propagation on promote.
+      if (!sourceProviders.has(entry.sourceId)) {
+        throw new ForkError(
+          `Source credential "${entry.sourceId}" is not a credential in the source workspace`,
+          400
+        )
+      }
+      const sourceProviderId = sourceProviders.get(entry.sourceId)
+      const targetProviderId = targetProviders.get(targetId) ?? null
+      if (sourceProviderId && targetProviderId !== sourceProviderId) {
+        throw new ForkError(
+          `Mapping target "${targetId}" must use the same provider as the source credential`,
+          400
+        )
+      }
+    }
   }
 }
-
-export type { ForkMappingRow }

@@ -253,6 +253,14 @@ export interface BuildForkResolverOptions {
    * resolves identically in any workspace and is left as-is (never mapped/required).
    */
   sourceEnvKeys?: Set<string>
+  /**
+   * Target ids that still EXIST in the target workspace, per kind, among the mapped
+   * targets. When a kind is present, a mapped target NOT in its set is treated as
+   * unmapped (the target was deleted after the mapping was saved), so a dead id is
+   * never written into the promoted workflow. Kinds absent here are not existence-
+   * checked (resolved as before).
+   */
+  validTargetIdsByKind?: Partial<Record<ForkRemapKind, Set<string>>>
 }
 
 /**
@@ -282,7 +290,13 @@ export function buildForkResolver(
 
   return (kind, sourceId) => {
     const mapped = index.get(kind)?.get(sourceId)
-    if (mapped != null) return mapped
+    if (mapped != null) {
+      const validSet = options.validTargetIdsByKind?.[kind]
+      if (!validSet || validSet.has(mapped)) return mapped
+      // The mapped target was deleted from the target workspace after the mapping was
+      // saved. Fall through so the reference resolves as unmapped (surfaced as required
+      // / cleared if optional) instead of writing a dead id into the promoted workflow.
+    }
     if (kind === 'env-var') {
       // Personal/global env vars (not a source workspace secret) are user-scoped and
       // resolve identically in any workspace - leave them as-is, never map them.

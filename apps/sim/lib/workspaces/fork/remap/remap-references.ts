@@ -10,6 +10,7 @@ import {
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
+import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
@@ -18,6 +19,7 @@ import {
 } from '@/lib/workflows/search-replace/resources/registry'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { remapForkFileUploadValue } from '@/lib/workspaces/fork/remap/remap-files'
+import { getBlock } from '@/blocks/registry'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -33,30 +35,16 @@ const logger = createLogger('WorkspaceForkRemapReferences')
 const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
 
 /**
- * Advanced-mode `short-input` overrides whose VALUE is a workspace-scoped id keyed
- * by subblock id (not type) - the type-based registry path misses them. `credential`
- * / `triggerCredentials` are excluded here because they are `oauth-input` (already
- * type-handled); `manualWorkflowId` is handled by the workflow id map in
- * `remap-internal-ids`. Returns the fork kind to resolve the raw string value as.
- */
-export function getOverrideForkKind(subBlockId: string): ForkRemapKind | null {
-  const base = subBlockId.replace(/_\d+$/, '')
-  if (base === 'manualCredential') return 'credential'
-  if (base === 'manualTableId') return 'table'
-  return null
-}
-
-/**
- * Id-based override kind for a TOOL param. Broader than {@link getOverrideForkKind}:
- * it also covers the canonical `credential` / `triggerCredentials` keys (not just
- * the `manual*` variants) because a tool param's config can be filtered out by a
- * reactive condition (no `credentialTypeById` here), which would otherwise skip its
- * credential. Resolving by id makes nested credential handling reactive-robust.
+ * Id-based override kind for a TOOL param's credential, resolved by subblock id so a
+ * basic `credential` / `triggerCredentials` is caught even when its config is filtered
+ * out by a reactive condition (the registry path would otherwise skip it). Advanced
+ * `manual*` ids are an escape hatch - the user owns them (e.g. via a `{{SECRET}}`), so
+ * they are never auto-remapped.
  */
 function getToolParamOverrideKind(paramId: string): ForkRemapKind | null {
   const base = paramId.replace(/_\d+$/, '')
+  if (base === 'manualCredential') return null
   if (CREDENTIAL_SUBBLOCK_IDS.has(base)) return 'credential'
-  if (base === 'manualTableId') return 'table'
   return null
 }
 
@@ -71,12 +59,20 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 // `file` and `knowledge-document` are intentionally excluded from the generic
 // registry path. `file-upload` (workspace files) is remapped by storage key via
 // `remapForkFileUploadValue`; `file-selector` (external provider file ids,
-// credential-scoped) carries over unchanged; `document-selector` ids are never
-// valid cross-workspace (docs get fresh ids on fork and aren't synced on promote),
-// so they're cleared via `remapDocumentSelectorValue` rather than dangled.
+// credential-scoped) carries over unchanged; `document-selector` is cleared by the
+// `dependsOn` rule (clearDependentsOnRemap) when its parent knowledge base is remapped.
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
+
+/**
+ * A `credentialSet:<id>` reference points at an ORG-scoped credential set. A fork
+ * inherits its parent's org, so the set is already valid in the target — these refs
+ * are preserved verbatim and never treated as a workspace credential to remap/flag.
+ */
+function isCredentialSetRef(value: string): boolean {
+  return value.startsWith('credentialSet:')
+}
 
 /**
  * Resolves a source-workspace resource id (or env key, for `env-var`) to its
@@ -102,6 +98,8 @@ export interface RemapSubBlocksResult {
   subBlocks: SubBlockRecord
   references: ForkReference[]
   unmapped: ForkReference[]
+  /** Subblock keys whose resource id was rewritten/cleared this pass (the `dependsOn` parents). */
+  remappedKeys: Set<string>
 }
 
 function remapEnvInValue(
@@ -157,6 +155,9 @@ interface ToolBlockRemapOptions {
  * index sees. Custom-tool / MCP / workflow_input tools carry their ids in dedicated
  * fields (handled by the callers / the workflow id map), not block params, so they
  * pass through here untouched. Returns a new tool object only when something changed.
+ * After remapping, dependent params (via `dependsOn`) of any changed resource are
+ * cleared with the same {@link getWorkflowSearchDependentClears} walk search-replace
+ * uses, so a child scoped to the old parent isn't left stale.
  */
 export function remapToolBlockResources(
   tool: Record<string, unknown>,
@@ -171,6 +172,7 @@ export function remapToolBlockResources(
     nextParams ??= { ...params }
     nextParams[paramId] = value
   }
+  const remappedParamIds = new Set<string>()
 
   // Id-keyed resource params (credential / triggerCredentials / manual* overrides):
   // walked from the raw params so they're caught even when their config is filtered
@@ -180,12 +182,17 @@ export function remapToolBlockResources(
     if (!overrideKind) continue
     const currentValue = params[paramId]
     if (typeof currentValue !== 'string' || !currentValue) continue
+    if (overrideKind === 'credential' && isCredentialSetRef(currentValue)) continue
     const target = opts.resolve(overrideKind, currentValue)
     opts.record?.(overrideKind, currentValue, target != null)
     if (target != null) {
-      if (target !== currentValue) setParam(paramId, target)
+      if (target !== currentValue) {
+        setParam(paramId, target)
+        remappedParamIds.add(paramId)
+      }
     } else if (opts.clearUnresolved) {
       setParam(paramId, '')
+      remappedParamIds.add(paramId)
     }
   }
 
@@ -220,7 +227,10 @@ export function remapToolBlockResources(
       // provider id) carries over unchanged.
       if (config.type !== 'file-upload') continue
       const remapped = remapForkFileUploadValue(currentValue, opts.resolveFileKey)
-      if (remapped !== currentValue) setParam(paramId, remapped)
+      if (remapped !== currentValue) {
+        setParam(paramId, remapped)
+        remappedParamIds.add(paramId)
+      }
       continue
     }
 
@@ -235,6 +245,7 @@ export function remapToolBlockResources(
     for (const ref of refs) {
       if (seen.has(ref.rawValue)) continue
       seen.add(ref.rawValue)
+      if (forkKind === 'credential' && isCredentialSetRef(ref.rawValue)) continue
       const target = opts.resolve(forkKind, ref.rawValue)
       const mapped = target != null
       opts.record?.(forkKind, ref.rawValue, mapped)
@@ -251,7 +262,26 @@ export function remapToolBlockResources(
       }
     }
 
-    if (value !== currentValue) setParam(paramId, value)
+    if (value !== currentValue) {
+      setParam(paramId, value)
+      remappedParamIds.add(paramId)
+    }
+  }
+
+  if (remappedParamIds.size > 0) {
+    const toolBlockConfig = opts.blockConfigs?.[tool.type] ?? getBlock(tool.type)
+    const toolSubBlocks = toolBlockConfig?.subBlocks
+    if (toolSubBlocks) {
+      const currentParams = nextParams ?? params
+      for (const paramId of remappedParamIds) {
+        for (const clear of getWorkflowSearchDependentClears(toolSubBlocks, paramId)) {
+          if (remappedParamIds.has(clear.subBlockId)) continue
+          const existing = currentParams[clear.subBlockId]
+          if (existing === '' || existing == null) continue
+          setParam(clear.subBlockId, '')
+        }
+      }
+    }
   }
 
   if (!nextParams) return tool
@@ -410,6 +440,7 @@ export function remapForkSubBlocks(
   const result: SubBlockRecord = {}
   const references = new Map<string, ForkReference>()
   const unmapped = new Map<string, ForkReference>()
+  const remappedKeys = new Set<string>()
   // Source→target ids for any remapped MCP server, applied to sibling
   // `mcp-tool-selector` values (which embed the server id) in a post-pass.
   const mcpServerRemaps = new Map<string, string>()
@@ -427,6 +458,7 @@ export function remapForkSubBlocks(
     }
 
     let value = subBlock.value
+    const valueBeforeResource = value
     const subBlockType = typeof subBlock.type === 'string' ? subBlock.type : undefined
 
     const definition = getWorkflowSearchSubBlockResourceDefinition(
@@ -442,6 +474,7 @@ export function remapForkSubBlocks(
       for (const ref of parsed) {
         if (seen.has(ref.rawValue)) continue
         seen.add(ref.rawValue)
+        if (forkKind === 'credential' && isCredentialSetRef(ref.rawValue)) continue
         const required = REQUIRED_KINDS.has(forkKind)
         const reference: ForkReference = {
           kind: forkKind,
@@ -471,38 +504,11 @@ export function remapForkSubBlocks(
       }
     }
 
-    // Advanced-mode `manual*` overrides hold a workspace-scoped id by subblock id
-    // (not type), so the registry path above misses them. Resolve the raw value as
-    // the override kind (credentials become required → block promote until mapped).
-    const overrideKind = getOverrideForkKind(subBlockKey)
-    if (overrideKind && typeof value === 'string' && value) {
-      const reference: ForkReference = {
-        kind: overrideKind,
-        sourceId: value,
-        blockId: context?.blockId,
-        blockName: context?.blockName,
-        subBlockKey,
-        required: REQUIRED_KINDS.has(overrideKind),
-      }
-      const target = resolve(overrideKind, value)
-      const mapped = target != null
-      recordReference(`${overrideKind}:${value}`, reference, mapped)
-      if (mapped) {
-        if (target !== value) value = target
-      } else if (clearUnresolved) {
-        value = ''
-      }
-    }
-
     if (subBlockType === 'file-upload') {
       // Workspace-file refs don't sync on promote (the target lacks the source's
       // blob); clear them rather than carry a cross-workspace key. On fork, the
       // resolver returns the copied key. `file-selector` (external) is untouched.
       value = remapForkFileUploadValue(value, (sourceKey) => resolve('file', sourceKey) ?? null)
-    } else if (subBlockType === 'document-selector') {
-      // Document ids are never valid in the target workspace; clear rather than
-      // carry a dangling reference (the sibling KB selector is still remapped).
-      if (value) value = ''
     } else if (subBlockType === 'tool-input' || subBlockType === 'skill-input') {
       const record = (kind: ForkRemapKind, sourceId: string, mapped: boolean) =>
         recordReference(
@@ -522,6 +528,8 @@ export function remapForkSubBlocks(
           ? remapForkToolInputValue(value, resolve, { clearUnresolved, record })
           : remapForkSkillInputValue(value, resolve, { clearUnresolved, record })
     }
+
+    if (value !== valueBeforeResource) remappedKeys.add(subBlockKey)
 
     // Promote rewrites `{{ENV}}` refs via the resolver; fork preserves them by name.
     if (mode === 'promote') {
@@ -556,7 +564,44 @@ export function remapForkSubBlocks(
     subBlocks: result,
     references: Array.from(references.values()),
     unmapped: Array.from(unmapped.values()),
+    remappedKeys,
   }
+}
+
+/**
+ * Clear every subblock whose `dependsOn` parent was remapped to a different
+ * target this pass, so a child scoped to the old parent (a KB's document, a
+ * Slack channel, a sheet tab) never carries a stale id into the target. Reuses
+ * the search-replace dependent-clear walk (canonical-pair aware, transitive over
+ * `dependsOn` chains) so fork/promote and in-editor search-replace clear
+ * identically. Children of an unchanged parent are preserved; a no-op for
+ * unknown block types or when nothing was remapped.
+ */
+export function clearDependentsOnRemap(
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  remappedKeys: ReadonlySet<string>
+): SubBlockRecord {
+  if (remappedKeys.size === 0) return subBlocks
+  const config = getBlock(blockType)
+  if (!config) return subBlocks
+
+  const toClear = new Set<string>()
+  for (const key of remappedKeys) {
+    for (const clear of getWorkflowSearchDependentClears(config.subBlocks, key)) {
+      if (!remappedKeys.has(clear.subBlockId)) toClear.add(clear.subBlockId)
+    }
+  }
+
+  let next: SubBlockRecord | null = null
+  for (const id of toClear) {
+    const existing = subBlocks[id]
+    if (!existing || typeof existing !== 'object') continue
+    if (existing.value === '' || existing.value == null) continue
+    next ??= { ...subBlocks }
+    next[id] = { ...existing, value: '' }
+  }
+  return next ?? subBlocks
 }
 
 /**
@@ -574,8 +619,11 @@ export function remapSubBlocks(
 /** A `copyWorkflowStateIntoTarget` subBlock transform that rewrites references via the resolver. */
 export function createForkSubBlockTransform(
   resolve: ForkReferenceResolver
-): (subBlocks: SubBlockRecord) => SubBlockRecord {
-  return (subBlocks) => remapSubBlocks(subBlocks, resolve).subBlocks
+): (subBlocks: SubBlockRecord, blockType: string) => SubBlockRecord {
+  return (subBlocks, blockType) => {
+    const result = remapSubBlocks(subBlocks, resolve)
+    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys)
+  }
 }
 
 export interface WorkflowReferenceScan {

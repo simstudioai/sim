@@ -1,7 +1,7 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
 import { workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, exists, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/lib/workspaces/fork/lineage/authz'
@@ -28,7 +28,15 @@ export interface DeployedWorkflowSummary {
   sortOrder: number
 }
 
-/** Workflows in a workspace that are deployed and not archived - the only ones that fork/promote. */
+/**
+ * Workflows in a workspace that are deployed and not archived - the only ones that
+ * fork/promote. Requires an actually-active deployment version, not just the
+ * `isDeployed` flag: a workflow flagged deployed with no active version (a "ghost"
+ * left by an inconsistent state) has nothing to copy, so excluding it here keeps the
+ * diff/plan counts aligned with what apply actually writes instead of over-reporting
+ * then silently skipping it. Correlated `exists` (not a join) so a workflow is never
+ * double-listed if more than one active version row ever exists.
+ */
 export async function listDeployedWorkflows(
   executor: DbOrTx,
   workspaceId: string
@@ -46,7 +54,18 @@ export async function listDeployedWorkflows(
       and(
         eq(workflow.workspaceId, workspaceId),
         eq(workflow.isDeployed, true),
-        isNull(workflow.archivedAt)
+        isNull(workflow.archivedAt),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflow.id),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+        )
       )
     )
 }

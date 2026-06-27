@@ -637,6 +637,23 @@ export async function deployWorkflow(params: {
         }
       }
 
+      // Refuse to deploy an archived (soft-deleted) workflow. Checked under the row
+      // lock so it's atomic with a concurrent fork rollback that archives a
+      // promote-created workflow: a stale promote deploy can never resurrect it into
+      // an archived-but-deployed (incoherent) state.
+      const [archivedRow] = await tx
+        .select({ archivedAt: workflow.archivedAt })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+      if (archivedRow?.archivedAt != null) {
+        return {
+          success: false as const,
+          error: 'Cannot deploy an archived workflow',
+          errorCode: 'validation' as const,
+        }
+      }
+
       currentState = params.workflowState ?? (await loadWorkflowDeploymentSnapshot(workflowId, tx))
       if (!currentState) {
         return {

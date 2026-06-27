@@ -104,7 +104,6 @@ function WorkspaceHeaderImpl({
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isForkModalOpen, setIsForkModalOpen] = useState(false)
   const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false)
-  const [forkModalMode, setForkModalMode] = useState<'sync' | 'manage'>('sync')
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -264,12 +263,6 @@ function WorkspaceHeaderImpl({
   }
 
   const handleSyncAction = () => {
-    setForkModalMode('sync')
-    setIsPromoteModalOpen(true)
-  }
-
-  const handleManageAction = () => {
-    setForkModalMode('manage')
     setIsPromoteModalOpen(true)
   }
 
@@ -700,13 +693,11 @@ function WorkspaceHeaderImpl({
             onUploadLogo={handleUploadLogoAction}
             onFork={handleForkAction}
             onSync={handleSyncAction}
-            onManage={handleManageAction}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
             showLeave={!isOwner && !!onLeaveWorkspace}
             showFork={showForkInContext}
             showSync={showForkInContext && Boolean(forkLineage?.parent)}
-            showManage={showForkInContext && (forkLineage?.children.length ?? 0) > 0}
             disableRename={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableUploadLogo={!contextCanAdmin}
@@ -736,15 +727,13 @@ function WorkspaceHeaderImpl({
         onOpenChange={setIsForkModalOpen}
         sourceWorkspaceId={workspaceId}
         sourceWorkspaceName={activeWorkspace?.name || 'Workspace'}
+        undoableRun={forkLineage?.undoableRun ?? null}
       />
       <PromoteWorkspaceModal
         open={isPromoteModalOpen}
         onOpenChange={setIsPromoteModalOpen}
         workspaceId={workspaceId}
-        mode={forkModalMode}
         parent={forkLineage?.parent ?? null}
-        childWorkspaces={forkLineage?.children ?? []}
-        undoableRun={forkLineage?.undoableRun ?? null}
       />
       <DeleteModal
         isOpen={isDeleteModalOpen}

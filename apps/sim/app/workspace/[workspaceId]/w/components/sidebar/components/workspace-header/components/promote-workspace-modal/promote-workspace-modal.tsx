@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight } from 'lucide-react'
 import {
   Badge,
-  Chip,
   ChipCombobox,
   ChipConfirmModal,
   ChipDropdown,
@@ -14,21 +13,22 @@ import {
   ChipModalFooter,
   type ChipModalFooterSlotAction,
   ChipModalHeader,
-  Tooltip,
+  ChipModalTabs,
   toast,
 } from '@/components/emcn'
 import type {
   ForkLineageNodeApi,
   ForkMappingEntry,
+  ForkOperationReport,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { ForkActivityPanel } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-activity-panel/fork-activity-panel'
 import {
   type ForkDirection,
   useForkDiff,
   useForkMapping,
   usePromoteFork,
-  useRollbackFork,
   useUpdateForkMapping,
 } from '@/hooks/queries/workspace-fork'
 
@@ -36,11 +36,7 @@ interface PromoteWorkspaceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceId: string
-  /** 'sync' pushes/pulls along the parent edge; 'manage' lists this workspace's forks. */
-  mode: 'sync' | 'manage'
   parent: ForkLineageNodeApi | null
-  childWorkspaces: ForkLineageNodeApi[]
-  undoableRun: { otherWorkspaceId: string; otherName: string; direction: ForkDirection } | null
 }
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
@@ -86,10 +82,7 @@ export function PromoteWorkspaceModal({
   open,
   onOpenChange,
   workspaceId,
-  mode,
   parent,
-  childWorkspaces,
-  undoableRun,
 }: PromoteWorkspaceModalProps) {
   // Sync is only ever performed along the parent edge (from a fork toward its
   // parent). Child edges are intentionally not exposed here - a parent manages its
@@ -123,12 +116,19 @@ export function PromoteWorkspaceModal({
   // "Edit mappings". Backing out of step 1 returns to the overview.
   const [step, setStep] = useState(0)
   const [confirmDriftOpen, setConfirmDriftOpen] = useState(false)
-  const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const rollback = useRollbackFork()
+  // Tabs: 'config' is the sync/manage wizard; 'activity' is the live + last-result
+  // report. A completed sync/rollback flips to 'activity' so the outcome is reviewable
+  // in-place instead of the modal vanishing.
+  const [activeTab, setActiveTab] = useState<'config' | 'activity'>('config')
+  const [lastReport, setLastReport] = useState<ForkOperationReport | null>(null)
 
   useEffect(() => {
-    if (open) setSelectedKey(edgeOptions[0]?.value ?? '')
+    if (open) {
+      setSelectedKey(edgeOptions[0]?.value ?? '')
+      setActiveTab('config')
+      setLastReport(null)
+    }
   }, [open, edgeOptions])
 
   // Restart at the overview and drop in-session overrides whenever it (re)opens or
@@ -142,10 +142,6 @@ export function PromoteWorkspaceModal({
   const selected = edgeOptions.find((option) => option.value === selectedKey)
   const otherWorkspaceId = selected?.otherWorkspaceId
   const direction = selected?.direction ?? 'push'
-  // 'manage' lists this workspace's forks; 'sync' pushes/pulls along the parent edge.
-  // A mid-chain workspace (a fork that itself has forks) supports both, chosen by
-  // which menu entry opened the modal.
-  const isManage = mode === 'manage'
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled: open })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled: open })
@@ -190,10 +186,10 @@ export function PromoteWorkspaceModal({
   // Step 0 is the overview (direction, deployed-workflow preview, mapping status);
   // each subsequent step edits one resource kind, entered via "Edit mappings".
   // `safeStep` guards against a group count that shrank on refetch.
-  const stepCount = isManage ? 1 : 1 + groupedEntries.length
+  const stepCount = 1 + groupedEntries.length
   const safeStep = Math.min(step, Math.max(0, stepCount - 1))
   const isLastStep = safeStep >= stepCount - 1
-  const currentGroup = !isManage && safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
+  const currentGroup = safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
   const syncDisabled = submitting || !otherWorkspaceId || !requiredComplete || mapping.isLoading
   const headsUp =
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
@@ -234,41 +230,26 @@ export function PromoteWorkspaceModal({
         return
       }
 
-      toast.success(
+      const summary =
         summarizeCounts([
           [result.updated, 'updated'],
           [result.created, 'created'],
           [result.archived, 'archived'],
           [result.redeployed, 'redeployed'],
         ]) || 'Sync complete'
-      )
-      onOpenChange(false)
+      if (result.deployFailed > 0) {
+        const n = result.deployFailed
+        toast.warning(
+          `${summary}. ${n} workflow${n === 1 ? '' : 's'} synced but failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
+        )
+      } else {
+        toast.success(summary)
+      }
+      // Keep the modal open on the Activity tab so the result report is reviewable.
+      setLastReport(result.report)
+      setActiveTab('activity')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Sync failed'))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const runRollback = async () => {
-    if (!undoableRun) return
-    setSubmitting(true)
-    try {
-      const result = await rollback.mutateAsync({
-        workspaceId,
-        body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
-      })
-      const summary = summarizeCounts([
-        [result.restored, 'restored'],
-        [result.archived, 'removed'],
-        [result.unarchived, 'unarchived'],
-        [result.skipped, 'skipped'],
-      ])
-      toast.success(summary ? `Undone · ${summary}` : 'Undone')
-      setConfirmRollbackOpen(false)
-      onOpenChange(false)
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Undo failed'))
     } finally {
       setSubmitting(false)
     }
@@ -281,34 +262,6 @@ export function PromoteWorkspaceModal({
     )
   }, [diff.data?.workflows])
 
-  // Rollback is a destructive "undo the last sync into this workspace". It lives in
-  // the footer's left slot - on the Overview step in Sync mode (a leaf fork that
-  // pulled has no Manage modal, so this is its only undo path) and always in Manage.
-  const rollbackDisabled = submitting || !undoableRun
-  const rollbackTooltip = undoableRun
-    ? `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`
-    : 'No sync to roll back yet.'
-  const showRollback = Boolean(undoableRun) || isManage
-
-  const rollbackChip = (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <span className={rollbackDisabled ? 'inline-flex cursor-not-allowed' : 'inline-flex'}>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={() => setConfirmRollbackOpen(true)}
-            disabled={rollbackDisabled}
-            className={rollbackDisabled ? 'pointer-events-none' : undefined}
-          >
-            Rollback
-          </Chip>
-        </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{rollbackTooltip}</Tooltip.Content>
-    </Tooltip.Root>
-  )
-
   // Right-cluster action sitting immediately left of the primary. The overview pairs
   // "Edit mappings" with Sync (entering the step walk); every editing step pairs Back
   // with Next (or with Sync on the last step). Back out of step 1 lands on the
@@ -320,43 +273,24 @@ export function PromoteWorkspaceModal({
         : undefined
       : { label: 'Back', onClick: () => setStep(safeStep - 1), disabled: submitting }
 
-  // Far-left cluster: Rollback, shown only on the overview (its only undo path for a
-  // leaf fork). Editing steps keep the footer to the Back/Next (or Back/Sync) pair
-  // with nothing on the left.
-  const syncSecondaryActions: ChipModalFooterSlotAction[] =
-    safeStep === 0 && showRollback ? [{ custom: rollbackChip }] : []
-
   return (
     <>
-      <ChipModal
-        open={open}
-        onOpenChange={onOpenChange}
-        srTitle={isManage ? 'Manage forks' : 'Sync workspace'}
-      >
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Sync workspace'>
         <ChipModalHeader onClose={() => onOpenChange(false)}>
-          {isManage
-            ? 'Manage Forks'
-            : currentGroup
-              ? `Sync workspace: ${currentGroup.label}`
-              : 'Sync workspace'}
+          {currentGroup ? `Sync workspace: ${currentGroup.label}` : 'Sync workspace'}
         </ChipModalHeader>
         <ChipModalBody>
-          {isManage ? (
-            <div className='flex flex-col gap-7 px-2'>
-              <SettingsSection label='Forks'>
-                {childWorkspaces.length === 0 ? (
-                  <div className='text-[var(--text-secondary)] text-sm'>No forks yet.</div>
-                ) : (
-                  <div className='flex max-h-64 flex-col gap-1 overflow-y-auto'>
-                    {childWorkspaces.map((fork) => (
-                      <div key={fork.id} className='truncate text-[var(--text-body)] text-sm'>
-                        {fork.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </SettingsSection>
-            </div>
+          <ChipModalTabs
+            tabs={[
+              { value: 'config', label: 'Sync' },
+              { value: 'activity', label: 'Activity' },
+            ]}
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as 'config' | 'activity')}
+            className='mx-2'
+          />
+          {activeTab === 'activity' ? (
+            <ForkActivityPanel report={lastReport} pending={submitting} pendingLabel='Syncing…' />
           ) : safeStep === 0 ? (
             <div className='flex flex-col gap-7 px-2'>
               <SettingsSection label='Sync'>
@@ -465,6 +399,12 @@ export function PromoteWorkspaceModal({
                     }
                     placeholder='Select target'
                   />
+                  {entry.candidatesTruncated ? (
+                    <div className='mt-1 text-[var(--text-muted)] text-small'>
+                      This workspace has more options than shown here. If you don't see the right
+                      one, narrow it down by name.
+                    </div>
+                  ) : null}
                 </SettingsSection>
               ))}
             </div>
@@ -473,18 +413,9 @@ export function PromoteWorkspaceModal({
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
           hideCancel
-          secondaryActions={
-            isManage
-              ? showRollback
-                ? [{ custom: rollbackChip }]
-                : undefined
-              : syncSecondaryActions.length > 0
-                ? syncSecondaryActions
-                : undefined
-          }
-          primaryAdjacentAction={isManage ? undefined : syncPrimaryAdjacent}
+          primaryAdjacentAction={activeTab === 'activity' ? undefined : syncPrimaryAdjacent}
           primaryAction={
-            isManage
+            activeTab === 'activity'
               ? { label: 'Done', onClick: () => onOpenChange(false) }
               : safeStep >= 1 && !isLastStep
                 ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
@@ -518,24 +449,6 @@ export function PromoteWorkspaceModal({
           },
           pending: submitting,
           pendingLabel: 'Syncing...',
-        }}
-      />
-
-      <ChipConfirmModal
-        open={confirmRollbackOpen}
-        onOpenChange={setConfirmRollbackOpen}
-        srTitle='Undo last sync'
-        title='Undo last sync'
-        text={[
-          'This restores each affected workflow to its ',
-          { text: 'prior deployed version', bold: true },
-          ' and removes workflows the sync created. Continue?',
-        ]}
-        confirm={{
-          label: 'Rollback',
-          onClick: () => void runRollback(),
-          pending: submitting,
-          pendingLabel: 'Rolling back...',
         }}
       />
     </>

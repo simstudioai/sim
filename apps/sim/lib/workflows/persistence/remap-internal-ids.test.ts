@@ -106,6 +106,34 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
     expect(result.manualWorkflowId.value).toBe('wf-dst')
   })
+
+  it('remaps a comma-separated manualWorkflowIds list', () => {
+    const subBlocks: SubBlockRecord = {
+      manualWorkflowIds: { id: 'manualWorkflowIds', type: 'short-input', value: 'wf-src, sub-src' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
+    expect(result.manualWorkflowIds.value).toBe('wf-dst,sub-dst')
+  })
+
+  it('drops unmapped ids from a manualWorkflowIds list when clearUnmapped is set', () => {
+    const subBlocks: SubBlockRecord = {
+      manualWorkflowIds: {
+        id: 'manualWorkflowIds',
+        type: 'short-input',
+        value: 'wf-src,wf-unknown',
+      },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
+    expect(result.manualWorkflowIds.value).toBe('wf-dst')
+  })
+
+  it('remaps a multi-select workflowSelector array', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowSelector: { id: 'workflowSelector', type: 'dropdown', value: ['wf-src', 'sub-src'] },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
+    expect(result.workflowSelector.value).toEqual(['wf-dst', 'sub-dst'])
+  })
 })
 
 describe('coerceObjectArray', () => {

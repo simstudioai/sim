@@ -141,6 +141,12 @@ export const forkMappingEntrySchema = z.object({
   targetId: z.string().nullable(),
   required: z.boolean(),
   candidates: z.array(forkMappingCandidateSchema),
+  /**
+   * True when the target workspace has more candidates of this kind than the picker
+   * loads, so the list shown is partial. The UI surfaces a "refine to find more"
+   * notice; the chosen target is validated by exact id on save (never capped).
+   */
+  candidatesTruncated: z.boolean(),
 })
 export type ForkMappingEntry = z.output<typeof forkMappingEntrySchema>
 
@@ -238,6 +244,32 @@ export const getForkDiffContract = defineRouteContract({
 export type GetForkDiffResponse = z.output<typeof getForkDiffContract.response.schema>
 export type ForkWorkflowChange = z.output<typeof forkWorkflowChangeSchema>
 
+/**
+ * A clean, CodeDeploy-style result report for a fork/sync/rollback. A flat list of
+ * severity-tagged groups (each with a count and optional per-item detail) the UI
+ * renders summary-first with progressive disclosure - so nothing an operation did is
+ * ever silent, without being an information dump.
+ */
+export const forkReportItemSchema = z.object({
+  label: z.string(),
+  detail: z.string().optional(),
+})
+export const forkReportGroupSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  severity: z.enum(['info', 'warning', 'error']),
+  count: z.number().int(),
+  items: z.array(forkReportItemSchema),
+})
+export const forkOperationReportSchema = z.object({
+  status: z.enum(['succeeded', 'succeeded_with_warnings', 'failed']),
+  headline: z.string(),
+  groups: z.array(forkReportGroupSchema),
+})
+export type ForkOperationReport = z.output<typeof forkOperationReportSchema>
+export type ForkReportGroup = z.output<typeof forkReportGroupSchema>
+export type ForkReportItem = z.output<typeof forkReportItemSchema>
+
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
@@ -256,13 +288,55 @@ export const promoteForkContract = defineRouteContract({
       created: z.number().int(),
       archived: z.number().int(),
       redeployed: z.number().int(),
+      deployFailed: z.number().int(),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
       drift: z.boolean(),
+      report: forkOperationReportSchema,
     }),
   },
 })
 export type PromoteForkBody = z.input<typeof promoteForkBodySchema>
 export type PromoteForkResponse = z.output<typeof promoteForkContract.response.schema>
+
+/** Structured detail for a background job, surfaced in the Activity tab's expand row. */
+export const backgroundWorkMetadataSchema = z
+  .object({
+    childWorkspaceId: z.string().optional(),
+    childWorkspaceName: z.string().optional(),
+    workflowsCopied: z.number().int().optional(),
+    tables: z.number().int().optional(),
+    knowledgeBases: z.number().int().optional(),
+    files: z.number().int().optional(),
+    copied: z.number().int().optional(),
+    failed: z.number().int().optional(),
+  })
+  .nullable()
+export const backgroundWorkItemSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  workflowId: z.string().nullable(),
+  kind: z.enum(['deployment_side_effects', 'fork_content_copy']),
+  status: z.enum(['pending', 'processing', 'completed', 'completed_with_warnings', 'failed']),
+  message: z.string().nullable(),
+  error: z.string().nullable(),
+  metadata: backgroundWorkMetadataSchema,
+  startedAt: z.string(),
+  completedAt: z.string().nullable(),
+})
+export type BackgroundWorkMetadata = z.output<typeof backgroundWorkMetadataSchema>
+export const getWorkspaceBackgroundWorkContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/background-work',
+  params: workspaceIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ items: z.array(backgroundWorkItemSchema) }),
+  },
+})
+export type BackgroundWorkItem = z.output<typeof backgroundWorkItemSchema>
+export type GetWorkspaceBackgroundWorkResponse = z.output<
+  typeof getWorkspaceBackgroundWorkContract.response.schema
+>
 
 export const rollbackForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
@@ -280,6 +354,7 @@ export const rollbackForkContract = defineRouteContract({
       unarchived: z.number().int(),
       /** Snapshot workflows that no longer exist and couldn't be reactivated. */
       skipped: z.number().int(),
+      report: forkOperationReportSchema,
     }),
   },
 })

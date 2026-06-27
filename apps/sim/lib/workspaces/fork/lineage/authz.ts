@@ -77,6 +77,10 @@ export interface ForkAuthorization {
  * source (a fork copies its deployed workflows and resources en masse) and must
  * pass the workspace-creation policy for the parent's org (the child inherits the
  * parent's org/mode; plan caps apply). Org owners/admins derive workspace admin.
+ *
+ * `pinOrganization` makes the child ALWAYS land in the source's org - including a
+ * personal source (org `null`) - rather than the acting user's membership org,
+ * which the policy would otherwise fall back to when the source is personal.
  */
 export async function assertCanFork(
   sourceWorkspaceId: string,
@@ -86,6 +90,7 @@ export async function assertCanFork(
   const policy = await getWorkspaceCreationPolicy({
     userId,
     activeOrganizationId: source.organizationId,
+    pinOrganization: true,
   })
   if (!policy.canCreate) {
     throw new ForkError(

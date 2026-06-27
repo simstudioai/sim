@@ -272,9 +272,12 @@ export async function copyForkResourceContainers(
 export async function copyForkResourceContent(params: {
   contentPlan: ForkContentPlan
   requestId?: string
-}): Promise<void> {
+}): Promise<{ copied: number; failed: number }> {
   const { contentPlan, requestId = 'unknown' } = params
   const { childWorkspaceId } = contentPlan
+
+  let copiedResources = 0
+  let failedResources = 0
 
   for (const table of contentPlan.tables) {
     try {
@@ -308,7 +311,9 @@ export async function copyForkResourceContent(params: {
         .update(userTableDefinitions)
         .set({ rowCount: copied })
         .where(eq(userTableDefinitions.id, table.childId))
+      copiedResources += 1
     } catch (error) {
+      failedResources += 1
       logger.warn(`[${requestId}] Failed to copy table rows during fork`, {
         sourceTableId: table.sourceId,
         error: getErrorMessage(error),
@@ -352,13 +357,17 @@ export async function copyForkResourceContent(params: {
         afterDocId = docs[docs.length - 1].id
         if (docs.length < CONTENT_PAGE) break
       }
+      copiedResources += 1
     } catch (error) {
+      failedResources += 1
       logger.warn(`[${requestId}] Failed to copy knowledge base content during fork`, {
         sourceKnowledgeBaseId: kb.sourceId,
         error: getErrorMessage(error),
       })
     }
   }
+
+  return { copied: copiedResources, failed: failedResources }
 }
 
 async function copyDocumentEmbeddings(

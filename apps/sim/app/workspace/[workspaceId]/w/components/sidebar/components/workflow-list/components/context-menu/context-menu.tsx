@@ -72,10 +72,8 @@ interface ContextMenuProps {
   disableUploadLogo?: boolean
   onFork?: () => void
   onSync?: () => void
-  onManage?: () => void
   showFork?: boolean
   showSync?: boolean
-  showManage?: boolean
 }
 
 /**
@@ -128,10 +126,8 @@ export function ContextMenu({
   disableUploadLogo = false,
   onFork,
   onSync,
-  onManage,
   showFork = false,
   showSync = false,
-  showManage = false,
 }: ContextMenuProps) {
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasStatusSection =
@@ -145,7 +141,7 @@ export function ContextMenu({
     (showLock && onToggleLock) ||
     (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
-  const hasForkSection = (showFork && onFork) || (showSync && onSync) || (showManage && onManage)
+  const hasForkSection = (showFork && onFork) || (showSync && onSync)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -330,17 +326,6 @@ export function ContextMenu({
           >
             <Rocket />
             Sync workspace
-          </DropdownMenuItem>
-        )}
-        {showManage && onManage && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onManage()
-              onClose()
-            }}
-          >
-            <Shuffle />
-            Manage forks
           </DropdownMenuItem>
         )}
 

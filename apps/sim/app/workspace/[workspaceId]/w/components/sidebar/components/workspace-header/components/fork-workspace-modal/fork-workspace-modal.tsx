@@ -1,33 +1,56 @@
 'use client'
 
 import { useEffect, useId, useMemo, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Checkbox,
   ChevronDown,
+  Chip,
+  ChipConfirmModal,
   ChipCopyInput,
   ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalFooter,
+  type ChipModalFooterSlotAction,
   ChipModalHeader,
+  ChipModalTabs,
+  Tooltip,
   toast,
 } from '@/components/emcn'
 import type {
   ForkCopyableResource,
+  ForkOperationReport,
   GetForkResourcesResponse,
 } from '@/lib/api/contracts/workspace-fork'
 import { cn } from '@/lib/core/utils/cn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useForkResources, useForkWorkspace } from '@/hooks/queries/workspace-fork'
+import { ForkActivityPanel } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-activity-panel/fork-activity-panel'
+import {
+  type ForkDirection,
+  useForkResources,
+  useForkWorkspace,
+  useRollbackFork,
+} from '@/hooks/queries/workspace-fork'
 
 interface ForkWorkspaceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   sourceWorkspaceId: string
   sourceWorkspaceName: string
+  /** The last sync into this workspace that can be undone (drives the rollback action). */
+  undoableRun: { otherWorkspaceId: string; otherName: string; direction: ForkDirection } | null
+}
+
+/** Join "N label" segments with " · ", dropping zero counts so toasts never read "0 foo". */
+function summarizeCounts(parts: Array<[number, string]>): string {
+  return parts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count} ${label}`)
+    .join(' · ')
 }
 
 type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
@@ -172,19 +195,31 @@ export function ForkWorkspaceModal({
   onOpenChange,
   sourceWorkspaceId,
   sourceWorkspaceName,
+  undoableRun,
 }: ForkWorkspaceModalProps) {
   const router = useRouter()
   const forkWorkspace = useForkWorkspace()
+  const rollback = useRollbackFork()
   const resources = useForkResources(sourceWorkspaceId, open)
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ResourceSelection>(emptySelection)
   const [error, setError] = useState<string | null>(null)
+
+  const [activeTab, setActiveTab] = useState<'config' | 'activity'>('config')
+  const [forkedWorkspace, setForkedWorkspace] = useState<{ id: string; name: string } | null>(null)
+  // In-session report of a rollback run, shown alongside the fork audit log.
+  const [report, setReport] = useState<ForkOperationReport | null>(null)
+  const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
       setName(`${sourceWorkspaceName} (fork)`)
       setSelected(emptySelection())
       setError(null)
+      setActiveTab('config')
+      setForkedWorkspace(null)
+      setReport(null)
+      setConfirmRollbackOpen(false)
     }
   }, [open, sourceWorkspaceName])
 
@@ -209,110 +244,207 @@ export function ForkWorkspaceModal({
     const copy = resources.data
       ? Object.fromEntries(RESOURCE_KINDS.map((kind) => [kind.key, Array.from(selected[kind.key])]))
       : undefined
-    const copyingResources = RESOURCE_KINDS.some((kind) => selected[kind.key].size > 0)
     forkWorkspace.mutate(
       { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy } },
       {
         onSuccess: (result) => {
-          toast.success(
-            copyingResources
-              ? `Forked to "${result.workspace.name}" — copying selected resources in the background`
-              : `Forked to "${result.workspace.name}"`
-          )
-          onOpenChange(false)
-          router.push(`/workspace/${result.workspace.id}/w`)
+          toast.success(`Forked to "${result.workspace.name}"`)
+          setForkedWorkspace({ id: result.workspace.id, name: result.workspace.name })
+          setActiveTab('activity')
         },
         onError: (err) => setError(err.message || 'Failed to fork workspace'),
       }
     )
   }
 
-  return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Fork workspace'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Fork workspace</ChipModalHeader>
-      <ChipModalBody>
-        <div className='flex flex-col gap-7 px-2'>
-          <SettingsSection label='Forking from'>
-            <ChipCopyInput value={sourceWorkspaceName} aria-label='Forking from' />
-          </SettingsSection>
+  const openFork = () => {
+    if (!forkedWorkspace) return
+    onOpenChange(false)
+    router.push(`/workspace/${forkedWorkspace.id}/w`)
+  }
 
-          <SettingsSection
-            label='Name'
-            headerAccessory={
-              <span className='text-[var(--text-error)]' title='Required'>
-                *
-              </span>
-            }
+  // Rollback undoes the last sync INTO this workspace, restoring each affected workflow
+  // to its prior deployed version. Lives in the Activity tab's footer.
+  const runRollback = async () => {
+    if (!undoableRun) return
+    try {
+      const result = await rollback.mutateAsync({
+        workspaceId: sourceWorkspaceId,
+        body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
+      })
+      const summary = summarizeCounts([
+        [result.restored, 'restored'],
+        [result.archived, 'removed'],
+        [result.unarchived, 'unarchived'],
+        [result.skipped, 'skipped'],
+      ])
+      toast.success(summary ? `Undone · ${summary}` : 'Undone')
+      setConfirmRollbackOpen(false)
+      setReport(result.report)
+      setActiveTab('activity')
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Undo failed'))
+    }
+  }
+
+  const rollbackDisabled = rollback.isPending || !undoableRun
+  const rollbackTooltip = undoableRun
+    ? `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`
+    : 'No sync to roll back yet.'
+  const rollbackChip = (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className={rollbackDisabled ? 'inline-flex cursor-not-allowed' : 'inline-flex'}>
+          <Chip
+            variant='destructive'
+            flush
+            onClick={() => setConfirmRollbackOpen(true)}
+            disabled={rollbackDisabled}
+            className={rollbackDisabled ? 'pointer-events-none' : undefined}
           >
-            <ChipInput
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  handleSubmit()
-                }
-              }}
-              placeholder='Workspace name'
-              maxLength={100}
-              autoComplete='off'
-              disabled={isForking}
-              aria-label='Workspace name'
+            Rollback
+          </Chip>
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{rollbackTooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+  const rollbackAction: ChipModalFooterSlotAction[] =
+    activeTab === 'activity' && undoableRun ? [{ custom: rollbackChip }] : []
+
+  return (
+    <>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Fork workspace'>
+        <ChipModalHeader onClose={() => onOpenChange(false)}>Fork workspace</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalTabs
+            tabs={[
+              { value: 'config', label: 'Fork' },
+              { value: 'activity', label: 'Activity' },
+            ]}
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as 'config' | 'activity')}
+            className='mx-2'
+          />
+          {activeTab === 'activity' ? (
+            <ForkActivityPanel
+              report={report}
+              pending={isForking || rollback.isPending}
+              pendingLabel={rollback.isPending ? 'Undoing last sync…' : 'Creating fork…'}
+              backgroundWorkspaceId={sourceWorkspaceId}
             />
-          </SettingsSection>
+          ) : (
+            <>
+              <div className='flex flex-col gap-7 px-2'>
+                <SettingsSection label='Forking from'>
+                  <ChipCopyInput value={sourceWorkspaceName} aria-label='Forking from' />
+                </SettingsSection>
 
-          {availableKinds.length > 0 ? (
-            <SettingsSection label='Copy resources'>
-              <div className='flex flex-col gap-2'>
-                {availableKinds.map((kind) => (
-                  <ResourceKindRow
-                    key={kind.key}
-                    label={kind.label}
-                    items={resources.data?.[kind.key] ?? []}
-                    selected={selected[kind.key]}
-                    onToggleAll={(selectAll) =>
-                      setSelected((prev) => ({
-                        ...prev,
-                        [kind.key]: selectAll
-                          ? new Set((resources.data?.[kind.key] ?? []).map((item) => item.id))
-                          : new Set<string>(),
-                      }))
-                    }
-                    onToggleItem={(id, checked) =>
-                      setSelected((prev) => {
-                        const next = new Set(prev[kind.key])
-                        if (checked) next.add(id)
-                        else next.delete(id)
-                        return { ...prev, [kind.key]: next }
-                      })
-                    }
+                <SettingsSection
+                  label='Name'
+                  headerAccessory={
+                    <span className='text-[var(--text-error)]' title='Required'>
+                      *
+                    </span>
+                  }
+                >
+                  <ChipInput
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                        event.preventDefault()
+                        handleSubmit()
+                      }
+                    }}
+                    placeholder='Workspace name'
+                    maxLength={100}
+                    autoComplete='off'
                     disabled={isForking}
+                    aria-label='Workspace name'
                   />
-                ))}
-                <p className='text-[var(--text-muted)] text-caption'>
-                  Unselected resources leave their workflow fields empty in the fork.
-                </p>
-              </div>
-            </SettingsSection>
-          ) : null}
+                </SettingsSection>
 
-          {noDeployedWorkflows ? (
-            <p className='text-[var(--text-muted)] text-caption'>
-              No deployed workflows to copy — your fork will start with a blank workflow.
-            </p>
-          ) : null}
-        </div>
-        <ChipModalError>{error ?? undefined}</ChipModalError>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={() => onOpenChange(false)}
-        cancelDisabled={isForking}
-        primaryAction={{
-          label: isForking ? 'Forking...' : 'Fork',
-          onClick: handleSubmit,
-          disabled: !name.trim() || isForking,
+                {availableKinds.length > 0 ? (
+                  <SettingsSection label='Copy resources'>
+                    <div className='flex flex-col gap-2'>
+                      {availableKinds.map((kind) => (
+                        <ResourceKindRow
+                          key={kind.key}
+                          label={kind.label}
+                          items={resources.data?.[kind.key] ?? []}
+                          selected={selected[kind.key]}
+                          onToggleAll={(selectAll) =>
+                            setSelected((prev) => ({
+                              ...prev,
+                              [kind.key]: selectAll
+                                ? new Set((resources.data?.[kind.key] ?? []).map((item) => item.id))
+                                : new Set<string>(),
+                            }))
+                          }
+                          onToggleItem={(id, checked) =>
+                            setSelected((prev) => {
+                              const next = new Set(prev[kind.key])
+                              if (checked) next.add(id)
+                              else next.delete(id)
+                              return { ...prev, [kind.key]: next }
+                            })
+                          }
+                          disabled={isForking}
+                        />
+                      ))}
+                      <p className='text-[var(--text-muted)] text-caption'>
+                        Unselected resources leave their workflow fields empty in the fork.
+                      </p>
+                    </div>
+                  </SettingsSection>
+                ) : null}
+
+                {noDeployedWorkflows ? (
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    No deployed workflows to copy — your fork will start with a blank workflow.
+                  </p>
+                ) : null}
+              </div>
+              <ChipModalError>{error ?? undefined}</ChipModalError>
+            </>
+          )}
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={isForking}
+          secondaryActions={rollbackAction.length > 0 ? rollbackAction : undefined}
+          primaryAction={
+            activeTab === 'activity'
+              ? forkedWorkspace
+                ? { label: 'Open fork', onClick: openFork }
+                : { label: 'Done', onClick: () => onOpenChange(false) }
+              : {
+                  label: isForking ? 'Forking...' : 'Fork',
+                  onClick: handleSubmit,
+                  disabled: !name.trim() || isForking,
+                }
+          }
+        />
+      </ChipModal>
+
+      <ChipConfirmModal
+        open={confirmRollbackOpen}
+        onOpenChange={setConfirmRollbackOpen}
+        srTitle='Undo last sync'
+        title='Undo last sync'
+        text={[
+          'This restores each affected workflow to its ',
+          { text: 'prior deployed version', bold: true },
+          ' and removes workflows the sync created. Continue?',
+        ]}
+        confirm={{
+          label: 'Rollback',
+          onClick: () => void runRollback(),
+          pending: rollback.isPending,
+          pendingLabel: 'Rolling back...',
         }}
       />
-    </ChipModal>
+    </>
   )
 }

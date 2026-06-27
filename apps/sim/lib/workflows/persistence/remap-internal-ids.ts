@@ -125,10 +125,11 @@ export function remapVariableIdsInSubBlocks(
 }
 
 /**
- * Rewrite cross-workflow references through a workflow id map: top-level
- * `workflow-selector` values, the advanced-mode `manualWorkflowId` override, and
- * `workflow_input` sub-workflow tools nested in a `tool-input` array (an agent
- * calling another workflow as a tool).
+ * Rewrite cross-workflow references through a workflow id map: single
+ * `workflow-selector` / `manualWorkflowId` values, multi-workflow lists
+ * (`workflowSelector` multi-select + comma-separated `manualWorkflowIds`, as used
+ * by the logs block), and `workflow_input` sub-workflow tools nested in a
+ * `tool-input` array (an agent calling another workflow as a tool).
  *
  * `clearUnmapped` controls the cross-workspace case: fork/promote pass `true` so a
  * reference to a workflow that wasn't copied is cleared/dropped rather than left
@@ -160,6 +161,13 @@ export function remapWorkflowReferencesInSubBlocks(
         updated[key] = { ...subBlock, value: remapScalar(subBlock.value) }
         continue
       }
+      if (baseKey === 'manualWorkflowIds' || baseKey === 'workflowSelector') {
+        const remapped = remapWorkflowIdList(subBlock.value, workflowIdMap, clearUnmapped)
+        if (remapped !== subBlock.value) {
+          updated[key] = { ...subBlock, value: remapped }
+          continue
+        }
+      }
       if (subBlock.type === 'tool-input') {
         const remapped = remapWorkflowInputTools(subBlock.value, workflowIdMap, clearUnmapped)
         if (remapped !== subBlock.value) {
@@ -171,6 +179,53 @@ export function remapWorkflowReferencesInSubBlocks(
     updated[key] = subBlock
   }
   return updated
+}
+
+/**
+ * Rewrite a multi-workflow value (comma-separated string or array of workflow ids)
+ * through a workflow id map. Unmapped ids are dropped when `clearUnmapped` is set
+ * (cross-workspace) and preserved otherwise. Returns the original reference when
+ * nothing changed.
+ */
+function remapWorkflowIdList(
+  value: unknown,
+  workflowIdMap: Map<string, string>,
+  clearUnmapped: boolean
+): unknown {
+  const remapId = (id: string): string | null => {
+    const mapped = workflowIdMap.get(id)
+    if (mapped) return mapped
+    return clearUnmapped ? null : id
+  }
+  if (Array.isArray(value)) {
+    let changed = false
+    const next: unknown[] = []
+    for (const item of value) {
+      if (typeof item !== 'string' || !item) {
+        next.push(item)
+        continue
+      }
+      const mapped = remapId(item)
+      if (mapped === null) {
+        changed = true
+        continue
+      }
+      if (mapped !== item) changed = true
+      next.push(mapped)
+    }
+    return changed ? next : value
+  }
+  if (typeof value === 'string' && value) {
+    const next: string[] = []
+    for (const id of value.split(',').map((entry) => entry.trim())) {
+      if (!id) continue
+      const mapped = remapId(id)
+      if (mapped !== null) next.push(mapped)
+    }
+    const joined = next.join(',')
+    return joined === value ? value : joined
+  }
+  return value
 }
 
 /**

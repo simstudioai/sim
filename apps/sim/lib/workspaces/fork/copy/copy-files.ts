@@ -54,9 +54,11 @@ export async function planForkFileCopies(params: {
   const blobTasks: BlobCopyTask[] = []
   if (fileIds.length === 0) return { keyMap, blobTasks }
 
-  // Batch the metadata read (one query for all selected files) instead of a
-  // per-file lookup. Matches getFileMetadataById's filters: non-deleted + scoped
-  // to the source workspace.
+  // Batch the metadata read (one query for all selected files) instead of a per-file
+  // lookup: non-deleted, scoped to the source workspace, and restricted to durable
+  // `workspace` files. Only workspace files are forkable - chat/copilot/mothership
+  // uploads are session-scoped and their chat-bound unique index can't be duplicated -
+  // so any non-workspace id passed here is ignored rather than copied.
   const metas = await tx
     .select()
     .from(workspaceFiles)
@@ -64,6 +66,7 @@ export async function planForkFileCopies(params: {
       and(
         inArray(workspaceFiles.id, fileIds),
         eq(workspaceFiles.workspaceId, sourceWorkspaceId),
+        eq(workspaceFiles.context, 'workspace'),
         isNull(workspaceFiles.deletedAt)
       )
     )
@@ -107,7 +110,9 @@ export async function planForkFileCopies(params: {
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
   requestId = 'unknown'
-): Promise<void> {
+): Promise<{ copied: number; failed: number }> {
+  let copied = 0
+  let failed = 0
   for (const task of blobTasks) {
     try {
       const buffer = await downloadFile({
@@ -128,11 +133,14 @@ export async function executeForkFileBlobCopies(
           originalName: task.fileName,
         },
       })
+      copied += 1
     } catch (error) {
+      failed += 1
       logger.warn(`[${requestId}] Failed to copy file blob during fork`, {
         targetKey: task.targetKey,
         error: getErrorMessage(error),
       })
     }
   }
+  return { copied, failed }
 }

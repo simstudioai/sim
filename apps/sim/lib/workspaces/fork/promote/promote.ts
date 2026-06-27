@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import type { ForkOperationReport } from '@/lib/api/contracts/workspace-fork'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
@@ -20,6 +21,7 @@ import {
   type ForkEdge,
 } from '@/lib/workspaces/fork/lineage/lineage'
 import {
+  deleteWorkflowIdentityByIds,
   type ForkMappingUpsert,
   upsertEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
@@ -35,6 +37,7 @@ import {
   createForkSubBlockTransform,
   type ForkReference,
 } from '@/lib/workspaces/fork/remap/remap-references'
+import { buildForkReport } from '@/lib/workspaces/fork/report'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -56,9 +59,17 @@ export interface PromoteForkResult {
   created: number
   archived: number
   redeployed: number
+  /**
+   * Targets whose state was written but whose post-transaction deploy failed. The
+   * draft holds the synced state; the active deployment still runs the prior version
+   * until a redeploy. Surfaced (rather than swallowed) so the caller can warn.
+   */
+  deployFailed: number
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
   drift: boolean
   blocked: 'unmapped' | 'drift' | null
+  /** Clean, grouped result report for the post-sync UI (never-silent surfacing). */
+  report: ForkOperationReport
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -86,6 +97,10 @@ interface PromoteTxApplied {
   created: number
   archived: number
   drift: boolean
+  /** Source workflows skipped because their deployment vanished between plan and apply. */
+  skippedItems: Array<{ id: string; name: string }>
+  /** Target workflow id -> source name, so the deploy-failure report can show names. */
+  writtenNames: Record<string, string>
 }
 
 /**
@@ -203,10 +218,23 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       parentResourceId: direction === 'pull' ? item.sourceWorkflowId : item.targetWorkflowId,
       childResourceId: direction === 'pull' ? item.targetWorkflowId : item.sourceWorkflowId,
     }))
+    // The identity upsert keys on the parent side, which on push is the TARGET. A
+    // source whose previously-mapped target was archived gets a freshly-generated
+    // target id here, so its old (stale-target) identity row wouldn't be overwritten
+    // and would leak a second mapping for the same source. Delete every prior identity
+    // row for these sources (by the source side) first so exactly one row per source
+    // remains - this also converges any pre-existing duplicates.
+    await deleteWorkflowIdentityByIds(
+      tx,
+      edge.childWorkspaceId,
+      direction === 'pull' ? 'parent' : 'child',
+      writtenItems.map((item) => item.sourceWorkflowId)
+    )
     await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, identityEntries)
 
     const credentialPairs = collectCredentialPairs(plan)
     const propagationTargetIds = credentialPairs.map(([, targetCredId]) => targetCredId)
+    const propagationSourceIds = credentialPairs.map(([sourceCredId]) => sourceCredId)
     const validTargetCredentialIds = new Set<string>()
     if (propagationTargetIds.length > 0) {
       const validRows = await tx
@@ -221,8 +249,23 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       for (const row of validRows) validTargetCredentialIds.add(row.id)
     }
 
-    const validPairs = credentialPairs.filter(([, targetCredId]) =>
-      validTargetCredentialIds.has(targetCredId)
+    const validSourceCredentialIds = new Set<string>()
+    if (propagationSourceIds.length > 0) {
+      const validRows = await tx
+        .select({ id: credential.id })
+        .from(credential)
+        .where(
+          and(
+            inArray(credential.id, propagationSourceIds),
+            eq(credential.workspaceId, sourceWorkspaceId)
+          )
+        )
+      for (const row of validRows) validSourceCredentialIds.add(row.id)
+    }
+
+    const validPairs = credentialPairs.filter(
+      ([sourceCredId, targetCredId]) =>
+        validSourceCredentialIds.has(sourceCredId) && validTargetCredentialIds.has(targetCredId)
     )
     if (validPairs.length > 0) {
       // Batch all source credentials' active members in one query (instead of one
@@ -292,11 +335,14 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
     // A source whose active deployment vanished between plan and copy is skipped
     // above, so report what was actually written - the plan totals would overstate.
-    const skipped = plan.items.length - writtenItems.length
-    if (skipped > 0) {
+    const writtenSourceIds = new Set(writtenItems.map((item) => item.sourceWorkflowId))
+    const skippedItems = plan.items
+      .filter((item) => !writtenSourceIds.has(item.sourceWorkflowId))
+      .map((item) => ({ id: item.sourceWorkflowId, name: item.sourceMeta.name }))
+    if (skippedItems.length > 0) {
       logger.warn(
-        `[${requestId}] Promote skipped ${skipped} source workflow(s) whose deployment disappeared between plan and apply`,
-        { sourceWorkspaceId, targetWorkspaceId, skipped }
+        `[${requestId}] Promote skipped ${skippedItems.length} source workflow(s) whose deployment disappeared between plan and apply`,
+        { sourceWorkspaceId, targetWorkspaceId, skipped: skippedItems.length }
       )
     }
 
@@ -308,42 +354,93 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       created: createdTargetIds.length,
       archived: archivedSnapshots.length,
       drift: plan.drift,
+      skippedItems,
+      writtenNames: Object.fromEntries(
+        writtenItems.map((item) => [item.targetWorkflowId, item.sourceMeta.name])
+      ),
     }
   })
 
   if (txResult.blocked !== null) {
+    const unmappedRequired = txResult.blocked === 'unmapped' ? txResult.unmappedRequired : []
+    const blockedReport = buildForkReport({
+      status: 'failed',
+      headline:
+        txResult.blocked === 'drift'
+          ? 'The target changed since the last sync - force sync to overwrite it'
+          : 'Map all required references before syncing',
+      groups: [
+        {
+          id: 'unmapped-required',
+          label: 'Required references to map',
+          severity: 'error',
+          count: unmappedRequired.length,
+          items: unmappedRequired.map((reference) => ({
+            label: reference.blockName ?? reference.sourceId,
+            detail: reference.kind,
+          })),
+        },
+      ],
+    })
     return {
       promoteRunId: '',
       updated: 0,
       created: 0,
       archived: 0,
       redeployed: 0,
-      unmappedRequired: txResult.blocked === 'unmapped' ? txResult.unmappedRequired : [],
+      deployFailed: 0,
+      unmappedRequired,
       drift: txResult.drift,
       blocked: txResult.blocked,
+      report: blockedReport,
     }
   }
 
   let redeployed = 0
-  for (const targetWorkflowId of txResult.deployTargetIds) {
+  const deployFailures: string[] = []
+  const deployWarnings: string[] = []
+  // Deploy in a deterministic (sorted) order so this UNLOCKED loop acquires workflow
+  // row locks in the same order as a concurrent rollback's atomic tx (and a sibling
+  // promote's deploy loop), avoiding deadlocks - see rollback.ts lock ordering.
+  const deployTargetIds = [...txResult.deployTargetIds].sort((a, b) => a.localeCompare(b))
+  for (const targetWorkflowId of deployTargetIds) {
+    // The transaction already force-replaced this target's draft state, so connected
+    // canvas clients must adopt it (mothership-edit semantics) whether or not the
+    // subsequent deploy succeeds - otherwise they keep, and may clobber, stale state.
+    void notifyForkWorkflowChanged(targetWorkflowId)
     try {
       const result = await performFullDeploy({ workflowId: targetWorkflowId, userId, requestId })
       if (result.success) {
         redeployed += 1
+        // A deploy can succeed but defer/queue some side-effects (trigger/schedule/MCP
+        // sync). Surface those instead of swallowing them into a clean success.
+        if (result.warnings?.length) {
+          const name = txResult.writtenNames[targetWorkflowId] ?? targetWorkflowId
+          for (const warning of result.warnings) deployWarnings.push(`${name}: ${warning}`)
+        }
       } else {
+        deployFailures.push(targetWorkflowId)
         logger.warn(`[${requestId}] Deploy after promote failed`, {
           workflowId: targetWorkflowId,
           error: result.error,
         })
-        void notifyForkWorkflowChanged(targetWorkflowId)
       }
     } catch (error) {
+      deployFailures.push(targetWorkflowId)
       logger.error(`[${requestId}] Deploy after promote threw`, {
         workflowId: targetWorkflowId,
         error: getErrorMessage(error),
       })
-      void notifyForkWorkflowChanged(targetWorkflowId)
     }
+  }
+
+  if (deployFailures.length > 0) {
+    logger.warn(`[${requestId}] Promote wrote state but some targets failed to deploy`, {
+      sourceWorkspaceId,
+      targetWorkspaceId,
+      deployFailed: deployFailures.length,
+      deployFailures,
+    })
   }
 
   logger.info(`[${requestId}] Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
@@ -351,6 +448,50 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     created: txResult.created,
     archived: txResult.archived,
     redeployed,
+    deployFailed: deployFailures.length,
+  })
+
+  const hasWarnings =
+    deployFailures.length > 0 || txResult.skippedItems.length > 0 || deployWarnings.length > 0
+  const totalSynced = txResult.updated + txResult.created
+  const report = buildForkReport({
+    status: hasWarnings ? 'succeeded_with_warnings' : 'succeeded',
+    headline:
+      totalSynced > 0
+        ? `Synced ${totalSynced} workflow${totalSynced === 1 ? '' : 's'}`
+        : 'Sync complete',
+    groups: [
+      { id: 'updated', label: 'Updated', severity: 'info', count: txResult.updated, items: [] },
+      { id: 'created', label: 'Created', severity: 'info', count: txResult.created, items: [] },
+      { id: 'archived', label: 'Archived', severity: 'info', count: txResult.archived, items: [] },
+      {
+        id: 'deploy-failed',
+        label: 'Synced but not deployed',
+        severity: 'error',
+        count: deployFailures.length,
+        items: deployFailures.map((id) => ({
+          label: txResult.writtenNames[id] ?? id,
+          detail: 'Open the workflow and redeploy it.',
+        })),
+      },
+      {
+        id: 'skipped',
+        label: 'Skipped',
+        severity: 'warning',
+        count: txResult.skippedItems.length,
+        items: txResult.skippedItems.map((item) => ({
+          label: item.name,
+          detail: 'Source workflow was undeployed before the sync applied.',
+        })),
+      },
+      {
+        id: 'deploy-warnings',
+        label: 'Deployed with warnings',
+        severity: 'warning',
+        count: deployWarnings.length,
+        items: deployWarnings.map((warning) => ({ label: warning })),
+      },
+    ],
   })
 
   return {
@@ -359,8 +500,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     created: txResult.created,
     archived: txResult.archived,
     redeployed,
+    deployFailed: deployFailures.length,
     unmappedRequired: [],
     drift: txResult.drift,
     blocked: null,
+    report,
   }
 }

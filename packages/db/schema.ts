@@ -1420,6 +1420,54 @@ export const workspaceForkPromoteRun = pgTable(
   })
 )
 
+export const backgroundWorkKindEnum = pgEnum('background_work_kind', [
+  'deployment_side_effects',
+  'fork_content_copy',
+])
+
+export const backgroundWorkStatusValueEnum = pgEnum('background_work_status_value', [
+  'pending',
+  'processing',
+  'completed',
+  'completed_with_warnings',
+  'failed',
+])
+
+/**
+ * Durable status for asynchronous background work (post-sync/rollback deployment
+ * side-effects and fork content copy), so the canvas can show a "work in progress"
+ * banner that survives a reload. A row scoped to a single workflow sets `workflowId`;
+ * workspace-spanning work (fork content copy) leaves it null.
+ */
+export const backgroundWorkStatus = pgTable(
+  'background_work_status',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    kind: backgroundWorkKindEnum('kind').notNull(),
+    status: backgroundWorkStatusValueEnum('status').notNull(),
+    message: text('message'),
+    error: text('error'),
+    metadata: jsonb('metadata'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceStatusIdx: index('background_work_status_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    workflowStatusIdx: index('background_work_status_workflow_status_idx').on(
+      table.workflowId,
+      table.status
+    ),
+  })
+)
+
 export const workspaceFile = pgTable(
   'workspace_file',
   {

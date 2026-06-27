@@ -21,7 +21,6 @@ vi.mock('@/tools/params', () => ({
 
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
-  getOverrideForkKind,
   remapForkSubBlocks,
   remapToolBlockResources,
   rewriteMcpToolSelectorValue,
@@ -106,7 +105,7 @@ describe('remapToolBlockResources', () => {
     ).toBe(tool)
   })
 
-  it('clears a nested advanced-mode manualCredential id (keyed by id, not type)', () => {
+  it('leaves an advanced-mode manualCredential id untouched (escape hatch)', () => {
     const tool = {
       type: 'testblock',
       toolId: 'testblock_run',
@@ -118,7 +117,25 @@ describe('remapToolBlockResources', () => {
       clearUnresolved: true,
       blockConfigs,
     })
-    expect(result.params).toEqual({ manualCredential: '', knowledgeBaseId: 'kb-dst' })
+    expect(result.params).toEqual({ manualCredential: 'mc-src', knowledgeBaseId: 'kb-dst' })
+  })
+
+  it('preserves an org-scoped credentialSet ref without remapping or recording it', () => {
+    const tool = {
+      type: 'testblock',
+      toolId: 'testblock_run',
+      params: { credential: 'credentialSet:cs-1' },
+    }
+    const recorded: Array<{ kind: string; id: string; mapped: boolean }> = []
+    const result = remapToolBlockResources(tool, {
+      resolve: () => null,
+      resolveFileKey: () => null,
+      record: (kind, id, mapped) => recorded.push({ kind, id, mapped }),
+      clearUnresolved: true,
+      blockConfigs,
+    })
+    expect((result.params as Record<string, string>).credential).toBe('credentialSet:cs-1')
+    expect(recorded).toHaveLength(0)
   })
 
   it('drops only the uncopied entry in a mixed multi-value field', () => {
@@ -153,6 +170,33 @@ describe('remapToolBlockResources', () => {
     })
     expect((result.params as Record<string, string>).credential).toBe('cred-dst')
   })
+
+  it('clears a dependent tool param when its parent resource is remapped', () => {
+    const tool = {
+      type: 'depblock',
+      toolId: 'depblock_run',
+      params: { knowledgeBaseId: 'kb-src', documentId: 'doc-src' },
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
+      resolveFileKey: () => null,
+      clearUnresolved: false,
+      blockConfigs: {
+        depblock: {
+          subBlocks: [
+            { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+            {
+              id: 'documentId',
+              title: 'Doc',
+              type: 'document-selector',
+              dependsOn: ['knowledgeBaseId'],
+            },
+          ],
+        },
+      },
+    })
+    expect(result.params).toEqual({ knowledgeBaseId: 'kb-dst', documentId: '' })
+  })
 })
 
 describe('remapForkSubBlocks', () => {
@@ -170,24 +214,52 @@ describe('remapForkSubBlocks', () => {
     )
     expect(result.subBlocks.credential.value).toBe('')
     expect(result.subBlocks.knowledgeBaseId.value).toBe('kb-dst')
-    expect(result.subBlocks.manualCredential.value).toBe('')
+    expect(result.subBlocks.manualCredential.value).toBe('mc-src')
     expect(result.references).toHaveLength(0)
   })
 
-  it('promote mode: keeps + records unmapped credentials (incl. manual override)', () => {
+  it('promote mode: keeps + records the basic credential; manual id is escape hatch', () => {
     const result = remapForkSubBlocks(
       subBlocks(),
       (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
       'promote'
     )
-    // unresolved credentials are kept (not cleared) and surfaced as required.
+    // The basic credential is kept (not cleared) and surfaced as required; the
+    // advanced manualCredential is an escape hatch - preserved verbatim, not recorded.
     expect(result.subBlocks.credential.value).toBe('c-src')
     expect(result.subBlocks.manualCredential.value).toBe('mc-src')
     expect(result.subBlocks.knowledgeBaseId.value).toBe('kb-dst')
     const unmappedKinds = result.unmapped.map((r) => `${r.kind}:${r.sourceId}`)
     expect(unmappedKinds).toContain('credential:c-src')
-    expect(unmappedKinds).toContain('credential:mc-src')
+    expect(unmappedKinds).not.toContain('credential:mc-src')
     expect(result.unmapped.every((r) => r.kind !== 'knowledge-base')).toBe(true)
+  })
+
+  it('promote mode: preserves a credentialSet ref without flagging it', () => {
+    const sb: SubBlockRecord = {
+      triggerCredentials: {
+        id: 'triggerCredentials',
+        type: 'oauth-input',
+        value: 'credentialSet:cs-1',
+      },
+    }
+    const result = remapForkSubBlocks(sb, () => null, 'promote')
+    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
+    expect(result.references).toHaveLength(0)
+    expect(result.unmapped).toHaveLength(0)
+  })
+
+  it('create mode: keeps a credentialSet ref (org-scoped, not cleared)', () => {
+    const sb: SubBlockRecord = {
+      triggerCredentials: {
+        id: 'triggerCredentials',
+        type: 'oauth-input',
+        value: 'credentialSet:cs-1',
+      },
+    }
+    const result = remapForkSubBlocks(sb, () => null, 'create')
+    expect(result.subBlocks.triggerCredentials.value).toBe('credentialSet:cs-1')
+    expect(result.references).toHaveLength(0)
   })
 
   it('promote mode: rewrites {{ENV}} nested in an array-form tool param', () => {
@@ -205,19 +277,6 @@ describe('remapForkSubBlocks', () => {
     )
     const tools = result.subBlocks.tools.value as Array<{ params: { subject: string } }>
     expect(tools[0].params.subject).toBe('Hi {{NEW}}')
-  })
-})
-
-describe('getOverrideForkKind', () => {
-  it('maps manual* short-input overrides to their fork kind', () => {
-    expect(getOverrideForkKind('manualCredential')).toBe('credential')
-    expect(getOverrideForkKind('manualTableId')).toBe('table')
-    expect(getOverrideForkKind('manualCredential_2')).toBe('credential')
-  })
-  it('returns null for type-handled / unrelated ids', () => {
-    expect(getOverrideForkKind('credential')).toBeNull()
-    expect(getOverrideForkKind('knowledgeBaseId')).toBeNull()
-    expect(getOverrideForkKind('manualWorkflowId')).toBeNull()
   })
 })
 

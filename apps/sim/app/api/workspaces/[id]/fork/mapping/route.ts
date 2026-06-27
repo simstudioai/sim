@@ -58,7 +58,7 @@ export const PUT = withRouteHandler(
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
-    await validateForkMappingTargets(auth.targetWorkspaceId, entries)
+    await validateForkMappingTargets(auth.sourceWorkspaceId, auth.targetWorkspaceId, entries)
 
     const updated = await db.transaction((tx) =>
       applyForkMappingEntries(tx, auth.edge, session.user.id, direction, entries)

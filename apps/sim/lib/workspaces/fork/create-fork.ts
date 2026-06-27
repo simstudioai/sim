@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { permissions, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
@@ -9,6 +10,10 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  finishBackgroundWork,
+  startBackgroundWork,
+} from '@/lib/workspaces/fork/background-work/store'
 import {
   type ForkContentCopyPayload,
   runForkContentCopy,
@@ -277,8 +282,40 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // runs it inline best-effort. Both are batched/bounded internally.
   const hasContent =
     contentPlan.tables.length > 0 || contentPlan.knowledgeBases.length > 0 || blobTasks.length > 0
-  if (hasContent) {
-    const payload: ForkContentCopyPayload = { contentPlan, blobTasks, requestId }
+
+  // Record a durable job for EVERY fork (the fork already committed), scoped to the
+  // SOURCE workspace - that's where the fork was initiated and where its Activity tab
+  // lives, so the record survives a reload of the fork modal. When there is heavy
+  // content to copy in the background the row stays `processing` until the runner
+  // finishes it (merging in copied/failed); otherwise the fork is already complete.
+  const forkedName = result.workspace.name
+  const statusId = await startBackgroundWork(db, {
+    workspaceId: source.id,
+    kind: 'fork_content_copy',
+    // Append-only: each fork is a distinct entry in the source workspace's fork history.
+    supersede: false,
+    message: hasContent ? `Copying resources to "${forkedName}"` : `Forked to "${forkedName}"`,
+    metadata: {
+      childWorkspaceId: result.workspace.id,
+      childWorkspaceName: forkedName,
+      workflowsCopied: result.workflowsCopied,
+      tables: contentPlan.tables.length,
+      knowledgeBases: contentPlan.knowledgeBases.length,
+      files: blobTasks.length,
+    },
+  })
+
+  if (!hasContent) {
+    await finishBackgroundWork(db, statusId, {
+      status: 'completed',
+      message: `Forked to "${forkedName}"`,
+      metadata: { copied: 0, failed: 0 },
+    }).catch(() => {})
+    return result
+  }
+
+  const payload: ForkContentCopyPayload = { contentPlan, blobTasks, statusId, requestId }
+  try {
     if (isTriggerDevEnabled) {
       const [{ forkContentCopyTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
         import('@/background/fork-content-copy'),
@@ -291,6 +328,17 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     } else {
       runDetached('fork-content-copy', () => runForkContentCopy(payload))
     }
+  } catch (error) {
+    // The fork itself succeeded; only scheduling the background copy failed. Surface
+    // it on the status row instead of failing the (committed) fork response.
+    logger.error(`[${requestId}] Failed to schedule fork content copy`, {
+      childWorkspaceId: result.workspace.id,
+      error: getErrorMessage(error),
+    })
+    await finishBackgroundWork(db, statusId, {
+      status: 'failed',
+      error: getErrorMessage(error, 'Could not start the background copy'),
+    }).catch(() => {})
   }
 
   return result

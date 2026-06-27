@@ -1,5 +1,6 @@
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
+  clearDependentsOnRemap,
   type ForkRemapKind,
   remapForkSubBlocks,
 } from '@/lib/workspaces/fork/remap/remap-references'
@@ -21,6 +22,9 @@ export type ForkCopyResolver = (kind: ForkRemapKind, sourceId: string) => string
  */
 export function createForkBootstrapTransform(
   resolveCopied: ForkCopyResolver
-): (subBlocks: SubBlockRecord) => SubBlockRecord {
-  return (subBlocks) => remapForkSubBlocks(subBlocks, resolveCopied, 'create').subBlocks
+): (subBlocks: SubBlockRecord, blockType: string) => SubBlockRecord {
+  return (subBlocks, blockType) => {
+    const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create')
+    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys)
+  }
 }
