@@ -211,9 +211,6 @@ export async function maybeWriteOutputToFile(
   const outputFiles = getOutputFileDeclarations(params).filter((file) => !file.sandboxPath)
   if (outputFiles.length === 0) return result
 
-  const denied = denyOutputWriteWithoutWritePermission(context)
-  if (denied) return denied
-
   const outputObject =
     result.output && typeof result.output === 'object' && !Array.isArray(result.output)
       ? (result.output as Record<string, unknown>)
@@ -231,6 +228,9 @@ export async function maybeWriteOutputToFile(
     })
     return result
   }
+
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
 
   // Only span the actual write path (where we upload to storage). Fast
   // no-op returns above don't need a span — they'd just pad the trace

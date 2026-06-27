@@ -141,6 +141,18 @@ describe('maybeWriteOutputToFile', () => {
     expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 
+  it('does not deny a read-only principal when no workspace write occurs (sandbox export active)', async () => {
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: { files: [{ path: 'report.csv' }] }, stdout: '' } },
+      buildContext({ userPermission: 'read' })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+  })
+
   it('writes the output file for a write principal', async () => {
     const result = await maybeWriteOutputToFile(
       FunctionExecute.id,
