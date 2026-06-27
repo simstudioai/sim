@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { useTranslations } from 'next-intl'
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -29,16 +30,28 @@ export default async function ContactPage() {
       </header>
 
       <div className='mx-auto max-w-[640px] px-6 pt-[72px] pb-24 sm:px-12'>
-        <span className='mb-4 block font-martian-mono text-[11px] text-[var(--landing-text-muted)] uppercase tracking-[0.12em]'>
-          Contact us
-        </span>
-        <h1 className='mb-5 text-balance font-[500] text-4xl text-[var(--landing-text)] leading-[1.05] tracking-[-0.02em] md:text-5xl'>
-          We're here to help
-        </h1>
-        <p className='text-pretty text-[var(--landing-text-muted)] text-base leading-[1.7]'>
-          Got a general question, integration request, or need help? Send us a message and our team
-          will get back to you.
-        </p>
+        <ContactPageContent />
+      </div>
+
+      {isHosted && <Footer hideCTA />}
+    </main>
+  )
+}
+
+function ContactPageContent() {
+  const t = useTranslations('landing')
+
+  return (
+    <>
+      <span className='mb-4 block font-martian-mono text-[11px] text-[var(--landing-text-muted)] uppercase tracking-[0.12em]'>
+        {t('contactus')}
+      </span>
+      <h1 className='mb-5 text-balance font-[500] text-4xl text-[var(--landing-text)] leading-[1.05] tracking-[-0.02em] md:text-5xl'>
+        {t('heretohelp')}
+      </h1>
+      <p className='text-pretty text-[var(--landing-text-muted)] text-base leading-[1.7]'>
+        {t('contactdesc')}
+      </p>
 
         <div className='dark mt-14'>
           <ContactForm />
