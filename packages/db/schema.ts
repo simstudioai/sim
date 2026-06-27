@@ -1012,6 +1012,9 @@ export const subscription = pgTable(
     trialEnd: timestamp('trial_end'),
     billingInterval: text('billing_interval'),
     stripeScheduleId: text('stripe_schedule_id'),
+    lagoCustomerId: text('lago_customer_id'),
+    lagoSubscriptionId: text('lago_subscription_id'),
+    billingProvider: text('billing_provider').notNull().default('stripe'),
     metadata: json('metadata'),
   },
   (table) => ({

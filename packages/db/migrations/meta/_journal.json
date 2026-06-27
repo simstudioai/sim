@@ -1744,6 +1744,13 @@
       "when": 1782260194924,
       "tag": "0249_drop_permission_group_applies_to_all_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1782260194925,
+      "tag": "0250_lago_billing_fields",
+      "breakpoints": true
     }
   ]
 }
