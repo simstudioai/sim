@@ -45,38 +45,7 @@
       "description": "Versenden Sie als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
     }
   },
-  "pricing": {
-    "title": "Einfache, transparente Abrechnung",
-    "subtitle": "Start kostenlos, skalieren Sie bei Bedarf an. Keine verborgenen Gebühren.",
-    "free": {
-      "name": "Kostenlos",
-      "price": "\"$0\"",
-      "period": "/Monat",
-      "description": "Für Individuen, die sich mit KI-Automatisierung auseinandersetzen",
-      "cta": "Kostenlos starten"
-    },
-    "pro": {
-      "name": "Profisversion",
-      "price": "$20",
-      "period": "/monat",
-      "description": "Für professionelle Agenten bei der Entwicklung von Produktionsagenten",
-      "cta": "Start Pro"
-    },
-    "team": {
-      "name": "TEAM",
-      "price": "$50",
-      "period": "/Platz/Monat",
-      "description": "Für Teams, die zusammenarbeiten an AI-Workflows",
-      "cta": "\"Team starten\""
-    },
-    "enterprise": {
-      "name": "Unternehmen",
-      "price": "Benutzerdefiniert",
-      "period": "Sim Workflow",
-      "description": "Für Organisationen mit fortgeschrittenen Sicherheitsanforderungen",
-      "cta": "Kontaktieren Sie den Vertrieb"
-    }
-  },
+  "pricing": "Preise",
   "testimonials": {
     "title": "Liebt von Bauern",
     "subtitle": "\"Siehe, welche Teams mit Sim bauen.\""
@@ -105,5 +74,14 @@
   "contact": {
     "title": "Kontaktieren Sie uns",
     "subtitle": "\"Haben Sie Fragen? Wir helfen Ihnen gerne.\""
-  }
+  },
+  "docs": "Dokumentation",
+  "blog": "Blog",
+  "integrations": "Integrationen",
+  "models": "Modelle",
+  "returntoho": "Zurück zur Startseite",
+  "thepageyou": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
+  "login": "Anmelden",
+  "getstarted": "Loslegen",
+  "gotoapp": "Zur App"
 }

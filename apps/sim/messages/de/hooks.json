@@ -1,0 +1,20 @@
+{
+  "writing": "Der Datei wird geschrieben.",
+  "spawning": "Forschungserstellung.",
+  "consider": "Betrachtung der Wahrscheinlichkeiten.",
+  "teamana": "Teamanalyse.",
+  "stopped": "Gestoppt von Benutzer",
+  "runwas": "Lauf wurde abgebrochen.",
+  "goodbye": "Tschüss Welt",
+  "noworkf": "Keine Workflow-ID bereitgestellt.",
+  "upgrade": "Erweitern",
+  "blockis": "Der Block ist gesperrt.",
+  "blockna": "Der Blockname kann nicht leer sein.",
+  "servera": "Server A: suchen",
+  "launchp": "Startplanung",
+  "taskhis": "Aufgabenverlauf",
+  "alphawo": "Alpha-Workflow",
+  "bravowo": "Bravo-Workflow",
+  "createda": "Erstellt am",
+  "updateda": "Letzte Aktualisierung"
+}

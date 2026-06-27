@@ -33,12 +33,13 @@ interface NavLink {
   dropdown?: 'docs' | 'blog'
 }
 
-const NAV_LINKS: NavLink[] = [
-  { label: 'Docs', href: 'https://docs.sim.ai', external: true, icon: 'chevron', dropdown: 'docs' },
-  { label: 'Blog', href: '/blog', icon: 'chevron', dropdown: 'blog' },
-  { label: 'Integrations', href: '/integrations' },
-  { label: 'Models', href: '/models' },
-  { label: 'Pricing', href: '/#pricing' },
+// Navigation link keys - labels will be fetched via useTranslations
+const NAV_LINK_KEYS: Array<{ key: string; href: string; external?: boolean; icon?: 'chevron'; dropdown?: 'docs' | 'blog' }> = [
+  { key: 'docs', href: 'https://docs.sim.ai', external: true, icon: 'chevron', dropdown: 'docs' },
+  { key: 'blog', href: '/blog', icon: 'chevron', dropdown: 'blog' },
+  { key: 'integrations', href: '/integrations' },
+  { key: 'models', href: '/models' },
+  { key: 'pricing', href: '/#pricing' },
 ]
 
 const LOGO_CELL = 'flex items-center pl-5 lg:pl-16 pr-5'
@@ -154,7 +155,8 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
       {!logoOnly && (
         <>
           <ul className='mt-[0.75px] hidden lg:flex'>
-            {NAV_LINKS.map(({ label, href: rawHref, external, icon, dropdown }) => {
+            {NAV_LINK_KEYS.map(({ key, href: rawHref, external, icon, dropdown }) => {
+              const label = t(key)
               const href =
                 useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
               const hasDropdown = !!dropdown
@@ -311,7 +313,8 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
             )}
           >
             <ul className='flex flex-col'>
-              {NAV_LINKS.map(({ label, href: rawHref, external }) => {
+              {NAV_LINK_KEYS.map(({ key, href: rawHref, external }) => {
+                const label = t(key)
                 const href =
                   useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
                 return (
