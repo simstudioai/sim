@@ -38,51 +38,31 @@ export class SnapshotService implements ISnapshotService {
     }
 
     /**
-     * Insert the snapshot, or do nothing if a row already exists for this
-     * (workflowId, stateHash). The hash is a sha256 of the normalized state, so
-     * an existing row's stateData is byte-identical — there is nothing to update.
+     * Insert the snapshot, or — when an identical (workflowId, stateHash) row
+     * already exists — return it without rewriting the large stateData jsonb.
      *
-     * The previous implementation used onConflictDoUpdate(set state_data), which
-     * rewrote the full (tens-of-KB) state jsonb on every execution. Under Postgres
-     * MVCC that churned a dead tuple + TOAST/WAL per run for no change.
-     * onConflictDoNothing avoids the write entirely on the reuse path.
+     * The hash is a sha256 of the normalized state, so an existing row's stateData
+     * is byte-identical; there is nothing to update. The previous implementation
+     * SET state_data on conflict, which rewrote the full (tens-of-KB) jsonb every
+     * run. We keep a single atomic upsert — so RETURNING always yields the row and
+     * there is no race with snapshot cleanup (unlike DO NOTHING + a follow-up
+     * select) — but SET only the small state_hash column to itself. Under Postgres
+     * MVCC the unchanged, TOASTed stateData is not rewritten: its existing
+     * out-of-line storage is reused, so the per-execution write drops from the
+     * full blob to a tiny heap tuple.
      */
-    const [insertedSnapshot] = await db
+    const [upsertedSnapshot] = await db
       .insert(workflowExecutionSnapshots)
       .values(snapshotData)
-      .onConflictDoNothing({
+      .onConflictDoUpdate({
         target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
+        set: {
+          stateHash: sql`excluded.state_hash`,
+        },
       })
       .returning()
 
-    const isNew = Boolean(insertedSnapshot)
-
-    /**
-     * On conflict the insert returns no row, so load the existing snapshot by its
-     * unique (workflowId, stateHash). A freshly created snapshot cannot be removed
-     * in this window — cleanupOrphanedSnapshots only targets rows older than its
-     * cutoff — so this lookup is guaranteed to resolve.
-     */
-    const snapshotRow =
-      insertedSnapshot ??
-      (
-        await db
-          .select()
-          .from(workflowExecutionSnapshots)
-          .where(
-            and(
-              eq(workflowExecutionSnapshots.workflowId, workflowId),
-              eq(workflowExecutionSnapshots.stateHash, stateHash)
-            )
-          )
-          .limit(1)
-      )[0]
-
-    if (!snapshotRow) {
-      throw new Error(
-        `Failed to create or load execution snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
-      )
-    }
+    const isNew = upsertedSnapshot.id === snapshotData.id
 
     logger.info(
       isNew
@@ -92,9 +72,9 @@ export class SnapshotService implements ISnapshotService {
 
     return {
       snapshot: {
-        ...snapshotRow,
-        stateData: snapshotRow.stateData as WorkflowState,
-        createdAt: snapshotRow.createdAt.toISOString(),
+        ...upsertedSnapshot,
+        stateData: upsertedSnapshot.stateData as WorkflowState,
+        createdAt: upsertedSnapshot.createdAt.toISOString(),
       },
       isNew,
     }
