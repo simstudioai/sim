@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev --port 3000",
+    "dev:minimal": "SIM_DEV_MINIMAL_REGISTRY=1 next dev --port 3000",
     "dev:capped": "NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",
     "dev:clean": "rm -rf .next/dev/cache",
     "dev:webpack": "next dev --webpack",
