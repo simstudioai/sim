@@ -67,7 +67,7 @@ Prefer a canvas? Design agents block by block in the visual builder, and let Sim
 ```bash
 npx simstudio
 ```
-→ http://localhost:3000
+→ http://localhost:12000
 
 #### Note
 Docker must be installed and running on your machine.
@@ -76,7 +76,7 @@ Docker must be installed and running on your machine.
 
 | Flag | Description |
 |------|-------------|
-| `-p, --port <port>` | Port to run Sim on (default `3000`) |
+| `-p, --port <port>` | Port to run Sim on (default `12000`) |
 | `--no-pull` | Skip pulling latest Docker images |
 
 ### Self-hosted: Docker Compose
@@ -86,7 +86,7 @@ git clone https://github.com/simstudioai/sim.git && cd sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:12000](http://localhost:12000)
 
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
@@ -121,7 +121,7 @@ perl -i -pe "s/your_internal_api_secret/$(openssl rand -hex 32)/" apps/sim/.env
 perl -i -pe "s/your_api_encryption_key/$(openssl rand -hex 32)/" apps/sim/.env
 # DB configs for migration
 cp packages/db/.env.example packages/db/.env
-# Edit both .env files to set DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
+# Edit both .env files to set DATABASE_URL="postgresql://postgres:your_password@localhost:12002/simstudio"
 ```
 
 4. Run migrations:

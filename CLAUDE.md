@@ -1,6 +1,66 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Sim Development Guidelines
 
 You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. It is a Turborepo monorepo (`apps/*` + `packages/*`) managed with **Bun** workspaces. Node v20+ and Bun are required.
+
+## Commands
+
+Run from the repo root unless noted. Turbo fans tasks out across all workspaces.
+
+| Task | Command |
+| --- | --- |
+| Install deps | `bun install` |
+| Dev (app + realtime) | `bun run dev:full` (or `bun run dev:full:capped` for low memory) |
+| Dev (Next.js app only) | `bun run dev` |
+| Dev (realtime only) | `bun run dev:sockets` |
+| Build everything | `bun run build` |
+| Run all tests | `bun run test` |
+| Type-check | `bun run type-check` |
+| Lint (write/fix) | `bun run lint` |
+| Lint (check only) | `bun run lint:check` |
+| Format | `bun run format` |
+
+Linting/formatting is **Biome** (not ESLint/Prettier); config in `biome.json`. `lint-staged` runs `biome check --write` on commit via Husky.
+
+### Running a single test
+
+Tests use **Vitest**, scoped per workspace. `cd` into the app/package first — running `vitest` from the root won't resolve the right config.
+
+```bash
+cd apps/sim && bunx vitest run path/to/feature.test.ts      # one file
+cd apps/sim && bunx vitest run -t "returns data"            # by test name
+cd apps/sim && bunx vitest path/to/feature.test.ts          # watch mode
+```
+
+### Database (Drizzle + PostgreSQL/pgvector)
+
+Schema and client live in `packages/db`. Run from `packages/db`:
+
+```bash
+cd packages/db && bun run db:migrate   # apply migrations (uses packages/db/.env)
+cd packages/db && bun run db:push      # push schema directly (dev)
+cd packages/db && bun run db:studio    # Drizzle Studio
+```
+
+Migration safety is CI-gated by `bun run check:migrations`.
+
+### CI gate scripts (must pass on PRs)
+
+Beyond lint/type-check/test, several `check:*` scripts enforce architectural invariants — run the relevant one after touching that surface:
+
+- `bun run check:api-validation` / `:strict` — API contract boundary policy (see "API Contracts")
+- `bun run check:boundaries` — monorepo import boundaries
+- `bun run check:realtime-prune` — keeps `apps/realtime` free of heavy app imports
+- `bun run check:react-query`, `check:client-boundary`, `check:zustand-v5`, `check:utils`
+
+## Local Setup
+
+Requires PostgreSQL 12+ with the **pgvector** extension. After `bun install`: copy `apps/sim/.env.example` → `apps/sim/.env` and `packages/db/.env.example` → `packages/db/.env`, set `DATABASE_URL` in both, generate secrets (`openssl rand -hex 32` for the encryption keys), run `cd packages/db && bun run db:migrate`, then `bun run dev:full`. App serves on `http://localhost:3000`. Full env reference: `apps/sim/.env.example`.
 
 ## Global Standards
 
