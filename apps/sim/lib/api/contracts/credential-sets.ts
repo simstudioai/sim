@@ -63,6 +63,16 @@ export const credentialSetInvitationDetailSchema = z.object({
   invitedBy: z.string(),
 })
 
+/**
+ * Management-list view of an invitation. Omits the bearer `token` — the secret
+ * redeemed via the invite link — so listing a credential set's invitations never
+ * broadcasts it. Only the creating admin receives the token (and its `inviteUrl`)
+ * in the create response.
+ */
+export const credentialSetInvitationListItemSchema = credentialSetInvitationDetailSchema.omit({
+  token: true,
+})
+
 export const credentialSetInvitePreviewSchema = z.object({
   credentialSetName: z.string(),
   organizationName: z.string(),
@@ -92,6 +102,7 @@ export type CredentialSetMembership = z.output<typeof credentialSetMembershipSch
 export type CredentialSetInvitation = z.output<typeof credentialSetInvitationSchema>
 export type CredentialSetMember = z.output<typeof credentialSetMemberSchema>
 export type CredentialSetInvitationDetail = z.output<typeof credentialSetInvitationDetailSchema>
+export type CredentialSetInvitationListItem = z.output<typeof credentialSetInvitationListItemSchema>
 export type CredentialSetInvitePreview = z.output<typeof credentialSetInvitePreviewSchema>
 
 export const listCredentialSetsQuerySchema = z.object({
@@ -245,7 +256,7 @@ export const listCredentialSetInvitationDetailsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      invitations: z.array(credentialSetInvitationDetailSchema).optional(),
+      invitations: z.array(credentialSetInvitationListItemSchema).optional(),
     }),
   },
 })
