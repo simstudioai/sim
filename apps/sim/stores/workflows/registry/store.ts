@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { loadBlockConfigs } from '@/blocks/registry'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
@@ -146,6 +147,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               `Workflow ${workflowId} has no state yet - will load from DB or show empty canvas`
             )
           }
+
+          // Preload this workflow's block configs so the canvas renders synchronously
+          // (getBlock reads a warm cache). The hydration gate below re-validates after the await.
+          await loadBlockConfigs(Object.values(workflowState.blocks).map((b) => b.type))
 
           const currentHydration = get().hydration
           if (
