@@ -59,6 +59,15 @@ import {
   circlebackWebhookTrigger,
 } from '@/triggers/circleback'
 import {
+  clerkOrganizationCreatedTrigger,
+  clerkOrganizationMembershipCreatedTrigger,
+  clerkSessionCreatedTrigger,
+  clerkUserCreatedTrigger,
+  clerkUserDeletedTrigger,
+  clerkUserUpdatedTrigger,
+  clerkWebhookTrigger,
+} from '@/triggers/clerk'
+import {
   confluenceAttachmentCreatedTrigger,
   confluenceAttachmentRemovedTrigger,
   confluenceAttachmentUpdatedTrigger,
@@ -155,6 +164,12 @@ import {
 } from '@/triggers/greenhouse'
 import { hubspotPollingTrigger } from '@/triggers/hubspot'
 import { imapPollingTrigger } from '@/triggers/imap'
+import {
+  incidentioAlertCreatedTrigger,
+  incidentioIncidentCreatedTrigger,
+  incidentioIncidentStatusUpdatedTrigger,
+  incidentioIncidentUpdatedTrigger,
+} from '@/triggers/incidentio'
 import {
   instantlyAccountErrorTrigger,
   instantlyAutoReplyReceivedTrigger,
@@ -253,6 +268,16 @@ import {
   linearWebhookV2Trigger,
 } from '@/triggers/linear'
 import {
+  loopsCampaignEmailSentTrigger,
+  loopsEmailClickedTrigger,
+  loopsEmailDeliveredTrigger,
+  loopsEmailHardBouncedTrigger,
+  loopsEmailOpenedTrigger,
+  loopsEmailSoftBouncedTrigger,
+  loopsLoopEmailSentTrigger,
+  loopsTransactionalEmailSentTrigger,
+} from '@/triggers/loops'
+import {
   microsoftTeamsChatSubscriptionTrigger,
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
@@ -297,6 +322,20 @@ import {
   resendEmailSentTrigger,
   resendWebhookTrigger,
 } from '@/triggers/resend'
+import {
+  revenueCatCancellationTrigger,
+  revenueCatExpirationTrigger,
+  revenueCatInitialPurchaseTrigger,
+  revenueCatNonRenewingPurchaseTrigger,
+  revenueCatProductChangeTrigger,
+  revenueCatRenewalTrigger,
+} from '@/triggers/revenuecat'
+import {
+  rootlyAlertCreatedTrigger,
+  rootlyIncidentCreatedTrigger,
+  rootlyIncidentResolvedTrigger,
+  rootlyIncidentUpdatedTrigger,
+} from '@/triggers/rootly'
 import { rssPollingTrigger } from '@/triggers/rss'
 import {
   salesforceCaseStatusChangedTrigger,
@@ -311,6 +350,13 @@ import {
   sendblueMessageStatusUpdatedTrigger,
 } from '@/triggers/sendblue'
 import {
+  sentryErrorCreatedTrigger,
+  sentryIssueAlertTrigger,
+  sentryIssueCreatedTrigger,
+  sentryIssueResolvedTrigger,
+  sentryMetricAlertTrigger,
+} from '@/triggers/sentry'
+import {
   servicenowChangeRequestCreatedTrigger,
   servicenowChangeRequestUpdatedTrigger,
   servicenowIncidentCreatedTrigger,
@@ -322,6 +368,7 @@ import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
+import { twilioSmsReceivedTrigger, twilioSmsStatusTrigger } from '@/triggers/twilio'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import { typeformWebhookTrigger } from '@/triggers/typeform'
 import type { TriggerRegistry } from '@/triggers/types'
@@ -659,4 +706,40 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   zoom_participant_left: zoomParticipantLeftTrigger,
   zoom_recording_completed: zoomRecordingCompletedTrigger,
   zoom_webhook: zoomWebhookTrigger,
+  clerk_user_created: clerkUserCreatedTrigger,
+  clerk_user_updated: clerkUserUpdatedTrigger,
+  clerk_user_deleted: clerkUserDeletedTrigger,
+  clerk_session_created: clerkSessionCreatedTrigger,
+  clerk_organization_created: clerkOrganizationCreatedTrigger,
+  clerk_organization_membership_created: clerkOrganizationMembershipCreatedTrigger,
+  clerk_webhook: clerkWebhookTrigger,
+  incidentio_incident_created: incidentioIncidentCreatedTrigger,
+  incidentio_incident_updated: incidentioIncidentUpdatedTrigger,
+  incidentio_incident_status_updated: incidentioIncidentStatusUpdatedTrigger,
+  incidentio_alert_created: incidentioAlertCreatedTrigger,
+  rootly_incident_created: rootlyIncidentCreatedTrigger,
+  rootly_incident_updated: rootlyIncidentUpdatedTrigger,
+  rootly_incident_resolved: rootlyIncidentResolvedTrigger,
+  rootly_alert_created: rootlyAlertCreatedTrigger,
+  revenuecat_initial_purchase: revenueCatInitialPurchaseTrigger,
+  revenuecat_renewal: revenueCatRenewalTrigger,
+  revenuecat_cancellation: revenueCatCancellationTrigger,
+  revenuecat_expiration: revenueCatExpirationTrigger,
+  revenuecat_non_renewing_purchase: revenueCatNonRenewingPurchaseTrigger,
+  revenuecat_product_change: revenueCatProductChangeTrigger,
+  loops_email_delivered: loopsEmailDeliveredTrigger,
+  loops_email_opened: loopsEmailOpenedTrigger,
+  loops_email_clicked: loopsEmailClickedTrigger,
+  loops_email_hard_bounced: loopsEmailHardBouncedTrigger,
+  loops_email_soft_bounced: loopsEmailSoftBouncedTrigger,
+  loops_campaign_email_sent: loopsCampaignEmailSentTrigger,
+  loops_loop_email_sent: loopsLoopEmailSentTrigger,
+  loops_transactional_email_sent: loopsTransactionalEmailSentTrigger,
+  sentry_issue_created: sentryIssueCreatedTrigger,
+  sentry_issue_resolved: sentryIssueResolvedTrigger,
+  sentry_error_created: sentryErrorCreatedTrigger,
+  sentry_issue_alert: sentryIssueAlertTrigger,
+  sentry_metric_alert: sentryMetricAlertTrigger,
+  twilio_sms_received: twilioSmsReceivedTrigger,
+  twilio_sms_status: twilioSmsStatusTrigger,
 }

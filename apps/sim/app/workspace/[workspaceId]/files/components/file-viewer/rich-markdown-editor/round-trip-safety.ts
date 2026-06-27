@@ -1,9 +1,4 @@
-import {
-  applyFrontmatter,
-  postProcessSerializedMarkdown,
-  splitFrontmatter,
-} from './markdown-fidelity'
-import { serializeMarkdownBody } from './markdown-parse'
+import { serializeMarkdownDocument } from './markdown-parse'
 
 /**
  * Above this size the file opens read-only. Parsing is chunked and linear now (see
@@ -69,32 +64,25 @@ function linkedImageCount(content: string): number {
   return content.match(LINKED_IMAGE_PATTERN)?.length ?? 0
 }
 
-/** Serialize markdown through the exact editor pipeline (frontmatter held aside), chunked so the
- * probe stays linear in document size. */
-function serialize(content: string): string {
-  const { frontmatter, body } = splitFrontmatter(content)
-  return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(serializeMarkdownBody(body)))
-}
-
 /**
  * Whether `content` survives the editor's markdown round-trip without data loss or autosave
  * churn. The editor opens the content read-only when this is false, so the probe is deliberately
  * conservative: it rejects on any doubt rather than risk an edit silently corrupting a file.
  *
  * Two complementary checks: known stable-loss constructs are matched directly (the idempotency
- * probe is blind to them), and everything else must reach a fixpoint — `serialize(x)` twice in a
- * row must be byte-identical, so the first edit can't churn the file. Lossless normalizations
- * (`_`→`*`, setext→ATX, autolink→inline, loose→tight lists) reach a fixpoint after one pass and
- * are allowed through; genuine churn (a blockquote wrapping a code fence keeps growing) is not.
+ * probe is blind to them), and everything else must reach a fixpoint — `serializeMarkdownDocument(x)`
+ * twice in a row must be byte-identical, so the first edit can't churn the file. Lossless
+ * normalizations (`_`→`*`, setext→ATX, autolink→inline, loose→tight lists) reach a fixpoint after one
+ * pass and are allowed through; genuine churn (a blockquote wrapping a code fence keeps growing) is not.
  */
 export function isRoundTripSafe(content: string): boolean {
   if (content.length > PROBE_SIZE_LIMIT) return false
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped))) return false
   try {
-    const once = serialize(content)
+    const once = serializeMarkdownDocument(content)
     if (linkedImageCount(stripped) !== linkedImageCount(stripCode(once))) return false
-    return serialize(once) === once
+    return serializeMarkdownDocument(once) === once
   } catch {
     return false
   }

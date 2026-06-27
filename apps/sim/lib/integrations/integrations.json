@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-25",
+  "updatedAt": "2026-06-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -4198,6 +4198,85 @@
       "tags": ["e-signatures", "document-processing"]
     },
     {
+      "type": "downdetector",
+      "slug": "downdetector",
+      "name": "Downdetector",
+      "description": "Monitor outages and service status with Downdetector",
+      "longDescription": "Track real-time service outages with the Downdetector Enterprise API. Search monitored companies, read their current status and report trends, inspect problem indicators, and pull incident timelines to power outage alerts and dashboards. Requires a Downdetector Enterprise API plan.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DowndetectorIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/downdetector",
+      "operations": [
+        {
+          "name": "Search Companies",
+          "description": "Search Downdetector for monitored companies by name, slug, country, or category. Returns matching companies with their ids and slugs, which you can use with the other Downdetector operations."
+        },
+        {
+          "name": "Get Company",
+          "description": "Get details for a Downdetector company by id, including its current status, 24h report statistics, baseline, and available problem indicators."
+        },
+        {
+          "name": "Get Company Status",
+          "description": "Get the current detected status for a Downdetector company. Returns \"success\" (no problems), \"warning\", or \"danger\" (likely outage)."
+        },
+        {
+          "name": "Get Company Baseline",
+          "description": "Get the current baseline report value for a Downdetector company. This is the expected average number of reports for the current period, used to judge whether current reports are abnormal."
+        },
+        {
+          "name": "Get Company Last 15 Minutes",
+          "description": "Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting."
+        },
+        {
+          "name": "Get Company Indicators",
+          "description": "Get the problem indicators (e.g. \"App crashing\", \"Login\", \"Server connection\") reported for a Downdetector company over a time period, with the report counts and percentages for each."
+        },
+        {
+          "name": "Get Reports",
+          "description": "Get the number of outage reports over time for one or more company slugs, bucketed by interval. Useful for plotting report trends or detecting spikes. Defaults to the last 24 hours."
+        },
+        {
+          "name": "Get Company Incidents",
+          "description": "Get the list of incidents (outages) for a Downdetector company. Defaults to the last 24 hours unless a date range is provided."
+        },
+        {
+          "name": "Get Company Attribution",
+          "description": "Get the incident attribution for a Downdetector company while it is in an outage state — whether the issue is internal (isolated) or external (a dependency), the estimated user impact, and the related incident. Requires Incident Attribution access."
+        },
+        {
+          "name": "Get Company Events",
+          "description": "Get the published events (such as detected outages) for a Downdetector company, including the measured vs expected report volume for each event."
+        },
+        {
+          "name": "Get Site Companies",
+          "description": "List the companies monitored on a Downdetector site, including each company’s current status. Useful for discovering the companies available on a regional status page."
+        },
+        {
+          "name": "Get Provider",
+          "description": "Get details for a Downdetector provider (ISP or network operator) by id, such as its name and Downdetector id."
+        },
+        {
+          "name": "List Incidents",
+          "description": "List all incidents (outages) across every company that were active in the chosen time period, or in the last 24 hours if no date range is provided."
+        },
+        {
+          "name": "List Categories",
+          "description": "List all Downdetector categories (e.g. \"Telecom\", \"Gaming\", \"Social Media\"). Use the returned category id to filter company searches."
+        },
+        {
+          "name": "List Sites",
+          "description": "List all available Downdetector sites (regional status-page domains). Each site groups the companies monitored for a given country/region."
+        }
+      ],
+      "operationCount": 15,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "observability"]
+    },
+    {
       "type": "dropbox",
       "slug": "dropbox",
       "name": "Dropbox",
@@ -7727,7 +7806,7 @@
       "name": "Icypeas",
       "description": "Find and verify professional email addresses",
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
-      "bgColor": "#0EA5E9",
+      "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
       "docsUrl": "https://docs.sim.ai/tools/icypeas",
       "operations": [
@@ -16839,6 +16918,213 @@
       "tags": ["automation"]
     },
     {
+      "type": "thrive",
+      "slug": "thrive",
+      "name": "Thrive",
+      "description": "Manage users, audiences, learning and CPD on Thrive",
+      "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ThriveIcon",
+      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "operations": [
+        {
+          "name": "Create User",
+          "description": "Create a new user in Thrive."
+        },
+        {
+          "name": "Update User",
+          "description": "Update an existing user in Thrive by ref. Only the fields provided are changed."
+        },
+        {
+          "name": "Delete User",
+          "description": "Permanently delete (obfuscate) a user in Thrive by ref while retaining training history."
+        },
+        {
+          "name": "Suspend User",
+          "description": "Suspend a user in Thrive by ref, marking the account inactive."
+        },
+        {
+          "name": "Search Users",
+          "description": "Search users in Thrive and return basic user information with pagination."
+        },
+        {
+          "name": "Get User by ID",
+          "description": "Get a single user in Thrive by their ID and return basic user information."
+        },
+        {
+          "name": "Get User by Ref",
+          "description": "Get a single user in Thrive by their ref and return basic user information."
+        },
+        {
+          "name": "List Audiences",
+          "description": "List audiences and structures in Thrive with pagination."
+        },
+        {
+          "name": "Create Audience",
+          "description": "Create a new audience or structure in Thrive."
+        },
+        {
+          "name": "Get Audience",
+          "description": "Get a single audience or structure in Thrive by id or reference."
+        },
+        {
+          "name": "Update Audience",
+          "description": "Update an audience in Thrive, optionally moving it to a new parent."
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience in Thrive (only if it has no child audiences)."
+        },
+        {
+          "name": "List Audience Members",
+          "description": "List the members of a Thrive audience with pagination."
+        },
+        {
+          "name": "Add Audience Members",
+          "description": "Add members to a Thrive audience by email, ref, or id."
+        },
+        {
+          "name": "Replace Audience Members",
+          "description": "Replace a Thrive audience's entire members list with the given users (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Member",
+          "description": "Remove a single member from a Thrive audience."
+        },
+        {
+          "name": "List Audience Managers",
+          "description": "List the managers of a Thrive audience."
+        },
+        {
+          "name": "Add Audience Managers",
+          "description": "Add managers to a Thrive audience with their permissions."
+        },
+        {
+          "name": "Replace Audience Managers",
+          "description": "Replace a Thrive audience's entire manager list with the given managers (does not support an empty array)."
+        },
+        {
+          "name": "Remove Audience Manager",
+          "description": "Remove a single manager from a Thrive audience."
+        },
+        {
+          "name": "List Assignments",
+          "description": "List compliance assignments in Thrive, optionally filtered by audience."
+        },
+        {
+          "name": "Create Assignment",
+          "description": "Create a compliance assignment in Thrive for an audience and content item."
+        },
+        {
+          "name": "Get Assignment",
+          "description": "Get a single compliance assignment in Thrive by its ID."
+        },
+        {
+          "name": "Update Assignment",
+          "description": "Update a compliance assignment in Thrive."
+        },
+        {
+          "name": "Delete Assignment",
+          "description": "Delete a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Enrolments",
+          "description": "List enrolments for a compliance assignment in Thrive."
+        },
+        {
+          "name": "Get Enrolment",
+          "description": "Get a single enrolment for a compliance assignment in Thrive."
+        },
+        {
+          "name": "List Completions",
+          "description": "List learning completion records in Thrive, optionally filtered by user or content."
+        },
+        {
+          "name": "Get Completion",
+          "description": "Get a single learning completion record in Thrive by its ID."
+        },
+        {
+          "name": "Create Completion",
+          "description": "Record a learning completion in Thrive for a user and content item."
+        },
+        {
+          "name": "Query Content",
+          "description": "Query content records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Content",
+          "description": "Get a single content record in Thrive by its ID."
+        },
+        {
+          "name": "Query Activities",
+          "description": "Query activity records in Thrive with pagination and filtering options."
+        },
+        {
+          "name": "Get Activity",
+          "description": "Get a single activity record in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Categories",
+          "description": "Query CPD categories in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Category",
+          "description": "Get a single CPD category in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Entries",
+          "description": "Query CPD log entries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Entry",
+          "description": "Get a single CPD log entry in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD Requirements",
+          "description": "Query CPD requirement summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "Get CPD Requirement",
+          "description": "Get a single CPD requirement summary in Thrive by its ID."
+        },
+        {
+          "name": "Query CPD User Summaries",
+          "description": "Query CPD user log summaries in Thrive and return results with pagination."
+        },
+        {
+          "name": "List Tags",
+          "description": "List tags in Thrive and return tag information with pagination."
+        },
+        {
+          "name": "Get Tag",
+          "description": "Get a single tag in Thrive by its ID."
+        },
+        {
+          "name": "Add User Tags",
+          "description": "Add one or more tags to a learner in Thrive."
+        },
+        {
+          "name": "Remove User Tags",
+          "description": "Remove one or more tags from a learner in Thrive."
+        },
+        {
+          "name": "Update User Skills",
+          "description": "Update skills and levels for a learner in Thrive."
+        },
+        {
+          "name": "Get Skill Levels",
+          "description": "Get the available skill levels configured in Thrive."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "tinybird",
       "slug": "tinybird",
       "name": "Tinybird",
@@ -17314,6 +17600,121 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"]
+    },
+    {
+      "type": "uptimerobot",
+      "slug": "uptimerobot",
+      "name": "UptimeRobot",
+      "description": "Monitor uptime, manage incidents, maintenance windows, and status pages",
+      "longDescription": "Integrate UptimeRobot into your workflow. Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.",
+      "bgColor": "#111921",
+      "iconName": "UptimeRobotIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/uptimerobot",
+      "operations": [
+        {
+          "name": "List Monitors",
+          "description": "List monitors in your UptimeRobot account, with optional filters and pagination"
+        },
+        {
+          "name": "Get Monitor",
+          "description": "Get the details of a single UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Create Monitor",
+          "description": "Create a new monitor in UptimeRobot"
+        },
+        {
+          "name": "Update Monitor",
+          "description": "Update an existing UptimeRobot monitor. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Monitor",
+          "description": "Permanently delete an UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Pause Monitor",
+          "description": "Pause an UptimeRobot monitor so it stops running checks"
+        },
+        {
+          "name": "Start Monitor",
+          "description": "Resume a paused UptimeRobot monitor so it starts running checks again"
+        },
+        {
+          "name": "List Incidents",
+          "description": "List incidents across your UptimeRobot account (last 24 hours by default), with optional filters"
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get the details of a single UptimeRobot incident by ID"
+        },
+        {
+          "name": "List Maintenance Windows",
+          "description": "List maintenance windows in your UptimeRobot account"
+        },
+        {
+          "name": "Get Maintenance Window",
+          "description": "Get the details of a single UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "Create Maintenance Window",
+          "description": "Create a new maintenance window to suppress alerts during planned downtime"
+        },
+        {
+          "name": "Update Maintenance Window",
+          "description": "Update an existing maintenance window. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Maintenance Window",
+          "description": "Permanently delete an UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "List Alert Contacts",
+          "description": "List the personal alert contacts in your UptimeRobot account"
+        },
+        {
+          "name": "Get Alert Contact",
+          "description": "Get the details of a single UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "Create Alert Contact",
+          "description": "Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts."
+        },
+        {
+          "name": "Delete Alert Contact",
+          "description": "Permanently delete an UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "List Status Pages",
+          "description": "List the public status pages in your UptimeRobot account"
+        },
+        {
+          "name": "Get Status Page",
+          "description": "Get the details of a single UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Create Status Page",
+          "description": "Create a public status page in UptimeRobot, optionally with a logo and icon image"
+        },
+        {
+          "name": "Update Status Page",
+          "description": "Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced."
+        },
+        {
+          "name": "Delete Status Page",
+          "description": "Permanently delete an UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get details about the authenticated UptimeRobot account, including plan and limits"
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "automation"]
     },
     {
       "type": "vanta",

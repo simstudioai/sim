@@ -52,7 +52,7 @@ export const BLOCK_STAGGER = 0.12
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 const EDGE_STYLE = { stroke: 'var(--wp-edge)', strokeWidth: 1.5 } as const
-const EDGE_STYLE_HIGHLIGHT = { stroke: '#33b4ff', strokeWidth: 2.5 } as const
+const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--wp-highlight)', strokeWidth: 2.5 } as const
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {

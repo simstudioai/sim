@@ -13,6 +13,7 @@ const poolOptions = {
   idle_timeout: 20,
   connect_timeout: 30,
   onnotice: () => {},
+  connection: { application_name: process.env.DB_APP_NAME ?? 'sim-app' },
 }
 
 const postgresClient = instrumentPoolClient(
