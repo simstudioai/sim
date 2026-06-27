@@ -132,6 +132,10 @@ describe('isRetryableError', () => {
     it.concurrent('returns true for "service unavailable" in message', () => {
       expect(isRetryableError(new Error('The service unavailable right now'))).toBe(true)
     })
+
+    it.concurrent('returns true for a transient DNS resolution failure', () => {
+      expect(isRetryableError(new Error('url hostname could not be resolved'))).toBe(true)
+    })
   })
 
   describe('case insensitivity', () => {
@@ -177,6 +181,10 @@ describe('isRetryableError', () => {
 
     it.concurrent('returns false for plain object with non-retryable status and no message', () => {
       expect(isRetryableError({ status: 500 })).toBe(false)
+    })
+
+    it.concurrent('returns false for the deterministic blocked-IP SSRF rejection', () => {
+      expect(isRetryableError(new Error('url resolves to a blocked IP address'))).toBe(false)
     })
   })
 })
