@@ -9,6 +9,12 @@ import {
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
+import {
+  type ExecutionProgressMarkers,
+  getProgressMarkers,
+  pickLatestCompletedMarker,
+  pickLatestStartedMarker,
+} from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -77,6 +83,10 @@ interface FetchLogDetailArgs {
  * Shared loader for the workflow-log detail shape returned by the by-id and
  * by-execution routes. Returns `null` when no matching row exists in either
  * the workflow-execution or job-execution tables for this user + workspace.
+ *
+ * For in-flight (running/pending) executions, live progress markers are merged
+ * from Redis, since they are only folded into the row at a terminal/pause
+ * boundary.
  */
 export async function fetchLogDetail({
   userId,
@@ -165,6 +175,20 @@ export async function fetchLogDetail({
       { workspaceId, workflowId: log.workflowId, executionId: log.executionId }
     )
 
+    const liveMarkers =
+      log.status === 'running' || log.status === 'pending'
+        ? ((await getProgressMarkers(log.executionId)) ?? {})
+        : {}
+    const rowMarkers = (executionData ?? {}) as ExecutionProgressMarkers
+    const mergedStartedBlock = pickLatestStartedMarker(
+      liveMarkers.lastStartedBlock,
+      rowMarkers.lastStartedBlock
+    )
+    const mergedCompletedBlock = pickLatestCompletedMarker(
+      liveMarkers.lastCompletedBlock,
+      rowMarkers.lastCompletedBlock
+    )
+
     return {
       id: log.id,
       workflowId: log.workflowId,
@@ -190,6 +214,8 @@ export async function fetchLogDetail({
       executionData: {
         totalDuration: log.totalDurationMs,
         ...executionData,
+        ...(mergedStartedBlock ? { lastStartedBlock: mergedStartedBlock } : {}),
+        ...(mergedCompletedBlock ? { lastCompletedBlock: mergedCompletedBlock } : {}),
         enhanced: true as const,
       },
       files: log.files ?? null,
