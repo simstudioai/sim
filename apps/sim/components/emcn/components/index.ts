@@ -76,17 +76,15 @@ export {
   Code,
   calculateGutterWidth,
   getCodeEditorProps,
-  highlight,
-  languages,
 } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
+export { highlight, languages } from './code/prism'
 export { CollapsibleCard, type CollapsibleCardProps } from './collapsible-card/collapsible-card'
 export {
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
 } from './combobox/combobox'
-export { DatePicker, datePickerVariants } from './date-picker/date-picker'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,

@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
@@ -88,7 +89,7 @@ export function MemberSection({
   return (
     <SettingsSection label={label}>
       {isEmpty ? (
-        <div className='py-4 text-center text-[var(--text-muted)] text-sm'>{emptyText}</div>
+        <SettingsEmptyState variant='inline'>{emptyText}</SettingsEmptyState>
       ) : (
         <div className='-mx-2 flex flex-col gap-y-0.5'>{children}</div>
       )}

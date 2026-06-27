@@ -16,11 +16,11 @@ import {
   Card as CardIcon,
   Checkbox,
   ChevronDown,
+  ChipDatePicker,
   Code,
   Combobox,
   Connections,
   Cursor,
-  DatePicker,
   DocumentAttachment,
   Download,
   Duplicate,
@@ -772,24 +772,24 @@ export default function PlaygroundPage() {
               </VariantRow>
             </Section>
 
-            {/* DatePicker */}
-            <Section title='DatePicker'>
+            {/* ChipDatePicker */}
+            <Section title='ChipDatePicker'>
               <VariantRow label='single date'>
                 <div className='w-56'>
-                  <DatePicker value={dateValue} onChange={setDateValue} placeholder='Select date' />
+                  <ChipDatePicker
+                    value={dateValue}
+                    onChange={setDateValue}
+                    placeholder='Select date'
+                    fullWidth
+                  />
                 </div>
                 <span className='text-[var(--text-secondary)] text-sm'>
                   {dateValue || 'No date'}
                 </span>
               </VariantRow>
-              <VariantRow label='size sm'>
-                <div className='w-56'>
-                  <DatePicker placeholder='Small size' size='sm' onChange={() => {}} />
-                </div>
-              </VariantRow>
               <VariantRow label='range mode'>
                 <div className='w-72'>
-                  <DatePicker
+                  <ChipDatePicker
                     mode='range'
                     startDate={dateRangeStart}
                     endDate={dateRangeEnd}
@@ -798,16 +798,30 @@ export default function PlaygroundPage() {
                       setDateRangeEnd(end)
                     }}
                     placeholder='Select date range'
+                    fullWidth
+                  />
+                </div>
+              </VariantRow>
+              <VariantRow label='range mode (with time)'>
+                <div className='w-72'>
+                  <ChipDatePicker
+                    mode='range'
+                    showTime
+                    startDate={dateRangeStart}
+                    endDate={dateRangeEnd}
+                    onRangeChange={(start, end) => {
+                      setDateRangeStart(start)
+                      setDateRangeEnd(end)
+                    }}
+                    placeholder='Select date range'
+                    fullWidth
                   />
                 </div>
               </VariantRow>
               <VariantRow label='disabled'>
                 <div className='w-56'>
-                  <DatePicker value='2025-01-15' disabled />
+                  <ChipDatePicker value='2025-01-15' disabled fullWidth />
                 </div>
-              </VariantRow>
-              <VariantRow label='inline'>
-                <DatePicker inline value={dateValue} onChange={setDateValue} />
               </VariantRow>
             </Section>
 

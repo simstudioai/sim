@@ -1,0 +1,367 @@
+---
+title: Downdetector
+description: Monitor outages and service status with Downdetector
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="downdetector"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Track real-time service outages with the Downdetector Enterprise API. Search monitored companies, read their current status and report trends, inspect problem indicators, and pull incident timelines to power outage alerts and dashboards. Requires a Downdetector Enterprise API plan.
+
+
+
+## Actions
+
+### `downdetector_search_companies`
+
+Search Downdetector for monitored companies by name, slug, country, or category. Returns matching companies with their ids and slugs, which you can use with the other Downdetector operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | No | Company name to filter on \(partial, case-insensitive match\). Example: "slack" |
+| `country` | string | No | ISO-2 country code to filter on. Example: "US" |
+| `slug` | string | No | Exact company slug to filter on. Example: "optimum-cablevision" |
+| `categoryId` | number | No | Category id to filter on |
+| `page` | number | No | 1-indexed page number for paginated results \(default 1\) |
+| `pageSize` | number | No | Number of results per page, between 10 and 100 \(default 25\) |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | List of companies matching the search |
+|   ↳ `id` | number | Company id |
+|   ↳ `name` | string | Company name |
+|   ↳ `slug` | string | Company slug |
+|   ↳ `url` | string | Company status page URL |
+|   ↳ `countryIso` | string | ISO-2 country code |
+|   ↳ `categoryId` | number | Category id |
+
+### `downdetector_get_company`
+
+Get details for a Downdetector company by id, including its current status, 24h report statistics, baseline, and available problem indicators.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `fields` | string | No | Comma-separated list of fields to return \(defaults to a rich set including status, stats_24, and baseline\) |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Company details |
+|   ↳ `id` | number | Company id |
+|   ↳ `name` | string | Company name |
+|   ↳ `slug` | string | Company slug |
+|   ↳ `url` | string | Company status page URL |
+|   ↳ `status` | string | Cached current status \(success, warning, or danger\) |
+|   ↳ `categoryId` | number | Category id |
+|   ↳ `countryIso` | string | ISO-2 country code |
+|   ↳ `siteId` | number | Site id |
+|   ↳ `baselineCurrent` | number | The current considered average reports at this point in time |
+|   ↳ `stats24` | array | Reports over the last 24h in 15-minute buckets |
+|   ↳ `baseline` | array | Averaged baseline values per 15m over 24h |
+|   ↳ `indicators` | array | List of available problem indicators |
+|   ↳ `description` | string | Company description |
+
+### `downdetector_get_company_status`
+
+Get the current detected status for a Downdetector company. Returns "success" (no problems), "warning", or "danger" (likely outage).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `threshold` | number | No | If set, returns "danger" when the current report count is above this threshold, otherwise "success" |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current status: "success", "warning", or "danger" |
+
+### `downdetector_get_company_baseline`
+
+Get the current baseline report value for a Downdetector company. This is the expected average number of reports for the current period, used to judge whether current reports are abnormal.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `baseline` | number | The current baseline \(expected average reports\) for this period |
+
+### `downdetector_get_company_last_15`
+
+Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of reports over the last 15 minutes |
+
+### `downdetector_get_company_indicators`
+
+Get the problem indicators (e.g. "App crashing", "Login", "Server connection") reported for a Downdetector company over a time period, with the report counts and percentages for each.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `startdate` | string | No | ISO 8601 start of the time range \(only works together with enddate\) |
+| `enddate` | string | No | ISO 8601 end of the time range \(only works together with startdate\) |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indicators` | array | Reported problem indicators with their counts |
+|   ↳ `slug` | string | Indicator slug |
+|   ↳ `indicator` | string | Human-readable indicator label |
+|   ↳ `key` | string | Indicator key |
+|   ↳ `amount` | number | Number of reports for this indicator |
+|   ↳ `percentage` | number | Share of total reports \(percentage\) |
+
+### `downdetector_get_reports`
+
+Get the number of outage reports over time for one or more company slugs, bucketed by interval. Useful for plotting report trends or detecting spikes. Defaults to the last 24 hours.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `slugs` | string | Yes | Comma-separated company slug\(s\) to report on. Example: "slack,zoom" |
+| `startdate` | string | No | ISO 8601 start of the time range \(only works together with enddate\) |
+| `enddate` | string | No | ISO 8601 end of the time range \(only works together with startdate\) |
+| `interval` | string | No | Bucket interval, e.g. "15m", "1h", "1d" \(default "15m"\) |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Report counts bucketed by interval |
+|   ↳ `pointInTime` | string | Start of the time bucket \(ISO 8601\) |
+|   ↳ `total` | number | Total number of reports in the bucket |
+|   ↳ `indicators` | number | Number of indicator reports |
+|   ↳ `other` | number | Number of reports from other sources |
+
+### `downdetector_get_company_incidents`
+
+Get the list of incidents (outages) for a Downdetector company. Defaults to the last 24 hours unless a date range is provided.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `onlyActive` | boolean | No | When true, only the currently active incident is returned |
+| `startdate` | string | No | ISO 8601 start of the time range \(only works together with enddate\) |
+| `enddate` | string | No | ISO 8601 end of the time range \(only works together with startdate\) |
+| `page` | number | No | Requested page number \(1-indexed\) |
+| `pageSize` | number | No | Number of results per page, between 10 and 100 |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents for the company |
+
+### `downdetector_get_company_attribution`
+
+Get the incident attribution for a Downdetector company while it is in an outage state — whether the issue is internal (isolated) or external (a dependency), the estimated user impact, and the related incident. Requires Incident Attribution access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attribution` | object | Incident attribution detail |
+|   ↳ `attribution` | number | Attribution enum \(0 N/A, 1 undetermined, 2 external, 3 internal\) |
+|   ↳ `attributionCalculatedAt` | string | ISO 8601 timestamp when attribution was calculated |
+|   ↳ `userImpact` | number | User impact enum \(0 low, 1 medium, 2 high, 3 very high\) |
+|   ↳ `userImpactCalculatedAt` | string | ISO 8601 timestamp when user impact was calculated |
+|   ↳ `reason` | number | Reason enum explaining how the attribution value was calculated \(0-7\) |
+|   ↳ `dangerDurationS` | number | Duration of the current danger \(outage\) state in seconds |
+|   ↳ `incidentId` | number | Id of the related incident \(null when attribution is N/A\) |
+|   ↳ `incidentCreatedAt` | string | ISO 8601 timestamp when the related incident was created |
+
+### `downdetector_get_company_events`
+
+Get the published events (such as detected outages) for a Downdetector company, including the measured vs expected report volume for each event.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | The Downdetector company id |
+| `startdate` | string | No | ISO 8601 start of the time range \(only works together with enddate\) |
+| `enddate` | string | No | ISO 8601 end of the time range \(only works together with startdate\) |
+| `page` | number | No | Requested page number \(1-indexed\) |
+| `pageSize` | number | No | Number of results per page, between 10 and 100 |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of events for the company |
+|   ↳ `id` | number | Event id |
+|   ↳ `title` | string | Localized event title |
+|   ↳ `body` | string | Localized event body |
+|   ↳ `companyId` | number | Id of the impacted company |
+|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+|   ↳ `publishAt` | string | ISO 8601 publish timestamp |
+|   ↳ `isActive` | boolean | Whether the event is ongoing |
+|   ↳ `measurement` | object | Measured vs expected report volume for the event window |
+|     ↳ `startedOn` | string | Measurement window start \(ISO 8601\) |
+|     ↳ `endedOn` | string | Measurement window end \(ISO 8601\) |
+|     ↳ `expected` | number | Expected reports based on historic data |
+|     ↳ `actual` | number | Actual reports in the window |
+
+### `downdetector_get_site_companies`
+
+List the companies monitored on a Downdetector site, including each company’s current status. Useful for discovering the companies available on a regional status page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | The Downdetector site id |
+| `fields` | string | No | Comma-separated company fields to return \(defaults to id, name, slug, status\) |
+| `page` | string | No | Opaque page token from a previous response \(X-Page-Next\) for the next page |
+| `pageSize` | number | No | Number of results per page, between 10 and 100 |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | List of companies on the site |
+|   ↳ `id` | number | Company id |
+|   ↳ `name` | string | Company name |
+|   ↳ `slug` | string | Company slug |
+|   ↳ `url` | string | Company status page URL |
+|   ↳ `status` | string | Cached current status \(success, warning, or danger\) |
+|   ↳ `countryIso` | string | ISO-2 country code |
+|   ↳ `categoryId` | number | Category id |
+
+### `downdetector_get_provider`
+
+Get details for a Downdetector provider (ISP or network operator) by id, such as its name and Downdetector id.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `providerId` | string | Yes | The Downdetector provider id |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `provider` | object | Provider details |
+|   ↳ `id` | number | Provider id |
+|   ↳ `name` | string | Provider name |
+|   ↳ `downdetectorId` | number | Downdetector internal provider id |
+
+### `downdetector_list_incidents`
+
+List all incidents (outages) across every company that were active in the chosen time period, or in the last 24 hours if no date range is provided.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `onlyActive` | boolean | No | When true, only currently active incidents are returned |
+| `startdate` | string | No | ISO 8601 start of the time range \(only works together with enddate\) |
+| `enddate` | string | No | ISO 8601 end of the time range \(only works together with startdate\) |
+| `page` | number | No | Requested page number \(1-indexed\) |
+| `pageSize` | number | No | Number of results per page, between 10 and 100 |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents across all companies |
+
+### `downdetector_list_categories`
+
+List all Downdetector categories (e.g. "Telecom", "Gaming", "Social Media"). Use the returned category id to filter company searches.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | array | List of Downdetector categories |
+|   ↳ `id` | number | Category id |
+|   ↳ `name` | string | Category name |
+|   ↳ `slug` | string | Category slug |
+
+### `downdetector_list_sites`
+
+List all available Downdetector sites (regional status-page domains). Each site groups the companies monitored for a given country/region.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Downdetector API Bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sites` | array | List of Downdetector sites |
+|   ↳ `id` | number | Site id |
+|   ↳ `name` | string | Site name |
+|   ↳ `domain` | string | Site domain |
+|   ↳ `countryId` | number | Country id for the site |
+
+

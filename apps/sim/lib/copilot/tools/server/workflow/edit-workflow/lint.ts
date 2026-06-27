@@ -65,11 +65,11 @@ export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
   inactiveModeValues: InactiveModeValue[]
 }
 
-/** Tier-2 (async, DB) credential/resource reference that does not resolve to an accessible entity. */
+/** Tier-2 (async, DB) reference that does not resolve to an accessible entity. */
 export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource'
+  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
   reason: string
 }
 
@@ -351,9 +351,23 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
   }
 
   const unresolved = lint.unresolvedReferences ?? []
-  if (unresolved.length > 0) {
+  const credResourceRefs = unresolved.filter(
+    (ref) => ref.kind === 'credential' || ref.kind === 'resource'
+  )
+  if (credResourceRefs.length > 0) {
     parts.push(
-      `Credential/resource references that do not resolve: ${unresolved
+      `Credential/resource references that do not resolve: ${credResourceRefs
+        .map((ref) => `"${ref.blockName || ref.blockId}".${ref.field} (${ref.reason})`)
+        .join(', ')}`
+    )
+  }
+
+  const toolSkillRefs = unresolved.filter(
+    (ref) => ref.kind === 'custom-tool' || ref.kind === 'mcp-tool' || ref.kind === 'skill'
+  )
+  if (toolSkillRefs.length > 0) {
+    parts.push(
+      `Agent tool/skill references that do not resolve (they will not attach at runtime): ${toolSkillRefs
         .map((ref) => `"${ref.blockName || ref.blockId}".${ref.field} (${ref.reason})`)
         .join(', ')}`
     )

@@ -21,6 +21,7 @@ describe('parseSkillMarkdown', () => {
       name: 'my-skill',
       description: 'Does something useful',
       content: '# Instructions\nUse this skill to do things.',
+      nameFromFrontmatter: true,
     })
   })
 
@@ -31,6 +32,7 @@ describe('parseSkillMarkdown', () => {
       name: 'my-skill',
       description: 'A quoted description',
       content: 'Body',
+      nameFromFrontmatter: true,
     })
   })
 
@@ -41,6 +43,7 @@ describe('parseSkillMarkdown', () => {
       name: 'api-tool',
       description: 'API key: required for auth',
       content: 'Body',
+      nameFromFrontmatter: true,
     })
   })
 
@@ -61,6 +64,7 @@ describe('parseSkillMarkdown', () => {
       name: 'add-block-skill',
       description: 'A tool for blocks',
       content: '# Add Block Skill\n\nContent here.',
+      nameFromFrontmatter: false,
     })
   })
 
@@ -71,6 +75,7 @@ describe('parseSkillMarkdown', () => {
       name: 'my-cool-tool',
       description: '',
       content: '# My Cool Tool\n\nSome instructions.',
+      nameFromFrontmatter: false,
     })
   })
 
@@ -81,6 +86,7 @@ describe('parseSkillMarkdown', () => {
       name: '',
       description: '',
       content: 'Just some plain text without any structure.',
+      nameFromFrontmatter: false,
     })
   })
 
@@ -89,6 +95,7 @@ describe('parseSkillMarkdown', () => {
       name: '',
       description: '',
       content: '',
+      nameFromFrontmatter: false,
     })
   })
 
@@ -107,6 +114,7 @@ describe('parseSkillMarkdown', () => {
       name: 'solo',
       description: 'Just frontmatter',
       content: '',
+      nameFromFrontmatter: true,
     })
   })
 
@@ -116,6 +124,14 @@ describe('parseSkillMarkdown', () => {
     const result = parseSkillMarkdown(input)
     expect(result.name).toBe('')
     expect(result.content).toBe(input)
+  })
+
+  it('flags nameFromFrontmatter only for a real YAML name key (the paste-destructure gate)', () => {
+    expect(parseSkillMarkdown('---\nname: real\n---\nBody').nameFromFrontmatter).toBe(true)
+    // A `---` thematic break + heading must NOT count — it would wrongly destructure on paste.
+    expect(parseSkillMarkdown('---\n# Setup Guide\nnotes').nameFromFrontmatter).toBe(false)
+    // A changelog whose second `---` closes the regex but has no name key.
+    expect(parseSkillMarkdown('---\n\n## v2.0\n\n---\n\n## v1.0').nameFromFrontmatter).toBe(false)
   })
 
   it('trims whitespace from input', () => {

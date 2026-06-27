@@ -4,6 +4,8 @@ interface ParsedSkill {
   name: string
   description: string
   content: string
+  /** True only when `name` came from a real YAML `name:` key (not inferred from a heading). */
+  nameFromFrontmatter: boolean
 }
 
 const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/
@@ -31,6 +33,7 @@ export function parseSkillMarkdown(raw: string): ParsedSkill {
       name: inferNameFromHeading(trimmed),
       description: '',
       content: trimmed,
+      nameFromFrontmatter: false,
     }
   }
 
@@ -57,11 +60,12 @@ export function parseSkillMarkdown(raw: string): ParsedSkill {
     }
   }
 
+  const nameFromFrontmatter = name !== ''
   if (!name) {
     name = inferNameFromHeading(body)
   }
 
-  return { name, description, content: body }
+  return { name, description, content: body, nameFromFrontmatter }
 }
 
 /**

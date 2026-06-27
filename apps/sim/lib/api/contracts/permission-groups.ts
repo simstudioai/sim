@@ -8,6 +8,7 @@ export const permissionGroupFullConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable(),
   allowedModelProviders: z.array(z.string()).nullable(),
   deniedModels: z.array(z.string()).default([]),
+  deniedTools: z.array(z.string()).default([]),
   hideTraceSpans: z.boolean(),
   hideKnowledgeBaseTab: z.boolean(),
   hideTablesTab: z.boolean(),
