@@ -1669,6 +1669,7 @@ main article blockquote {
   --wp-chip-text: var(--text-body);
   --wp-divider: #ededed; /* --divider */
   --wp-edge: #e0e0e0; /* --workflow-edge */
+  --wp-highlight: #33b4ff; /* traced edge / highlighted output node */
 
   /* text */
   --wp-text: var(--text-primary);
