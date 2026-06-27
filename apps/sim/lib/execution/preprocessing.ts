@@ -60,6 +60,14 @@ export interface PreprocessExecutionOptions {
   useDraftState?: boolean
   /** Pre-fetched workflow row for caller context; preprocessing still re-checks active state. */
   workflowRecord?: WorkflowRecord
+  /**
+   * Billing actor already resolved by an upstream gate earlier in the same
+   * request (e.g. the webhook route's preprocessing pass, whose result is carried
+   * as the job's userId). When provided, the redundant workspace billed-account
+   * lookup is skipped. The ban, deployment, usage, and rate-limit gates still run
+   * against this actor — only the resolution is reused, never a gate.
+   */
+  resolvedActorUserId?: string
 }
 
 /**
@@ -111,6 +119,7 @@ export async function preprocessExecution(
     isResumeContext: _isResumeContext = false,
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
+    resolvedActorUserId,
   } = options
 
   // When `logPreprocessingErrors` is false the caller surfaces failures itself
@@ -258,6 +267,14 @@ export async function preprocessExecution(
     if (useAuthenticatedUserAsActor && userId) {
       actorUserId = userId
       logger.info(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
+    }
+
+    // Reuse an actor already resolved upstream this request (e.g. the webhook
+    // route's preprocessing) to skip the redundant workspace billed-account
+    // lookup. Gates below still run against this actor.
+    if (!actorUserId && resolvedActorUserId) {
+      actorUserId = resolvedActorUserId
+      logger.info(`[${requestId}] Using pre-resolved billing actor: ${actorUserId}`)
     }
 
     if (!actorUserId && workspaceId) {

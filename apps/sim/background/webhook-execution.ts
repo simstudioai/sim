@@ -367,6 +367,10 @@ async function executeWebhookJobInternal(
     skipUsageLimits: true,
     workspaceId: payload.workspaceId,
     loggingSession,
+    // The webhook route already resolved the billing actor and carried it as
+    // payload.userId. Reuse it to skip the redundant billed-account lookup; the
+    // ban and archived-workflow gates still run fresh here.
+    resolvedActorUserId: payload.userId,
   })
 
   if (!preprocessResult.success) {

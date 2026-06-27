@@ -37,18 +37,52 @@ export class SnapshotService implements ISnapshotService {
       stateData: state,
     }
 
-    const [upsertedSnapshot] = await db
+    /**
+     * Insert the snapshot, or do nothing if a row already exists for this
+     * (workflowId, stateHash). The hash is a sha256 of the normalized state, so
+     * an existing row's stateData is byte-identical — there is nothing to update.
+     *
+     * The previous implementation used onConflictDoUpdate(set state_data), which
+     * rewrote the full (tens-of-KB) state jsonb on every execution. Under Postgres
+     * MVCC that churned a dead tuple + TOAST/WAL per run for no change.
+     * onConflictDoNothing avoids the write entirely on the reuse path.
+     */
+    const [insertedSnapshot] = await db
       .insert(workflowExecutionSnapshots)
       .values(snapshotData)
-      .onConflictDoUpdate({
+      .onConflictDoNothing({
         target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
-        set: {
-          stateData: sql`excluded.state_data`,
-        },
       })
       .returning()
 
-    const isNew = upsertedSnapshot.id === snapshotData.id
+    const isNew = Boolean(insertedSnapshot)
+
+    /**
+     * On conflict the insert returns no row, so load the existing snapshot by its
+     * unique (workflowId, stateHash). A freshly created snapshot cannot be removed
+     * in this window — cleanupOrphanedSnapshots only targets rows older than its
+     * cutoff — so this lookup is guaranteed to resolve.
+     */
+    const snapshotRow =
+      insertedSnapshot ??
+      (
+        await db
+          .select()
+          .from(workflowExecutionSnapshots)
+          .where(
+            and(
+              eq(workflowExecutionSnapshots.workflowId, workflowId),
+              eq(workflowExecutionSnapshots.stateHash, stateHash)
+            )
+          )
+          .limit(1)
+      )[0]
+
+    if (!snapshotRow) {
+      throw new Error(
+        `Failed to create or load execution snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
+      )
+    }
 
     logger.info(
       isNew
@@ -58,9 +92,9 @@ export class SnapshotService implements ISnapshotService {
 
     return {
       snapshot: {
-        ...upsertedSnapshot,
-        stateData: upsertedSnapshot.stateData as WorkflowState,
-        createdAt: upsertedSnapshot.createdAt.toISOString(),
+        ...snapshotRow,
+        stateData: snapshotRow.stateData as WorkflowState,
+        createdAt: snapshotRow.createdAt.toISOString(),
       },
       isNew,
     }
