@@ -8,10 +8,10 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev --port 3000",
-    "dev:capped": "NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3000",
+    "dev": "next dev --port 12000",
+    "dev:capped": "NODE_OPTIONS='--max-old-space-size=4096' next dev --port 12000",
     "dev:clean": "rm -rf .next/dev/cache",
-    "dev:webpack": "next dev --webpack",
+    "dev:webpack": "next dev --webpack --port 12000",
     "load:workflow": "bun run load:workflow:baseline",
     "load:workflow:baseline": "BASE_URL=${BASE_URL:-http://localhost:3000} WARMUP_DURATION=${WARMUP_DURATION:-10} WARMUP_RATE=${WARMUP_RATE:-2} PEAK_RATE=${PEAK_RATE:-8} HOLD_DURATION=${HOLD_DURATION:-20} bunx artillery run scripts/load/workflow-concurrency.yml",
     "load:workflow:waves": "BASE_URL=${BASE_URL:-http://localhost:3000} WAVE_ONE_DURATION=${WAVE_ONE_DURATION:-10} WAVE_ONE_RATE=${WAVE_ONE_RATE:-6} QUIET_DURATION=${QUIET_DURATION:-5} WAVE_TWO_DURATION=${WAVE_TWO_DURATION:-15} WAVE_TWO_RATE=${WAVE_TWO_RATE:-8} WAVE_THREE_DURATION=${WAVE_THREE_DURATION:-20} WAVE_THREE_RATE=${WAVE_THREE_RATE:-10} bunx artillery run scripts/load/workflow-waves.yml",

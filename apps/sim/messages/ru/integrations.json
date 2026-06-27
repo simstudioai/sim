@@ -11,9 +11,9 @@
   "testConnection": "Проверить подключение",
   "connectionSuccessful": "Подключение успешно",
   "connectionFailed": "Ошибка подключения",
-  "noIntegrations": "Нет подключённых интеграций",
-  "browseIntegrations": "Выбрать интеграции",
+  "noIntegrations": "Нет подключенных интеграций",
+  "browseIntegrations": "Просмотреть интеграции",
   "searchIntegrations": "Поиск интеграций...",
   "oauth": "OAuth",
-  "customApp": "Своё приложение"
+  "customApp": "Пользовательское приложение"
 }

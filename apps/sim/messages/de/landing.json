@@ -1,32 +1,32 @@
 {
   "nav": {
     "product": "Produkt",
-    "docs": "Dokumentation",
+    "docs": "Dokumente",
     "pricing": "Preise",
     "blog": "Blog",
     "contact": "Kontakt",
     "signIn": "Anmelden",
-    "startBuilding": "Jetzt loslegen",
+    "startBuilding": "Kostenlos starten",
     "integrations": "Integrationen",
     "templates": "Vorlagen"
   },
   "hero": {
-    "title": "Der KI-Workspace, in dem Teams Agenten erstellen, bereitstellen und verwalten",
-    "subtitle": "Erstellen Sie im Gespräch, visuell oder mit Code. Verbinden Sie über 1.000 Integrationen und jedes große LLM, um echte Arbeit zu automatisieren.",
-    "cta": "Kostenlos loslegen",
+    "title": "Der AI-Arbeitsbereich, in dem Teams Agenten erstellen, bereitstellen und verwalten",
+    "subtitle": "Erstellen Sie konversationell, visuell oder mit Code. Verbinden Sie über 1.000 Integrationen und jedes wichtige LLM, um echte Arbeit zu automatisieren.",
+    "cta": "Kostenlos starten",
     "watchDemo": "Demo ansehen",
     "trustedBy": "Vertraut von Teams bei"
   },
   "features": {
-    "title": "Alles, was Sie zum Erstellen von KI-Agenten brauchen",
-    "subtitle": "Ein Workspace. Alle Funktionen. Kein Wechseln zwischen Tools.",
+    "title": "Alles, was Sie brauchen, um AI-Agenten zu erstellen",
+    "subtitle": "Ein Arbeitsbereich. Jede Fähigkeit. Kein Werkzeugwechsel.",
     "chat": {
-      "title": "Im Chat erstellen",
-      "description": "Beschreiben Sie in einfacher Sprache, was Sie möchten. Sim kennt Ihren gesamten Workspace und handelt entsprechend."
+      "title": "In Chat erstellen",
+      "description": "Beschreiben Sie, was Sie in einfacher Sprache möchten. Sim kennt Ihren gesamten Arbeitsbereich und handelt."
     },
     "workflows": {
       "title": "Visuelle Workflows",
-      "description": "Gestalten Sie Agenten Block für Block auf einer visuellen Arbeitsfläche – mit voller Kontrolle über jeden Schritt."
+      "description": "Gestalten Sie Agenten blockweise auf einer visuellen Leinwand mit vollständiger Kontrolle über jeden Schritt."
     },
     "knowledge": {
       "title": "Wissensdatenbanken",
@@ -34,60 +34,60 @@
     },
     "tables": {
       "title": "Strukturierte Tabellen",
-      "description": "Eine integrierte Datenbank. Speichern, abfragen und strukturierte Daten direkt in Agenten-Läufe einbinden."
+      "description": "Eine integrierte Datenbank. Speichern, abfragen und strukturierte Daten in Agentenabläufe einfügen."
     },
     "files": {
       "title": "Dateien generieren",
-      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen aus einer einzigen Eingabe."
+      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen aus einem einzigen Prompt."
     },
     "deploy": {
       "title": "Überall bereitstellen",
-      "description": "Bereitstellung als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
+      "description": "Versenden als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
     }
   },
   "pricing": {
     "title": "Einfache, transparente Preise",
-    "subtitle": "Kostenlos starten, mit Ihrem Wachstum skalieren. Keine versteckten Kosten.",
+    "subtitle": "Kostenlos starten, skalieren, während Sie wachsen. Keine versteckten Gebühren.",
     "free": {
-      "name": "Free",
-      "price": "0 $",
+      "name": "Kostenlos",
+      "price": "$0",
       "period": "/Monat",
-      "description": "Für Einzelpersonen, die KI-Automatisierung erkunden",
+      "description": "Für Einzelpersonen, die AI-Automatisierung erkunden",
       "cta": "Kostenlos starten"
     },
     "pro": {
       "name": "Pro",
-      "price": "20 $",
+      "price": "$20",
       "period": "/Monat",
-      "description": "Für Profis, die produktionsreife Agenten erstellen",
-      "cta": "Mit Pro starten"
+      "description": "Für Fachleute, die Produktionsagenten erstellen",
+      "cta": "Pro starten"
     },
     "team": {
       "name": "Team",
-      "price": "50 $",
-      "period": "/Platz/Monat",
-      "description": "Für Teams, die gemeinsam an KI-Workflows arbeiten",
-      "cta": "Mit Team starten"
+      "price": "$50",
+      "period": "/platz/monat",
+      "description": "Für Teams, die an KI-Workflows zusammenarbeiten",
+      "cta": "Team starten"
     },
     "enterprise": {
-      "name": "Enterprise",
-      "price": "Individuell",
+      "name": "Unternehmen",
+      "price": "Benutzerdefiniert",
       "period": "",
-      "description": "Für Organisationen mit erhöhten Sicherheitsanforderungen",
+      "description": "Für Organisationen mit fortgeschrittenen Sicherheitsanforderungen",
       "cta": "Vertrieb kontaktieren"
     }
   },
   "testimonials": {
-    "title": "Von Buildern geliebt",
+    "title": "Von Entwicklern geliebt",
     "subtitle": "Sehen Sie, was Teams mit Sim erstellen"
   },
   "templates": {
-    "title": "Mit einer Vorlage starten",
-    "subtitle": "Vorgefertigte Workflows für gängige Anwendungsfälle. In Minuten bereitgestellt."
+    "title": "Mit einer Vorlage beginnen",
+    "subtitle": "Vordefinierte Workflows für gängige Anwendungsfälle. In Minuten bereitstellen."
   },
   "collaboration": {
-    "title": "Für Teams gemacht",
-    "subtitle": "Arbeiten Sie gemeinsam an Workflows, teilen Sie Wissen und stellen Sie gemeinsam bereit."
+    "title": "Für Teams gebaut",
+    "subtitle": "An Workflows zusammenarbeiten, Wissen teilen und gemeinsam bereitstellen."
   },
   "footer": {
     "copyright": "© 2026 Sim Technologies, Inc.",
@@ -96,14 +96,14 @@
     "company": "Unternehmen",
     "legal": "Rechtliches",
     "status": "Status",
-    "privacy": "Datenschutzerklärung",
+    "privacy": "Datenschutzrichtlinie",
     "terms": "Nutzungsbedingungen"
   },
   "faq": {
     "title": "Häufig gestellte Fragen"
   },
   "contact": {
-    "title": "Kontakt aufnehmen",
-    "subtitle": "Haben Sie Fragen? Wir helfen Ihnen gerne weiter."
+    "title": "Kontaktieren Sie uns",
+    "subtitle": "Haben Sie Fragen? Wir sind hier, um zu helfen."
   }
 }

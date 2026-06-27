@@ -2,13 +2,13 @@
   "newChat": "Новый чат",
   "sendMessage": "Отправить сообщение",
   "typeMessage": "Введите сообщение...",
-  "thinking": "Думает...",
-  "generating": "Генерирует...",
+  "thinking": "Думаю...",
+  "generating": "Генерирую...",
   "attachFile": "Прикрепить файл",
   "clearChat": "Очистить чат",
-  "regenerate": "Перегенерировать",
+  "regenerate": "Сгенерировать заново",
   "stopGenerating": "Остановить генерацию",
   "copiedToClipboard": "Скопировано в буфер обмена",
   "noMessages": "Нет сообщений",
-  "startConversation": "Начните разговор"
+  "startConversation": "Начать разговор"
 }

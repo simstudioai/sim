@@ -5,7 +5,7 @@
   "pause": "Pausieren",
   "resume": "Fortsetzen",
   "schedule": "Planen",
-  "unschedule": "Planung aufheben",
+  "unschedule": "Nicht planen",
   "history": "Ausführungsverlauf",
   "executions": "Ausführungen",
   "variables": "Variablen",
@@ -21,10 +21,10 @@
   "noBlocks": "Keine Blöcke",
   "addBlock": "Block hinzufügen",
   "testRun": "Testlauf",
-  "lastRun": "Letzte Ausführung",
+  "lastRun": "Letzter Lauf",
   "status": "Status",
   "running": "Wird ausgeführt",
   "completed": "Abgeschlossen",
   "failed": "Fehlgeschlagen",
-  "queued": "In Warteschlange"
+  "queued": "In der Warteschlange"
 }

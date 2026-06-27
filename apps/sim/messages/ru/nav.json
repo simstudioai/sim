@@ -1,12 +1,12 @@
 {
   "home": "Главная",
-  "workflows": "Воркфлоу",
+  "workflows": "Рабочие процессы",
   "tables": "Таблицы",
-  "knowledge": "База знаний",
+  "knowledge": "Знания",
   "files": "Файлы",
-  "logs": "Журнал",
+  "logs": "Журналы",
   "settings": "Настройки",
   "integrations": "Интеграции",
   "chat": "Чат",
-  "upgrade": "Улучшить"
+  "upgrade": "Обновить"
 }

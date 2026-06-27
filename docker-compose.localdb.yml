@@ -1,0 +1,39 @@
+name: sim-localdb
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: sim-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: simstudio
+    ports:
+      - '25432:5432'
+    volumes:
+      - sim_local_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d simstudio']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: sim-local-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '26379:6379'
+    volumes:
+      - sim_local_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  sim_local_pgdata:
+  sim_local_redisdata:

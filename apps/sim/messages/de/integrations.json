@@ -11,7 +11,7 @@
   "testConnection": "Verbindung testen",
   "connectionSuccessful": "Verbindung erfolgreich",
   "connectionFailed": "Verbindung fehlgeschlagen",
-  "noIntegrations": "Keine Integrationen verbunden",
+  "noIntegrations": "Keine integrierten Verbindungen",
   "browseIntegrations": "Integrationen durchsuchen",
   "searchIntegrations": "Integrationen suchen...",
   "oauth": "OAuth",

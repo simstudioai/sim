@@ -1,10 +1,9 @@
 import { Suspense } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { ChipLink } from '@/components/emcn'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { IntegrationBlockDetail } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail'
+import { IntegrationBlockFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-fallback'
 
 export async function generateMetadata({
   params,
@@ -28,17 +27,7 @@ export default async function IntegrationBlockPage({
   if (!integration) notFound()
 
   return (
-    <Suspense
-      fallback={
-        <div className='flex h-full flex-col bg-[var(--bg)]'>
-          <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-            <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
-              Integrations
-            </ChipLink>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<IntegrationBlockFallback workspaceId={workspaceId} />}>
       <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
     </Suspense>
   )

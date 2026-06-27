@@ -34,22 +34,22 @@
 # Enable the copilot service
 copilot:
   enabled: true
-  
+
   # Server configuration
   server:
     image:
       repository: simstudioai/copilot
       tag: ""  # defaults to Chart.AppVersion; override to pin a specific release
       pullPolicy: IfNotPresent
-    
+
     replicaCount: 2
-    
+
     # Node scheduling (OPTIONAL)
     # By default, copilot runs on the same nodes as the main Sim platform
     nodeSelector: {}
     # nodeSelector:
     #   workload-type: copilot
-    
+
     resources:
       limits:
         memory: "2Gi"
@@ -57,7 +57,7 @@ copilot:
       requests:
         memory: "1Gi"
         cpu: "500m"
-    
+
     # Required secrets (set via values or provide your own secret)
     env:
       PORT: "8080"
@@ -69,45 +69,45 @@ copilot:
       OPENAI_API_KEY_1: ""                     # At least one provider key required
       ANTHROPIC_API_KEY_1: ""                  # Optional secondary provider
       SIM_BASE_URL: "https://sim.example.com"  # Base URL for Sim deployment
-      SIM_AGENT_API_KEY: ""                    # Must match SIM-side COPILOT_API_KEY
+      SIM_AGENT_API_KEY: "REDACTED-SECRET-PURGED"                    # Must match SIM-side COPILOT_API_KEY
       REDIS_URL: "redis://default:password@redis:6379"
       # Optional configuration
       LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: "https://sim.example.com"
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-    
+
     # Create a Secret from the values above. Set create=false to reference an existing secret instead.
     secret:
       create: true
       name: ""
       annotations: {}
-    
+
     extraEnv: []
     extraEnvFrom: []
-    
+
     service:
       type: ClusterIP
       port: 8080
       targetPort: 8080
-  
+
   # Internal PostgreSQL database (disable to use an external database)
   postgresql:
     enabled: true
-    
+
     image:
       repository: postgres
       tag: 17-alpine
       pullPolicy: IfNotPresent
-    
+
     auth:
       username: copilot
       password: ""  # REQUIRED - set via --set copilot.postgresql.auth.password
       database: copilot
-    
+
     nodeSelector: {}
     # nodeSelector:
     #   workload-type: copilot
-    
+
     resources:
       limits:
         memory: "1Gi"
@@ -115,21 +115,21 @@ copilot:
       requests:
         memory: "512Mi"
         cpu: "250m"
-    
+
     persistence:
       enabled: true
       size: 10Gi
-  
+
   # External database configuration (only used when postgresql.enabled=false)
   database:
     existingSecretName: ""
     secretKey: DATABASE_URL
     url: ""
-  
+
   # Migration job
   migrations:
     enabled: true
-    
+
     resources:
       limits:
         memory: "512Mi"
