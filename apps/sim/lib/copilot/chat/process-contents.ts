@@ -504,8 +504,8 @@ async function processBlockMetadata(
       return null
     }
 
-    const { registry: blockRegistry } = await import('@/blocks/registry')
-    if (!(blockRegistry as any)[blockId]) {
+    const { isValidBlockType } = await import('@/blocks/registry')
+    if (!isValidBlockType(blockId)) {
       return null
     }
 

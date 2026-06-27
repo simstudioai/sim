@@ -8,6 +8,7 @@ import { listCopilotChatsContract } from '@/lib/api/contracts/copilot'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge/base'
 import { listLogsContract } from '@/lib/api/contracts/logs'
 import { type IntegrationDescriptor, listIntegrations } from '@/blocks/integration-matcher'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -188,9 +189,8 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
         // Fetch current blocks from store
         const workflowStoreBlocks = useWorkflowStore.getState().blocks
 
-        const { registry: blockRegistry } = await import('@/blocks/registry')
         const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
-          const reg = (blockRegistry as any)[b.type]
+          const reg = getBlockDisplay(b.type)
           return {
             id: b.id,
             name: b.name || b.id,
