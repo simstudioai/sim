@@ -774,4 +774,24 @@ describe('LoggingSession progress-marker write path', () => {
     expect(dbMocks.execute).toHaveBeenCalledTimes(1)
     expect(setLastStartedBlockMock).not.toHaveBeenCalled()
   })
+
+  it('tells completion to read Redis markers only when the flag is on (no wasted ops when off)', async () => {
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    isFeatureEnabledMock.mockResolvedValue(true)
+    const onSession = new LoggingSession('wf-1', 'exec-on', 'manual', 'req-1')
+    await onSession.start({ workspaceId: 'ws-1' })
+    await onSession.safeComplete({ finalOutput: { ok: true } })
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'exec-on', readProgressMarkers: true })
+    )
+
+    isFeatureEnabledMock.mockResolvedValue(false)
+    const offSession = new LoggingSession('wf-1', 'exec-off', 'manual', 'req-1')
+    await offSession.start({ workspaceId: 'ws-1' })
+    await offSession.safeComplete({ finalOutput: { ok: true } })
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'exec-off', readProgressMarkers: false })
+    )
+  })
 })
