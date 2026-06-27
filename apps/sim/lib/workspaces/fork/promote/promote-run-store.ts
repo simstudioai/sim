@@ -1,6 +1,6 @@
 import { workspaceForkPromoteRun } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
@@ -30,34 +30,6 @@ export interface PromoteRunRow {
   direction: 'push' | 'pull'
   snapshot: PromoteRunSnapshot
   createdAt: Date
-}
-
-/** The promote undo point for an edge in one direction (keyed by its target), or null. */
-export async function getPromoteRunForEdge(
-  executor: DbOrTx,
-  childWorkspaceId: string,
-  targetWorkspaceId: string
-): Promise<PromoteRunRow | null> {
-  const [row] = await executor
-    .select({
-      id: workspaceForkPromoteRun.id,
-      childWorkspaceId: workspaceForkPromoteRun.childWorkspaceId,
-      sourceWorkspaceId: workspaceForkPromoteRun.sourceWorkspaceId,
-      targetWorkspaceId: workspaceForkPromoteRun.targetWorkspaceId,
-      direction: workspaceForkPromoteRun.direction,
-      snapshot: workspaceForkPromoteRun.snapshot,
-      createdAt: workspaceForkPromoteRun.createdAt,
-    })
-    .from(workspaceForkPromoteRun)
-    .where(
-      and(
-        eq(workspaceForkPromoteRun.childWorkspaceId, childWorkspaceId),
-        eq(workspaceForkPromoteRun.targetWorkspaceId, targetWorkspaceId)
-      )
-    )
-    .limit(1)
-  if (!row) return null
-  return { ...row, snapshot: row.snapshot as PromoteRunSnapshot }
 }
 
 /** Replace the edge's undo point with a new run (single-level history). */

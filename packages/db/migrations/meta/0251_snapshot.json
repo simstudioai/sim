@@ -1,5 +1,5 @@
 {
-  "id": "4b6c34c6-9c5d-43e1-bd85-b87523e7737b",
+  "id": "87d787db-ac95-4ff4-9da8-813e1c2271b8",
   "prevId": "5e9026af-bce0-4abc-b4f6-82ca3b396ed1",
   "version": "7",
   "dialect": "postgresql",
@@ -16772,6 +16772,164 @@
           "tableFrom": "workspace_files",
           "tableTo": "copilot_chats",
           "columnsFrom": ["chat_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_fork_block_map": {
+      "name": "workspace_fork_block_map",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "child_workspace_id": {
+          "name": "child_workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_workflow_id": {
+          "name": "parent_workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_block_id": {
+          "name": "parent_block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_workflow_id": {
+          "name": "child_workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_block_id": {
+          "name": "child_block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_fork_block_map_child_ws_parent_unique": {
+          "name": "workspace_fork_block_map_child_ws_parent_unique",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "parent_block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_fork_block_map_child_ws_child_unique": {
+          "name": "workspace_fork_block_map_child_ws_child_unique",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "child_block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_fork_block_map_child_ws_parent_wf_idx": {
+          "name": "workspace_fork_block_map_child_ws_parent_wf_idx",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "parent_workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_fork_block_map_child_ws_child_wf_idx": {
+          "name": "workspace_fork_block_map_child_ws_child_wf_idx",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "child_workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_fork_block_map_child_workspace_id_workspace_id_fk": {
+          "name": "workspace_fork_block_map_child_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_fork_block_map",
+          "tableTo": "workspace",
+          "columnsFrom": ["child_workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

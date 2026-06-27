@@ -12,7 +12,10 @@ import {
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
+import {
+  deriveForkBlockId,
+  type ForkBlockIdResolver,
+} from '@/lib/workspaces/fork/remap/block-identity'
 import {
   applyDependentOverrides,
   collectClearedDependents,
@@ -257,6 +260,11 @@ export interface CopyWorkflowResult {
    * surfaces optional ones so a cleared filter never broadens behavior silently.
    */
   clearedDependents: NeedsConfigurationField[]
+  /**
+   * Source block id -> assigned target block id, so the caller can persist the
+   * block-identity pairs (see `recordForkBlockPairs`) that keep promotes reversible.
+   */
+  blockIdMapping: Map<string, string>
 }
 
 export interface CopyWorkflowStateParams {
@@ -299,6 +307,13 @@ export interface CopyWorkflowStateParams {
    * query per workflow inside the tx. Build once per copy loop via {@link loadWorkflowNameRegistry}.
    */
   nameRegistry: WorkflowNameRegistry
+  /**
+   * Resolve each source block to its target block id, reusing the persisted counterpart
+   * when one exists so a push keeps the parent's original block ids (and webhook URLs)
+   * instead of re-deriving them (see {@link buildForkBlockIdResolver}). Omitted on fork
+   * creation, where every id is derived fresh.
+   */
+  resolveBlockId?: ForkBlockIdResolver
   requestId?: string
 }
 
@@ -330,6 +345,7 @@ export async function copyWorkflowStateIntoTarget(
     targetCurrentBlocks,
     dependentOverrides,
     nameRegistry,
+    resolveBlockId,
     requestId = 'unknown',
   } = params
 
@@ -345,7 +361,12 @@ export async function copyWorkflowStateIntoTarget(
 
   const blockIdMapping = new Map<string, string>()
   for (const oldBlockId of Object.keys(sourceState.blocks)) {
-    blockIdMapping.set(oldBlockId, deriveForkBlockId(targetWorkflowId, oldBlockId))
+    blockIdMapping.set(
+      oldBlockId,
+      resolveBlockId
+        ? resolveBlockId(targetWorkflowId, oldBlockId)
+        : deriveForkBlockId(targetWorkflowId, oldBlockId)
+    )
   }
 
   const newBlocks: Record<string, BlockState> = {}
@@ -526,5 +547,6 @@ export async function copyWorkflowStateIntoTarget(
     edgesCount: newEdges.length,
     subflowsCount: Object.keys(newLoops).length + Object.keys(newParallels).length,
     clearedDependents,
+    blockIdMapping,
   }
 }

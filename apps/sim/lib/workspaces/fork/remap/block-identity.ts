@@ -40,3 +40,56 @@ function uuidV5(name: string, namespace: string): string {
 export function deriveForkBlockId(targetWorkflowId: string, sourceBlockId: string): string {
   return uuidV5(`${targetWorkflowId}:${sourceBlockId}`, FORK_BLOCK_NAMESPACE)
 }
+
+/** A persisted counterpart: the target block id plus the workflow it belongs to. */
+export interface ForkBlockMapEntry {
+  targetBlockId: string
+  /** The target-side workflow the pair belongs to (childWorkflowId for parentToChild). */
+  targetWorkflowId: string
+}
+
+/** Persisted block-identity pairs for an edge, indexed for both promote directions. */
+export interface ForkBlockMap {
+  /** parent block id -> { child block, child workflow } (pull/create resolve source=parent). */
+  parentToChild: ReadonlyMap<string, ForkBlockMapEntry>
+  /** child block id -> { parent block, parent workflow } (push resolves source=child). */
+  childToParent: ReadonlyMap<string, ForkBlockMapEntry>
+}
+
+/** An empty map - fork creation has no prior pairs, so every block id is derived fresh. */
+export const EMPTY_FORK_BLOCK_MAP: ForkBlockMap = {
+  parentToChild: new Map(),
+  childToParent: new Map(),
+}
+
+/** Resolve a source block to its target block id for a promote (map-or-derive). */
+export type ForkBlockIdResolver = (targetWorkflowId: string, sourceBlockId: string) => string
+
+/**
+ * Build the block-id resolver a promote uses to assign target block ids. It reuses the
+ * persisted counterpart when one exists AND that pair belongs to the workflow being written,
+ * else falls back to {@link deriveForkBlockId} (blocks added since the last sync; fork
+ * creation, which has no map). `sourceIsParent` is true on pull/create (source = parent) and
+ * false on push (source = child); it selects the lookup direction.
+ *
+ * The workflow guard is what makes a re-created target safe: if the original target workflow
+ * was archived and the promote creates a new one, the recorded pair points at the OLD
+ * workflow, so it no longer matches and we derive a fresh id - never reusing the archived
+ * workflow's block id (which would collide on the global `workflow_blocks` primary key).
+ *
+ * For a stable workflow this still maps each child block back to the parent's ORIGINAL id on
+ * push, keeping its trigger webhook URL fixed. The SAME resolver must back
+ * `copyWorkflowStateIntoTarget` (which writes the blocks) and `collectForkDependentReconfigs`
+ * (which keys the modal's override by target block id), or the two would disagree.
+ */
+export function buildForkBlockIdResolver(
+  sourceIsParent: boolean,
+  map: ForkBlockMap
+): ForkBlockIdResolver {
+  const existing = sourceIsParent ? map.parentToChild : map.childToParent
+  return (targetWorkflowId, sourceBlockId) => {
+    const entry = existing.get(sourceBlockId)
+    if (entry && entry.targetWorkflowId === targetWorkflowId) return entry.targetBlockId
+    return deriveForkBlockId(targetWorkflowId, sourceBlockId)
+  }
+}

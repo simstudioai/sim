@@ -31,6 +31,11 @@ import {
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
+  type ForkBlockPair,
+  reconcileForkBlockPairs,
+  toForkBlockPairs,
+} from '@/lib/workspaces/fork/mapping/block-map-store'
+import {
   type ForkMappingUpsert,
   type ForkResourceType,
   seedEdgeMappings,
@@ -212,12 +217,18 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     const nameRegistry = await loadWorkflowNameRegistry(tx, childWorkspaceId)
 
     let workflowsCopied = 0
+    // Seed the block-identity map (parent block -> derived child block) so a later push of
+    // this fork resolves each child block back to the parent's ORIGINAL id instead of
+    // re-deriving and re-keying the parent's webhook URLs.
+    const blockPairs: ForkBlockPair[] = []
+    const sourceWorkflowIds: string[] = []
     for (const wf of deployedWorkflows) {
       const sourceState = sourceStates.get(wf.id)
       if (!sourceState) continue
-      await copyWorkflowStateIntoTarget({
+      const targetWorkflowId = workflowIdMap.get(wf.id)!
+      const copyResult = await copyWorkflowStateIntoTarget({
         tx,
-        targetWorkflowId: workflowIdMap.get(wf.id)!,
+        targetWorkflowId,
         targetWorkspaceId: childWorkspaceId,
         userId,
         mode: 'create',
@@ -235,9 +246,13 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         nameRegistry,
         requestId,
       })
+      // Creation copies parent -> child, so the source side is the parent.
+      blockPairs.push(...toForkBlockPairs(copyResult.blockIdMapping, true, wf.id, targetWorkflowId))
+      sourceWorkflowIds.push(wf.id)
       workflowsCopied += 1
       forkedWorkflowNames.push(wf.name)
     }
+    await reconcileForkBlockPairs(tx, childWorkspaceId, true, sourceWorkflowIds, blockPairs)
 
     // A fork carries only DEPLOYED workflows. When the source has none (e.g. it was
     // itself just forked and never redeployed), seed a default workflow so the child

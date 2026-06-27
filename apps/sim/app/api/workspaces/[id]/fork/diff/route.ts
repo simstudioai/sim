@@ -6,8 +6,10 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
+import { loadForkBlockMap } from '@/lib/workspaces/fork/mapping/block-map-store'
 import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
+import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -35,6 +37,13 @@ export const GET = withRouteHandler(
       deployedSourceWorkflows: deployedWorkflows,
       sourceStates,
     })
+
+    // Resolve dependent-reconfig target block ids through the SAME persisted block map the
+    // sync will use, so a re-pick the modal keys by target block id lands on the block the
+    // promote actually writes (on push that's the parent's original id, not a derived one).
+    const sourceIsParent = auth.sourceWorkspaceId === auth.edge.parentWorkspaceId
+    const blockMap = await loadForkBlockMap(db, auth.edge.childWorkspaceId)
+    const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
 
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({
       kind: reference.kind,
@@ -81,8 +90,7 @@ export const GET = withRouteHandler(
       unmappedOptional: plan.unmappedOptional.map(toRef),
       mcpReauthServerIds: plan.mcpReauthServerIds,
       inlineSecretSources: plan.inlineSecretSources,
-      dependentReconfigs: collectForkDependentReconfigs(plan.items, sourceStates),
-      drift: plan.drift,
+      dependentReconfigs: collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId),
     })
   }
 )

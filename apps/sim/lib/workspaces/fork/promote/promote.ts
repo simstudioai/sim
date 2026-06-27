@@ -28,6 +28,12 @@ import {
   setForkLockTimeout,
 } from '@/lib/workspaces/fork/lineage/lineage'
 import {
+  type ForkBlockPair,
+  loadForkBlockMap,
+  reconcileForkBlockPairs,
+  toForkBlockPairs,
+} from '@/lib/workspaces/fork/mapping/block-map-store'
+import {
   deleteWorkflowIdentityByIds,
   type ForkMappingUpsert,
   upsertEdgeMappings,
@@ -40,6 +46,7 @@ import {
   type PromoteRunWorkflowSnapshot,
   upsertPromoteRun,
 } from '@/lib/workspaces/fork/promote/promote-run-store'
+import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import {
   createForkSubBlockTransform,
   type ForkReference,
@@ -54,7 +61,6 @@ export interface PromoteForkParams {
   sourceWorkspaceId: string
   targetWorkspaceId: string
   direction: 'push' | 'pull'
-  force: boolean
   userId: string
   /**
    * Pre-sync re-picks from the modal for dependent fields whose credential the user
@@ -83,8 +89,7 @@ export interface PromoteForkResult {
    */
   deployFailed: number
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
-  drift: boolean
-  blocked: 'unmapped' | 'drift' | null
+  blocked: 'unmapped' | null
   /** Names of the workflows the sync changed, by action, for the activity report. */
   updatedNames: string[]
   createdNames: string[]
@@ -221,9 +226,8 @@ async function propagateCredentialAccess(
 }
 
 interface PromoteTxBlocked {
-  blocked: 'unmapped' | 'drift'
+  blocked: 'unmapped'
   unmappedRequired: PromoteForkResult['unmappedRequired']
-  drift: boolean
 }
 
 interface PromoteTxApplied {
@@ -234,7 +238,6 @@ interface PromoteTxApplied {
   updated: number
   created: number
   archived: number
-  drift: boolean
   /** Source workflows skipped because their deployment vanished between plan and apply. */
   skippedItems: Array<{ id: string; name: string }>
   /** Target workflow id -> source name, so the deploy-failure report can show names. */
@@ -261,12 +264,12 @@ interface PromoteTxApplied {
  * ones, archiving previously-mapped orphans whose source is no longer deployed),
  * a version-reference rollback snapshot is captured, credential access is
  * propagated, and every promoted target is deployed. The plan is computed inside
- * the edge lock so concurrent promotes serialize. Blocks (without mutating) when
- * required references are unmapped, or the target has drifted and `force` is not
- * set.
+ * the edge lock so concurrent promotes serialize. A sync always force-replaces the
+ * target's deployed state (the modal confirms the overwrite up front); it blocks
+ * without mutating only when required references are unmapped.
  */
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
-  const { edge, sourceWorkspaceId, targetWorkspaceId, direction, force, userId } = params
+  const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
   const requestId = params.requestId ?? 'unknown'
 
   // Group the modal's pre-sync re-picks as target workflow id -> block id -> subblock -> value.
@@ -322,12 +325,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           required: reference.required,
           blockName: reference.blockName,
         })),
-        drift: plan.drift,
       }
-    }
-
-    if (plan.drift && !force) {
-      return { blocked: 'drift', unmappedRequired: [], drift: true }
     }
 
     const now = new Date()
@@ -360,6 +358,15 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       tx,
       plan.items.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId)
     )
+
+    // Resolve each source block to its counterpart's EXISTING id (via the persisted block
+    // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
+    // webhook URLs derived from them - stable. Falls back to derive for blocks with no pair
+    // yet (added since the last sync), which are recorded below.
+    const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
+    const blockMap = await loadForkBlockMap(tx, edge.childWorkspaceId)
+    const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
+    const blockPairs: ForkBlockPair[] = []
 
     const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
     const createdTargetIds: string[] = []
@@ -394,8 +401,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
         dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),
         nameRegistry,
+        resolveBlockId,
         requestId,
       })
+      blockPairs.push(
+        ...toForkBlockPairs(
+          copyResult.blockIdMapping,
+          sourceIsParent,
+          item.sourceWorkflowId,
+          item.targetWorkflowId
+        )
+      )
       const requiredCleared = copyResult.clearedDependents.filter((field) => field.required)
       const optionalCleared = copyResult.clearedDependents.filter((field) => !field.required)
       if (requiredCleared.length > 0) {
@@ -414,6 +430,18 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       }
       writtenItems.push(item)
     }
+
+    // Reconcile block-identity pairs for the written source workflows: clears pairs for
+    // blocks the source dropped (e.g. a deleted trigger) and any stale pair from a re-created
+    // target, then records the live ones - so the next promote resolves these blocks to these
+    // same ids and never re-homes one onto an archived workflow's block.
+    await reconcileForkBlockPairs(
+      tx,
+      edge.childWorkspaceId,
+      sourceIsParent,
+      writtenItems.map((item) => item.sourceWorkflowId),
+      blockPairs
+    )
 
     const archivedNames =
       plan.archivedTargetIds.length > 0
@@ -512,7 +540,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       updated: updatedSnapshots.length,
       created: createdTargetIds.length,
       archived: archivedSnapshots.length,
-      drift: plan.drift,
       skippedItems,
       writtenNames: Object.fromEntries(
         writtenItems.map((item) => [item.targetWorkflowId, item.sourceMeta.name])
@@ -540,7 +567,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       redeployed: 0,
       deployFailed: 0,
       unmappedRequired,
-      drift: txResult.drift,
       blocked: txResult.blocked,
       updatedNames: [],
       createdNames: [],
@@ -648,7 +674,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     redeployed,
     deployFailed: deployFailures.length,
     unmappedRequired: [],
-    drift: txResult.drift,
     blocked: null,
     updatedNames: txResult.updatedNames,
     createdNames: txResult.createdNames,

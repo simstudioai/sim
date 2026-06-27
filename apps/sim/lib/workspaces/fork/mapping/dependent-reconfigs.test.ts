@@ -3,7 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
-import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
+import {
+  buildForkBlockIdResolver,
+  deriveForkBlockId,
+  EMPTY_FORK_BLOCK_MAP,
+} from '@/lib/workspaces/fork/remap/block-identity'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -28,6 +32,10 @@ const replaceItem = {
   targetWorkflowId: 'wf-tgt',
   mode: 'replace' as const,
 }
+
+// No persisted block map in these unit tests, so the resolver derives - matching the
+// `deriveForkBlockId(...)` ids the expectations assert.
+const resolve = buildForkBlockIdResolver(true, EMPTY_FORK_BLOCK_MAP)
 
 describe('collectForkDependentReconfigs', () => {
   it("emits the active operation's credential-dependent selector (condition-gated)", () => {
@@ -65,7 +73,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toEqual([
       {
         parentKind: 'credential',
@@ -113,7 +121,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toEqual([
       {
         parentKind: 'knowledge-base',
@@ -153,7 +161,7 @@ describe('collectForkDependentReconfigs', () => {
         sourceState('gmail', { credential: { value: 'cred-src' }, folder: { value: '' } }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ subBlockKey: 'folder', parentSourceId: 'cred-src' })
   })
@@ -174,7 +182,7 @@ describe('collectForkDependentReconfigs', () => {
     const states = new Map<string, WorkflowState>([
       ['wf-src', sourceState('gmail', { credential: { value: '' }, folder: { value: 'INBOX' } })],
     ])
-    expect(collectForkDependentReconfigs([replaceItem], states)).toEqual([])
+    expect(collectForkDependentReconfigs([replaceItem], states, resolve)).toEqual([])
   })
 
   it('skips create-mode targets and credentialSet refs', () => {
@@ -199,7 +207,8 @@ describe('collectForkDependentReconfigs', () => {
     expect(
       collectForkDependentReconfigs(
         [{ sourceWorkflowId: 'wf-src', targetWorkflowId: 'wf-tgt', mode: 'create' }],
-        created
+        created,
+        resolve
       )
     ).toEqual([])
 
@@ -212,7 +221,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    expect(collectForkDependentReconfigs([replaceItem], orgSet)).toEqual([])
+    expect(collectForkDependentReconfigs([replaceItem], orgSet, resolve)).toEqual([])
   })
 
   it('walks the transitive chain and tags the context key a re-pick provides', () => {
@@ -247,7 +256,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     // Both the spreadsheet (direct) and its sheet (transitive) are offered, in order.
     expect(result.map((entry) => entry.subBlockKey)).toEqual(['spreadsheetId', 'sheetName'])
     const spreadsheet = result.find((entry) => entry.subBlockKey === 'spreadsheetId')
@@ -295,7 +304,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toEqual([
       {
         parentKind: 'credential',
@@ -342,7 +351,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ subBlockKey: 'tools[0].folder', title: 'Gmail 1: Label' })
   })
@@ -382,7 +391,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    expect(collectForkDependentReconfigs([replaceItem], reading)).toHaveLength(1)
+    expect(collectForkDependentReconfigs([replaceItem], reading, resolve)).toHaveLength(1)
 
     // Same tool under a different operation -> the read-only label is gated off.
     const sending = new Map<string, WorkflowState>([
@@ -402,7 +411,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    expect(collectForkDependentReconfigs([replaceItem], sending)).toEqual([])
+    expect(collectForkDependentReconfigs([replaceItem], sending, resolve)).toEqual([])
   })
 
   it('anchors on a table selector for its column dependents', () => {
@@ -433,7 +442,7 @@ describe('collectForkDependentReconfigs', () => {
         }),
       ],
     ])
-    const result = collectForkDependentReconfigs([replaceItem], states)
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
       parentKind: 'table',

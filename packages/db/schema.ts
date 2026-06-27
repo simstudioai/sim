@@ -1386,6 +1386,59 @@ export const workspaceForkResourceMap = pgTable(
   })
 )
 
+/**
+ * Stable 1:1 block-identity map between a fork (child) and its parent, per edge. Seeded at
+ * fork creation (parent block -> derived child block) and reconciled on every promote.
+ * Promote looks a source block up here to reuse its counterpart's EXISTING id instead of
+ * re-deriving: without it, pushing a fork's workflow over the parent would re-key the
+ * parent's blocks and change their webhook URLs (the path falls back to the block id).
+ *
+ * Each pair records BOTH workflow ids so a lookup can be scoped to the workflow it belongs
+ * to: a target workflow that was archived and re-created gets a fresh id (the pair no longer
+ * matches), which avoids reusing an archived workflow's block id and colliding on the global
+ * `workflow_blocks` primary key. Block ids are plain text (no FK to `workflow_blocks`, which
+ * is rewritten on every deploy); only the edge (`child_workspace_id`) cascades. A parent
+ * block can map to different children across sibling forks, so uniqueness is per (edge,
+ * parent) and per (edge, child).
+ */
+export const workspaceForkBlockMap = pgTable(
+  'workspace_fork_block_map',
+  {
+    id: text('id').primaryKey(),
+    childWorkspaceId: text('child_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    parentWorkflowId: text('parent_workflow_id').notNull(),
+    parentBlockId: text('parent_block_id').notNull(),
+    childWorkflowId: text('child_workflow_id').notNull(),
+    childBlockId: text('child_block_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Pull resolves parent source block -> child target; one child per parent block per edge.
+    childWsParentBlockUnique: uniqueIndex('workspace_fork_block_map_child_ws_parent_unique').on(
+      table.childWorkspaceId,
+      table.parentBlockId
+    ),
+    // Push resolves child source block -> parent target; one parent per child block per edge.
+    childWsChildBlockUnique: uniqueIndex('workspace_fork_block_map_child_ws_child_unique').on(
+      table.childWorkspaceId,
+      table.childBlockId
+    ),
+    // Reconcile deletes a source workflow's pairs by its (stable) workflow id before
+    // re-inserting the live ones, so index both workflow sides for that sweep.
+    childWsParentWorkflowIdx: index('workspace_fork_block_map_child_ws_parent_wf_idx').on(
+      table.childWorkspaceId,
+      table.parentWorkflowId
+    ),
+    childWsChildWorkflowIdx: index('workspace_fork_block_map_child_ws_child_wf_idx').on(
+      table.childWorkspaceId,
+      table.childWorkflowId
+    ),
+  })
+)
+
 export const workspaceForkPromoteDirectionEnum = pgEnum('workspace_fork_promote_direction', [
   'push',
   'pull',

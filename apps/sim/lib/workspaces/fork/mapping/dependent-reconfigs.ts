@@ -10,7 +10,7 @@ import {
   buildSubBlockValues,
   evaluateSubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
-import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
+import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import { isSubBlockRequired } from '@/lib/workspaces/fork/remap/remap-references'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -186,10 +186,16 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
  * value in place during the swap even when the source (or a prior sync) had none; only
  * selectors gated off by their `condition` (a different operation's variant) are skipped.
  * Replace targets only: a freshly created target has nothing configured to swap yet.
+ *
+ * `resolveTargetBlockId` MUST be the same resolver `copyWorkflowStateIntoTarget` uses for
+ * this promote (see {@link buildForkBlockIdResolver}); otherwise the modal would key a
+ * re-pick by a derived id while the sync writes the block under its persisted counterpart,
+ * and the override would silently miss.
  */
 export function collectForkDependentReconfigs(
   items: ReconfigItem[],
-  sourceStates: Map<string, WorkflowState>
+  sourceStates: Map<string, WorkflowState>,
+  resolveTargetBlockId: ForkBlockIdResolver
 ): ForkDependentReconfig[] {
   const out: ForkDependentReconfig[] = []
   for (const item of items) {
@@ -201,9 +207,9 @@ export function collectForkDependentReconfigs(
       if (!config) continue
       const subBlocks = (block.subBlocks ?? {}) as Record<string, { value?: unknown }>
       const sourceValues = buildSubBlockValues(subBlocks)
-      let targetBlockId: string | null = null
-      const resolveTargetBlockId = () =>
-        (targetBlockId ??= deriveForkBlockId(item.targetWorkflowId, sourceBlockId))
+      let cachedTargetBlockId: string | null = null
+      const resolveBlockId = () =>
+        (cachedTargetBlockId ??= resolveTargetBlockId(item.targetWorkflowId, sourceBlockId))
 
       // Top-level credential/KB/table-anchored selectors.
       emitAnchoredDependents({
@@ -213,7 +219,7 @@ export function collectForkDependentReconfigs(
         contextSubBlocks: subBlocks,
         blockName: block.name,
         targetWorkflowId: item.targetWorkflowId,
-        resolveTargetBlockId,
+        resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
         chaining: true,
@@ -255,7 +261,7 @@ export function collectForkDependentReconfigs(
             contextSubBlocks: toolContextSubBlocks,
             blockName: block.name,
             targetWorkflowId: item.targetWorkflowId,
-            resolveTargetBlockId,
+            resolveTargetBlockId: resolveBlockId,
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
             makeTitle: (dependent) => `${toolLabel}: ${dependent.title ?? dependent.id ?? ''}`,
             chaining: false,

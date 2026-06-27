@@ -283,7 +283,6 @@ export const getForkDiffContract = defineRouteContract({
       inlineSecretSources: z.array(z.string()),
       /** Configured selector fields per parent (credential/KB), for the pre-sync reconfigure. */
       dependentReconfigs: z.array(forkDependentReconfigSchema),
-      drift: z.boolean(),
     }),
   },
 })
@@ -320,7 +319,6 @@ export type ForkDependentOverride = z.input<typeof forkDependentOverrideSchema>
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
-  force: z.boolean().optional().default(false),
   /** Pre-sync re-picks for dependent fields whose credential the user swapped. */
   dependentOverrides: z.array(forkDependentOverrideSchema).max(2000).optional(),
 })
@@ -343,7 +341,6 @@ export const promoteForkContract = defineRouteContract({
       needsConfiguration: z.array(forkNeedsConfigurationSchema),
       /** Workflows whose optional dependent fields a swap cleared (surfaced, not gated). */
       clearedOptional: z.array(forkNeedsConfigurationSchema),
-      drift: z.boolean(),
     }),
   },
 })

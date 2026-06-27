@@ -25,7 +25,7 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(promoteForkContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { otherWorkspaceId, direction, force, dependentOverrides } = parsed.data.body
+    const { otherWorkspaceId, direction, dependentOverrides } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
@@ -34,7 +34,6 @@ export const POST = withRouteHandler(
       sourceWorkspaceId: auth.sourceWorkspaceId,
       targetWorkspaceId: auth.targetWorkspaceId,
       direction,
-      force,
       userId: session.user.id,
       dependentOverrides,
       requestId,
@@ -50,7 +49,6 @@ export const POST = withRouteHandler(
       unmappedRequired: result.unmappedRequired,
       needsConfiguration: result.needsConfiguration,
       clearedOptional: result.clearedOptional,
-      drift: result.drift,
     }
 
     if (result.blocked) {

@@ -1,4 +1,4 @@
-import { workflow, workspace } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -14,7 +14,6 @@ import {
   filterExistingForkTargets,
   getWorkspaceEnvKeys,
 } from '@/lib/workspaces/fork/mapping/resources'
-import { getPromoteRunForEdge } from '@/lib/workspaces/fork/promote/promote-run-store'
 import {
   type ForkReference,
   type ForkReferenceResolver,
@@ -60,7 +59,6 @@ export interface ForkPromotePlan {
   willUpdate: number
   willCreate: number
   willArchive: number
-  drift: boolean
 }
 
 /**
@@ -169,7 +167,7 @@ export async function computeForkPromotePlan(params: {
 
   const [targetWorkflows, sourceWorkflowRows] = await Promise.all([
     executor
-      .select({ id: workflow.id, name: workflow.name, updatedAt: workflow.updatedAt })
+      .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
       .where(and(eq(workflow.workspaceId, targetWorkspaceId), isNull(workflow.archivedAt))),
     executor
@@ -259,19 +257,6 @@ export async function computeForkPromotePlan(params: {
   const unmappedRequired = allUnmapped.filter((reference) => reference.required)
   const unmappedOptional = allUnmapped.filter((reference) => !reference.required)
 
-  const previousRun = await getPromoteRunForEdge(executor, edge.childWorkspaceId, targetWorkspaceId)
-  let driftBaseline = previousRun?.createdAt ?? null
-  if (driftBaseline == null) {
-    const [childWorkspace] = await executor
-      .select({ createdAt: workspace.createdAt })
-      .from(workspace)
-      .where(eq(workspace.id, edge.childWorkspaceId))
-      .limit(1)
-    driftBaseline = childWorkspace?.createdAt ?? null
-  }
-  const baseline = driftBaseline
-  const drift = baseline != null && targetWorkflows.some((w) => w.updatedAt > baseline)
-
   const willUpdate = items.filter((i) => i.mode === 'replace').length
   const willCreate = items.filter((i) => i.mode === 'create').length
 
@@ -293,6 +278,5 @@ export async function computeForkPromotePlan(params: {
     willUpdate,
     willCreate,
     willArchive: archivedTargetIds.length,
-    drift,
   }
 }

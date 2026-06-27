@@ -128,7 +128,7 @@ interface EdgeOption {
  * picks a direction and lists each resource kind's mapping status, then Sync.
  * "Edit mappings" steps through every kind (Back/Next, each source a
  * settings-style section + full-width target) to set or review targets before
- * landing back on Sync - with a force-confirm on drift. The durable record of
+ * landing back on Sync - which always confirms the overwrite first. The durable record of
  * every sync is the Activity log in Manage Forks, so this modal just closes on
  * success.
  */
@@ -173,7 +173,7 @@ export function PromoteWorkspaceModal({
   // Wizard step: 0 is the overview; 1..N edit one resource kind each, entered via
   // "Edit mappings". Backing out of step 1 returns to the overview.
   const [step, setStep] = useState(0)
-  const [confirmDriftOpen, setConfirmDriftOpen] = useState(false)
+  const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -289,7 +289,7 @@ export function PromoteWorkspaceModal({
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
     (diff.data?.inlineSecretSources.length ?? 0) > 0
 
-  const runPromote = async (force: boolean) => {
+  const runPromote = async () => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
     try {
@@ -328,7 +328,6 @@ export function PromoteWorkspaceModal({
         body: {
           otherWorkspaceId,
           direction,
-          force,
           ...(dependentOverrides.length > 0 ? { dependentOverrides } : {}),
         },
       })
@@ -336,10 +335,6 @@ export function PromoteWorkspaceModal({
       if (!result.promoteRunId) {
         if (result.unmappedRequired.length > 0) {
           toast.error('Map all required credentials and secrets first')
-          return
-        }
-        if (result.drift) {
-          setConfirmDriftOpen(true)
           return
         }
         toast.error('Sync did not complete')
@@ -638,7 +633,7 @@ export function PromoteWorkspaceModal({
               ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
               : {
                   label: submitting ? 'Working...' : 'Sync',
-                  onClick: () => void runPromote(false),
+                  onClick: () => setConfirmSyncOpen(true),
                   disabled: syncDisabled,
                   disabledTooltip: !requiredComplete
                     ? 'Map all required secrets first'
@@ -651,20 +646,20 @@ export function PromoteWorkspaceModal({
       </ChipModal>
 
       <ChipConfirmModal
-        open={confirmDriftOpen}
-        onOpenChange={setConfirmDriftOpen}
-        srTitle='Force sync'
-        title='Target has changed'
+        open={confirmSyncOpen}
+        onOpenChange={setConfirmSyncOpen}
+        srTitle='Sync workspace'
+        title='Overwrite target workspace'
         text={[
-          'The target workspace was modified since the last sync. Force syncing will ',
-          { text: 'overwrite those changes', bold: true },
-          '. Continue?',
+          'The target may have been modified since the last sync. Syncing will ',
+          { text: 'overwrite any changes', bold: true },
+          ' there. Continue?',
         ]}
         confirm={{
-          label: 'Force sync',
+          label: 'Sync',
           onClick: () => {
-            setConfirmDriftOpen(false)
-            void runPromote(true)
+            setConfirmSyncOpen(false)
+            void runPromote()
           },
           pending: submitting,
           pendingLabel: 'Syncing...',
