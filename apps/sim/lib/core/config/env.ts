@@ -71,6 +71,7 @@ export const env = createEnv({
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+    BILLING_PROVIDER:                      z.enum(['stripe', 'lago']).optional(),  // Billing backend: Stripe (default) or Lago
     FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/A2A/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
     TABLES_FRACTIONAL_ORDERING:            z.boolean().optional(),                 // Order table rows by fractional order_key (O(1) insert/delete) instead of integer position
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
@@ -100,6 +101,21 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
+
+    // Lago Billing (when BILLING_PROVIDER=lago)
+    LAGO_API_URL:                          z.string().url().optional(),            // Lago API base URL (e.g. http://localhost:6100)
+    LAGO_API_KEY:                          z.string().min(1).optional(),           // Lago org API key
+    LAGO_WEBHOOK_SECRET:                   z.string().min(1).optional(),           // HMAC secret for Lago webhooks (optional — JWT verified when unset)
+    LAGO_PRODUCT_SLUG:                     z.string().min(1).optional(),           // AAC Billing product slug (e.g. aacworkflow)
+    LAGO_BILLABLE_METRIC_CODE:             z.string().min(1).optional(),           // Billable metric code for usage events
+    LAGO_PLAN_FREE:                        z.string().min(1).optional(),
+    LAGO_PLAN_PRO_6000:                    z.string().min(1).optional(),
+    LAGO_PLAN_PRO_25000:                   z.string().min(1).optional(),
+    LAGO_PLAN_TEAM_6000:                   z.string().min(1).optional(),
+    LAGO_PLAN_TEAM_25000:                  z.string().min(1).optional(),
+    LAGO_PLAN_ENTERPRISE:                  z.string().min(1).optional(),
+    LAGO_SIGNUP_GRANTED_CREDITS:           z.number().optional(),                // Wallet grant on signup (default 20)
+    PLATFORM_ADMIN_EMAILS:                 z.string().optional(),                  // Comma-separated emails auto-promoted to platform admin
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
 
     // Email & Communication
@@ -468,6 +484,7 @@ export const env = createEnv({
     
     // Billing
     NEXT_PUBLIC_BILLING_ENABLED:           z.boolean().optional(),                 // Enable billing enforcement and usage tracking (client-side)
+    NEXT_PUBLIC_BILLING_PROVIDER:          z.enum(['stripe', 'lago']).optional(),  // Billing provider exposed to client UI
     
     // Analytics & Tracking
     NEXT_PUBLIC_POSTHOG_ENABLED:           z.boolean().optional(),                 // Enable PostHog analytics (client-side)
@@ -523,6 +540,7 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
+    NEXT_PUBLIC_BILLING_PROVIDER: process.env.NEXT_PUBLIC_BILLING_PROVIDER,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
     NEXT_PUBLIC_BRAND_NAME: process.env.NEXT_PUBLIC_BRAND_NAME,
     NEXT_PUBLIC_BRAND_LOGO_URL: process.env.NEXT_PUBLIC_BRAND_LOGO_URL,

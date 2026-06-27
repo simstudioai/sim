@@ -13,13 +13,14 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
+import { switchLagoSubscriptionPlan } from '@/lib/billing/lago/subscriptions'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   hasUsableSubscriptionAccess,
   hasUsableSubscriptionStatus,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -55,7 +56,49 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const userId = session.user.id
 
     const sub = await getHighestPrioritySubscription(userId)
-    if (!sub || !sub.stripeSubscriptionId) {
+    if (!sub) {
+      return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
+    }
+
+    if (isLagoBillingProvider) {
+      const billingStatus = await getEffectiveBillingStatus(userId)
+      if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
+        return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
+      }
+
+      if (isEnterprise(sub.plan) || isEnterprise(targetPlanName)) {
+        return NextResponse.json(
+          { error: 'Enterprise plan changes must be handled via support' },
+          { status: 400 }
+        )
+      }
+
+      if (isOrgScopedSubscription(sub, userId)) {
+        const hasPermission = await isOrganizationOwnerOrAdmin(userId, sub.referenceId)
+        if (!hasPermission) {
+          return NextResponse.json({ error: 'Only team admins can change the plan' }, { status: 403 })
+        }
+      }
+
+      if (sub.plan === targetPlanName) {
+        return NextResponse.json({ success: true, message: 'Already on this plan' })
+      }
+
+      await switchLagoSubscriptionPlan({
+        subscriptionExternalId: sub.id,
+        targetPlanName,
+      })
+
+      await writeBillingInterval(sub.id, interval ?? 'month')
+
+      return NextResponse.json({
+        success: true,
+        plan: targetPlanName,
+        interval: interval ?? 'month',
+      })
+    }
+
+    if (!sub.stripeSubscriptionId) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 

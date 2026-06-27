@@ -59,6 +59,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
+  isLagoBillingProvider: false,
 }))
 
 import {

@@ -8,7 +8,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
+import { listLagoInvoices } from '@/lib/billing/lago/invoices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingInvoices')
@@ -38,6 +40,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       { error: 'organizationId is required when context=organization' },
       { status: 400 }
     )
+  }
+
+  if (isLagoBillingProvider) {
+    if (context === 'organization') {
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId!)
+      if (!hasPermission) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+      const result = await listLagoInvoices('organization', organizationId!, MAX_INVOICES)
+      return NextResponse.json({ success: true, ...result })
+    }
+
+    const result = await listLagoInvoices('user', session.user.id, MAX_INVOICES)
+    return NextResponse.json({ success: true, ...result })
   }
 
   let stripeCustomerId: string | null = null

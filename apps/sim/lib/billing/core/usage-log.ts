@@ -7,7 +7,10 @@ import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { emitLagoUsageEvent } from '@/lib/billing/lago/events'
+import { toLagoSubscriptionExternalId } from '@/lib/billing/lago/external-ids'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -350,7 +353,12 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
       target: usageLog.eventKey,
       where: sql`${usageLog.eventKey} IS NOT NULL`,
     })
-    .returning({ cost: usageLog.cost })
+    .returning({
+      cost: usageLog.cost,
+      eventKey: usageLog.eventKey,
+      source: usageLog.source,
+      category: usageLog.category,
+    })
 
   const insertedCost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
 
@@ -368,6 +376,38 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     entryCount: validEntries.length,
     sources: [...new Set(validEntries.map((e) => e.source))],
   })
+
+  // Mirror each recorded charge to Lago for metered billing. The subscription
+  // external id is derived deterministically from the already-resolved billing
+  // context — never re-fetched — so this stays a single source of Lago emission
+  // and avoids a redundant subscription lookup (see this file's pool-starvation
+  // note). emitLagoUsageEvent is internally a no-op when Lago is not the provider.
+  if (insertedRows.length > 0 && isLagoBillingProvider) {
+    const subscriptionExternalId = toLagoSubscriptionExternalId(
+      context.billingEntity.type,
+      context.billingEntity.id
+    )
+    if (subscriptionExternalId) {
+      for (const row of insertedRows) {
+        if (!row.eventKey) continue
+        const costUsd = Number.parseFloat(row.cost)
+        if (costUsd <= 0) continue
+
+        emitLagoUsageEvent({
+          eventKey: row.eventKey,
+          subscriptionExternalId,
+          entityType: context.billingEntity.type,
+          entityId: context.billingEntity.id,
+          costUsd,
+          source: row.source,
+          category: row.category,
+          workspaceId,
+          workflowId,
+          executionId,
+        })
+      }
+    }
+  }
 }
 
 /**

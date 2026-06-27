@@ -3,12 +3,15 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { billingPortalBodySchema } from '@/lib/api/contracts/subscription'
+import { createBillingPortalContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
+import { getLagoPortalUrl } from '@/lib/billing/lago/customers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isBillingEnabled, isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingPortal')
@@ -21,14 +24,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => ({}))
-    const parsedBody = billingPortalBodySchema.safeParse(body)
-    if (!parsedBody.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    if (!isBillingEnabled) {
+      return NextResponse.json({ error: 'Billing is not enabled' }, { status: 400 })
     }
-    const context = parsedBody.data.context
-    const organizationId = parsedBody.data.organizationId
-    const returnUrl = parsedBody.data.returnUrl || `${getBaseUrl()}/workspace?billing=updated`
+
+    const parsed = await parseRequest(createBillingPortalContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const context = parsed.data.body.context ?? 'user'
+    const organizationId = parsed.data.body.organizationId
+    const returnUrl = parsed.data.body.returnUrl || `${getBaseUrl()}/workspace?billing=updated`
+
+    if (isLagoBillingProvider) {
+      if (context === 'organization') {
+        if (!organizationId) {
+          return NextResponse.json({ error: 'organizationId is required' }, { status: 400 })
+        }
+
+        const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+        if (!hasPermission) {
+          return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+        }
+
+        const portalUrl = await getLagoPortalUrl('organization', organizationId)
+        if (!portalUrl) {
+          return NextResponse.json({ error: 'Billing portal unavailable' }, { status: 404 })
+        }
+        return NextResponse.json({ url: portalUrl })
+      }
+
+      const portalUrl = await getLagoPortalUrl('user', session.user.id)
+      if (!portalUrl) {
+        return NextResponse.json({ error: 'Billing portal unavailable' }, { status: 404 })
+      }
+      return NextResponse.json({ url: portalUrl })
+    }
 
     const stripe = requireStripeClient()
 
@@ -44,8 +74,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
-      // Canonical resolver: deterministically selects the most recent entitled
-      // org subscription, matching the rest of the billing UI.
       const orgSubscription = await getOrganizationSubscription(organizationId)
       stripeCustomerId = orgSubscription?.stripeCustomerId ?? null
     } else {

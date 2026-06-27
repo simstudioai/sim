@@ -25,6 +25,10 @@ import type { DbClient } from '@/lib/db/types'
 
 export { getPlanPricing }
 
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
+import { lagoRequest } from '@/lib/billing/lago/client'
+import { mapLagoStatusToSimStatus } from '@/lib/billing/lago/subscriptions'
+import type { LagoSubscriptionResponse } from '@/lib/billing/lago/types'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
@@ -66,7 +70,41 @@ export async function getOrganizationSubscription(
       .orderBy(desc(subscription.periodStart), desc(subscription.id))
       .limit(1)
 
-    return orgSubs.length > 0 ? orgSubs[0] : null
+    const sub = orgSubs.length > 0 ? orgSubs[0] : null
+
+    // When the subscription is managed by Lago, refresh the status from Lago's API
+    // so callers always see the authoritative state.
+    if (
+      sub &&
+      sub.billingProvider === 'lago' &&
+      isLagoBillingProvider &&
+      sub.lagoSubscriptionId
+    ) {
+      try {
+        const lagoSub = await lagoRequest<LagoSubscriptionResponse>(
+          'GET',
+          `/subscriptions/${encodeURIComponent(sub.id)}`
+        )
+        const lagoStatus = mapLagoStatusToSimStatus(lagoSub.subscription.status)
+        if (lagoStatus !== sub.status) {
+          await executor
+            .update(subscription)
+            .set({ status: lagoStatus })
+            .where(eq(subscription.id, sub.id))
+          sub.status = lagoStatus
+        }
+      } catch (error) {
+        logger.error('Error refreshing Lago subscription status', {
+          error,
+          organizationId,
+          subscriptionId: sub.id,
+        })
+        // Return the cached DB row on Lago API errors — stale data is better
+        // than a hard failure.
+      }
+    }
+
+    return sub
   } catch (error) {
     logger.error('Error getting organization subscription', { error, organizationId })
     if (onError === 'throw') {

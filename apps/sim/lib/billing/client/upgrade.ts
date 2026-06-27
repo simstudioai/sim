@@ -5,11 +5,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { createBillingCheckoutContract } from '@/lib/api/contracts/subscription'
 import { listCreatorOrganizationsContract } from '@/lib/api/contracts/organizations'
 import { subscriptionTransferContract } from '@/lib/api/contracts/user'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
 import { buildPlanName, getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { env } from '@/lib/core/config/env'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 const logger = createLogger('SubscriptionUpgrade')
@@ -138,6 +140,22 @@ export function useSubscriptionUpgrade() {
       const successUrlObj = new URL(window.location.href)
       successUrlObj.searchParams.set('upgraded', 'true')
       const successUrl = successUrlObj.toString()
+
+      if (env.NEXT_PUBLIC_BILLING_PROVIDER === 'lago') {
+        const checkout = await requestJson(createBillingCheckoutContract, {
+          body: {
+            planName,
+            referenceId,
+            successUrl,
+            cancelUrl: currentUrl,
+            ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
+            annual,
+          },
+        })
+
+        window.location.href = checkout.url
+        return
+      }
 
       try {
         const upgradeParams = {

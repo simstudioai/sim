@@ -37,6 +37,15 @@ export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.a
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Billing provider for this deployment. Defaults to Stripe for backward compatibility.
+ */
+export const billingProvider = env.BILLING_PROVIDER ?? 'stripe'
+
+export const isLagoBillingProvider = isBillingEnabled && billingProvider === 'lago'
+
+export const isStripeBillingProvider = isBillingEnabled && billingProvider !== 'lago'
+
+/**
  * Block free-plan accounts from programmatic workflow execution (API key, public
  * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
  * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship

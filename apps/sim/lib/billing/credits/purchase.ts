@@ -6,12 +6,17 @@ import { eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { canPurchaseCredits } from '@/lib/billing/credits/balance'
+import {
+  canPurchaseCredits,
+  setLocalCreditBalance,
+} from '@/lib/billing/credits/balance'
+import { getLagoWalletBalance, topUpLagoWallet } from '@/lib/billing/lago/wallets'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getCustomerId, resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('CreditPurchase')
 
@@ -115,7 +120,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
-  if (!subscription || !subscription.stripeSubscriptionId) {
+  if (!subscription) {
     return { success: false, error: 'No active subscription found' }
   }
 
@@ -136,6 +141,42 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     }
     entityType = 'organization'
     entityId = subscription.referenceId
+  }
+
+  // Lago path: top up the prepaid wallet (1 credit = $1) and sync the local mirror.
+  if (isLagoBillingProvider) {
+    try {
+      const toppedUp = await topUpLagoWallet(entityType, entityId, amountDollars)
+      if (!toppedUp) {
+        return { success: false, error: 'Failed to add credits to your wallet' }
+      }
+
+      const newBalance = (await getLagoWalletBalance(entityType, entityId)) ?? amountDollars
+      await setLocalCreditBalance(entityType, entityId, newBalance)
+      await setUsageLimitForCredits(
+        entityType,
+        entityId,
+        subscription.plan,
+        subscription.seats ?? null,
+        newBalance
+      )
+
+      logger.info('Lago credit purchase completed', {
+        entityType,
+        entityId,
+        amountDollars,
+        newBalance,
+        purchasedBy: userId,
+      })
+      return { success: true }
+    } catch (error) {
+      logger.error('Failed to purchase credits via Lago', { error, userId, amountDollars })
+      return { success: false, error: getErrorMessage(error, 'Failed to add credits') }
+    }
+  }
+
+  if (!subscription.stripeSubscriptionId) {
+    return { success: false, error: 'No active subscription found' }
   }
 
   try {

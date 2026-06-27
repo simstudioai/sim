@@ -3,6 +3,10 @@
  * Provides clean, organized exports for the billing system
  */
 
+export { isLagoPlan } from '@/lib/billing/lago-plans'
+export { getLagoStatus } from '@/lib/billing/lago/status'
+export type { LagoStatus } from '@/lib/billing/lago/status'
+
 export * from '@/lib/billing/calculations/usage-monitor'
 export * from '@/lib/billing/core/api-access'
 export * from '@/lib/billing/core/billing'

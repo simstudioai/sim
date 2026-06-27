@@ -209,6 +209,16 @@ export const billingPortalBodySchema = z.object({
   returnUrl: z.string().min(1).optional(),
 })
 
+export const billingCheckoutBodySchema = z.object({
+  planName: z.string().min(1, 'Plan name is required'),
+  referenceId: z.string().min(1, 'Reference ID is required'),
+  successUrl: z.string().url().optional(),
+  cancelUrl: z.string().url().optional(),
+  seats: z.number().int().min(1).max(1000).optional(),
+  annual: z.boolean().optional(),
+})
+export type BillingCheckoutBody = z.input<typeof billingCheckoutBodySchema>
+
 export const invoicesQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   organizationId: z.string().min(1).optional(),
@@ -325,6 +335,19 @@ export const createBillingPortalContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       url: z.string().min(1),
+    }),
+  },
+})
+
+export const createBillingCheckoutContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/checkout',
+  body: billingCheckoutBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      url: z.string().min(1),
+      subscriptionExternalId: z.string().min(1).optional(),
     }),
   },
 })

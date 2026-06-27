@@ -257,6 +257,7 @@ export class PiBlockHandler implements BlockHandler {
       throw new Error(result.totals.errorMessage)
     }
     await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+
     return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
   }
 }

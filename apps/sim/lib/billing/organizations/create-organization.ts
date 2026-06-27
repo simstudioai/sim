@@ -1,7 +1,9 @@
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
+import { provisionLagoBillingForOrganization } from '@/lib/billing/lago/provision'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 
@@ -102,6 +104,20 @@ export async function createOrganizationWithOwner({
       createdAt: now,
     })
   })
+
+  if (isLagoBillingProvider) {
+    const ownerRows = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, ownerUserId))
+      .limit(1)
+
+    await provisionLagoBillingForOrganization({
+      organizationId,
+      name,
+      ownerEmail: ownerRows[0]?.email,
+    })
+  }
 
   return {
     organizationId,

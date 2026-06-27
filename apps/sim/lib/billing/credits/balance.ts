@@ -4,12 +4,14 @@ import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getLagoWalletBalance } from '@/lib/billing/lago/wallets'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
+import { isLagoBillingProvider } from '@/lib/core/config/env-flags'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('CreditBalance')
@@ -32,6 +34,13 @@ export async function getCreditBalanceForEntity(
   entityId: string,
   executor: DbClient = db
 ): Promise<number> {
+  // Under Lago the prepaid wallet is the source of truth; fall back to the local
+  // mirror when the wallet is unavailable (e.g. Lago unreachable).
+  if (isLagoBillingProvider) {
+    const walletBalance = await getLagoWalletBalance(entityType, entityId)
+    if (walletBalance != null) return walletBalance
+  }
+
   if (entityType === 'organization') {
     const rows = await executor
       .select({ creditBalance: organization.creditBalance })
@@ -90,6 +99,28 @@ export async function addCredits(
 
     logger.info('Added credits to user', { userId: entityId, amount })
   }
+}
+
+/**
+ * Sets the local credit-balance mirror to an absolute value. Used to sync the
+ * local cache to the authoritative Lago wallet balance (idempotent — safe to
+ * call from both the purchase path and the wallet webhook).
+ */
+export async function setLocalCreditBalance(
+  entityType: 'user' | 'organization',
+  entityId: string,
+  amount: number
+): Promise<void> {
+  const value = Math.max(0, amount).toString()
+  if (entityType === 'organization') {
+    await db
+      .update(organization)
+      .set({ creditBalance: value })
+      .where(eq(organization.id, entityId))
+  } else {
+    await db.update(userStats).set({ creditBalance: value }).where(eq(userStats.userId, entityId))
+  }
+  logger.info('Synced local credit balance', { entityType, entityId, amount })
 }
 
 async function removeCredits(

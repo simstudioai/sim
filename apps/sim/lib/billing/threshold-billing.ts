@@ -18,6 +18,7 @@ import {
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env, envNumber } from '@/lib/core/config/env'
+import { isStripeBillingProvider } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const logger = createLogger('ThresholdBilling')
@@ -41,6 +42,10 @@ interface OrganizationUsageSnapshot {
 }
 
 export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
+  if (!isStripeBillingProvider) {
+    return
+  }
+
   try {
     const threshold = OVERAGE_THRESHOLD
 
