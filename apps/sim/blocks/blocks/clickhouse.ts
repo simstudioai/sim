@@ -537,7 +537,7 @@ export const ClickHouseBlockMeta = {
       icon: Bell,
       title: 'Alert on long-running queries',
       prompt:
-        'Create a scheduled workflow that lists ClickHouse running queries and alerts Slack about any whose elapsed time exceeds an explicit threshold I set. Alert only by default; only kill a query when it is clearly past the threshold, is not a write or system/replication job, and a human has confirmed the specific query_id.',
+        'Create a scheduled workflow that lists ClickHouse running queries and posts a Slack alert for any whose elapsed time exceeds an explicit threshold I set, including the query_id, user, and elapsed time so a human can investigate and decide whether to intervene.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['monitoring', 'data-warehouse'],
