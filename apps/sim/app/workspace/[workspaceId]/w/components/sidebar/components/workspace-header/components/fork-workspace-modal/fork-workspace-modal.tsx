@@ -42,14 +42,10 @@ interface ForkWorkspaceModalProps {
   sourceWorkspaceName: string
   /** The last sync into this workspace that can be undone (drives the rollback action). */
   undoableRun: { otherWorkspaceId: string; otherName: string; direction: ForkDirection } | null
-}
-
-/** Join "N label" segments with " · ", dropping zero counts so toasts never read "0 foo". */
-function summarizeCounts(parts: Array<[number, string]>): string {
-  return parts
-    .filter(([count]) => count > 0)
-    .map(([count, label]) => `${count} ${label}`)
-    .join(' · ')
+  /** Whether the user is under their workspace cap; creating a fork is gated on this. */
+  canFork: boolean
+  /** Sends the user to upgrade (billing) when they try to fork at the cap. */
+  onUpgrade: () => void
 }
 
 type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
@@ -195,6 +191,8 @@ export function ForkWorkspaceModal({
   sourceWorkspaceId,
   sourceWorkspaceName,
   undoableRun,
+  canFork,
+  onUpgrade,
 }: ForkWorkspaceModalProps) {
   const router = useRouter()
   const forkWorkspace = useForkWorkspace()
@@ -234,6 +232,12 @@ export function ForkWorkspaceModal({
     Boolean(resources.data) && (resources.data?.deployedWorkflowCount ?? 0) === 0
 
   const handleSubmit = () => {
+    // At a workspace cap, creating a fork is the only gated action - send the user to
+    // upgrade rather than blocking the whole modal (rollback / Activity stay reachable).
+    if (!canFork) {
+      onUpgrade()
+      return
+    }
     const trimmed = name.trim()
     if (!trimmed || isForking) return
     setError(null)
@@ -264,17 +268,11 @@ export function ForkWorkspaceModal({
   const runRollback = async () => {
     if (!undoableRun) return
     try {
-      const result = await rollback.mutateAsync({
+      await rollback.mutateAsync({
         workspaceId: sourceWorkspaceId,
         body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
       })
-      const summary = summarizeCounts([
-        [result.restored, 'restored'],
-        [result.archived, 'removed'],
-        [result.unarchived, 'unarchived'],
-        [result.skipped, 'skipped'],
-      ])
-      toast.success(summary ? `Undone · ${summary}` : 'Undone')
+      toast.success(`Undid sync from "${undoableRun.otherName}"`)
       setConfirmRollbackOpen(false)
       setActiveTab('activity')
     } catch (err) {
@@ -416,7 +414,8 @@ export function ForkWorkspaceModal({
               : {
                   label: isForking ? 'Forking...' : 'Fork',
                   onClick: handleSubmit,
-                  disabled: !name.trim() || isForking,
+                  // At the cap the button stays clickable (no name needed) so it can route to upgrade.
+                  disabled: isForking || (canFork && !name.trim()),
                 }
           }
         />

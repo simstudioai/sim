@@ -38,14 +38,6 @@ interface PromoteWorkspaceModalProps {
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
 
-/** Join "N label" segments with " · ", dropping any zero counts so toasts never read "0 foo". */
-function summarizeCounts(parts: Array<[number, string]>): string {
-  return parts
-    .filter(([count]) => count > 0)
-    .map(([count, label]) => `${count} ${label}`)
-    .join(' · ')
-}
-
 /** Section label + display order per mapping kind (one mapping step per kind). */
 const MAPPING_SECTION: Record<ForkMappingEntry['kind'], { label: string; order: number }> = {
   credential: { label: 'Credentials', order: 0 },
@@ -220,20 +212,15 @@ export function PromoteWorkspaceModal({
         return
       }
 
-      const summary =
-        summarizeCounts([
-          [result.updated, 'updated'],
-          [result.created, 'created'],
-          [result.archived, 'archived'],
-          [result.redeployed, 'redeployed'],
-        ]) || 'Sync complete'
+      const target = parent?.name ?? 'the workspace'
+      const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
       if (result.deployFailed > 0) {
         const n = result.deployFailed
         toast.warning(
-          `${summary}. ${n} workflow${n === 1 ? '' : 's'} synced but failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
+          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
         )
       } else {
-        toast.success(summary)
+        toast.success(label)
       }
       onOpenChange(false)
     } catch (error) {

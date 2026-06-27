@@ -15,9 +15,8 @@ import {
   Plus,
   Send,
   Skeleton,
-  Tooltip,
 } from '@/components/emcn'
-import { ManageWorkspace, PanelLeft, Shuffle } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -254,11 +253,9 @@ function WorkspaceHeaderImpl({
     onUploadLogo(capturedWorkspaceRef.current.id)
   }
 
+  // Always open Manage Forks - rollback and the durable Activity log live here and must
+  // stay reachable at a workspace cap. Only creating a NEW fork is gated (in the modal).
   const handleForkAction = () => {
-    if (!canCreateWorkspace) {
-      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-      return
-    }
     setIsForkModalOpen(true)
   }
 
@@ -411,10 +408,6 @@ function WorkspaceHeaderImpl({
                     const initial = (stripped[0] || workspace.name[0] || 'W').toUpperCase()
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
-                    const forkedFromName = workspace.forkedFromWorkspaceId
-                      ? (workspaces.find((w) => w.id === workspace.forkedFromWorkspaceId)?.name ??
-                        'another workspace')
-                      : null
 
                     return (
                       <div key={workspace.id}>
@@ -533,16 +526,6 @@ function WorkspaceHeaderImpl({
                             <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                               {workspace.name}
                             </span>
-                            {forkedFromName ? (
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <span className='flex size-[18px] flex-shrink-0 items-center justify-center'>
-                                    <Shuffle className='size-[12px] text-[var(--text-tertiary)]' />
-                                  </span>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content>Fork of {forkedFromName}</Tooltip.Content>
-                              </Tooltip.Root>
-                            ) : null}
                             <button
                               type='button'
                               aria-label='Workspace options'
@@ -728,6 +711,10 @@ function WorkspaceHeaderImpl({
         sourceWorkspaceId={workspaceId}
         sourceWorkspaceName={activeWorkspace?.name || 'Workspace'}
         undoableRun={forkLineage?.undoableRun ?? null}
+        canFork={canCreateWorkspace}
+        onUpgrade={() => {
+          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+        }}
       />
       <PromoteWorkspaceModal
         open={isPromoteModalOpen}

@@ -58,6 +58,15 @@ export interface ForkContentPlan {
   knowledgeBases: ForkContentPlanEntry[]
 }
 
+/** Display names of the copied resources, by kind, for the fork activity report. */
+export interface ForkCopiedResourceNames {
+  tables: string[]
+  knowledgeBases: string[]
+  customTools: string[]
+  skills: string[]
+  mcpServers: string[]
+}
+
 export interface CopyResourcesResult {
   /** source resource id -> child resource id, keyed by fork resource type. */
   idMap: Map<ForkResourceType, Map<string, string>>
@@ -65,6 +74,8 @@ export interface CopyResourcesResult {
   mappingEntries: ForkMappingUpsert[]
   /** Heavy row/document/embedding content to copy post-commit. */
   contentPlan: ForkContentPlan
+  /** Names of the copied resources, by kind, for the fork report breakdown. */
+  names: ForkCopiedResourceNames
 }
 
 function setId(idMap: Map<ForkResourceType, Map<string, string>>, type: ForkResourceType) {
@@ -99,6 +110,13 @@ export async function copyForkResourceContainers(
     tables: [],
     knowledgeBases: [],
   }
+  const names: ForkCopiedResourceNames = {
+    tables: [],
+    knowledgeBases: [],
+    customTools: [],
+    skills: [],
+    mcpServers: [],
+  }
 
   const record = (type: ForkResourceType, sourceId: string, childId: string) => {
     setId(idMap, type).set(sourceId, childId)
@@ -130,6 +148,7 @@ export async function copyForkResourceContainers(
         updatedAt: now,
       })
       record('custom_tool', row.id, childId)
+      names.customTools.push(row.title)
     }
   }
 
@@ -149,6 +168,7 @@ export async function copyForkResourceContainers(
         updatedAt: now,
       })
       record('skill', row.id, childId)
+      names.skills.push(row.name)
     }
   }
 
@@ -172,6 +192,7 @@ export async function copyForkResourceContainers(
       record('mcp_server', row.id, childId)
       if (insertedMcpIds.has(childId)) continue
       insertedMcpIds.add(childId)
+      names.mcpServers.push(row.name)
       await tx
         .insert(mcpServers)
         .values({
@@ -228,6 +249,7 @@ export async function copyForkResourceContainers(
       })
       record('table', definition.id, childTableId)
       contentPlan.tables.push({ sourceId: definition.id, childId: childTableId })
+      names.tables.push(definition.name)
     }
   }
 
@@ -255,10 +277,11 @@ export async function copyForkResourceContainers(
       })
       record('knowledge_base', base.id, childKbId)
       contentPlan.knowledgeBases.push({ sourceId: base.id, childId: childKbId })
+      names.knowledgeBases.push(base.name)
     }
   }
 
-  return { idMap, mappingEntries, contentPlan }
+  return { idMap, mappingEntries, contentPlan, names }
 }
 
 /**

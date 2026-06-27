@@ -19,7 +19,10 @@ import {
   runForkContentCopy,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
 import { planForkFileCopies } from '@/lib/workspaces/fork/copy/copy-files'
-import { copyForkResourceContainers } from '@/lib/workspaces/fork/copy/copy-resources'
+import {
+  copyForkResourceContainers,
+  type ForkCopiedResourceNames,
+} from '@/lib/workspaces/fork/copy/copy-resources'
 import {
   copyWorkflowStateIntoTarget,
   resolveForkFolderMapping,
@@ -61,6 +64,8 @@ export interface CreateForkParams {
   source: WorkspaceWithOwner
   policy: WorkspaceCreationPolicy
   userId: string
+  /** Display name of the user forking, recorded on the activity entry. */
+  actorName?: string
   name?: string
   selection?: ForkResourceSelection
   requestId?: string
@@ -99,6 +104,14 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // fork tx (which can deadlock the pool at saturation).
   const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(source.id)
 
+  const forkedWorkflowNames: string[] = []
+  let forkedResourceNames: ForkCopiedResourceNames = {
+    tables: [],
+    knowledgeBases: [],
+    customTools: [],
+    skills: [],
+    mcpServers: [],
+  }
   const { result, blobTasks, contentPlan } = await db.transaction(async (tx) => {
     const now = new Date()
     const childWorkspaceId = generateId()
@@ -173,6 +186,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
       workflowIdMap,
     })
+    forkedResourceNames = resourceResult.names
 
     const resolveCopied = (kind: ForkRemapKind, sourceId: string): string | null => {
       if (kind === 'file') return fileResult.keyMap.get(sourceId) ?? null
@@ -214,6 +228,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         requestId,
       })
       workflowsCopied += 1
+      forkedWorkflowNames.push(wf.name)
     }
 
     // A fork carries only DEPLOYED workflows. When the source has none (e.g. it was
@@ -298,10 +313,18 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     metadata: {
       childWorkspaceId: result.workspace.id,
       childWorkspaceName: forkedName,
+      actorName: params.actorName,
       workflowsCopied: result.workflowsCopied,
       tables: contentPlan.tables.length,
       knowledgeBases: contentPlan.knowledgeBases.length,
       files: blobTasks.length,
+      workflowNames: forkedWorkflowNames,
+      tableNames: forkedResourceNames.tables,
+      knowledgeBaseNames: forkedResourceNames.knowledgeBases,
+      fileNames: blobTasks.map((task) => task.fileName),
+      customToolNames: forkedResourceNames.customTools,
+      skillNames: forkedResourceNames.skills,
+      mcpServerNames: forkedResourceNames.mcpServers,
     },
   })
 

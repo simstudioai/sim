@@ -10,6 +10,12 @@ import { useWorkspaceBackgroundWork } from '@/hooks/queries/background-work'
 const HEADER_TEXT = 'font-medium text-[var(--text-tertiary)] text-caption'
 const ROW_TEXT = 'font-medium text-[var(--text-primary)] text-caption'
 
+/** Fixed column widths shared by the header and rows so they stay aligned. */
+const COL = {
+  BY: 'w-[132px]',
+  CHEVRON: 'w-[14px]',
+} as const
+
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 /** Join "N verb" segments (verbs like "updated" aren't pluralized), dropping zero counts. */
@@ -18,6 +24,18 @@ function countList(pairs: Array<[number | undefined, string]>): string {
     .filter(([n]) => (n ?? 0) > 0)
     .map(([n, verb]) => `${n} ${verb}`)
     .join(' · ')
+}
+
+/** A named, collapsible group (one resource kind or change action) of a job's report. */
+interface ReportGroup {
+  label: string
+  names: string[]
+}
+
+/** A job's expanded report: collapsible named groups plus plain notes (counts / warnings). */
+interface JobReport {
+  groups: ReportGroup[]
+  notes: Array<{ value: string; warning?: boolean }>
 }
 
 /** The audit-row title, derived per kind from the job's metadata. */
@@ -42,22 +60,34 @@ function jobTitle(job: BackgroundWorkItem): string {
   }
 }
 
-/** The expand-row detail lines for a job, built per kind from its metadata. */
-function jobDetailLines(job: BackgroundWorkItem): string[] {
+/** Build a job's report (collapsible named groups + plain notes) from its metadata. */
+function jobReport(job: BackgroundWorkItem): JobReport {
   const m = job.metadata
-  if (!m) return []
+  const groups: ReportGroup[] = []
+  const notes: JobReport['notes'] = []
+  if (!m) return { groups, notes }
+
+  const addGroup = (label: string, names: string[] | undefined) => {
+    if (names && names.length > 0) groups.push({ label, names })
+  }
 
   if (job.kind === 'fork_sync') {
-    const lines: string[] = []
-    const counts = countList([
-      [m.updated, 'updated'],
-      [m.created, 'created'],
-      [m.archived, 'archived'],
-      [m.redeployed, 'redeployed'],
-    ])
-    if (counts) lines.push(counts)
-    if (m.deployFailed && m.deployFailed > 0) lines.push(`${m.deployFailed} failed to deploy`)
-    return lines
+    addGroup('Updated', m.updatedNames)
+    addGroup('Created', m.createdNames)
+    addGroup('Archived', m.archivedNames)
+    // Pre-names entries fall back to the count summary (redeployed mirrors updated).
+    if (groups.length === 0) {
+      const counts = countList([
+        [m.updated, 'updated'],
+        [m.created, 'created'],
+        [m.archived, 'archived'],
+      ])
+      if (counts) notes.push({ value: counts })
+    }
+    if (m.deployFailed && m.deployFailed > 0) {
+      notes.push({ value: `${plural(m.deployFailed, 'workflow')} failed to deploy`, warning: true })
+    }
+    return { groups, notes }
   }
 
   if (job.kind === 'fork_rollback') {
@@ -67,27 +97,35 @@ function jobDetailLines(job: BackgroundWorkItem): string[] {
       [m.removed, 'removed'],
       [m.skipped, 'skipped'],
     ])
-    return counts ? [counts] : []
+    if (counts) notes.push({ value: counts })
+    return { groups, notes }
   }
 
-  // fork_content_copy: countable resource breakdown + the copy outcome.
-  const lines: string[] = []
-  const kinds: Array<[number | undefined, string]> = [
-    [m.workflowsCopied, 'workflow'],
-    [m.tables, 'table'],
-    [m.knowledgeBases, 'knowledge base'],
-    [m.files, 'file'],
-  ]
-  const selected = kinds.filter(([n]) => (n ?? 0) > 0).map(([n, noun]) => plural(n as number, noun))
-  if (selected.length > 0) lines.push(selected.join(' · '))
-  if (m.copied != null) {
-    lines.push(
-      m.failed && m.failed > 0
-        ? `${plural(m.copied, 'item')} copied, ${m.failed} failed`
-        : `${plural(m.copied, 'item')} copied`
-    )
+  // fork_content_copy: a named breakdown of everything copied, by kind.
+  addGroup('Workflows', m.workflowNames)
+  addGroup('Knowledge bases', m.knowledgeBaseNames)
+  addGroup('Tables', m.tableNames)
+  addGroup('Files', m.fileNames)
+  addGroup('Custom tools', m.customToolNames)
+  addGroup('Skills', m.skillNames)
+  addGroup('MCP servers', m.mcpServerNames)
+  // Pre-names entries fall back to the per-kind counts.
+  if (groups.length === 0) {
+    const counts = [
+      [m.workflowsCopied, 'workflow'],
+      [m.knowledgeBases, 'knowledge base'],
+      [m.tables, 'table'],
+      [m.files, 'file'],
+    ]
+      .filter(([n]) => ((n as number | undefined) ?? 0) > 0)
+      .map(([n, noun]) => plural(n as number, noun as string))
+      .join(' · ')
+    if (counts) notes.push({ value: counts })
   }
-  return lines
+  if (m.failed && m.failed > 0) {
+    notes.push({ value: `${plural(m.failed, 'resource')} failed to copy`, warning: true })
+  }
+  return { groups, notes }
 }
 
 /** Status indicator: the platform loader while active, a colored dot once terminal. */
@@ -110,27 +148,57 @@ function JobStatusIndicator({ status }: { status: BackgroundWorkItem['status'] }
   return <span className={cn('size-[6px] shrink-0 rounded-full', color)} title={label} />
 }
 
-/** One audit-log row: status + "Forked into ...", expanding to what was copied. */
+/** A collapsed report group ("Label  N  ⌄") that expands to its scrollable name list. */
+function ReportGroupRow({ group }: { group: ReportGroup }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className='flex flex-col gap-1'>
+      <button
+        type='button'
+        onClick={() => setOpen((value) => !value)}
+        className='flex w-full items-center gap-2 text-left text-[var(--text-secondary)] text-caption transition-colors hover:text-[var(--text-primary)]'
+      >
+        <span className='min-w-0 flex-1 truncate'>{group.label}</span>
+        <span className='shrink-0 text-[var(--text-muted)]'>{group.names.length}</span>
+        <ChevronDown
+          className={cn(
+            'h-[6px] w-[10px] shrink-0 text-[var(--text-icon)] transition-transform',
+            open && 'rotate-180'
+          )}
+        />
+      </button>
+      {open ? (
+        <div className='max-h-44 overflow-y-auto pb-1'>
+          {group.names.map((name) => (
+            <div
+              key={name}
+              className='truncate text-[var(--text-tertiary)] text-caption leading-6'
+              title={name}
+            >
+              {name}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** One audit-log row: status + title + actor; expands to the timestamp + report. */
 function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
   const [expanded, setExpanded] = useState(false)
-  const detailLines = jobDetailLines(job)
-  const hasDetail = detailLines.length > 0 || Boolean(job.error)
+  const report = jobReport(job)
   const title = jobTitle(job)
 
   return (
     <Fragment>
       <div
         role='button'
-        tabIndex={hasDetail ? 0 : -1}
-        className={cn(
-          'flex h-[36px] items-center px-4 transition-colors duration-100',
-          hasDetail
-            ? 'cursor-pointer hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
-            : 'cursor-default'
-        )}
-        onClick={() => hasDetail && setExpanded((value) => !value)}
+        tabIndex={0}
+        className='flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100 hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
+        onClick={() => setExpanded((value) => !value)}
         onKeyDown={(event) => {
-          if (!hasDetail || event.target !== event.currentTarget) return
+          if (event.target !== event.currentTarget) return
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             setExpanded((value) => !value)
@@ -139,27 +207,41 @@ function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
       >
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <JobStatusIndicator status={job.status} />
-          <span className={cn('min-w-0 truncate', ROW_TEXT)}>{title}</span>
+          <span className={cn('min-w-0 truncate', ROW_TEXT)} title={title}>
+            {title}
+          </span>
         </div>
-        <span className={cn('w-[150px] shrink-0 truncate text-[var(--text-tertiary)]', ROW_TEXT)}>
-          {formatDateTime(new Date(job.startedAt))}
+        <span
+          className={cn(COL.BY, 'shrink-0 truncate text-[var(--text-tertiary)]', ROW_TEXT)}
+          title={job.metadata?.actorName ?? undefined}
+        >
+          {job.metadata?.actorName || '—'}
         </span>
-        {hasDetail ? (
-          <ChevronDown
-            className={cn(
-              'h-[6px] w-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        ) : (
-          <span className='w-[14px] shrink-0' />
-        )}
+        <ChevronDown
+          className={cn(
+            'h-[6px] shrink-0 text-[var(--text-icon)] transition-transform',
+            COL.CHEVRON,
+            expanded && 'rotate-180'
+          )}
+        />
       </div>
-      {expanded && hasDetail ? (
-        <div className='flex flex-col gap-0.5 px-4 pb-2.5 pl-[42px]'>
-          {detailLines.map((line) => (
-            <span key={line} className='text-[var(--text-tertiary)] text-caption'>
-              {line}
+      {expanded ? (
+        <div className='flex flex-col gap-1.5 px-4 pb-3 pl-[42px]'>
+          <span className='text-[var(--text-muted)] text-caption'>
+            {formatDateTime(new Date(job.startedAt))}
+          </span>
+          {report.groups.map((group) => (
+            <ReportGroupRow key={group.label} group={group} />
+          ))}
+          {report.notes.map((note) => (
+            <span
+              key={note.value}
+              className={cn(
+                'text-caption',
+                note.warning ? 'text-[var(--text-error)]' : 'text-[var(--text-tertiary)]'
+              )}
+            >
+              {note.value}
             </span>
           ))}
           {job.error ? (
@@ -177,8 +259,8 @@ function ForkJobsTable({ jobs }: { jobs: BackgroundWorkItem[] }) {
     <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
       <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
         <span className={cn('flex-1', HEADER_TEXT)}>Activity</span>
-        <span className={cn('w-[150px] shrink-0', HEADER_TEXT)}>When</span>
-        <span className='w-[14px] shrink-0' />
+        <span className={cn(COL.BY, 'shrink-0', HEADER_TEXT)}>By</span>
+        <span className={cn(COL.CHEVRON, 'shrink-0')} />
       </div>
       <div className='bg-[var(--surface-2)]'>
         {jobs.map((job) => (
@@ -199,8 +281,9 @@ interface ForkActivityPanelProps {
 
 /**
  * The "Activity" tab for Manage Forks: a durable audit log of every fork, sync, and
- * rollback as its own row (a deployment-versions-style table - status, "Forked into ...",
- * timestamp, expand for what changed), with a loader while the current action runs.
+ * rollback as its own row (status, title, actor), each expanding to the timestamp and a
+ * collapsible per-kind breakdown of what changed. A loader shows while the current
+ * action runs.
  */
 export function ForkActivityPanel({
   pending = false,

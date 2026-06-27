@@ -66,6 +66,10 @@ export interface PromoteForkResult {
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
   drift: boolean
   blocked: 'unmapped' | 'drift' | null
+  /** Names of the workflows the sync changed, by action, for the activity report. */
+  updatedNames: string[]
+  createdNames: string[]
+  archivedNames: string[]
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -197,6 +201,16 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       })
       writtenItems.push(item)
     }
+
+    const archivedNames =
+      plan.archivedTargetIds.length > 0
+        ? (
+            await tx
+              .select({ name: workflow.name })
+              .from(workflow)
+              .where(inArray(workflow.id, plan.archivedTargetIds))
+          ).map((row) => row.name)
+        : []
 
     const archivedSnapshots: PromoteRunWorkflowSnapshot[] = []
     for (const targetWorkflowId of plan.archivedTargetIds) {
@@ -354,6 +368,13 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       writtenNames: Object.fromEntries(
         writtenItems.map((item) => [item.targetWorkflowId, item.sourceMeta.name])
       ),
+      updatedNames: writtenItems
+        .filter((item) => item.mode === 'replace')
+        .map((item) => item.sourceMeta.name),
+      createdNames: writtenItems
+        .filter((item) => item.mode !== 'replace')
+        .map((item) => item.sourceMeta.name),
+      archivedNames,
     }
   })
 
@@ -369,6 +390,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       unmappedRequired,
       drift: txResult.drift,
       blocked: txResult.blocked,
+      updatedNames: [],
+      createdNames: [],
+      archivedNames: [],
     }
   }
 
@@ -445,5 +469,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     unmappedRequired: [],
     drift: txResult.drift,
     blocked: null,
+    updatedNames: txResult.updatedNames,
+    createdNames: txResult.createdNames,
+    archivedNames: txResult.archivedNames,
   }
 }

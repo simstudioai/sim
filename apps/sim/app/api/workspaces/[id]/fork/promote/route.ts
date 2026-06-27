@@ -87,6 +87,7 @@ export const POST = withRouteHandler(
       status: result.deployFailed > 0 ? 'completed_with_warnings' : 'completed',
       message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
       metadata: {
+        actorName: session.user.name ?? undefined,
         otherWorkspaceName: otherName,
         direction,
         updated: result.updated,
@@ -94,6 +95,9 @@ export const POST = withRouteHandler(
         archived: result.archived,
         redeployed: result.redeployed,
         deployFailed: result.deployFailed,
+        updatedNames: result.updatedNames,
+        createdNames: result.createdNames,
+        archivedNames: result.archivedNames,
       },
     }).catch((error) =>
       logger.error(`[${requestId}] Failed to record sync activity`, {

@@ -274,6 +274,8 @@ export type PromoteForkResponse = z.output<typeof promoteForkContract.response.s
 /** Structured detail for a background job, surfaced in the Activity tab's expand row. */
 export const backgroundWorkMetadataSchema = z
   .object({
+    /** Display name of the user who performed the action (denormalized at write time). */
+    actorName: z.string().optional(),
     // Fork content copy
     childWorkspaceId: z.string().optional(),
     childWorkspaceName: z.string().optional(),
@@ -283,6 +285,14 @@ export const backgroundWorkMetadataSchema = z
     files: z.number().int().optional(),
     copied: z.number().int().optional(),
     failed: z.number().int().optional(),
+    /** Names of the resources a fork copied, by kind, for the report breakdown. */
+    workflowNames: z.array(z.string()).optional(),
+    tableNames: z.array(z.string()).optional(),
+    knowledgeBaseNames: z.array(z.string()).optional(),
+    fileNames: z.array(z.string()).optional(),
+    customToolNames: z.array(z.string()).optional(),
+    skillNames: z.array(z.string()).optional(),
+    mcpServerNames: z.array(z.string()).optional(),
     // Sync / rollback
     otherWorkspaceName: z.string().optional(),
     direction: z.enum(['push', 'pull']).optional(),
@@ -295,6 +305,10 @@ export const backgroundWorkMetadataSchema = z
     unarchived: z.number().int().optional(),
     removed: z.number().int().optional(),
     skipped: z.number().int().optional(),
+    /** Names of the workflows a sync changed, by action, for the report breakdown. */
+    updatedNames: z.array(z.string()).optional(),
+    createdNames: z.array(z.string()).optional(),
+    archivedNames: z.array(z.string()).optional(),
   })
   .nullable()
 export const backgroundWorkItemSchema = z.object({

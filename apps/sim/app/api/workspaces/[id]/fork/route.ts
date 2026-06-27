@@ -31,6 +31,7 @@ export const POST = withRouteHandler(
       source,
       policy,
       userId: session.user.id,
+      actorName: session.user.name ?? undefined,
       name: parsed.data.body.name,
       selection: {
         files: copy?.files ?? [],
