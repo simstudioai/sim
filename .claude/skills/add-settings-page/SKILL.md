@@ -29,7 +29,15 @@ Key paths:
    bar, scroll region, content column, or title block. Put header buttons in
    `actions`, a standalone search in `search={{ value, onChange, placeholder }}`,
    and the page content as `children`. Modals go beside the panel inside a `<>`.
-4. **Verify:** `cd apps/sim && bunx tsc --noEmit`; `bunx biome check --write <file>`.
+4. **If the page has editable state**, wire the shared save/discard stack — put
+   `SaveDiscardActions` (dirty-gated Discard+Save chips) in `actions`, and call
+   `useSettingsUnsavedGuard({ isDirty })` **before any early-return gate**.
+   Detail sub-views additionally route the back chip through
+   `guard.guardBack(closeFn)` and render the shared `UnsavedChangesModal`. Never
+   hand-roll a Save button, a `beforeunload`, or an "Unsaved changes" modal —
+   they're centralized. See the "Save / Discard + unsaved-changes guard" section
+   in `.claude/rules/sim-settings-pages.md`.
+5. **Verify:** `cd apps/sim && bunx tsc --noEmit`; `bunx biome check --write <file>`.
 
 ## Mode B — Audit existing settings pages
 
@@ -44,6 +52,11 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
    `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
 3. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
    accurate `description` of consistent length with its peers.
+   - Editable pages: confirm Save/Discard go through `SaveDiscardActions` and
+     dirty is wired via `useSettingsUnsavedGuard` (called before early-return
+     gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
+     `git grep -n "beforeunload" -- 'apps/sim/**/settings/' 'apps/sim/ee/'`
+     should only hit the centralized `use-settings-before-unload.ts`.
 4. When migrating a page, change ONLY the structural shell→`SettingsPanel` swap:
    move header chips to `actions`, the standalone search to `search`, delete the
    `<h1>` title block, replace the three closing `</div>` (column/scroll/shell)

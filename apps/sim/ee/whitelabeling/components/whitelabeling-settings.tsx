@@ -18,10 +18,12 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useUpdateWhitelabelSettings,
@@ -226,6 +228,8 @@ export function WhitelabelingSettings() {
       (logoUpload.previewUrl || null) !== savedLogoUrl ||
       (wordmarkUpload.previewUrl || null) !== savedWordmarkUrl)
 
+  useSettingsUnsavedGuard({ isDirty: hasChanges })
+
   async function handleSave() {
     if (!orgId) return
 
@@ -277,6 +281,20 @@ export function WhitelabelingSettings() {
     }
   }
 
+  function handleDiscard() {
+    setBrandName(savedBrandName)
+    setPrimaryColor(savedPrimaryColor)
+    setPrimaryHoverColor(savedPrimaryHoverColor)
+    setAccentColor(savedAccentColor)
+    setAccentHoverColor(savedAccentHoverColor)
+    setSupportEmail(savedSupportEmail)
+    setDocumentationUrl(savedDocumentationUrl)
+    setTermsUrl(savedTermsUrl)
+    setPrivacyUrl(savedPrivacyUrl)
+    setLogoUrl(savedLogoUrl)
+    setWordmarkUrl(savedWordmarkUrl)
+  }
+
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
@@ -312,13 +330,13 @@ export function WhitelabelingSettings() {
   return (
     <SettingsPanel
       actions={
-        <Button
-          variant='primary'
-          onClick={handleSave}
-          disabled={updateSettings.isPending || isUploading || !hasChanges}
-        >
-          {updateSettings.isPending ? 'Saving...' : 'Save'}
-        </Button>
+        <SaveDiscardActions
+          dirty={hasChanges}
+          saving={updateSettings.isPending}
+          saveDisabled={isUploading}
+          onSave={handleSave}
+          onDiscard={handleDiscard}
+        />
       }
     >
       <SettingsSection label='Brand Identity'>

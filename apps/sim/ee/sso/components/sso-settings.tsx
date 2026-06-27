@@ -23,8 +23,10 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useOrganizations } from '@/hooks/queries/organization'
@@ -135,6 +137,12 @@ export function SSO() {
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
+
+  const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
+    (k) => formData[k] !== originalFormData[k]
+  )
+
+  useSettingsUnsavedGuard({ isDirty: hasChanges })
 
   if (isBillingEnabled) {
     if (!activeOrganization) {
@@ -256,10 +264,14 @@ export function SSO() {
   const hasAnyErrors = (errs: Record<string, string[]>) =>
     Object.values(errs).some((l) => l.length > 0)
 
-  const hasChanges = () =>
-    (Object.keys(formData) as (keyof typeof formData)[]).some(
-      (k) => formData[k] !== originalFormData[k]
-    )
+  const handleDiscard = () => {
+    setIsEditing(false)
+    setFormData(DEFAULT_FORM_DATA)
+    setOriginalFormData(DEFAULT_FORM_DATA)
+    setErrors(DEFAULT_ERRORS)
+    setShowErrors(false)
+    setShowAdvanced(false)
+  }
 
   const isFormValid = () => {
     const requiredFields = ['providerId', 'issuerUrl', 'domain']
@@ -285,8 +297,8 @@ export function SSO() {
     return false
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
 
     setShowErrors(true)
     const validation = validateAll(formData)
@@ -339,6 +351,7 @@ export function SSO() {
       logger.info('SSO provider configured', { providerId: formData.providerId })
       toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
       setFormData(DEFAULT_FORM_DATA)
+      setOriginalFormData(DEFAULT_FORM_DATA)
       setErrors(DEFAULT_ERRORS)
       setShowErrors(false)
       setIsEditing(false)
@@ -522,41 +535,15 @@ export function SSO() {
 
       <SettingsPanel
         actions={
-          <>
-            {isEditing && (
-              <Button
-                type='button'
-                variant='default'
-                onClick={() => {
-                  setIsEditing(false)
-                  setFormData(DEFAULT_FORM_DATA)
-                  setErrors(DEFAULT_ERRORS)
-                  setShowErrors(false)
-                  setShowAdvanced(false)
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-            <Button
-              type='submit'
-              variant='primary'
-              disabled={
-                configureSSOMutation.isPending ||
-                hasAnyErrors(errors) ||
-                !isFormValid() ||
-                (isEditing && !hasChanges())
-              }
-            >
-              {configureSSOMutation.isPending
-                ? isEditing
-                  ? 'Updating...'
-                  : 'Saving...'
-                : isEditing
-                  ? 'Update'
-                  : 'Save'}
-            </Button>
-          </>
+          <SaveDiscardActions
+            dirty={hasChanges}
+            saving={configureSSOMutation.isPending}
+            saveDisabled={hasAnyErrors(errors) || !isFormValid()}
+            saveLabel={isEditing ? 'Update' : 'Save'}
+            savingLabel={isEditing ? 'Updating...' : 'Saving...'}
+            onSave={() => void handleSubmit()}
+            onDiscard={handleDiscard}
+          />
         }
       >
         <div className='flex flex-col gap-4.5'>
