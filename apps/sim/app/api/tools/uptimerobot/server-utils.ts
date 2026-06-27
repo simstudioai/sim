@@ -143,5 +143,20 @@ export async function forwardPspRequest(options: {
       { status: 502 }
     )
   }
+
+  // A real PspDto always carries a positive numeric `id` and a non-empty
+  // `friendlyName` (both spec-required). If they are absent, the body is a `{}`
+  // or metadata envelope, not a status page — surface the provider error rather
+  // than mapping a phantom PSP.
+  if (typeof data.id !== 'number' || data.id < 1 || !data.friendlyName) {
+    logger.error(`[${requestId}] UptimeRobot returned a PSP response without core fields`, {
+      body: text,
+    })
+    return NextResponse.json(
+      { success: false, error: 'UptimeRobot returned an unexpected response' },
+      { status: 502 }
+    )
+  }
+
   return NextResponse.json({ success: true, output: { psp: mapPsp(data) } })
 }
