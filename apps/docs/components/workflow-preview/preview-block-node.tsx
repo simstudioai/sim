@@ -42,7 +42,7 @@ const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none
 const HANDLE_BRANCH =
   '!z-[10] !border-none !right-[-16px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px] !bg-[var(--wp-edge)]'
 const HANDLE_ERROR =
-  '!z-[10] !border-none !right-[-16px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px] !bg-[#ef4444]'
+  '!z-[10] !border-none !right-[-16px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px] !bg-[var(--text-error)]'
 
 /**
  * Static preview block node matching the real WorkflowBlock styling.
@@ -88,7 +88,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
       >
         <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[var(--wp-border-1)] bg-[var(--wp-surface)]'>
           {isHighlighted && (
-            <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-2 ring-[#33b4ff]' />
+            <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-2 ring-[var(--wp-highlight)]' />
           )}
           {!hideTargetHandle && (
             <Handle

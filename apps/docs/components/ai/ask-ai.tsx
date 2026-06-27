@@ -84,7 +84,7 @@ export function AskAI({ locale }: AskAIProps) {
           type='button'
           aria-label='Ask AI'
           onClick={() => setOpen(true)}
-          className='fixed right-4 bottom-4 z-50 flex h-11 items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-4 font-season text-[var(--text-base)] text-sm shadow-lg transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
+          className='fixed right-4 bottom-4 z-50 flex h-11 items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-4 font-season text-[var(--text-body)] text-sm shadow-[var(--shadow-medium)] transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
         >
           <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
           Ask AI
@@ -92,9 +92,9 @@ export function AskAI({ locale }: AskAIProps) {
       )}
 
       {open && (
-        <div className='fixed right-4 bottom-4 z-50 flex h-[600px] max-h-[calc(100vh-2rem)] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-5)] shadow-xl dark:bg-[var(--surface-4)]'>
+        <div className='fixed right-4 bottom-4 z-50 flex h-[600px] max-h-[calc(100vh-2rem)] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-5)] shadow-[var(--shadow-medium)] dark:bg-[var(--surface-4)]'>
           <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-3'>
-            <span className='flex items-center gap-2 font-season text-[var(--text-base)] text-sm'>
+            <span className='flex items-center gap-1.5 font-season text-[var(--text-body)] text-sm'>
               <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
               Ask AI
             </span>
@@ -105,7 +105,7 @@ export function AskAI({ locale }: AskAIProps) {
                 stop()
                 setOpen(false)
               }}
-              className='flex size-7 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)]'
+              className='flex size-7 items-center justify-center rounded-lg text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)]'
             >
               <X className='size-[16px]' />
             </button>
@@ -132,13 +132,13 @@ export function AskAI({ locale }: AskAIProps) {
                   )}
                 >
                   {message.role === 'user' ? (
-                    <div className='max-w-[90%] whitespace-pre-wrap rounded-lg bg-[var(--surface-active)] px-3 py-2 text-[var(--text-base)] text-sm'>
+                    <div className='max-w-[90%] whitespace-pre-wrap rounded-lg bg-[var(--surface-active)] px-3 py-2 text-[var(--text-body)] text-sm'>
                       {text}
                     </div>
                   ) : (
-                    <div className='max-w-[90%] text-[var(--text-base)] text-sm'>
+                    <div className='max-w-[90%] text-[var(--text-body)] text-sm'>
                       {text ? (
-                        <Streamdown className='space-y-2 text-sm leading-relaxed [&_a]:text-[var(--text-link)] [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5'>
+                        <Streamdown className='space-y-2 text-sm leading-relaxed [&_a]:text-[var(--brand-accent)] [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5'>
                           {text}
                         </Streamdown>
                       ) : isStreaming ? (
@@ -156,7 +156,7 @@ export function AskAI({ locale }: AskAIProps) {
                           href={source.url}
                           target='_blank'
                           rel='noopener noreferrer'
-                          className='rounded-md border border-[var(--border-1)] px-2 py-0.5 text-[var(--text-muted)] text-xs transition-colors hover:bg-[var(--surface-active)]'
+                          className='rounded-lg border border-[var(--border-1)] px-2 py-0.5 text-[var(--text-muted)] text-xs transition-colors hover:bg-[var(--surface-active)]'
                         >
                           {source.title || source.url}
                         </a>
@@ -189,7 +189,7 @@ export function AskAI({ locale }: AskAIProps) {
               }}
               rows={1}
               placeholder='Ask a question…'
-              className='max-h-32 flex-1 resize-none bg-transparent font-season text-[var(--text-base)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+              className='max-h-32 flex-1 resize-none bg-transparent font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
             />
             {isBusy ? (
               <button
@@ -198,14 +198,14 @@ export function AskAI({ locale }: AskAIProps) {
                 onClick={() => stop()}
                 className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-active)] text-[var(--text-icon)]'
               >
-                <Square className='size-[14px]' />
+                <Square className='size-[16px]' />
               </button>
             ) : (
               <button
                 type='submit'
                 aria-label='Send'
                 disabled={!input.trim()}
-                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--text-base)] text-[var(--surface-5)] transition-opacity disabled:opacity-40 dark:bg-[var(--text-base)]'
+                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--text-primary)] text-[var(--text-inverse)] transition-opacity disabled:opacity-40 dark:bg-white dark:text-[var(--bg)]'
               >
                 <ArrowUp className='size-[16px]' />
               </button>
