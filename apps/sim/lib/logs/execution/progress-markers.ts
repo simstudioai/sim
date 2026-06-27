@@ -46,7 +46,7 @@ const SET_MARKER_SCRIPT = `
 local existing = redis.call('HGET', KEYS[1], ARGV[1])
 if existing then
   local ok, decoded = pcall(cjson.decode, existing)
-  if ok and decoded[ARGV[2]] and tostring(decoded[ARGV[2]]) > ARGV[3] then
+  if ok and type(decoded) == 'table' and decoded[ARGV[2]] and tostring(decoded[ARGV[2]]) > ARGV[3] then
     redis.call('PEXPIRE', KEYS[1], ARGV[5])
     return 0
   end
