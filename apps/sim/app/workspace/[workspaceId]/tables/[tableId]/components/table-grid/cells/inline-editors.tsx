@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DatePicker } from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
+import { Calendar } from '@/components/emcn/components/calendar/calendar'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
 import type { SaveReason } from '../../../types'
@@ -20,7 +21,7 @@ interface InlineEditorProps {
   onCancel: () => void
 }
 
-/** Inline editor for `date` columns — text input + popover DatePicker. */
+/** Inline editor for `date` columns — text input + popover calendar. */
 function InlineDateEditor({
   value,
   column,
@@ -116,17 +117,12 @@ function InlineDateEditor({
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}
       />
-      <div className='absolute top-full left-0 size-0'>
-        <DatePicker
-          mode='single'
-          value={pickerValue}
-          onChange={handlePickerChange}
-          open={true}
-          onOpenChange={handlePickerOpenChange}
-          showTrigger={false}
-          size='sm'
-        />
-      </div>
+      <Popover open onOpenChange={handlePickerOpenChange}>
+        <PopoverAnchor className='absolute top-full left-0 size-0' />
+        <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
+          <Calendar value={pickerValue} onChange={handlePickerChange} />
+        </PopoverContent>
+      </Popover>
     </>
   )
 }

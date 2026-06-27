@@ -11,10 +11,13 @@ import {
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  DatePicker,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
   RefreshCw,
   Search,
 } from '@/components/emcn'
+import { Calendar } from '@/components/emcn/components/calendar/calendar'
 import { cn } from '@/lib/core/utils/cn'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -391,10 +394,7 @@ export function AuditLogs() {
             maxHeight={320}
             align='start'
           />
-          <DatePicker
-            mode='range'
-            showTrigger={false}
-            showTime
+          <Popover
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {
@@ -405,11 +405,19 @@ export function AuditLogs() {
                 }
               }
             }}
-            startDate={customStartDate}
-            endDate={customEndDate}
-            onRangeChange={handleDateRangeApply}
-            onCancel={handleDatePickerCancel}
-          />
+          >
+            <PopoverAnchor className='pointer-events-none absolute inset-0' />
+            <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
+              <Calendar
+                mode='range'
+                showTime
+                startDate={customStartDate}
+                endDate={customEndDate}
+                onRangeChange={handleDateRangeApply}
+                onCancel={handleDatePickerCancel}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
           <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />

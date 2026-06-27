@@ -52,10 +52,10 @@ export function Navbar() {
             <SearchTrigger />
           </div>
 
-          <div className='flex items-center gap-1'>
+          <div className='flex items-center gap-2'>
             <LanguageDropdown />
             <ThemeToggle />
-            <ChipLink href='https://sim.ai' variant='brand' className='ml-1'>
+            <ChipLink href='https://sim.ai' variant='primary'>
               Get started
             </ChipLink>
           </div>

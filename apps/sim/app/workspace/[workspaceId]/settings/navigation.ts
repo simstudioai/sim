@@ -74,6 +74,8 @@ export interface NavigationItem {
   /** Hide for enterprise plans, which manage billing out-of-band. */
   hideForEnterprise?: boolean
   externalUrl?: string
+  /** Absolute docs URL surfaced as a "Docs" link in the page header. */
+  docsLink?: string
 }
 
 const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
@@ -114,6 +116,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isAccessControlEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/access-control',
   },
   {
     id: 'audit-logs',
@@ -124,6 +127,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isAuditLogsEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/audit-logs',
   },
   {
     id: 'billing',
@@ -239,6 +243,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/sso',
   },
   {
     id: 'data-retention',
@@ -249,6 +254,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isDataRetentionEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/data-retention',
   },
   {
     id: 'data-drains',
@@ -259,6 +265,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isDataDrainsEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/data-drains',
   },
   {
     id: 'whitelabeling',
@@ -269,6 +276,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isWhitelabelingEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
   },
   {
     id: 'admin',
@@ -295,7 +303,7 @@ export const allNavigationItems: NavigationItem[] = [
  */
 export function getSettingsSectionMeta(
   section: SettingsSection
-): { label: string; description: string } | null {
+): { label: string; description: string; docsLink?: string } | null {
   const item = allNavigationItems.find((navItem) => navItem.id === section)
-  return item ? { label: item.label, description: item.description } : null
+  return item ? { label: item.label, description: item.description, docsLink: item.docsLink } : null
 }

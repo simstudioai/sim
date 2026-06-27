@@ -11,7 +11,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
   docsLink: 'https://docs.sim.ai/tools/icypeas',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#0EA5E9',
+  bgColor: '#d4d4d4',
   icon: IcypeasIcon,
   authMode: AuthMode.ApiKey,
 

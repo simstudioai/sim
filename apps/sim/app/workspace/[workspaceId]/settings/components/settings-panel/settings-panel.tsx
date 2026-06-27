@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
-import { ChipInput, Search } from '@/components/emcn'
+import { ChipInput, ChipLink, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getSettingsSectionMeta,
@@ -47,6 +47,8 @@ interface SettingsPanelProps {
   title?: string
   /** Overrides the nav-driven description. */
   description?: string
+  /** Overrides the nav-driven docs link (the "Docs" link rendered on the title row). */
+  docsLink?: string
   /** Extra classes for the content column (layout/spacing only, e.g. a tighter `gap-*`). */
   contentClassName?: string
   /** Ref forwarded to the scroll region (e.g. for programmatic scroll-to-bottom). */
@@ -73,6 +75,7 @@ export function SettingsPanel({
   actions,
   title,
   description,
+  docsLink,
   contentClassName,
   scrollContainerRef,
   search,
@@ -81,12 +84,20 @@ export function SettingsPanel({
   const meta = section ? getSettingsSectionMeta(section) : null
   const resolvedTitle = title ?? meta?.label
   const resolvedDescription = description ?? meta?.description
+  const resolvedDocsLink = docsLink ?? meta?.docsLink
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <div />
-        <div className='flex h-[30px] items-center gap-1'>{actions}</div>
+        <div className='flex h-[30px] items-center gap-1'>
+          {resolvedDocsLink && (
+            <ChipLink href={resolvedDocsLink} target='_blank' rel='noopener noreferrer'>
+              Docs
+            </ChipLink>
+          )}
+          {actions}
+        </div>
       </div>
       <div
         ref={scrollContainerRef}
