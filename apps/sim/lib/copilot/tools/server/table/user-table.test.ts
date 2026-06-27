@@ -742,7 +742,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -763,7 +767,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -781,7 +788,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -801,7 +812,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     await flushDetached()
@@ -836,7 +850,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -850,7 +867,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -881,7 +902,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -901,7 +927,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -922,7 +952,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -958,7 +992,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { email: 'x' }, data: { email: 'y' } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'email', op: 'eq', value: 'x' }] },
+          data: { email: 'y' },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -980,7 +1018,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -994,7 +1036,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )

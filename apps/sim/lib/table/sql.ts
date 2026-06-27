@@ -13,8 +13,12 @@ import type {
   ColumnDefinition,
   ConditionOperators,
   Filter,
+  FilterOp,
   JsonValue,
+  Predicate,
+  PredicateNode,
   Sort,
+  TablePredicate,
 } from '@/lib/table/types'
 
 /**
@@ -179,6 +183,48 @@ function buildFilterClauseInternal(
 }
 
 /**
+ * Builds a WHERE clause from a v2 `TablePredicate` (nestable `all`/`any` groups
+ * of `{ field, op, value }` leaves). Sibling of `buildFilterClause`: same engine,
+ * same `fieldPredicate` leaf — only the grammar differs. Returns `undefined` when
+ * the tree contributes no conditions (empty groups, all-no-op leaves).
+ *
+ * @throws {TableQueryValidationError} if a field name is invalid or an operator is not allowed
+ */
+export function buildPredicateClause(
+  predicate: TablePredicate,
+  tableName: string,
+  columns: ColumnDefinition[]
+): SQL | undefined {
+  return buildPredicateNode(predicate, tableName, buildColumnTypeMap(columns))
+}
+
+function isPredicateGroup(node: PredicateNode): node is TablePredicate {
+  return 'all' in node || 'any' in node
+}
+
+function buildPredicateNode(
+  node: PredicateNode,
+  tableName: string,
+  columnTypeMap: ColumnTypeMap
+): SQL | undefined {
+  if (isPredicateGroup(node)) {
+    const isAll = 'all' in node
+    const members = isAll ? node.all : node.any
+    const clauses: SQL[] = []
+    for (const member of members) {
+      const clause = buildPredicateNode(member, tableName, columnTypeMap)
+      if (clause) clauses.push(clause)
+    }
+    if (clauses.length === 0) return undefined
+    if (clauses.length === 1) return clauses[0]
+    return sql`(${sql.join(clauses, sql.raw(isAll ? ' AND ' : ' OR '))})`
+  }
+
+  const leaf = node as Predicate
+  return fieldPredicate(tableName, leaf.field, leaf.op, leaf.value, columnTypeMap.get(leaf.field))
+}
+
+/**
  * Builds an ORDER BY clause from a sort object.
  *
  * @param sort - Sort object with field names and directions
@@ -313,102 +359,104 @@ function buildFieldCondition(
 
   if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
     for (const [op, value] of Object.entries(condition)) {
-      // Validate operator to ensure only allowed operators are used
+      // Validate against the legacy `$`-whitelist, then normalize onto the shared
+      // `FilterOp` so v1 and v2 emit byte-identical leaf SQL.
       validateOperator(op)
 
-      switch (op) {
-        case '$eq':
-          conditions.push(buildContainmentClause(tableName, field, value as JsonValue))
-          break
-
-        case '$ne':
-          conditions.push(
-            sql`NOT (${buildContainmentClause(tableName, field, value as JsonValue)})`
-          )
-          break
-
-        case '$gt':
-          conditions.push(
-            buildComparisonClause(tableName, field, '>', value as number | string, columnType)
-          )
-          break
-
-        case '$gte':
-          conditions.push(
-            buildComparisonClause(tableName, field, '>=', value as number | string, columnType)
-          )
-          break
-
-        case '$lt':
-          conditions.push(
-            buildComparisonClause(tableName, field, '<', value as number | string, columnType)
-          )
-          break
-
-        case '$lte':
-          conditions.push(
-            buildComparisonClause(tableName, field, '<=', value as number | string, columnType)
-          )
-          break
-
-        case '$in':
-          if (Array.isArray(value) && value.length > 0) {
-            if (value.length === 1) {
-              // Single value then use containment clause
-              conditions.push(buildContainmentClause(tableName, field, value[0]))
-            } else {
-              // Multiple values then use OR clause
-              const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
-              conditions.push(sql`(${sql.join(inConditions, sql.raw(' OR '))})`)
-            }
-          }
-          break
-
-        case '$nin':
-          if (Array.isArray(value) && value.length > 0) {
-            const ninConditions = value.map(
-              (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
-            )
-            conditions.push(sql`(${sql.join(ninConditions, sql.raw(' AND '))})`)
-          }
-          break
-
-        case '$contains':
-          conditions.push(buildLikeClause(tableName, field, value as string, 'contains'))
-          break
-
-        case '$ncontains':
-          conditions.push(
-            buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
-          )
-          break
-
-        case '$startsWith':
-          conditions.push(buildLikeClause(tableName, field, value as string, 'startsWith'))
-          break
-
-        case '$endsWith':
-          conditions.push(buildLikeClause(tableName, field, value as string, 'endsWith'))
-          break
-
-        case '$empty':
-          conditions.push(buildEmptyClause(tableName, field, coerceEmptyFlag(field, value)))
-          break
-
-        default:
-          // This should never happen due to validateOperator, but added for completeness.
-          // Throw a plain Error (→ 500) since reaching this default means the switch
-          // and ALLOWED_OPERATORS have drifted — that's a programmer error, not a caller error.
-          throw new Error(`Unsupported operator: ${op}`)
+      if (op === '$empty') {
+        // `$empty: true/false` maps onto the valueless v2 ops.
+        const filterOp: FilterOp = coerceEmptyFlag(field, value) ? 'isEmpty' : 'isNotEmpty'
+        const clause = fieldPredicate(tableName, field, filterOp, undefined, columnType)
+        if (clause) conditions.push(clause)
+        continue
       }
+
+      // Every other `$op` is `op` minus the leading `$` (e.g. `$gte` → `gte`).
+      const clause = fieldPredicate(tableName, field, op.slice(1) as FilterOp, value, columnType)
+      if (clause) conditions.push(clause)
     }
   } else {
     // Simple value (primitive or null) - shorthand for equality.
     // Example: { name: 'John' } is equivalent to { name: { $eq: 'John' } }
-    conditions.push(buildContainmentClause(tableName, field, condition))
+    const clause = fieldPredicate(tableName, field, 'eq', condition, columnType)
+    if (clause) conditions.push(clause)
   }
 
   return conditions
+}
+
+/**
+ * The single leaf primitive: compiles one `field op value` into SQL. Every
+ * matcher routes through here — both filter compilers (`buildFilterClause` for
+ * the legacy `$`-grammar, `buildPredicateClause` for the v2 grammar), the upsert
+ * conflict probe, and the unique-constraint checks. Centralizing the leaf means
+ * equality/case/null/cast semantics are defined exactly once, so "find the row"
+ * and "is this value unique" can never disagree.
+ *
+ * Returns `undefined` when the predicate is a no-op (empty `in`/`nin` array),
+ * matching the legacy behavior of emitting no clause.
+ *
+ * Equality (`eq`/`ne`/`in`/`nin`) uses case-sensitive JSONB containment (GIN
+ * indexed). Text matches (`contains`/`ncontains`/`startsWith`/`endsWith`) are
+ * ILIKE (case-insensitive). Ranges cast per column type.
+ */
+export function fieldPredicate(
+  tableName: string,
+  field: string,
+  op: FilterOp,
+  value: JsonValue | undefined,
+  columnType: ColumnType | undefined
+): SQL | undefined {
+  validateFieldName(field)
+
+  switch (op) {
+    case 'eq':
+      return buildContainmentClause(tableName, field, value as JsonValue)
+
+    case 'ne':
+      return sql`NOT (${buildContainmentClause(tableName, field, value as JsonValue)})`
+
+    case 'gt':
+      return buildComparisonClause(tableName, field, '>', value as number | string, columnType)
+    case 'gte':
+      return buildComparisonClause(tableName, field, '>=', value as number | string, columnType)
+    case 'lt':
+      return buildComparisonClause(tableName, field, '<', value as number | string, columnType)
+    case 'lte':
+      return buildComparisonClause(tableName, field, '<=', value as number | string, columnType)
+
+    case 'in': {
+      if (!Array.isArray(value) || value.length === 0) return undefined
+      if (value.length === 1) return buildContainmentClause(tableName, field, value[0])
+      const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
+      return sql`(${sql.join(inConditions, sql.raw(' OR '))})`
+    }
+
+    case 'nin': {
+      if (!Array.isArray(value) || value.length === 0) return undefined
+      const ninConditions = value.map(
+        (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
+      )
+      return sql`(${sql.join(ninConditions, sql.raw(' AND '))})`
+    }
+
+    case 'contains':
+      return buildLikeClause(tableName, field, value as string, 'contains')
+    case 'ncontains':
+      return buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+    case 'startsWith':
+      return buildLikeClause(tableName, field, value as string, 'startsWith')
+    case 'endsWith':
+      return buildLikeClause(tableName, field, value as string, 'endsWith')
+
+    case 'isEmpty':
+      return buildEmptyClause(tableName, field, true)
+    case 'isNotEmpty':
+      return buildEmptyClause(tableName, field, false)
+
+    default:
+      throw new TableQueryValidationError(`Invalid operator "${op}"`)
+  }
 }
 
 /**

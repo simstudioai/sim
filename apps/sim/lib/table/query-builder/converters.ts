@@ -6,11 +6,15 @@ import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type {
   Filter,
+  FilterOp,
   FilterRule,
   JsonValue,
+  Predicate,
   Sort,
   SortDirection,
   SortRule,
+  SortSpec,
+  TablePredicate,
 } from '@/lib/table/types'
 
 /** Converts UI filter rules to a Filter object for API queries. */
@@ -226,4 +230,102 @@ function formatValueForBuilder(value: JsonValue): string {
 
 function normalizeSortDirection(direction: string): SortDirection {
   return direction === 'desc' ? 'desc' : 'asc'
+}
+
+/* ----------------------------- v2 grammar ----------------------------- */
+
+const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty'])
+
+function ruleToPredicate(rule: FilterRule): Predicate {
+  const op = rule.operator as FilterOp
+  if (VALUELESS_OPS.has(op)) return { field: rule.column, op }
+  return { field: rule.column, op, value: parseValue(rule.value, rule.operator) }
+}
+
+/**
+ * Converts UI builder rules to a v2 `TablePredicate`. Rules within an `or`
+ * boundary form an `all` group; multiple groups are combined under `any`.
+ * Mirrors {@link filterRulesToFilter} but emits the bare-operator grammar.
+ */
+export function filterRulesToPredicate(rules: FilterRule[]): TablePredicate | null {
+  if (rules.length === 0) return null
+
+  const groups: Predicate[][] = []
+  let current: Predicate[] = []
+
+  for (const rule of rules) {
+    if (rule.logicalOperator === 'or' && current.length > 0) {
+      groups.push(current)
+      current = []
+    }
+    if (!rule.column) continue
+    current.push(ruleToPredicate(rule))
+  }
+  if (current.length > 0) groups.push(current)
+
+  if (groups.length === 0) return null
+  if (groups.length === 1) return { all: groups[0] }
+  return { any: groups.map((group) => ({ all: group })) }
+}
+
+function predicateLeafToRule(p: Predicate): FilterRule {
+  return {
+    id: generateShortId(),
+    logicalOperator: 'and',
+    column: p.field,
+    operator: p.op,
+    value: VALUELESS_OPS.has(p.op) ? '' : formatValueForBuilder(p.value as JsonValue),
+  }
+}
+
+/** Flattens a predicate node into builder rules (best-effort for deep nesting). */
+function predicateGroupToRules(node: TablePredicate | Predicate): FilterRule[] {
+  if ('field' in node) return [predicateLeafToRule(node)]
+  const members = 'all' in node ? node.all : node.any
+  return members.flatMap((member) =>
+    'field' in member ? [predicateLeafToRule(member)] : predicateGroupToRules(member)
+  )
+}
+
+/** Converts a v2 `TablePredicate` back to UI builder rules. */
+export function predicateToFilterRules(predicate: TablePredicate | null): FilterRule[] {
+  if (!predicate) return []
+  if ('any' in predicate) {
+    const groups = predicate.any
+      .map((node) => predicateGroupToRules(node))
+      .filter((g) => g.length > 0)
+    return applyLogicalOperators(groups)
+  }
+  return predicateGroupToRules(predicate)
+}
+
+/** Converts UI sort rules to a v2 `SortSpec` (ordered `{ field, direction }`). */
+export function sortRulesToSortSpec(rules: SortRule[]): SortSpec | null {
+  const spec: SortSpec = []
+  for (const rule of rules) {
+    if (rule.column) spec.push({ field: rule.column, direction: rule.direction })
+  }
+  return spec.length > 0 ? spec : null
+}
+
+function predicateLeafToFilterValue(p: Predicate): Filter[string] {
+  if (p.op === 'isEmpty') return { $empty: true }
+  if (p.op === 'isNotEmpty') return { $empty: false }
+  if (p.op === 'eq') return p.value as Filter[string]
+  return { [`$${p.op}`]: p.value } as Filter[string]
+}
+
+/**
+ * Converts a v2 `TablePredicate` to a legacy `$`-grammar `Filter`. Lossless —
+ * both compile through the same `fieldPredicate` leaf, so the resulting SQL is
+ * identical. Lets v2 surfaces author in the predicate grammar while the bulk
+ * update/delete engine (sync + async-job paths) keeps consuming `Filter`.
+ */
+export function predicateToFilter(predicate: TablePredicate): Filter {
+  const nodeToFilter = (node: Predicate | TablePredicate): Filter => {
+    if ('field' in node) return { [node.field]: predicateLeafToFilterValue(node) }
+    if ('all' in node) return { $and: node.all.map(nodeToFilter) }
+    return { $or: node.any.map(nodeToFilter) }
+  }
+  return nodeToFilter(predicate)
 }

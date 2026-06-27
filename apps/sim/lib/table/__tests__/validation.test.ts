@@ -455,10 +455,12 @@ describe('Validation', () => {
       expect(result.errors[0]).toContain('abc123')
     })
 
-    it('should be case-insensitive for string comparisons', () => {
+    it('should be case-sensitive for string comparisons', () => {
+      // U333 vs u333: differing case is a DISTINCT value (matches the DB
+      // containment leaf). This is the v2 contract that fixes the upsert wedge.
       const data = { id: 'ABC123', email: 'new@example.com', name: 'New User' }
       const result = validateUniqueConstraints(data, schema, existingRows)
-      expect(result.valid).toBe(false)
+      expect(result.valid).toBe(true)
     })
 
     it('should exclude specified row from checks (for updates)', () => {

@@ -6,8 +6,15 @@
  * valueless `$empty` operator that maps to two distinct UI operators.
  */
 import { describe, expect, it } from 'vitest'
-import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
-import type { FilterRule } from '@/lib/table/types'
+import {
+  filterRulesToFilter,
+  filterRulesToPredicate,
+  filterToRules,
+  predicateToFilter,
+  predicateToFilterRules,
+  sortRulesToSortSpec,
+} from '@/lib/table/query-builder/converters'
+import type { FilterRule, SortRule, TablePredicate } from '@/lib/table/types'
 
 function rule(overrides: Partial<FilterRule>): FilterRule {
   return {
@@ -115,5 +122,118 @@ describe('filterToRules', () => {
     const rules = filterToRules(original)
     expect(rules).toHaveLength(2)
     expect(filterRulesToFilter(rules)).toEqual(original)
+  })
+})
+
+describe('filterRulesToPredicate (v2)', () => {
+  it('an AND group becomes a single all-group', () => {
+    const p = filterRulesToPredicate([
+      rule({ column: 'slack_user_id', operator: 'in', value: 'U1, U2' }),
+      rule({ column: 'wins', operator: 'gte', value: '10' }),
+    ])
+    expect(p).toEqual({
+      all: [
+        { field: 'slack_user_id', op: 'in', value: ['U1', 'U2'] },
+        { field: 'wins', op: 'gte', value: 10 },
+      ],
+    })
+  })
+
+  it('an or boundary splits into an any-of-all groups', () => {
+    const p = filterRulesToPredicate([
+      rule({ column: 'status', operator: 'eq', value: 'active' }),
+      rule({ column: 'status', operator: 'eq', value: 'pending', logicalOperator: 'or' }),
+    ])
+    expect(p).toEqual({
+      any: [
+        { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+        { all: [{ field: 'status', op: 'eq', value: 'pending' }] },
+      ],
+    })
+  })
+
+  it('valueless ops omit the value', () => {
+    const p = filterRulesToPredicate([rule({ column: 'note', operator: 'isEmpty' })])
+    expect(p).toEqual({ all: [{ field: 'note', op: 'isEmpty' }] })
+  })
+
+  it('returns null for no rules', () => {
+    expect(filterRulesToPredicate([])).toBeNull()
+  })
+
+  it('round-trips rules → predicate → rules (operator + value preserved)', () => {
+    const rules: FilterRule[] = [
+      rule({ column: 'wins', operator: 'gte', value: '10' }),
+      rule({ column: 'name', operator: 'contains', value: 'jo', logicalOperator: 'or' }),
+    ]
+    const back = predicateToFilterRules(filterRulesToPredicate(rules))
+    expect(back.map((r) => [r.column, r.operator, r.value, r.logicalOperator])).toEqual([
+      ['wins', 'gte', '10', 'and'],
+      ['name', 'contains', 'jo', 'or'],
+    ])
+  })
+})
+
+describe('predicateToFilterRules (v2)', () => {
+  it('flattens an all-group to and-joined rules', () => {
+    const p: TablePredicate = {
+      all: [
+        { field: 'a', op: 'eq', value: 1 },
+        { field: 'b', op: 'isNotEmpty' },
+      ],
+    }
+    const rules = predicateToFilterRules(p)
+    expect(rules.map((r) => [r.column, r.operator, r.value])).toEqual([
+      ['a', 'eq', '1'],
+      ['b', 'isNotEmpty', ''],
+    ])
+  })
+
+  it('returns [] for null', () => {
+    expect(predicateToFilterRules(null)).toEqual([])
+  })
+})
+
+describe('predicateToFilter (v2 → legacy)', () => {
+  it('maps an all-group to $and with bare-op leaves', () => {
+    const p: TablePredicate = {
+      all: [
+        { field: 'slack_user_id', op: 'in', value: ['U1', 'U2'] },
+        { field: 'wins', op: 'gte', value: 10 },
+        { field: 'name', op: 'eq', value: 'x' },
+      ],
+    }
+    expect(predicateToFilter(p)).toEqual({
+      $and: [{ slack_user_id: { $in: ['U1', 'U2'] } }, { wins: { $gte: 10 } }, { name: 'x' }],
+    })
+  })
+
+  it('maps an any-group to $or and valueless ops to $empty', () => {
+    const p: TablePredicate = {
+      any: [
+        { field: 'a', op: 'isEmpty' },
+        { field: 'b', op: 'isNotEmpty' },
+      ],
+    }
+    expect(predicateToFilter(p)).toEqual({
+      $or: [{ a: { $empty: true } }, { b: { $empty: false } }],
+    })
+  })
+})
+
+describe('sortRulesToSortSpec (v2)', () => {
+  it('maps rules to an ordered field/direction list', () => {
+    const rules: SortRule[] = [
+      { id: '1', column: 'wins', direction: 'desc' },
+      { id: '2', column: 'name', direction: 'asc' },
+    ]
+    expect(sortRulesToSortSpec(rules)).toEqual([
+      { field: 'wins', direction: 'desc' },
+      { field: 'name', direction: 'asc' },
+    ])
+  })
+
+  it('skips column-less rules and returns null when empty', () => {
+    expect(sortRulesToSortSpec([{ id: '1', column: '', direction: 'asc' }])).toBeNull()
   })
 })

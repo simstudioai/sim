@@ -423,6 +423,51 @@ export interface Filter {
   [key: string]: ColumnValue | ConditionOperators | Filter[] | undefined
 }
 
+/**
+ * v2 filter operators (bare, no `$`). Equality and `in`/`nin` are case-sensitive
+ * (JSONB containment, GIN-indexed); the text ops `contains`/`ncontains`/
+ * `startsWith`/`endsWith` are ILIKE (case-insensitive). `isEmpty`/`isNotEmpty`
+ * are valueless. This is the canonical operator set the shared `fieldPredicate`
+ * leaf understands; the legacy `$`-operators normalize onto it.
+ */
+export type FilterOp =
+  | 'eq'
+  | 'ne'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'nin'
+  | 'contains'
+  | 'ncontains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'isEmpty'
+  | 'isNotEmpty'
+
+/** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
+export interface Predicate {
+  field: string
+  op: FilterOp
+  value?: JsonValue
+}
+
+/**
+ * v2 nestable filter tree. A group is either `{ all: [...] }` (AND) or
+ * `{ any: [...] }` (OR); members are leaves or nested groups. Replaces the
+ * MongoDB-style `Filter` on the v2 surface — same engine, legible grammar.
+ *
+ * @example
+ * { all: [{ field: 'slack_user_id', op: 'in', value: ['U1','U2'] }, { field: 'wins', op: 'gte', value: 10 }] }
+ * { any: [{ field: 'status', op: 'eq', value: 'active' }, { field: 'status', op: 'eq', value: 'pending' }] }
+ */
+export type PredicateNode = Predicate | TablePredicate
+export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+
+/** v2 sort specification: an ordered list of `{ field, direction }`. */
+export type SortSpec = Array<{ field: string; direction: SortDirection }>
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]
@@ -454,6 +499,11 @@ export interface SortRule {
 
 export interface QueryOptions {
   filter?: Filter
+  /**
+   * v2 nestable predicate. When set it takes precedence over `filter` — the two
+   * compile through the same `fieldPredicate` leaf, so callers pick one grammar.
+   */
+  predicate?: TablePredicate
   sort?: Sort
   limit?: number
   offset?: number
@@ -480,6 +530,12 @@ export interface QueryResult {
   totalCount: number | null
   limit: number
   offset: number
+  /**
+   * Opaque cursor for the next page, or `null` on the last page (fewer rows than
+   * `limit`). The v2 surface exposes only this — callers echo it back as `cursor`
+   * and never construct keyset/offset state themselves. See `rows/cursor.ts`.
+   */
+  nextCursor: string | null
 }
 
 export interface BulkOperationResult {

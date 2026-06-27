@@ -5,10 +5,12 @@ import type {
   CsvHeaderMapping,
   EnrichmentRunDetail,
   Filter,
+  PredicateNode,
   RowData,
   Sort,
   TableDefinition,
   TableMetadata,
+  TablePredicate,
   TableRow,
   TableRowsCursor,
 } from '@/lib/table'
@@ -259,6 +261,77 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
 )
 
 const filterSchema = domainObjectSchema<Filter>()
+
+/* --------------------------- v2 predicate grammar --------------------------- */
+
+const MAX_PREDICATE_MEMBERS = 100
+const MAX_SORT_FIELDS = 32
+const MAX_FIELD_LENGTH = 128
+
+/** v2 bare-operator set — the legible grammar mothership and clients author. */
+export const filterOpSchema = z.enum([
+  'eq',
+  'ne',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'in',
+  'nin',
+  'contains',
+  'ncontains',
+  'startsWith',
+  'endsWith',
+  'isEmpty',
+  'isNotEmpty',
+])
+
+const predicateValueSchema: z.ZodType<string | number | boolean | null | unknown[]> = z.lazy(() =>
+  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(predicateValueSchema)])
+)
+
+const predicateLeafSchema = z.object({
+  field: z.string().min(1, 'predicate field is required').max(MAX_FIELD_LENGTH),
+  op: filterOpSchema,
+  value: predicateValueSchema.optional(),
+})
+
+/**
+ * Recursive `all`/`any` filter tree. A group is `{ all: [...] }` (AND) or
+ * `{ any: [...] }` (OR); members are leaf predicates or nested groups. A single
+ * cast pins the output to the canonical `TablePredicate` (zod's structural output
+ * is assignable but invariant under `z.ZodType`).
+ */
+export const tablePredicateSchema = z.lazy(() =>
+  z.union([
+    z.object({
+      all: z
+        .array(predicateNodeSchema)
+        .min(1, 'all group cannot be empty')
+        .max(MAX_PREDICATE_MEMBERS),
+    }),
+    z.object({
+      any: z
+        .array(predicateNodeSchema)
+        .min(1, 'any group cannot be empty')
+        .max(MAX_PREDICATE_MEMBERS),
+    }),
+  ])
+) as z.ZodType<TablePredicate>
+
+const predicateNodeSchema = z.lazy(() =>
+  z.union([predicateLeafSchema, tablePredicateSchema])
+) as z.ZodType<PredicateNode>
+
+/** v2 sort: an ordered list of `{ field, direction }`. */
+export const sortSpecSchema = z
+  .array(
+    z.object({
+      field: z.string().min(1, 'sort field is required').max(MAX_FIELD_LENGTH),
+      direction: z.enum(['asc', 'desc']),
+    })
+  )
+  .max(MAX_SORT_FIELDS)
 
 const optionalPositiveLimit = (max: number, label: string) =>
   z.preprocess(
@@ -529,6 +602,52 @@ export const listTableRowsContract = defineRouteContract({
     ),
   },
 })
+
+/**
+ * v2 query surface: structured predicate grammar + opaque cursor pagination.
+ * No `offset` (the cursor encodes paging state) and no after/sort refine (the
+ * cursor carries the sort context). POST because the predicate is a JSON tree.
+ */
+export const queryTableRowsV2BodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  predicate: tablePredicateSchema.optional(),
+  sort: sortSpecSchema.optional(),
+  limit: z
+    .preprocess(
+      (value) =>
+        value === null || value === undefined || value === '' ? undefined : Number(value),
+      z
+        .number({ error: 'Limit must be a number' })
+        .int('Limit must be an integer')
+        .min(1, 'Limit must be at least 1')
+        .max(TABLE_LIMITS.MAX_QUERY_LIMIT, `Limit cannot exceed ${TABLE_LIMITS.MAX_QUERY_LIMIT}`)
+        .optional()
+    )
+    .default(TABLE_LIMITS.DEFAULT_QUERY_LIMIT),
+  cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
+})
+
+export type QueryTableRowsV2Body = z.input<typeof queryTableRowsV2BodySchema>
+
+export const queryTableRowsV2Contract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/query',
+  params: tableIdParamsSchema,
+  body: queryTableRowsV2BodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        rows: z.array(tableRowSchema),
+        rowCount: z.number(),
+        totalCount: z.number().nullable(),
+        limit: z.number(),
+        nextCursor: z.string().nullable(),
+      })
+    ),
+  },
+})
+export type QueryTableRowsV2Response = ContractJsonResponse<typeof queryTableRowsV2Contract>
 
 export const findTableRowsQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),

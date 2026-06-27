@@ -3865,7 +3865,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter',
+              'Predicate-tree filter for query_rows, update_rows_by_filter, delete_rows_by_filter. A filter is { all: [...] } (AND) or { any: [...] } (OR) wrapping leaf nodes { field, op, value }; groups nest. Ops (bare, no $): eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, isEmpty, isNotEmpty. eq/ne/in/nin are case-sensitive; contains/ncontains/startsWith/endsWith are case-insensitive; isEmpty/isNotEmpty take no value; in/nin take an array. Example: { all: [{ field: "age", op: "gte", value: 18 }, { field: "status", op: "eq", value: "pending" }] }.',
           },
           groupId: {
             type: 'string',

@@ -13,8 +13,13 @@
  * substrings like `::timestamptz` against the generated SQL.
  */
 import { describe, expect, it } from 'vitest'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
-import type { ColumnDefinition, Filter, Sort } from '@/lib/table/types'
+import {
+  buildFilterClause,
+  buildPredicateClause,
+  buildSortClause,
+  fieldPredicate,
+} from '@/lib/table/sql'
+import type { ColumnDefinition, Filter, Sort, TablePredicate } from '@/lib/table/types'
 
 type SqlNode =
   | { strings: ArrayLike<string>; values: unknown[] }
@@ -458,5 +463,134 @@ describe('SQL Builder', () => {
         )
       }
     })
+  })
+})
+
+describe('fieldPredicate (shared leaf)', () => {
+  const r = (
+    op: Parameters<typeof fieldPredicate>[2],
+    value: unknown,
+    colType?: ColumnDefinition['type']
+  ) => render(fieldPredicate(TABLE, 'wins', op, value as never, colType))
+
+  it('eq emits case-sensitive JSONB containment (no lower())', () => {
+    const out = render(fieldPredicate(TABLE, 'slack_user_id', 'eq', 'U333', undefined))
+    expect(out).toContain('user_table_rows.data @>')
+    expect(out).toContain('"slack_user_id":"U333"')
+    expect(out).not.toContain('lower(')
+    // Case is preserved verbatim — U333 and u333 are distinct values.
+    expect(out).not.toContain('u333')
+  })
+
+  it('ne negates the containment clause', () => {
+    expect(r('ne', 'x')).toContain('NOT (')
+    expect(r('ne', 'x')).toContain('data @>')
+  })
+
+  it('in with one value is a single containment; many values OR together', () => {
+    expect(render(fieldPredicate(TABLE, 'slack_user_id', 'in', ['U1'], undefined))).toContain(
+      '"slack_user_id":"U1"'
+    )
+    const many = render(fieldPredicate(TABLE, 'slack_user_id', 'in', ['U1', 'U2'], undefined))
+    expect(many).toContain('"slack_user_id":"U1"')
+    expect(many).toContain('"slack_user_id":"U2"')
+    expect(many).toContain(' OR ')
+  })
+
+  it('nin ANDs negated containments', () => {
+    const out = render(fieldPredicate(TABLE, 'slack_user_id', 'nin', ['U1', 'U2'], undefined))
+    expect(out).toContain('NOT (')
+    expect(out).toContain(' AND ')
+  })
+
+  it('empty in/nin arrays are a no-op (undefined)', () => {
+    expect(fieldPredicate(TABLE, 'wins', 'in', [], undefined)).toBeUndefined()
+    expect(fieldPredicate(TABLE, 'wins', 'nin', [], undefined)).toBeUndefined()
+  })
+
+  it('range ops cast by column type', () => {
+    expect(r('gte', 10, 'number')).toContain('::numeric')
+    expect(r('gt', '2024-01-01', 'date')).toContain('::timestamptz')
+  })
+
+  it('text ops use case-insensitive ILIKE', () => {
+    expect(render(fieldPredicate(TABLE, 'name', 'contains', 'jo', undefined))).toContain('ILIKE')
+    expect(render(fieldPredicate(TABLE, 'name', 'startsWith', 'jo', undefined))).toContain('ILIKE')
+  })
+
+  it('isEmpty / isNotEmpty emit emptiness checks', () => {
+    expect(render(fieldPredicate(TABLE, 'name', 'isEmpty', undefined, undefined))).toContain(
+      'IS NULL'
+    )
+    expect(render(fieldPredicate(TABLE, 'name', 'isNotEmpty', undefined, undefined))).toContain(
+      'IS NOT NULL'
+    )
+  })
+
+  it('validates the field name', () => {
+    expect(() => fieldPredicate(TABLE, "x'; DROP", 'eq', 1, undefined)).toThrow(
+      'Invalid field name'
+    )
+  })
+
+  it('rejects an unknown operator', () => {
+    expect(() => fieldPredicate(TABLE, 'wins', 'bogus' as never, 1, undefined)).toThrow(
+      'Invalid operator'
+    )
+  })
+})
+
+describe('buildPredicateClause (v2 grammar)', () => {
+  it('all joins members with AND', () => {
+    const p: TablePredicate = {
+      all: [
+        { field: 'slack_user_id', op: 'in', value: ['U1', 'U2'] },
+        { field: 'wins', op: 'gte', value: 10 },
+      ],
+    }
+    const out = render(buildPredicateClause(p, TABLE, [{ name: 'wins', type: 'number' }]))
+    expect(out).toContain(' AND ')
+    expect(out).toContain('"slack_user_id":"U1"')
+    expect(out).toContain('::numeric')
+  })
+
+  it('any joins members with OR', () => {
+    const p: TablePredicate = {
+      any: [
+        { field: 'status', op: 'eq', value: 'active' },
+        { field: 'status', op: 'eq', value: 'pending' },
+      ],
+    }
+    const out = render(buildPredicateClause(p, TABLE, []))
+    expect(out).toContain(' OR ')
+    expect(out).toContain('"status":"active"')
+    expect(out).toContain('"status":"pending"')
+  })
+
+  it('nests groups', () => {
+    const p: TablePredicate = {
+      all: [
+        { field: 'wins', op: 'gte', value: 1 },
+        {
+          any: [
+            { field: 's', op: 'eq', value: 'a' },
+            { field: 's', op: 'eq', value: 'b' },
+          ],
+        },
+      ],
+    }
+    const out = render(buildPredicateClause(p, TABLE, []))
+    expect(out).toContain(' AND ')
+    expect(out).toContain(' OR ')
+  })
+
+  it('an empty group is a no-op (undefined)', () => {
+    expect(buildPredicateClause({ all: [] }, TABLE, [])).toBeUndefined()
+    expect(buildPredicateClause({ any: [] }, TABLE, [])).toBeUndefined()
+  })
+
+  it('validates leaf field names', () => {
+    const p: TablePredicate = { all: [{ field: 'bad name', op: 'eq', value: 1 }] }
+    expect(() => buildPredicateClause(p, TABLE, [])).toThrow('Invalid field name')
   })
 })

@@ -1,12 +1,14 @@
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
-import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, SortSpec, TablePredicate, TableSchema } from '@/lib/table'
 import {
   buildIdByName,
   buildNameById,
   filterNamesToIds,
+  predicateNamesToIds,
   rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
+  sortSpecNamesToIds,
 } from '@/lib/table'
 
 export interface RowWireTranslators {
@@ -18,6 +20,10 @@ export interface RowWireTranslators {
   filterIn: (filter: Filter) => Filter
   /** Inbound sort: wire field refs → storage column ids. */
   sortIn: (sort: Sort) => Sort
+  /** Inbound v2 predicate: wire field refs → storage column ids. */
+  predicateIn: (predicate: TablePredicate) => TablePredicate
+  /** Inbound v2 sort spec: wire field refs → storage column ids. */
+  sortSpecIn: (sort: SortSpec) => SortSpec
 }
 
 /**
@@ -33,7 +39,14 @@ export function rowWireTranslators(
 ): RowWireTranslators {
   if (authType !== AuthType.INTERNAL_JWT) {
     const identity = <T>(value: T): T => value
-    return { dataIn: identity, dataOut: identity, filterIn: identity, sortIn: identity }
+    return {
+      dataIn: identity,
+      dataOut: identity,
+      filterIn: identity,
+      sortIn: identity,
+      predicateIn: identity,
+      sortSpecIn: identity,
+    }
   }
   const idByName = buildIdByName(schema)
   const nameById = buildNameById(schema)
@@ -42,5 +55,7 @@ export function rowWireTranslators(
     dataOut: (data) => rowDataIdToName(data, nameById),
     filterIn: (filter) => filterNamesToIds(filter, idByName),
     sortIn: (sort) => sortNamesToIds(sort, idByName),
+    predicateIn: (predicate) => predicateNamesToIds(predicate, idByName),
+    sortSpecIn: (sort) => sortSpecNamesToIds(sort, idByName),
   }
 }

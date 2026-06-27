@@ -27,7 +27,7 @@ import {
 import {
   buildIdByName,
   buildNameById,
-  filterNamesToIds,
+  predicateNamesToIds,
   rowDataIdToName,
   rowDataNameToId,
   sortNamesToIds,
@@ -44,6 +44,7 @@ import {
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -608,7 +609,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const result = await queryRows(
             table,
             {
-              filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
+              predicate: args.filter ? predicateNamesToIds(args.filter, idByName) : undefined,
               sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
               limit:
                 args.limit !== undefined
@@ -728,7 +729,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          // Agent authors the v2 predicate grammar; convert to a Filter for the
+          // bulk engine (same fieldPredicate leaf → identical SQL).
+          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -823,7 +826,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = filterNamesToIds(args.filter, idByName)
+          // Agent authors the v2 predicate grammar; convert to a Filter for the
+          // bulk engine (same fieldPredicate leaf → identical SQL).
+          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background

@@ -28,6 +28,7 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 import {
   applyExecutionsPatch,
   deriveExecClearsForDataPatch,
@@ -46,7 +47,13 @@ import {
   resolveBatchInsertOrderKeys,
   resolveInsertOrderKey,
 } from '@/lib/table/rows/ordering'
-import { buildFilterClause, buildSortClause, escapeLikePattern } from '@/lib/table/sql'
+import {
+  buildFilterClause,
+  buildPredicateClause,
+  buildSortClause,
+  escapeLikePattern,
+  fieldPredicate,
+} from '@/lib/table/sql'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
@@ -415,15 +422,19 @@ export async function replaceTableRowsWithTx(
   if (uniqueColumns.length > 0 && data.rows.length > 0) {
     const seen = new Map<string, Map<string, number>>()
     for (const col of uniqueColumns) {
-      seen.set(col.name, new Map())
+      seen.set(getColumnId(col), new Map())
     }
     for (let i = 0; i < data.rows.length; i++) {
       const row = data.rows[i]
       for (const col of uniqueColumns) {
-        const value = row[col.name]
+        // Coerced rows are keyed by column id, not display name — reading
+        // `row[col.name]` silently misses renamed columns and lets dupes through.
+        const colId = getColumnId(col)
+        const value = row[colId]
         if (value === null || value === undefined) continue
-        const normalized = typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
-        const map = seen.get(col.name)!
+        // Case-sensitive, consistent with the unique-constraint check leaf.
+        const normalized = typeof value === 'string' ? value : JSON.stringify(value)
+        const map = seen.get(colId)!
         if (map.has(normalized)) {
           throw new Error(
             `Row ${i + 1}: Column "${col.name}" must be unique. Value "${String(value)}" duplicates row ${map.get(normalized)! + 1} in batch`
@@ -562,12 +573,21 @@ export async function upsertRow(
     throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
   }
 
-  // `data->` and `data->>` accept the JSON key as a parameterized text value;
-  // no need for `sql.raw` interpolation.
-  const matchFilter =
-    typeof targetValue === 'string'
-      ? sql`${userTableRows.data}->>${targetColumnKey}::text = ${String(targetValue)}`
-      : sql`(${userTableRows.data}->${targetColumnKey}::text)::jsonb = ${JSON.stringify(targetValue)}::jsonb`
+  // Build the conflict probe through the SAME leaf as the unique-constraint check
+  // (`fieldPredicate` → case-sensitive JSONB containment). This is what makes
+  // "find the row to update" and "is this value unique" agree: a value differing
+  // only in case can no longer slip past the probe and then trip the guard.
+  // `eq` always yields a clause for a non-null value (guaranteed above).
+  const matchFilter = fieldPredicate(
+    USER_TABLE_ROWS_SQL_NAME,
+    targetColumnKey,
+    'eq',
+    targetValue,
+    table.schema.columns.find((c) => getColumnId(c) === targetColumnKey)?.type
+  )
+  if (!matchFilter) {
+    throw new Error('Failed to build upsert conflict predicate')
+  }
 
   // Resolve the plan limit BEFORE the tx (the lookup is a separate pool read; doing
   // it inside the tx would hold a connection + the row-order lock during it). The
@@ -955,6 +975,7 @@ export async function queryRows(
 ): Promise<QueryResult> {
   const {
     filter,
+    predicate,
     sort,
     limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT,
     offset = 0,
@@ -979,12 +1000,17 @@ export async function queryRows(
     deleteMask
   )
 
+  // v2 predicate takes precedence over the legacy `$`-filter; both compile to a
+  // WHERE through the same `fieldPredicate` leaf.
+  const userClause = predicate
+    ? buildPredicateClause(predicate, tableName, columns)
+    : filter && Object.keys(filter).length > 0
+      ? buildFilterClause(filter, tableName, columns)
+      : undefined
+
   let whereClause = baseConditions
-  if (filter && Object.keys(filter).length > 0) {
-    const filterClause = buildFilterClause(filter, tableName, columns)
-    if (filterClause) {
-      whereClause = and(baseConditions, filterClause)
-    }
+  if (userClause) {
+    whereClause = and(baseConditions, userClause)
   }
 
   // Keyset page: seek past the cursor on the default `(order_key, id)` order instead of paying
@@ -1016,7 +1042,7 @@ export async function queryRows(
   // the planner seq-scans and sorts the whole shared relation on every page
   // (9.7s measured on a 1M-row table; 0.76s tenant-bounded). Default-order
   // pages already stream the `(table_id, order_key, id)` index.
-  const hasFilter = Boolean(filter && Object.keys(filter).length > 0)
+  const hasFilter = Boolean(userClause)
   const rowsPromise = sort ? withSeqscanOff(async (trx) => buildPageQuery(trx)) : buildPageQuery(db)
   const countPromise = includeTotal
     ? hasFilter
@@ -1041,20 +1067,30 @@ export async function queryRows(
     `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount})`
   )
 
+  const mappedRows = rows.map((r) => ({
+    id: r.id,
+    data: r.data as RowData,
+    executions: executionsByRow?.get(r.id) ?? {},
+    position: r.position,
+    orderKey: r.orderKey ?? undefined,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }))
+
+  // Opaque next-page cursor: null once we've returned a short (final) page.
+  const lastRow = mappedRows[mappedRows.length - 1]
+  const nextCursor =
+    mappedRows.length < limit || !lastRow
+      ? null
+      : encodeCursor({ lastRow, sort, nextOffset: offset + mappedRows.length })
+
   return {
-    rows: rows.map((r) => ({
-      id: r.id,
-      data: r.data as RowData,
-      executions: executionsByRow?.get(r.id) ?? {},
-      position: r.position,
-      orderKey: r.orderKey ?? undefined,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    })),
+    rows: mappedRows,
     rowCount: rows.length,
     totalCount,
     limit,
     offset,
+    nextCursor,
   }
 }
 
