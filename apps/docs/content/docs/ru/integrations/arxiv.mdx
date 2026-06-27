@@ -1,6 +1,6 @@
 ---
 title: ArXiv
-description: Поиск и получение научных публикаций из ArXiv
+description: Search and retrieve academic papers from ArXiv
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,79 +11,49 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[ArXiv](https://arxiv.org/) — это бесплатный открытый репозиторий научных исследовательских работ в таких областях, как физика, математика, информатика, количественная биология, количественные финансы, статистика, электротехника, системные науки и экономика. ArXiv предоставляет обширную коллекцию препринтов и опубликованных статей, что делает его основным ресурсом для исследователей и практиков по всему миру.
+[ArXiv](https://arxiv.org/)ArXivhttps://arxiv.org/ is a free, open-access repository of scientific research papers in fields such as physics, mathematics, computer science, quantitative biology, quantitative finance, statistics, electrical engineering, systems science, and economics. ArXiv provides a vast collection of preprints and published articles, making it a primary resource for researchers and practitioners worldwide.
 
-С помощью ArXiv вы можете:
+With ArXiv, you can:
 
-- **Искать научные публикации**: находите исследования по ключевым словам, именам авторов, названиям, категориям и другим параметрам
-- **Получать метаданные публикаций**: доступ к аннотациям, спискам авторов, датам публикации и другой библиографической информации
-- **Скачивать полные тексты в PDF**: получайте полный текст большинства статей для углублённого изучения
-- **Изучать вклад авторов**: просматривайте все публикации конкретного автора
-- **Быть в курсе новинок**: открывайте последние поступления и актуальные темы в вашей области
-
-В Sim интеграция с ArXiv позволяет вашим агентам программно искать, получать и анализировать научные публикации из ArXiv. Это даёт возможность автоматизировать обзоры литературы, создавать исследовательских ассистентов или включать актуальные научные знания в ваши агентные рабочие процессы. Используйте ArXiv как динамический источник данных для исследований, открытий и извлечения знаний в рамках ваших проектов Sim.
+- **Search for academic papers**: Find research by keywords, author names, titles, categories, and more- **Retrieve paper metadata**: Access abstracts, author lists, publication dates, and other bibliographic information- **Download full-text PDFs**: Obtain the complete text of most papers for in-depth study- **Explore author contributions**: View all papers by a specific author- **Stay up-to-date**: Discover the latest submissions and trending topics in your field
+In Sim, the ArXiv integration enables your agents to programmatically search, retrieve, and analyze scientific papers from ArXiv. This allows you to automate literature reviews, build research assistants, or incorporate up-to-date scientific knowledge into your agentic workflows. Use ArXiv as a dynamic data source for research, discovery, and knowledge extraction within your Sim projects.
 {/* MANUAL-CONTENT-END */}
 
 
-## Инструкция по использованию
-
-Интегрирует ArXiv в рабочий процесс. Позволяет искать публикации, получать детали публикаций и работы авторов. Не требует OAuth или API-ключа.
-
+## Usage Instructions
+Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.
 
 
-## Действия
 
+## Actions
 ### `arxiv_search`
 
-Поиск научных публикаций в ArXiv по ключевым словам, авторам, названиям и другим полям.
+Search for academic papers on ArXiv by keywords, authors, titles, or other fields.
 
 #### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `searchQuery` | string | Yes | Поисковый запрос для выполнения |
-| `searchField` | string | No | Поле для поиска: all (все), ti (название), au (автор), abs (аннотация), co (комментарий), jr (журнал), cat (категория), rn (номер отчёта) |
-| `maxResults` | number | No | Максимальное количество результатов (по умолчанию: 10, макс.: 2000) |
-| `sortBy` | string | No | Сортировка: relevance (по релевантности), lastUpdatedDate (по дате обновления), submittedDate (по дате подачи) (по умолчанию: relevance) |
-| `sortOrder` | string | No | Порядок сортировки: ascending (по возрастанию), descending (по убыванию) (по умолчанию: descending) |
-
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `searchQuery` | string | Yes | The search query to execute |  ||  | `searchField` | string | No | Field to search in: all, ti \(title\), au \(author\), abs \(abstract\), co \(comment\), jr \(journal\), cat \(category\), rn \(report number\) |  ||  | `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |  ||  | `sortBy` | string | No | Sort by: relevance, lastUpdatedDate, submittedDate \(default: relevance\) |  ||  | `sortOrder` | string | No | Sort order: ascending, descending \(default: descending\) |  |
 #### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `papers` | json | Массив публикаций, соответствующих поисковому запросу |
-| `totalResults` | number | Общее количество найденных результатов по запросу |
-
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `papers` | json | Array of papers matching the search query |  ||  | `totalResults` | number | Total number of results found for the search query |  |
 ### `arxiv_get_paper`
 
-Получение подробной информации о конкретной публикации ArXiv по её идентификатору.
+Get detailed information about a specific ArXiv paper by its ID.
 
 #### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `paperId` | string | Yes | Идентификатор публикации ArXiv (например, "1706.03762") |
-
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `paperId` | string | Yes | ArXiv paper ID \(e.g., "1706.03762"\) |  |
 #### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `paper` | json | Подробная информация о запрашиваемой публикации ArXiv |
-
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `paper` | json | Detailed information about the requested ArXiv paper |  |
 ### `arxiv_get_author_papers`
 
-Поиск публикаций конкретного автора в ArXiv.
+Search for papers by a specific author on ArXiv.
 
 #### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authorName` | string | Yes | Имя автора для поиска |
-| `maxResults` | number | No | Максимальное количество результатов (по умолчанию: 10, макс.: 2000) |
-
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `authorName` | string | Yes | Author name to search for |  ||  | `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |  |
 #### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `authorPapers` | json | Array of papers authored by the specified author |  ||  | `totalResults` | number | Total number of papers found for the author |  |
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `authorPapers` | json | Массив публикаций указанного автора |
-| `totalResults` | number | Общее количество найденных публикаций автора |

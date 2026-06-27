@@ -15,25 +15,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 С помощью Airweave вы можете:
 
-- **Ищите более эффективно:** Используйте запросы на естественном языке для поиска информации, хранящейся в ваших подключенных инструментах и базах данных.- **Объедините свои данные:** Беспрепятственный доступ к контенту из различных источников, таких как код, документация, чаты, электронная почта, облачные файлы и другие.- **Настройте параметры поиска:** Выберите между гибридными (семантическими + ключевыми словами) или нейронными стратегиями поиска, а также поиском по ключевым словам, чтобы получить наилучшие результаты.- **Улучшите запоминание**: Расширьте поисковые запросы с помощью ИИ для получения более полных ответов.- **Переранжирование результатов с использованием ИИ:** Приоритизация наиболее релевантных ответов с помощью мощных языковых моделей.- **Получите мгновенные ответы:** Создавайте четкие ответы на основе искусственного интеллекта, синтезированные из ваших данных.
-В Sim интеграция с Airweave позволяет вашим сотрудникам искать, обобщать и извлекать информацию из всех данных вашей организации, используя единый инструмент. Используйте Airweave для получения богатой, контекстно-зависимой информации в рамках ваших рабочих процессов – будь то ответы на вопросы, создание сводок или поддержка принятия решений в режиме реального времени.
-{/* КОНЕЦ_МАНУАЛЬНОГО_СОДЕРЖИЯ */}
+- **Ищите более эффективно:** Используйте запросы на естественном языке для поиска информации, хранящейся в ваших подключенных инструментах и базах данных.- **Unify your data**: Seamlessly access content from sources like code, docs, chat, emails, cloud files, and more- **Customize retrieval**: Select between hybrid (semantic + keyword), neural, or keyword search strategies for optimal results- **Boost recall**: Expand search queries with AI to find more comprehensive answers- **Rerank results using AI**: Prioritize the most relevant answers with powerful language models- **Get instant answers**: Generate clear, AI-powered responses synthesized from your data
+In Sim, the Airweave integration empowers your agents to search, summarize, and extract insights from all your organization’s data via a single tool. Use Airweave to drive rich, contextual knowledge retrieval within your workflows—whether answering questions, generating summaries, or supporting dynamic decision-making.
+{/* MANUAL-CONTENT-END */}
 
 
-## Инструкция по применению
-Ищите информацию в ваших синхронизированных источниках данных с помощью Airweave. Поддерживает семантический поиск с использованием гибридных, нейронных или поисковых стратегий на основе ключевых слов. При необходимости можно генерировать ответы на основе результатов поиска, использующие искусственный интеллект.
+## Usage Instructions
+Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
 
 
 
-## Действия
+## Actions
 ### `airweave_search`
 
-Ищите данные в ваших синхронизированных коллекциях с помощью Airweave. Поддерживает семантический поиск с использованием гибридных, нейронных или поисковых стратегий на основе ключевых слов. При необходимости можно генерировать ответы на основе результатов поиска, использующие искусственный интеллект.
+Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `apiKey` | строка | Да | Ключ API Airweave для аутентификации |  ||  | `collectionId` | строка | Да | Читаемый идентификатор коллекции для поиска |  ||  | `query` | строка | Да | Текст поискового запроса |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть (по умолчанию: 100) |  ||  | `retrievalStrategy` | строка | Нет | Стратегия извлечения: гибридная (по умолчанию), нейронная или по ключевым словам. |  ||  | `expandQuery` | логическое значение | Нет | Создавайте различные варианты запросов для повышения точности поиска. |  ||  | `rerank` | логическое значение | Нет | Переупорядочьте результаты для повышения релевантности с использованием модели LLM. |  ||  | `generateAnswer` | логическое значение | Нет | Сгенерируйте ответ на запрос, используя естественный язык. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `results` | массив | Результаты поиска с содержанием, оценками и метаданными из ваших синхронизированных данных. |  ||  | ↳ `entity_id` | строка | Уникальный идентификатор для сущности результата поиска |  ||  | ↳ `source_name` | строка | Название источника данных (например, «GitHub», «Slack») |  ||  | ↳ `md_content` | строка | Содержимое результата в формате Markdown |  ||  | ↳ `score` | число | Оценка релевантности из результатов поиска |  ||  | ↳ `metadata` | объект | Дополнительные метаданные, связанные с результатом. |  ||  | ↳ `breadcrumbs` | массив | Путь навигации к результату внутри его источника. |  ||  | ↳ `url` | строка | Ссылка на исходный контент |  ||  | `completion` | строка | Ответ, сгенерированный ИИ, в ответ на запрос (когда включена функция `generateAnswer`) |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `apiKey` | string | Yes | Airweave API Key for authentication |  ||  | `collectionId` | string | Yes | The readable ID of the collection to search |  ||  | `query` | string | Yes | The search query text |  ||  | `limit` | number | No | Maximum number of results to return \(default: 100\) |  ||  | `retrievalStrategy` | string | No | Retrieval strategy: hybrid \(default\), neural, or keyword |  ||  | `expandQuery` | boolean | No | Generate query variations to improve recall |  ||  | `rerank` | boolean | No | Reorder results for improved relevance using LLM |  ||  | `generateAnswer` | boolean | No | Generate a natural-language answer to the query |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `results` | array | Search results with content, scores, and metadata from your synced data |  ||  | ↳ `entity_id` | string | Unique identifier for the search result entity |  ||  | ↳ `source_name` | string | Name of the data source \(e.g., "GitHub", "Slack"\) |  ||  | ↳ `md_content` | string | Markdown-formatted content of the result |  ||  | ↳ `score` | number | Relevance score from the search |  ||  | ↳ `metadata` | object | Additional metadata associated with the result |  ||  | ↳ `breadcrumbs` | array | Navigation path to the result within its source |  ||  | ↳ `url` | string | URL to the original content |  ||  | `completion` | string | AI-generated answer to the query \(when generateAnswer is enabled\) |  |
 

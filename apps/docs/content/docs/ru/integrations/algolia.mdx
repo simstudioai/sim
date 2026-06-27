@@ -10,170 +10,170 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#003DFF"
 />
 
-{/* НАЧАЛО РУЧНОГО СОДЕРЖИЯ: введение */}
-[Алгоритм](https://www.algolia.com/)Алгоритмhttps://www.algolia.com/является мощной платформой для размещения поисковых функций, которая позволяет разработчикам и командам создавать быстрые и релевантные поисковые возможности в своих приложениях и веб-сайтах. Algolia предоставляет поиск по полному тексту, с использованием фильтров и категорий, а также аналитику и расширенные возможности ранжирования результатов.
+{/* MANUAL-CONTENT-START:intro */}
+[Algolia](https://www.algolia.com/)Algoliahttps://www.algolia.com/ is a powerful hosted search platform that enables developers and teams to deliver fast, relevant search experiences in their apps and websites. Algolia provides full-text, faceted, and filtered search as well as analytics and advanced ranking capabilities.
 
-С помощью Algolia вы можете:
+With Algolia, you can:
 
-- **Обеспечьте сверхбыстрый поиск:** Предоставляйте мгновенные результаты поиска по мере ввода пользователем запроса, с учетом опечаток и синонимов.- **Управление и обновление записей:** Легко добавляйте, обновляйте или удаляйте объекты/записи в ваших индексах.- **Применяйте расширенные фильтры:** Используйте фильтры, категории и собственные параметры сортировки для уточнения и организации результатов поиска.- **Настройте параметры индекса:** Настройте релевантность, ранжирование и атрибуты для поиска, а также другие параметры, чтобы оптимизировать пользовательский опыт.- **Уверенно масштабируйте**: Algolia эффективно обрабатывает огромные объемы трафика и данных благодаря глобально распределенной инфраструктуре.- **Получайте ценную информацию:** Отслеживайте аналитику, закономерности поиска и вовлеченность пользователей.
-В Sim интеграция с Algolia позволяет вашим агентам искать, управлять и настраивать индексы Algolia непосредственно в ваших рабочих процессах. Используйте Algolia для динамического анализа данных, автоматизации обновлений записей, выполнения пакетных операций и многого другого – все это из одного инструмента в вашем рабочем пространстве.
-{/* КОНЕЦ_МАНУАЛЬНОГО_СОДЕРЖИЯ */}
-
-
-## Инструкция по использованию
-Интегрируйте Algolia в свою рабочую среду. Поиск по индексам, управление записями (добавление, обновление, удаление, просмотр), настройка параметров индекса и выполнение пакетных операций.
+- **Deliver lightning-fast search**: Provide instant search results as users type, with typo tolerance and synonyms- **Manage and update records**: Easily add, update, or delete objects/records in your indices- **Perform advanced filtering**: Use filters, facets, and custom ranking to refine and organize search results- **Configure index settings**: Adjust relevance, ranking, attributes for search, and more to optimize user experience- **Scale confidently**: Algolia handles massive traffic and data volumes with globally distributed infrastructure- **Gain insights**: Track analytics, search patterns, and user engagement
+In Sim, the Algolia integration allows your agents to search, manage, and configure Algolia indices directly within your workflows. Use Algolia to power dynamic data exploration, automate record updates, run batch operations, and more—all from a single tool in your workspace.
+{/* MANUAL-CONTENT-END */}
 
 
+## Usage Instructions
+Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.
 
-## Действия
+
+
+## Actions
 ### `algolia_search`
 
-Поиск в индексе Algolia
+Search an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia для поиска |  ||  | `query` | строка | Да | Текст поискового запроса |  ||  | `hitsPerPage` | число | Нет | Количество просмотров на страницу (по умолчанию: 20) |  ||  | `page` | число | Нет | Номер страницы для извлечения (по умолчанию: 0) |  ||  | `filters` | строка | Нет | Строка фильтра (например, «категория:электроника И цена < 100») |  ||  | `attributesToRetrieve` | строка | Нет | Список атрибутов, разделенных запятыми, для извлечения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `hits` | массив | Набор соответствующих записей |  ||  | ↳ `objectID` | строка | Уникальный идентификатор записи |  ||  | ↳ `_highlightResult` | объект | Выделены атрибуты, соответствующие запросу. Каждый атрибут имеет значение, уровень соответствия (нет, частичное, полное) и список соответствующих слов. |  ||  | ↳ `_snippetResult` | объект | Атрибуты, соответствующие запросу, извлеченные из фрагментов. Каждый атрибут имеет значение и уровень соответствия. |  ||  | ↳ `_rankingInfo` | объект | Информация о ранжировании для данного элемента. Отображается только при включении функции `getRankingInfo`. |  ||  | ↳ `nbTypos` | число | Количество ошибок в запросе соответствует... |  ||  | ↳ `firstMatchedWord` | число | Позиция первого найденного слова |  ||  | ↳ `geoDistance` | число | Расстояние в метрах для результатов геопоиска |  ||  | ↳ `nbExactWords` | число | Количество слов, которые полностью совпадают. |  ||  | ↳ `userScore` | число | Индивидуальный рейтинг |  ||  | ↳ `words` | число | Количество совпавших слов |  ||  | `nbHits` | число | Общее количество совпадений |  ||  | `page` | число | Текущий номер страницы (с нумерацией, начиная с нуля) |  ||  | `nbPages` | число | Общее количество страниц, доступных для просмотра. |  ||  | `hitsPerPage` | число | Количество просмотров на страницу (от 1 до 1000, по умолчанию 20) |  ||  | `processingTimeMS` | число | Время обработки на стороне сервера в миллисекундах |  ||  | `query` | строка | Поисковый запрос, который был выполнен |  ||  | `parsedQuery` | строка | Строка запроса после нормализации и удаления стоп-слов. |  ||  | `facets` | объект | Количество элементов для каждого атрибута, сгруппированных по имени атрибута, и содержащих пары "значение - количество". |  ||  | `facets_stats` | объект | Статистические данные (минимум, максимум, среднее значение, сумма) для числовых атрибутов. |  ||  | `exhaustive` | объект | Флаги для проверки полноты данных для следующих полей: facetsCount, facetValues, nbHits, rulesMatch и typo. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index to search |  ||  | `query` | string | Yes | Search query text |  ||  | `hitsPerPage` | number | No | Number of hits per page \(default: 20\) |  ||  | `page` | number | No | Page number to retrieve \(default: 0\) |  ||  | `filters` | string | No | Filter string \(e.g., "category:electronics AND price &lt; 100"\) |  ||  | `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `hits` | array | Array of matching records |  ||  | ↳ `objectID` | string | Unique identifier of the record |  ||  | ↳ `_highlightResult` | object | Highlighted attributes matching the query. Each attribute has value, matchLevel \(none, partial, full\), and matchedWords |  ||  | ↳ `_snippetResult` | object | Snippeted attributes matching the query. Each attribute has value and matchLevel |  ||  | ↳ `_rankingInfo` | object | Ranking information for the hit. Only present when getRankingInfo is enabled |  ||  | ↳ `nbTypos` | number | Number of typos in the query match |  ||  | ↳ `firstMatchedWord` | number | Position of the first matched word |  ||  | ↳ `geoDistance` | number | Distance in meters for geo-search results |  ||  | ↳ `nbExactWords` | number | Number of exactly matched words |  ||  | ↳ `userScore` | number | Custom ranking score |  ||  | ↳ `words` | number | Number of matched words |  ||  | `nbHits` | number | Total number of matching hits |  ||  | `page` | number | Current page number \(zero-based\) |  ||  | `nbPages` | number | Total number of pages available |  ||  | `hitsPerPage` | number | Number of hits per page \(1-1000, default 20\) |  ||  | `processingTimeMS` | number | Server-side processing time in milliseconds |  ||  | `query` | string | The search query that was executed |  ||  | `parsedQuery` | string | The query string after normalization and stop word removal |  ||  | `facets` | object | Facet counts keyed by facet name, each containing value-count pairs |  ||  | `facets_stats` | object | Statistics \(min, max, avg, sum\) for numeric facets |  ||  | `exhaustive` | object | Exhaustiveness flags for facetsCount, facetValues, nbHits, rulesMatch, and typo |  |
 ### `algolia_add_record`
 
-Добавьте или замените запись в индексе Algolia.
+Add or replace a record in an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ администратора для API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `objectID` | строка | Нет | Идентификатор объекта для записи (автоматически генерируется, если не указан) |  ||  | `record` | JSON | Да | JSON-объект, представляющий запись для добавления |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания операции индексации. |  ||  | `objectID` | строка | Идентификатор объекта для добавленной или замененной записи. |  ||  | `createdAt` | строка | Дата и время создания записи (отображается только в том случае, если идентификатор объекта был автоматически сгенерирован) |  ||  | `updatedAt` | строка | Временная метка обновления записи (отображается только при замене существующей записи) |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `objectID` | string | No | Object ID for the record \(auto-generated if not provided\) |  ||  | `record` | json | Yes | JSON object representing the record to add |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the indexing operation |  ||  | `objectID` | string | The object ID of the added or replaced record |  ||  | `createdAt` | string | Timestamp when the record was created \(only present when objectID is auto-generated\) |  ||  | `updatedAt` | string | Timestamp when the record was updated \(only present when replacing an existing record\) |  |
 ### `algolia_get_record`
 
-Получите запись по идентификатору объекта из индекса Algolia.
+Get a record by objectID from an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `objectID` | строка | Да | Идентификатор записи, которую необходимо получить. |  ||  | `attributesToRetrieve` | строка | Нет | Список атрибутов, разделенных запятыми, для извлечения |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `objectID` | строка | Идентификатор записи, полученной из базы данных. |  ||  | `record` | объект | Данные записи (все атрибуты) |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `objectID` | string | Yes | The objectID of the record to retrieve |  ||  | `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `objectID` | string | The objectID of the retrieved record |  ||  | `record` | object | The record data \(all attributes\) |  |
 ### `algolia_get_records`
 
-Получите несколько записей по идентификатору объекта из одного или нескольких индексов Algolia.
+Retrieve multiple records by objectID from one or more Algolia indices
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia |  ||  | `indexName` | строка | Да | Стандартное имя индекса для всех запросов |  ||  | `requests` | JSON | Да | Массив объектов, указывающий записи для извлечения. Каждый объект должен содержать поля "objectID", а также необязательно "indexName" и "attributesToRetrieve". |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `results` | массив | Массив извлеченных записей (пустые записи для записей, которые не были найдены) |  ||  | ↳ `objectID` | строка | Уникальный идентификатор записи |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key |  ||  | `indexName` | string | Yes | Default index name for all requests |  ||  | `requests` | json | Yes | Array of objects specifying records to retrieve. Each must have "objectID" and optionally "indexName" and "attributesToRetrieve". |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `results` | array | Array of retrieved records \(null entries for records not found\) |  ||  | ↳ `objectID` | string | Unique identifier of the record |  |
 ### `algolia_partial_update_record`
 
-Частично обновить запись в индексе Algolia, не заменяя её полностью.
+Partially update a record in an Algolia index without replacing it entirely
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ администратора для API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `objectID` | строка | Да | Идентификатор записи, которую необходимо обновить. |  ||  | `attributes` | JSON | Да | JSON-объект с атрибутами для обновления. Поддерживает встроенные операции, такие как `{"stock": {"_operation": "Decrement", "value": 1}}` |  ||  | `createIfNotExists` | логическое значение | Нет | Создавать запись, если она не существует (по умолчанию: true) |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания операции обновления. |  ||  | `objectID` | строка | Идентификатор объекта обновленной записи |  ||  | `updatedAt` | строка | Дата и время обновления записи |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `objectID` | string | Yes | The objectID of the record to update |  ||  | `attributes` | json | Yes | JSON object with attributes to update. Supports built-in operations like \{"stock": \{"_operation": "Decrement", "value": 1\}\} |  ||  | `createIfNotExists` | boolean | No | Whether to create the record if it does not exist \(default: true\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the update operation |  ||  | `objectID` | string | The objectID of the updated record |  ||  | `updatedAt` | string | Timestamp when the record was updated |  |
 ### `algolia_delete_record`
 
-Удалить запись по идентификатору объекта из индекса Algolia.
+Delete a record by objectID from an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ администратора для API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `objectID` | строка | Да | Идентификатор записи для удаления |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | ID задачи Algolia для отслеживания удаления |  ||  | `deletedAt` | строка | Дата и время удаления записи |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `objectID` | string | Yes | The objectID of the record to delete |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the deletion |  ||  | `deletedAt` | string | Timestamp when the record was deleted |  |
 ### `algolia_browse_records`
 
-Просмотрите и переберите все записи в индексе Algolia с использованием постраничной навигации.
+Browse and iterate over all records in an Algolia index using cursor pagination
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia (должен иметь разрешения на просмотр) |  ||  | `indexName` | строка | Да | Название индекса Algolia для просмотра |  ||  | `query` | строка | Нет | Ключевое слово для фильтрации просмотренных записей |  ||  | `filters` | строка | Нет | Фильтр для уточнения результатов. |  ||  | `attributesToRetrieve` | строка | Нет | Список атрибутов, разделенных запятыми, для извлечения |  ||  | `hitsPerPage` | число | Нет | Количество просмотров на страницу (по умолчанию: 1000, максимум: 1000) |  ||  | `cursor` | строка | Нет | Указатель для навигации по страницам, полученный из предыдущего ответа. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `hits` | массив | Массив записей из индекса (до 1000 на запрос) |  ||  | ↳ `objectID` | строка | Уникальный идентификатор записи |  ||  | `cursor` | строка | Строка курсора для получения следующей страницы результатов. Отсутствует, когда больше результатов не существует. |  ||  | `nbHits` | число | Общее количество записей, соответствующих критериям поиска. |  ||  | `page` | число | Текущий номер страницы (с нумерацией, начиная с нуля) |  ||  | `nbPages` | число | Общее количество страниц, доступных для просмотра. |  ||  | `hitsPerPage` | число | Количество просмотров на странице (от 1 до 1000, по умолчанию 1000 для просмотра) |  ||  | `processingTimeMS` | число | Время обработки на стороне сервера в миллисекундах |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key \(must have browse ACL\) |  ||  | `indexName` | string | Yes | Name of the Algolia index to browse |  ||  | `query` | string | No | Search query to filter browsed records |  ||  | `filters` | string | No | Filter string to narrow down results |  ||  | `attributesToRetrieve` | string | No | Comma-separated list of attributes to retrieve |  ||  | `hitsPerPage` | number | No | Number of hits per page \(default: 1000, max: 1000\) |  ||  | `cursor` | string | No | Cursor from a previous browse response for pagination |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `hits` | array | Array of records from the index \(up to 1000 per request\) |  ||  | ↳ `objectID` | string | Unique identifier of the record |  ||  | `cursor` | string | Opaque cursor string for retrieving the next page of results. Absent when no more results exist. |  ||  | `nbHits` | number | Total number of records matching the browse criteria |  ||  | `page` | number | Current page number \(zero-based\) |  ||  | `nbPages` | number | Total number of pages available |  ||  | `hitsPerPage` | number | Number of hits per page \(1-1000, default 1000 for browse\) |  ||  | `processingTimeMS` | number | Server-side processing time in milliseconds |  |
 ### `algolia_batch_operations`
 
-Выполняйте пакетные операции добавления, обновления или частичного обновления/удаления записей в индексе Algolia.
+Perform batch add, update, partial update, or delete operations on records in an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ администратора для API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `requests` | JSON | Да | Массив операций пакетной обработки. Каждый элемент имеет поля «действие» (добавить объект, обновить объект, частичное обновление объекта, частичное обновление объекта без создания, удалить объект) и «тело» (данные записи, должны включать идентификатор объекта для обновления/удаления). |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания пакетной операции |  ||  | `objectIDs` | массив | Список идентификаторов объектов, на которые влияет операция пакетной обработки. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `requests` | json | Yes | Array of batch operations. Each item has "action" \(addObject, updateObject, partialUpdateObject, partialUpdateObjectNoCreate, deleteObject\) and "body" \(the record data, must include objectID for update/delete\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the batch operation |  ||  | `objectIDs` | array | Array of object IDs affected by the batch operation |  |
 ### `algolia_list_indices`
 
-Перечислите все индексы в приложении Algolia.
+List all indices in an Algolia application
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia |  ||  | `page` | число | Нет | Номер страницы для разбиения на группы индексов (по умолчанию: не разбивается) |  ||  | `hitsPerPage` | число | Нет | Количество записей на странице (по умолчанию: 100) |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `indices` | массив | Список индексов в приложении |  ||  | ↳ `name` | строка | Название индекса |  ||  | ↳ `entries` | число | Количество записей в индексе |  ||  | ↳ `dataSize` | число | Размер данных индекса в байтах |  ||  | ↳ `fileSize` | число | Размер файлов индекса в байтах |  ||  | ↳ `lastBuildTimeS` | число | Продолжительность последнего этапа сборки в секундах |  ||  | ↳ `numberOfPendingTasks` | число | Количество задач индексации в ожидании |  ||  | ↳ `pendingTask` | логическое значение | Существует ли список незавершенных задач? |  ||  | ↳ `createdAt` | строка | Дата и время создания индекса |  ||  | ↳ `updatedAt` | строка | Дата и время последнего обновления индекса |  ||  | ↳ `primary` | строка | Наименование основного индекса (если это реплика) |  ||  | ↳ `replicas` | массив | Список имен индексов реплик |  ||  | ↳ `virtual` | логическое значение | Является ли индекс виртуальной копией? |  ||  | `nbPages` | число | Общее количество страниц в индексах |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key |  ||  | `page` | number | No | Page number for paginating indices \(default: not paginated\) |  ||  | `hitsPerPage` | number | No | Number of indices per page \(default: 100\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `indices` | array | List of indices in the application |  ||  | ↳ `name` | string | Name of the index |  ||  | ↳ `entries` | number | Number of records in the index |  ||  | ↳ `dataSize` | number | Size of the index data in bytes |  ||  | ↳ `fileSize` | number | Size of the index files in bytes |  ||  | ↳ `lastBuildTimeS` | number | Last build duration in seconds |  ||  | ↳ `numberOfPendingTasks` | number | Number of pending indexing tasks |  ||  | ↳ `pendingTask` | boolean | Whether the index has pending tasks |  ||  | ↳ `createdAt` | string | Timestamp when the index was created |  ||  | ↳ `updatedAt` | string | Timestamp when the index was last updated |  ||  | ↳ `primary` | string | Name of the primary index \(if this is a replica\) |  ||  | ↳ `replicas` | array | List of replica index names |  ||  | ↳ `virtual` | boolean | Whether the index is a virtual replica |  ||  | `nbPages` | number | Total number of pages of indices |  |
 ### `algolia_get_settings`
 
-Получить настройки индекса Algolia
+Retrieve the settings of an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API Algolia |  ||  | `indexName` | строка | Да | Название индекса Algolia |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `searchableAttributes` | массив | Список атрибутов для поиска |  ||  | `attributesForFaceting` | массив | Атрибуты, используемые для фильтрации |  ||  | `ranking` | массив | Критерии оценки |  ||  | `customRanking` | массив | Индивидуальные критерии ранжирования |  ||  | `replicas` | массив | Список имен индексов реплик |  ||  | `hitsPerPage` | число | Стандартное количество просмотров на страницу |  ||  | `maxValuesPerFacet` | число | Максимальное количество значений, возвращаемых для фильтра |  ||  | `highlightPreTag` | строка | Тег HTML был вставлен перед выделенными частями. |  ||  | `highlightPostTag` | строка | Тег HTML вставлен после выделенных частей. |  ||  | `paginationLimitedTo` | число | Максимальное количество результатов, доступных при использовании постраничной навигации. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia API Key |  ||  | `indexName` | string | Yes | Name of the Algolia index |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `searchableAttributes` | array | List of searchable attributes |  ||  | `attributesForFaceting` | array | Attributes used for faceting |  ||  | `ranking` | array | Ranking criteria |  ||  | `customRanking` | array | Custom ranking criteria |  ||  | `replicas` | array | List of replica index names |  ||  | `hitsPerPage` | number | Default number of hits per page |  ||  | `maxValuesPerFacet` | number | Maximum number of facet values returned |  ||  | `highlightPreTag` | string | HTML tag inserted before highlighted parts |  ||  | `highlightPostTag` | string | HTML tag inserted after highlighted parts |  ||  | `paginationLimitedTo` | number | Maximum number of hits accessible via pagination |  |
 ### `algolia_update_settings`
 
-Обновите настройки индекса Algolia.
+Update the settings of an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ API для администратора Algolia (должен иметь разрешение на редактирование настроек) |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `settings` | JSON | Да | JSON-объект с настройками для обновления (например, `{"searchableAttributes": ["name", "description"], "customRanking": ["desc(популярность)"]}`) |  ||  | `forwardToReplicas` | логическое значение | Нет | Следует ли применять изменения к индексам копий (по умолчанию: False)? |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания изменений настроек. |  ||  | `updatedAt` | строка | Дата и время обновления настроек |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key \(must have editSettings ACL\) |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `settings` | json | Yes | JSON object with settings to update \(e.g., \{"searchableAttributes": \["name", "description"\], "customRanking": \["desc\(popularity\)"\]\}\) |  ||  | `forwardToReplicas` | boolean | No | Whether to apply changes to replica indices \(default: false\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the settings update |  ||  | `updatedAt` | string | Timestamp when the settings were updated |  |
 ### `algolia_delete_index`
 
-Удалить весь индекс Algolia и все его записи.
+Delete an entire Algolia index and all its records
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ административного API Algolia (должен иметь разрешение на удаление индекса) |  ||  | `indexName` | строка | Да | Название индекса Algolia для удаления |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания удаления индекса |  ||  | `deletedAt` | строка | Дата и время удаления индекса |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |  ||  | `indexName` | string | Yes | Name of the Algolia index to delete |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the index deletion |  ||  | `deletedAt` | string | Timestamp when the index was deleted |  |
 ### `algolia_copy_move_index`
 
-Скопируйте или переместите индекс Algolia в новое место.
+Copy or move an Algolia index to a new destination
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ администратора для API Algolia |  ||  | `indexName` | строка | Да | Имя индекса источника |  ||  | `operation` | строка | Да | Операция для выполнения: «копировать» или «переместить» |  ||  | `destination` | строка | Да | Название индекса назначения |  ||  | `scope` | JSON | Нет | Массив областей для копирования (используется только в операции «копировать»): ["настройки", "синонимы", "правила"]. Если опустить, будет скопировано всё, включая записи. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания операций копирования/перемещения. |  ||  | `updatedAt` | строка | Время выполнения операции |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key |  ||  | `indexName` | string | Yes | Name of the source index |  ||  | `operation` | string | Yes | Operation to perform: "copy" or "move" |  ||  | `destination` | string | Yes | Name of the destination index |  ||  | `scope` | json | No | Array of scopes to copy \(only for "copy" operation\): \["settings", "synonyms", "rules"\]. Omit to copy everything including records. |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the copy/move operation |  ||  | `updatedAt` | string | Timestamp when the operation was performed |  |
 ### `algolia_clear_records`
 
-Удалите все записи из индекса Algolia, сохранив при этом настройки, синонимы и правила.
+Clear all records from an Algolia index while keeping settings, synonyms, and rules
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ административного API Algolia (должен иметь разрешение на удаление индекса) |  ||  | `indexName` | строка | Да | Название индекса Algolia для очистки |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | Идентификатор задачи Algolia для отслеживания операции очистки. |  ||  | `updatedAt` | строка | Время, когда записи были удалены. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |  ||  | `indexName` | string | Yes | Name of the Algolia index to clear |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the clear operation |  ||  | `updatedAt` | string | Timestamp when the records were cleared |  |
 ### `algolia_delete_by_filter`
 
-Удалить все записи, соответствующие определенному фильтру, из индекса Algolia.
+Delete all records matching a filter from an Algolia index
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `applicationId` | строка | Да | Идентификатор приложения Algolia |  ||  | `apiKey` | строка | Да | Ключ административного API Algolia (должен иметь разрешение на удаление индекса) |  ||  | `indexName` | строка | Да | Название индекса Algolia |  ||  | `filters` | строка | Нет | Выражение фильтра для сопоставления записей для удаления (например, «категория: устаревшие») |  ||  | `facetFilters` | JSON | Нет | Массив фильтров по категориям (например, `["бренд:Acme"]`) |  ||  | `numericFilters` | JSON | Нет | Массив числовых фильтров (например, `["цена > 100"]`) |  ||  | `tagFilters` | JSON | Нет | Массив фильтров тегов, использующих атрибут `_tags` (например, `["published"]`) |  ||  | `aroundLatLng` | строка | Нет | Координаты для фильтра гео-поиска (например, «40.71, -74.01») |  ||  | `aroundRadius` | число | Нет | Максимальный радиус в метрах для геопоиска или «все», если требуется неограниченный поиск. |  ||  | `insideBoundingBox` | JSON | Нет | Координаты ограничивающего прямоугольника в формате «[[широта1, долгота1, широта2, долгота2]]» для фильтра геопоиска. |  ||  | `insidePolygon` | JSON | Нет | Координаты многоугольника в формате \[\[широта1, долгота1, широта2, долгота2, широта3, долгота3, ...\]] для фильтра геопоиска. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `taskID` | число | ID задачи Algolia для отслеживания операции удаления по фильтру. |  ||  | `updatedAt` | строка | Время выполнения операции |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `applicationId` | string | Yes | Algolia Application ID |  ||  | `apiKey` | string | Yes | Algolia Admin API Key \(must have deleteIndex ACL\) |  ||  | `indexName` | string | Yes | Name of the Algolia index |  ||  | `filters` | string | No | Filter expression to match records for deletion \(e.g., "category:outdated"\) |  ||  | `facetFilters` | json | No | Array of facet filters \(e.g., \["brand:Acme"\]\) |  ||  | `numericFilters` | json | No | Array of numeric filters \(e.g., \["price &gt; 100"\]\) |  ||  | `tagFilters` | json | No | Array of tag filters using the _tags attribute \(e.g., \["published"\]\) |  ||  | `aroundLatLng` | string | No | Coordinates for geo-search filter \(e.g., "40.71,-74.01"\) |  ||  | `aroundRadius` | number | No | Maximum radius in meters for geo-search, or "all" for unlimited |  ||  | `insideBoundingBox` | json | No | Bounding box coordinates as \[\[lat1, lng1, lat2, lng2\]\] for geo-search filter |  ||  | `insidePolygon` | json | No | Polygon coordinates as \[\[lat1, lng1, lat2, lng2, lat3, lng3, ...\]\] for geo-search filter |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `taskID` | number | Algolia task ID for tracking the delete-by-filter operation |  ||  | `updatedAt` | string | Timestamp when the operation was performed |  |
 

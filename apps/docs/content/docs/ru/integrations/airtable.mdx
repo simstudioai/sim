@@ -15,7 +15,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 С помощью Airtable вы можете:
 
-- **Создайте собственные базы данных:** Разработайте индивидуальные решения для управления проектами, ведения календарей контента, отслеживания запасов и других задач.- **Визуализируйте данные:** Просматривайте информацию в виде сетки, доски Канбан, календаря или галереи.- **Автоматизируйте рабочие процессы:** Настройте триггеры и действия для автоматизации повторяющихся задач.- **Интегрируйте с другими инструментами:** Подключайтесь к сотням других приложений благодаря встроенным интеграциям и API.
+- **Создайте собственные базы данных:** Разработайте индивидуальные решения для управления проектами, ведения календарей контента, отслеживания запасов и других задач.- **Визуализируйте данные:** Просматривайте свою информацию в виде сетки, доски Канбан, календаря или галереи.- **Автоматизируйте рабочие процессы:** Настройте триггеры и действия для автоматизации повторяющихся задач.- **Интеграция с другими инструментами:** Подключайтесь к сотням других приложений благодаря встроенным интеграциям и API.
 В Sim интеграция с Airtable позволяет вашим агентам взаимодействовать с базами данных Airtable программным способом. Это обеспечивает бесшовную обработку данных, такую как получение информации, создание новых записей и обновление существующих данных – все это в рамках рабочих процессов ваших агентов. Используйте Airtable в качестве динамичного источника или назначения данных для своих агентов, что позволит им получать доступ к структурированной информации и манипулировать ею в процессе принятия решений и выполнения задач.
 {/* КОНЕЦ_МАНУАЛЬНОГО_СОДЕРЖИЯ */}
 
@@ -35,88 +35,88 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 |  | `offset` | строка | Нет | Смещение для постраничной загрузки дополнительных баз данных. |  |
 #### Вывод
 |  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `bases` | массив | Массив баз Airtable с идентификатором, названием и уровнем доступа. |  ||  | ↳ `id` | строка | Идентификатор базы данных (начинается с "app") |  ||  | ↳ `name` | строка | Основное имя |  ||  | ↳ `permissionLevel` | строка | Уровень доступа (нет прав, чтение, комментирование, редактирование, создание) |  ||  | `metadata` | JSON | Страничный вывод и метаданные для подсчета |  ||  | ↳ `offset` | строка | Смещение для следующей страницы результатов |  ||  | ↳ `totalBases` | число | Количество возвращенных баз |  |
+|  | `bases` | массив | Массив баз Airtable с идентификатором, названием и уровнем доступа. |  ||  | ↳ `id` | строка | Идентификатор базы данных (начинается с "app") |  ||  | ↳ `name` | строка | Основное имя |  ||  | ↳ `permissionLevel` | string | Permission level \(none, read, comment, edit, create\) |  ||  | `metadata` | json | Pagination and count metadata |  ||  | ↳ `offset` | string | Offset for next page of results |  ||  | ↳ `totalBases` | number | Number of bases returned |  |
 ### `airtable_list_tables`
 
-Перечислите все таблицы и их структуру в базе данных Airtable.
+List all tables and their schema in an Airtable base
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `tables` | массив | Список таблиц в базе данных и их схемы. |  ||  | ↳ `id` | строка | Идентификатор таблицы (начинается с "tbl") |  ||  | ↳ `name` | строка | Имя таблицы |  ||  | ↳ `description` | строка | Описание таблицы |  ||  | ↳ `primaryFieldId` | строка | Идентификатор основного поля |  ||  | ↳ `fields` | массив | Список полей в таблице |  ||  | ↳ `id` | строка | Идентификатор поля (начинается с "fld") |  ||  | ↳ `name` | строка | Название поля |  ||  | ↳ `type` | строка | Тип поля (однострочный текст, многострочный текст, число, флажок, выбор из одного варианта, выбор из нескольких вариантов, дата, дата и время, вложение, связанный объект и т.д.) |  ||  | ↳ `description` | строка | Описание поля |  ||  | ↳ `options` | JSON | Опции, специфичные для конкретного поля (например, выбор значений и т.д.) |  ||  | `metadata` | JSON | Базовая информация и метаданные о количестве |  ||  | ↳ `baseId` | строка | Идентификатор базовой записи, который был запрошен. |  ||  | ↳ `totalTables` | число | Количество таблиц в базе данных |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `tables` | array | List of tables in the base with their schema |  ||  | ↳ `id` | string | Table ID \(starts with "tbl"\) |  ||  | ↳ `name` | string | Table name |  ||  | ↳ `description` | string | Table description |  ||  | ↳ `primaryFieldId` | string | ID of the primary field |  ||  | ↳ `fields` | array | List of fields in the table |  ||  | ↳ `id` | string | Field ID \(starts with "fld"\) |  ||  | ↳ `name` | string | Field name |  ||  | ↳ `type` | string | Field type \(singleLineText, multilineText, number, checkbox, singleSelect, multipleSelects, date, dateTime, attachment, linkedRecord, etc.\) |  ||  | ↳ `description` | string | Field description |  ||  | ↳ `options` | json | Field-specific options \(choices, etc.\) |  ||  | `metadata` | json | Base info and count metadata |  ||  | ↳ `baseId` | string | The base ID queried |  ||  | ↳ `totalTables` | number | Number of tables in the base |  |
 ### `airtable_list_records`
 
-Считать записи из таблицы Airtable
+Read records from an Airtable table
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  ||  | `tableId` | строка | Да | Идентификатор таблицы (начинается с "tbl") или имя таблицы |  ||  | `maxRecords` | число | Нет | Максимальное количество записей для возврата (по умолчанию: все записи) |  ||  | `filterFormula` | строка | Нет | Формула для фильтрации записей (например, "\(Имя поля = 'Значение'\)") |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `records` | массив | Массив извлеченных записей из Airtable |  ||  | ↳ `id` | строка | Идентификатор записи |  ||  | ↳ `createdTime` | строка | Временная метка создания записи |  ||  | ↳ `fields` | JSON | Записывать значения полей |  ||  | `metadata` | JSON | Метаданные операции, включая смещение для постраничной загрузки и общее количество записей. |  ||  | ↳ `offset` | строка | Смещение для следующей страницы в постраничной навигации |  ||  | ↳ `totalRecords` | число | Количество записей, возвращенных |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  ||  | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |  ||  | `maxRecords` | number | No | Maximum number of records to return \(default: all records\) |  ||  | `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = \'Value\'\)"\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `records` | array | Array of retrieved Airtable records |  ||  | ↳ `id` | string | Record ID |  ||  | ↳ `createdTime` | string | Record creation timestamp |  ||  | ↳ `fields` | json | Record field values |  ||  | `metadata` | json | Operation metadata including pagination offset and total records count |  ||  | ↳ `offset` | string | Pagination offset for next page |  ||  | ↳ `totalRecords` | number | Number of records returned |  |
 ### `airtable_get_record`
 
-Получить одну запись из таблицы Airtable по её идентификатору.
+Retrieve a single record from an Airtable table by its ID
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  ||  | `tableId` | строка | Да | Идентификатор таблицы (начинается с "tbl") или имя таблицы. |  ||  | `recordId` | строка | Да | Идентификатор записи для получения данных (начинается с "rec", например, "recXXXXXXXXXXXXXX") |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `record` | JSON | Получен запись из Airtable |  ||  | ↳ `id` | строка | Идентификатор записи |  ||  | ↳ `createdTime` | строка | Временная метка создания записи |  ||  | ↳ `fields` | JSON | Записывать значения полей |  ||  | `metadata` | JSON | Метаданные операции |  ||  | ↳ `recordCount` | число | Количество возвращенных записей (всегда равно 1) |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  ||  | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |  ||  | `recordId` | string | Yes | Record ID to retrieve \(starts with "rec", e.g., "recXXXXXXXXXXXXXX"\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `record` | json | Retrieved Airtable record |  ||  | ↳ `id` | string | Record ID |  ||  | ↳ `createdTime` | string | Record creation timestamp |  ||  | ↳ `fields` | json | Record field values |  ||  | `metadata` | json | Operation metadata |  ||  | ↳ `recordCount` | number | Number of records returned \(always 1\) |  |
 ### `airtable_create_records`
 
-Создайте новые записи в таблице Airtable.
+Write new records to an Airtable table
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  ||  | `tableId` | строка | Да | Идентификатор таблицы (начинается с "tbl") или имя таблицы |  ||  | `records` | JSON | Да | Массив записей для создания, каждая из которых содержит объект `fields`. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `records` | массив | Массив созданных записей в Airtable |  ||  | ↳ `id` | строка | Идентификатор записи |  ||  | ↳ `createdTime` | строка | Временная метка создания записи |  ||  | ↳ `fields` | JSON | Записывать значения полей |  ||  | `metadata` | JSON | Метаданные операции |  ||  | ↳ `recordCount` | число | Количество созданных записей |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  ||  | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |  ||  | `records` | json | Yes | Array of records to create, each with a `fields` object |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `records` | array | Array of created Airtable records |  ||  | ↳ `id` | string | Record ID |  ||  | ↳ `createdTime` | string | Record creation timestamp |  ||  | ↳ `fields` | json | Record field values |  ||  | `metadata` | json | Operation metadata |  ||  | ↳ `recordCount` | number | Number of records created |  |
 ### `airtable_update_record`
 
-Обновить существующую запись в таблице Airtable по идентификатору.
+Update an existing record in an Airtable table by ID
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  ||  | `tableId` | строка | Да | Идентификатор таблицы (начинается с "tbl") или имя таблицы. |  ||  | `recordId` | строка | Да | Идентификатор записи для обновления (начинается с "rec", например, "recXXXXXXXXXXXXXX") |  ||  | `fields` | JSON | Да | Объект, содержащий имена полей и их новые значения. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `record` | JSON | Обновлённый запись в Airtable |  ||  | ↳ `id` | строка | Идентификатор записи |  ||  | ↳ `createdTime` | строка | Время создания записи |  ||  | ↳ `fields` | JSON | Записывать значения полей |  ||  | `metadata` | JSON | Метаданные операции |  ||  | ↳ `recordCount` | число | Количество обновленных записей (всегда 1) |  ||  | ↳ `updatedFields` | массив | Список названий полей, которые были обновлены |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  ||  | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |  ||  | `recordId` | string | Yes | Record ID to update \(starts with "rec", e.g., "recXXXXXXXXXXXXXX"\) |  ||  | `fields` | json | Yes | An object containing the field names and their new values |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `record` | json | Updated Airtable record |  ||  | ↳ `id` | string | Record ID |  ||  | ↳ `createdTime` | string | Record creation timestamp |  ||  | ↳ `fields` | json | Record field values |  ||  | `metadata` | json | Operation metadata |  ||  | ↳ `recordCount` | number | Number of records updated \(always 1\) |  ||  | ↳ `updatedFields` | array | List of field names that were updated |  |
 ### `airtable_update_multiple_records`
 
-Обновить несколько существующих записей в таблице Airtable.
+Update multiple existing records in an Airtable table
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  ||  | `tableId` | строка | Да | Идентификатор таблицы (начинается с "tbl") или имя таблицы. |  ||  | `records` | JSON | Да | Массив записей для обновления, каждая из которых содержит объекты с полями `id` и `fields`. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `records` | массив | Массив обновленных записей в Airtable |  ||  | ↳ `id` | строка | Идентификатор записи |  ||  | ↳ `createdTime` | строка | Временная метка создания записи |  ||  | ↳ `fields` | JSON | Записывать значения полей |  ||  | `metadata` | JSON | Метаданные операции |  ||  | ↳ `recordCount` | число | Количество обновленных записей |  ||  | ↳ `updatedRecordIds` | массив | Список обновленных идентификаторов записей |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  ||  | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |  ||  | `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `records` | array | Array of updated Airtable records |  ||  | ↳ `id` | string | Record ID |  ||  | ↳ `createdTime` | string | Record creation timestamp |  ||  | ↳ `fields` | json | Record field values |  ||  | `metadata` | json | Operation metadata |  ||  | ↳ `recordCount` | number | Number of records updated |  ||  | ↳ `updatedRecordIds` | array | List of updated record IDs |  |
 ### `airtable_get_base_schema`
 
-Получите схему всех таблиц, полей и представлений в базе данных Airtable.
+Get the schema of all tables, fields, and views in an Airtable base
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `baseId` | строка | Да | Идентификатор базы Airtable (начинается с "app", например, "appXXXXXXXXXXXXXX") |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `tables` | JSON | Массив схем таблиц с полями и представлениями |  ||  | `metadata` | JSON | Метаданные операции, включая общее количество таблиц. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `tables` | json | Array of table schemas with fields and views |  ||  | `metadata` | json | Operation metadata including total tables count |  |
 
 
-## Триггеры
-**Триггер** – это элемент, который запускает рабочий процесс при возникновении определенного события в этом сервисе.
+## Triggers
+A **Trigger** is a block that starts a workflow when an event happens in this service.
 
-### Web-запись Airtable
-Запускать рабочий процесс при изменении записей в Airtable, например, при создании, обновлении или удалении. (требуются учетные данные Airtable)
+### Airtable Webhook
+Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)
 
-#### Настройка
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `triggerCredentials` | строка | Да | Для использования этого триггера требуются учетные данные для доступа к вашей учетной записи в Airtable. |  ||  | `baseId` | строка | Да | ID базы Airtable, которую будет отслеживать этот веб-хук. |  ||  | `tableId` | строка | Да | Идентификатор таблицы в базе данных, которую будет отслеживать веб-хук. |  ||  | `includeCellValues` | логическое значение | Нет | Предоставьте возможность получать полную информацию о записи в теле сообщения, а не только изменения. |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `payloads` | массив | Данные, передаваемые при изменении в Airtable. |  ||  | ↳ `timestamp` | строка | Дата и время изменения |  ||  | ↳ `baseTransactionNumber` | число | Номер транзакции |  ||  | `latestPayload` | объект | Последняя загруженная информация от Airtable |  ||  | ↳ `timestamp` | строка | Временная метка изменения в формате ISO 8601 |  ||  | ↳ `baseTransactionNumber` | число | Номер транзакции |  ||  | ↳ `payloadFormat` | строка | Версия формата данных (например, v0) |  ||  | ↳ `actionMetadata` | объект | Метаданные о том, кто внес изменения |  ||  | ↳ `source` | строка | Источник изменений (например, клиент, publicApi) |  ||  | ↳ `sourceMetadata` | объект | Метаданные источника, включая информацию о пользователе. |  ||  | ↳ `user` | объект | Пользователь, внесший изменения |  ||  | ↳ `id` | строка | Идентификатор пользователя |  ||  | ↳ `email` | строка | Адрес электронной почты пользователя |  ||  | ↳ `name` | строка | Имя пользователя |  ||  | ↳ `permissionLevel` | строка | Уровень доступа пользователя |  ||  | ↳ `changedTablesById` | объект | Таблицы, которые были изменены (идентифицируются по идентификатору таблицы) |  ||  | ↳ `changedRecordsById` | объект | Заменены записи, идентифицированные по идентификатору записи. |  ||  | ↳ `current` | объект | Текущее состояние записи |  ||  | ↳ `cellValuesByFieldId` | объект | Значения ячеек, сгруппированные по идентификатору поля |  ||  | ↳ `createdRecordsById` | объект | Созданы записи по идентификатору |  ||  | ↳ `destroyedRecordIds` | массив | Массив идентификаторов уничтоженных записей |  ||  | `airtableChanges` | массив | Изменения, внесенные в таблицу Airtable. |  ||  | ↳ `tableId` | строка | Идентификатор таблицы |  ||  | ↳ `recordId` | строка | Идентификатор записи |  ||  | ↳ `changeType` | строка | Тип изменения (создано, изменено, уничтожено) |  ||  | ↳ `cellValuesByFieldId` | объект | Значения ячеек по идентификатору поля |  |
+#### Configuration
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `triggerCredentials` | string | Yes | This trigger requires airtable credentials to access your account. |  ||  | `baseId` | string | Yes | The ID of the Airtable Base this webhook will monitor. |  ||  | `tableId` | string | Yes | The ID of the table within the Base that the webhook will monitor. |  ||  | `includeCellValues` | boolean | No | Enable to receive the complete record data in the payload, not just changes. |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `payloads` | array | The payloads of the Airtable changes |  ||  | ↳ `timestamp` | string | Timestamp of the change |  ||  | ↳ `baseTransactionNumber` | number | Transaction number |  ||  | `latestPayload` | object | The most recent payload from Airtable |  ||  | ↳ `timestamp` | string | ISO 8601 timestamp of the change |  ||  | ↳ `baseTransactionNumber` | number | Transaction number |  ||  | ↳ `payloadFormat` | string | Payload format version \(e.g., v0\) |  ||  | ↳ `actionMetadata` | object | Metadata about who made the change |  ||  | ↳ `source` | string | Source of the change \(e.g., client, publicApi\) |  ||  | ↳ `sourceMetadata` | object | Source metadata including user info |  ||  | ↳ `user` | object | User who made the change |  ||  | ↳ `id` | string | User ID |  ||  | ↳ `email` | string | User email |  ||  | ↳ `name` | string | User name |  ||  | ↳ `permissionLevel` | string | User permission level |  ||  | ↳ `changedTablesById` | object | Tables that were changed \(keyed by table ID\) |  ||  | ↳ `changedRecordsById` | object | Changed records keyed by record ID |  ||  | ↳ `current` | object | Current state of the record |  ||  | ↳ `cellValuesByFieldId` | object | Cell values keyed by field ID |  ||  | ↳ `createdRecordsById` | object | Created records by ID |  ||  | ↳ `destroyedRecordIds` | array | Array of destroyed record IDs |  ||  | `airtableChanges` | array | Changes made to the Airtable table |  ||  | ↳ `tableId` | string | Table ID |  ||  | ↳ `recordId` | string | Record ID |  ||  | ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |  ||  | ↳ `cellValuesByFieldId` | object | Cell values by field ID |  |

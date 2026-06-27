@@ -11,11 +11,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* НАЧАЛО РУЧНОГО СОДЕРЖИЯ: введение */}
-[Ahrefs](https://ahrefs.com/)Ahrefshttps://ahrefs.com/является ведущим набором инструментов для анализа веб-сайтов, отслеживания позиций в поисковых системах, мониторинга обратных ссылок и исследования ключевых слов. Он предоставляет подробную информацию о вашем собственном сайте, а также о сайтах ваших конкурентов, помогая вам принимать решения, основанные на данных, для улучшения видимости вашего сайта в поисковых системах.
+[Ahrefs](https://ahrefs.com/)Ahrefshttps://ahrefs.com/является ведущим набором инструментов для анализа веб-сайтов, отслеживания позиций в поисковых системах, мониторинга обратных ссылок и исследования ключевых слов. Он предоставляет подробную информацию как о вашем собственном сайте, так и о сайтах ваших конкурентов, помогая вам принимать решения, основанные на данных, для улучшения видимости вашего сайта в поисковых системах.
 
 Благодаря интеграции с Ahrefs в Sim, вы можете:
 
-- **Оцените рейтинг и авторитет домена:** Мгновенно проверьте рейтинг домена (DR) и позицию в рейтинге Ahrefs для любого веб-сайта, чтобы оценить его авторитетность.- **Получение обратных ссылок:** Получите список обратных ссылок, указывающих на сайт или конкретный URL, с подробной информацией, такой как текст анкора, рейтинг домена страницы-ссылки и т.д.- **Получите статистику обратных ссылок:** Получите данные о типах обратных ссылок (с атрибутом dofollow, без атрибута dofollow, текстовые, графические, перенаправление и т.д.) для домена или URL-адреса.- **Изучите органические ключевые слова** (*планируется*): Просмотрите список ключевых слов, по которым домен занимает определенные позиции в результатах поиска Google.- **Определите самые эффективные страницы** (*планируется*): Выявите страницы с наибольшим органическим трафиком и ссылками.
+- **Оцените рейтинг и авторитет домена:** Мгновенно проверьте рейтинг домена (DR) и позицию в рейтинге Ahrefs для любого веб-сайта, чтобы оценить его авторитетность.- **Получение обратных ссылок:** Получите список обратных ссылок, указывающих на сайт или конкретный URL, с подробной информацией, такой как текст анкора, рейтинг домена страницы-ссылки и т.д.- **Получите статистику обратных ссылок:** Получите данные о типах обратных ссылок (с атрибутом dofollow, без атрибута dofollow, текстовые, графические, перенаправление и т.д.) для домена или URL-адреса.- **Изучите органические ключевые слова** (*планируется*): Просмотрите список ключевых слов, по которым домен занимает определенные позиции в результатах поиска Google.- **Определите самые эффективные страницы** *(планируется)*: Выявите страницы с наибольшим органическим трафиком и ссылками.
 Эти инструменты позволяют вашим сотрудникам автоматизировать исследования в области SEO, отслеживать конкурентов и создавать отчеты – все это как часть ваших автоматизированных рабочих процессов. Для использования интеграции Ahrefs вам потребуется подписка на Ahrefs Enterprise с доступом к API.
 {/* КОНЕЦ_МАНУАЛЬНОГО_СОДЕРЖИЯ */}
 
@@ -42,68 +42,68 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 #### Ввод
 |  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть. Пример: 50 (по умолчанию: 100) |  ||  | `offset` | число | Нет | Количество результатов, которые нужно пропустить для постраничной навигации. Пример: 100 |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `backlinks` | массив | Список обратных ссылок, указывающих на целевой сайт. |  ||  | ↳ `urlFrom` | строка | URL страницы, содержащей обратную ссылку. |  ||  | ↳ `urlTo` | строка | URL, на который осуществляется переход. |  ||  | ↳ `anchor` | строка | Текст ссылки |  ||  | ↳ `domainRatingSource` | число | Оценка домена, на который ведет ссылка |  ||  | ↳ `isDofollow` | логическое значение | Будет ли ссылка вести на целевой сайт? |  ||  | ↳ `firstSeen` | строка | Когда обратная ссылка была впервые обнаружена |  ||  | ↳ `lastVisited` | строка | Когда последний раз проверялась обратная ссылка |  |
+|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |  ||  | `offset` | number | No | Number of results to skip for pagination. Example: 100 |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `backlinks` | array | List of backlinks pointing to the target |  ||  | ↳ `urlFrom` | string | The URL of the page containing the backlink |  ||  | ↳ `urlTo` | string | The URL being linked to |  ||  | ↳ `anchor` | string | The anchor text of the link |  ||  | ↳ `domainRatingSource` | number | Domain Rating of the linking domain |  ||  | ↳ `isDofollow` | boolean | Whether the link is dofollow |  ||  | ↳ `firstSeen` | string | When the backlink was first discovered |  ||  | ↳ `lastVisited` | string | When the backlink was last checked |  |
 ### `ahrefs_backlinks_stats`
 
-Получите статистику обратных ссылок для целевого домена или URL-адреса. Возвращает общие данные по различным типам обратных ссылок, включая ссылки с атрибутом "dofollow", "nofollow", текстовые, графические и ссылки на перенаправление.
+Get backlink statistics for a target domain or URL. Returns totals for different backlink types including dofollow, nofollow, text, image, and redirect links.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `stats` | объект | Краткий обзор статистики обратных ссылок |  ||  | ↳ `total` | число | Общее количество активных обратных ссылок |  ||  | ↳ `dofollow` | число | Количество обратных ссылок с атрибутом "nofollow" |  ||  | ↳ `nofollow` | число | Количество ссылок с атрибутом "nofollow" |  ||  | ↳ `text` | число | Количество ссылок на текст |  ||  | ↳ `image` | число | Количество обратных ссылок на изображения |  ||  | ↳ `redirect` | число | Количество обратных ссылок на перенаправление |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |  ||  | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `stats` | object | Backlink statistics summary |  ||  | ↳ `total` | number | Total number of live backlinks |  ||  | ↳ `dofollow` | number | Number of dofollow backlinks |  ||  | ↳ `nofollow` | number | Number of nofollow backlinks |  ||  | ↳ `text` | number | Number of text backlinks |  ||  | ↳ `image` | number | Number of image backlinks |  ||  | ↳ `redirect` | number | Number of redirect backlinks |  |
 ### `ahrefs_referring_domains`
 
-Получите список доменов, которые ссылаются на целевой домен или URL. Возвращает уникальные домены-ссылки с их рейтингом, количеством обратных ссылок и датами обнаружения.
+Get a list of domains that link to a target domain or URL. Returns unique referring domains with their domain rating, backlink counts, and discovery dates.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть. Пример: 50 (по умолчанию: 100) |  ||  | `offset` | число | Нет | Количество результатов, которые нужно пропустить для постраничной навигации. Пример: 100 |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `referringDomains` | массив | Список доменов, ведущих на целевой ресурс. |  ||  | ↳ `domain` | строка | Исходный домен |  ||  | ↳ `domainRating` | число | Оценка домена, с которого осуществляется переход. |  ||  | ↳ `backlinks` | число | Общее количество обратных ссылок с этого домена. |  ||  | ↳ `dofollowBacklinks` | число | Количество обратных ссылок с возможностью отслеживания, исходящих из этого домена. |  ||  | ↳ `firstSeen` | строка | Когда этот домен впервые появился в результатах поиска. |  ||  | ↳ `lastVisited` | строка | Когда доменная зона была последний раз проверена |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |  ||  | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |  ||  | `offset` | number | No | Number of results to skip for pagination. Example: 100 |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `referringDomains` | array | List of domains linking to the target |  ||  | ↳ `domain` | string | The referring domain |  ||  | ↳ `domainRating` | number | Domain Rating of the referring domain |  ||  | ↳ `backlinks` | number | Total number of backlinks from this domain |  ||  | ↳ `dofollowBacklinks` | number | Number of dofollow backlinks from this domain |  ||  | ↳ `firstSeen` | string | When the domain was first seen linking |  ||  | ↳ `lastVisited` | string | When the domain was last checked |  |
 ### `ahrefs_organic_keywords`
 
-Получите органические ключевые слова, по которым целевой домен или URL отображается в результатах поиска Google. Возвращает детали ключевых слов, включая объем поискового запроса, позицию в рейтинге и примерное количество трафика.
+Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `country` | строка | Нет | Код страны для результатов поиска. Пример: «us», «gb», «de» (по умолчанию: «us») |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть. Пример: 50 (по умолчанию: 100) |  ||  | `offset` | число | Нет | Количество результатов, которые нужно пропустить для постраничной навигации. Пример: 100 |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `keywords` | массив | Список органических ключевых слов, для которых необходимо добиться высокого рейтинга. |  ||  | ↳ `keyword` | строка | Ключевое слово |  ||  | ↳ `volume` | число | Среднесписочный объем поисковых запросов в месяц |  ||  | ↳ `position` | число | Текущая позиция в рейтинге |  ||  | ↳ `url` | строка | URL, по которому этот ключевой запрос занимает лидирующее место в результатах поиска. |  ||  | ↳ `traffic` | число | Ожидаемый ежемесячный органический трафик |  ||  | ↳ `keywordDifficulty` | число | Оценка сложности ключевого слова (от 0 до 100) |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |  ||  | `country` | string | No | Country code for search results. Example: "us", "gb", "de" \(default: "us"\) |  ||  | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |  ||  | `offset` | number | No | Number of results to skip for pagination. Example: 100 |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `keywords` | array | List of organic keywords the target ranks for |  ||  | ↳ `keyword` | string | The keyword |  ||  | ↳ `volume` | number | Monthly search volume |  ||  | ↳ `position` | number | Current ranking position |  ||  | ↳ `url` | string | The URL that ranks for this keyword |  ||  | ↳ `traffic` | number | Estimated monthly organic traffic |  ||  | ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |  |
 ### `ahrefs_top_pages`
 
-Получите список наиболее посещаемых страниц целевого домена, отсортированный по органическому трафику. Возвращает URL-адреса страниц с информацией о трафике, количестве ключевых слов и приблизительной оценке трафика.
+Get the top pages of a target domain sorted by organic traffic. Returns page URLs with their traffic, keyword counts, and estimated traffic value.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен для анализа. Пример: «example.com» |  ||  | `country` | строка | Нет | Код страны для данных о трафике. Пример: «us», «gb», «de» (по умолчанию: «us») |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть. Пример: 50 (по умолчанию: 100) |  ||  | `offset` | число | Нет | Количество результатов, которые нужно пропустить для постраничной навигации. Пример: 100 |  ||  | `select` | строка | Нет | Список полей для возврата, разделенных запятыми (например, url, traffic, keywords, top\_keyword, value). Значение по умолчанию: url, traffic, keywords, top\_keyword, value |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `pages` | массив | Список наиболее посещаемых страниц по органическому трафику |  ||  | ↳ `url` | строка | URL страницы |  ||  | ↳ `traffic` | число | Ожидаемый ежемесячный органический трафик |  ||  | ↳ `keywords` | число | Количество ключевых слов, по которым страница занимает высокие позиции в поисковой выдаче. |  ||  | ↳ `topKeyword` | строка | Самый популярный ключевой запрос, который приводит пользователей на эту страницу. |  ||  | ↳ `value` | число | Оценочная стоимость трафика в долларах США |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `target` | string | Yes | The target domain to analyze. Example: "example.com" |  ||  | `country` | string | No | Country code for traffic data. Example: "us", "gb", "de" \(default: "us"\) |  ||  | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\). Example: "domain" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |  ||  | `offset` | number | No | Number of results to skip for pagination. Example: 100 |  ||  | `select` | string | No | Comma-separated list of fields to return \(e.g., url,traffic,keywords,top_keyword,value\). Default: url,traffic,keywords,top_keyword,value |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `pages` | array | List of top pages by organic traffic |  ||  | ↳ `url` | string | The page URL |  ||  | ↳ `traffic` | number | Estimated monthly organic traffic |  ||  | ↳ `keywords` | number | Number of keywords the page ranks for |  ||  | ↳ `topKeyword` | string | The top keyword driving traffic to this page |  ||  | ↳ `value` | number | Estimated traffic value in USD |  |
 ### `ahrefs_keyword_overview`
 
-Получите подробные метрики для конкретного ключевого слова, включая объем поисковых запросов, сложность ключевого слова, цену за клик (CPC), количество кликов и потенциальный трафик.
+Get detailed metrics for a keyword including search volume, keyword difficulty, CPC, clicks, and traffic potential.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `keyword` | строка | Да | Ключевое слово для анализа |  ||  | `country` | строка | Нет | Код страны для данных ключевых слов. Пример: «us», «gb», «de» (по умолчанию: «us») |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `overview` | объект | Обзор метрик по ключевым словам |  ||  | ↳ `keyword` | строка | Проанализированное ключевое слово |  ||  | ↳ `searchVolume` | число | Среднесписочный объем поисковых запросов в месяц |  ||  | ↳ `keywordDifficulty` | число | Оценка сложности ключевого слова (от 0 до 100) |  ||  | ↳ `cpc` | число | Стоимость одного клика в долларах США |  ||  | ↳ `clicks` | число | Ожидаемое количество кликов в месяц |  ||  | ↳ `clicksPercentage` | число | Процент поисковых запросов, которые приводят к кликам. |  ||  | ↳ `parentTopic` | строка | Основная тема для этого ключевого слова. |  ||  | ↳ `trafficPotential` | число | Оценочный потенциал трафика при занятии 1-го места. |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `keyword` | string | Yes | The keyword to analyze |  ||  | `country` | string | No | Country code for keyword data. Example: "us", "gb", "de" \(default: "us"\) |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `overview` | object | Keyword metrics overview |  ||  | ↳ `keyword` | string | The analyzed keyword |  ||  | ↳ `searchVolume` | number | Monthly search volume |  ||  | ↳ `keywordDifficulty` | number | Keyword difficulty score \(0-100\) |  ||  | ↳ `cpc` | number | Cost per click in USD |  ||  | ↳ `clicks` | number | Estimated clicks per month |  ||  | ↳ `clicksPercentage` | number | Percentage of searches that result in clicks |  ||  | ↳ `parentTopic` | string | The parent topic for this keyword |  ||  | ↳ `trafficPotential` | number | Estimated traffic potential if ranking #1 |  |
 ### `ahrefs_broken_backlinks`
 
-Получите список неработающих ссылок, указывающих на целевой домен или URL. Это полезно для выявления возможностей восстановления ссылок.
+Get a list of broken backlinks pointing to a target domain or URL. Useful for identifying link reclamation opportunities.
 
-#### Ввод
-|  | Параметр | Тип | Необходимо | Описание |  || --------- | ---- | -------- | ----------- |
-|  | `target` | строка | Да | Целевой домен или URL для анализа. Пример: «example.com» или «https://example.com/page». |  ||  | `mode` | строка | Нет | Режим анализа: домен (весь домен), префикс (префикс URL), поддомены (включая все поддомены), точное соответствие (точное совпадение с URL). Пример: "домен" |  ||  | `date` | строка | Нет | Дата для исторических данных в формате YYYY-MM-DD (по умолчанию – текущая дата) |  ||  | `limit` | число | Нет | Максимальное количество результатов, которые необходимо вернуть. Пример: 50 (по умолчанию: 100) |  ||  | `offset` | число | Нет | Количество результатов, которые нужно пропустить для постраничной навигации. Пример: 100 |  ||  | `apiKey` | строка | Да | Ключ API Ahrefs |  |
-#### Вывод
-|  | Параметр | Тип | Описание |  || --------- | ---- | ----------- |
-|  | `brokenBacklinks` | массив | Список неработающих ссылок |  ||  | ↳ `urlFrom` | строка | URL страницы, содержащей неработающую ссылку. |  ||  | ↳ `urlTo` | строка | Неработающая ссылка, на которую указывается. |  ||  | ↳ `httpCode` | число | Код состояния HTTP (например, 404, 410) |  ||  | ↳ `anchor` | строка | Текст ссылки |  ||  | ↳ `domainRatingSource` | число | Оценка домена, на который ведет ссылка |  |
+#### Input
+|  | Parameter | Type | Required | Description |  || --------- | ---- | -------- | ----------- |
+|  | `target` | string | Yes | The target domain or URL to analyze. Example: "example.com" or "https://example.com/page" |  ||  | `mode` | string | No | Analysis mode: domain \(entire domain\), prefix \(URL prefix\), subdomains \(include all subdomains\), exact \(exact URL match\). Example: "domain" |  ||  | `date` | string | No | Date for historical data in YYYY-MM-DD format \(defaults to today\) |  ||  | `limit` | number | No | Maximum number of results to return. Example: 50 \(default: 100\) |  ||  | `offset` | number | No | Number of results to skip for pagination. Example: 100 |  ||  | `apiKey` | string | Yes | Ahrefs API Key |  |
+#### Output
+|  | Parameter | Type | Description |  || --------- | ---- | ----------- |
+|  | `brokenBacklinks` | array | List of broken backlinks |  ||  | ↳ `urlFrom` | string | The URL of the page containing the broken link |  ||  | ↳ `urlTo` | string | The broken URL being linked to |  ||  | ↳ `httpCode` | number | HTTP status code \(e.g., 404, 410\) |  ||  | ↳ `anchor` | string | The anchor text of the link |  ||  | ↳ `domainRatingSource` | number | Domain Rating of the linking domain |  |
 
