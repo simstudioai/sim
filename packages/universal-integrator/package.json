@@ -13,7 +13,11 @@
     "integrate": "bun run src/index.ts"
   },
   "dependencies": {
-    "openai": "^4.52.0"
+    "openai": "^4.52.0",
+    "@langchain/openai": "^0.1.0",
+    "@langchain/core": "^0.2.0",
+    "langchain": "^0.2.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
