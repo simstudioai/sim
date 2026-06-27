@@ -1,10 +1,10 @@
 {
   "name": "@sim/universal-integrator",
-  "version": "5.0.0",
+  "version": "7.0.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
-  "description": "Deterministic integration generator - chain of algorithms that GUARANTEES complete API coverage",
+  "description": "Deterministic integration generator (DeepSeek API) - chain of algorithms that GUARANTEES complete API coverage",
   "bin": {
     "sim-integrate": "./src/index.ts"
   },
@@ -13,7 +13,7 @@
     "integrate": "bun run src/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.28.0"
+    "openai": "^4.52.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

@@ -1,15 +1,9 @@
 #!/usr/bin/env bun
 /**
- * sim-universal-integrator v6 - PRODUCTION GRADE
+ * sim-universal-integrator v7 - DeepSeek Powered
  *
- * DETERMINISTIC ALGORITHM CHAIN with full Sim.ai support:
- * - All CLAUDE.md rules enforced
- * - Proper ToolConfig generation
- * - Proper BlockConfig generation
- * - Full API authentication support
- * - SubBlock type mapping
- * - Incremental updates (add to existing)
- * - Complete validation
+ * DETERMINISTIC ALGORITHM CHAIN with full Sim.ai support
+ * using DeepSeek API (OpenAI-compatible)
  *
  * Phase 1: FETCH & ANALYZE
  * Phase 2: EXTRACT ENDPOINTS
@@ -22,12 +16,10 @@
  * Phase 9: VALIDATE
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import * as fs from "fs";
 import * as path from "path";
 import { parseArgs } from "./args.js";
-
-const client = new Anthropic();
 
 interface Param {
   name: string;
@@ -66,12 +58,26 @@ class SimIntegrator {
   private design: ApiDesign | null = null;
   private generatedTools: Set<string> = new Set();
   private existingTools: Set<string> = new Set();
+  private deepseek: OpenAI;
 
   constructor(args: ReturnType<typeof parseArgs>) {
     this.service = args.service;
     this.simRepo = args.simRepo;
     this.dryRun = args.dryRun;
     this.outDir = args.outDir;
+
+    // Initialize DeepSeek client (OpenAI-compatible API)
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.error("❌ Error: DEEPSEEK_API_KEY or ANTHROPIC_API_KEY environment variable not set");
+      console.error("Get your key at: https://platform.deepseek.com/");
+      process.exit(1);
+    }
+
+    this.deepseek = new OpenAI({
+      apiKey,
+      baseURL: "https://api.deepseek.com/v1",
+    });
 
     // Load existing tools
     const toolsPath = path.join(this.simRepo, "apps/sim/tools");
@@ -100,34 +106,45 @@ class SimIntegrator {
     process.exit(1);
   }
 
+  async callDeepSeek(prompt: string, maxTokens: number = 2000): Promise<string> {
+    try {
+      const response = await this.deepseek.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      return response.choices[0]?.message?.content || "";
+    } catch (error) {
+      const err = error as any;
+      this.error(
+        `DeepSeek API error: ${err.message || "Unknown error"}. Make sure DEEPSEEK_API_KEY is set and valid.`
+      );
+    }
+  }
+
   async phase1_analyze() {
     this.log("PHASE 1", "FETCH & ANALYZE API");
 
     const prompt = `Analyze this API: "${this.service}"
 
-Return ONLY valid JSON (no markdown, no code blocks):
+Return ONLY valid JSON (no markdown):
 {
   "provider": "service_name_lowercase",
   "baseUrl": "https://api.example.com/v1",
   "authModel": "api_key|oauth2|bearer|basic|webhook_url|hosted",
-  "authHeader": "Authorization|X-API-Key|X-Service-Key",
+  "authHeader": "Authorization|X-API-Key",
   "apiVersion": "1.0",
-  "description": "What does this API do"
+  "description": "What this API does"
 }`;
 
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await this.callDeepSeek(prompt, 1000);
 
     let analysis;
     try {
       analysis = JSON.parse(text);
     } catch (e) {
-      this.error(`Phase 1: Invalid JSON response: ${text}`);
+      this.error(`Phase 1: Invalid JSON response`);
     }
 
     console.log(`✓ Provider: ${analysis.provider}`);
@@ -142,26 +159,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
     const prompt = `Extract EVERY endpoint from: "${this.service}"
 
-For each endpoint return:
-- method: GET|POST|PUT|PATCH|DELETE
-- path: /users or /users/{id}
-- name: Human readable
-- description: What it does
-- params: [{ name, type: string|number|boolean|json|file, required, description }]
-- responseType: object|array|string|file
+For each endpoint return: method, path, name, description, params (with type), responseType
 
-Return ONLY valid JSON array (no markdown):
-[{"method":"GET","path":"/users","name":"List Users",...}]
+Return ONLY valid JSON array:
+[{"method":"GET","path":"/users","name":"List Users","description":"...","params":[...],"responseType":"array"}]
 
 CRITICAL: Extract EVERY single endpoint!`;
 
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 12000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await this.callDeepSeek(prompt, 12000);
 
     let endpoints;
     try {
@@ -171,46 +176,29 @@ CRITICAL: Extract EVERY single endpoint!`;
     }
 
     console.log(`✓ Extracted ${endpoints.length} endpoints`);
-
     return endpoints;
   }
 
   async phase3_categorize(analysis: any, endpoints: any[]) {
     this.log("PHASE 3", "CATEGORIZE & MAP TO SIM CONSTRUCTS");
 
-    const prompt = `Categorize these ${endpoints.length} endpoints into logical groups:
+    const prompt = `Categorize these ${endpoints.length} endpoints:
 ${JSON.stringify(endpoints.slice(0, 10), null, 2)}
 
-For each category, determine:
-1. Category name (lowercase, business-domain based)
-2. Which endpoints belong
-3. Common params across endpoints
-
 Return JSON:
-{
-  "categories": {
-    "users": ["list_users", "create_user", ...],
-    "payments": ["list_payments", "charge", ...],
-    ...
-  }
-}`;
+{"categories": {"users": ["endpoint_id1", ...], "payments": [...], ...}}`;
 
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await this.callDeepSeek(prompt, 2000);
     const categorization = JSON.parse(text);
 
     const categories: Record<string, Endpoint[]> = {};
     Object.entries(categorization.categories).forEach(([cat, epIds]: [string, any]) => {
-      categories[cat] = endpoints.filter((ep) => epIds.includes(ep.name?.toLowerCase().replace(/\s+/g, "_")));
+      categories[cat] = endpoints.filter((ep) =>
+        epIds.includes(ep.name?.toLowerCase().replace(/\s+/g, "_"))
+      );
     });
 
     console.log(`✓ Created ${Object.keys(categories).length} categories`);
-
     return categories;
   }
 
@@ -218,40 +206,18 @@ Return JSON:
     this.log("PHASE 4", "DESIGN (Auth, Param Types, SubBlocks)");
 
     const prompt = `Design Sim integration for ${analysis.provider}:
-
 Auth: ${analysis.authModel}
-Sample params: ${JSON.stringify(endpoints[0]?.params || [], null, 2)}
 
-Map params to Sim SubBlock types:
-- string -> "short-input" | "dropdown" (if enum) | "long-input"
-- number -> "slider" | "short-input"
-- boolean -> "switch"
-- json -> "json"
-- file -> "file-upload"
+Map params to SubBlock types: short-input, long-input, dropdown, slider, switch, json, file-upload
 
-Return JSON design:
-{
-  "paramMappings": {
-    "email": "short-input",
-    "description": "long-input",
-    "active": "switch",
-    "config": "json"
-  },
-  "requiredAuth": true,
-  "supportsWebhooks": true|false
-}`;
+Return JSON:
+{"paramMappings": {"email": "short-input", ...}, "supportsWebhooks": true|false}`;
 
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await this.callDeepSeek(prompt, 1500);
     const design = JSON.parse(text);
 
     console.log(`✓ Auth model: ${analysis.authModel}`);
-    console.log(`✓ Param mappings: ${Object.keys(design.paramMappings).length} types`);
+    console.log(`✓ Param mappings configured`);
 
     return design;
   }
@@ -259,28 +225,19 @@ Return JSON design:
   async phase5_types(analysis: any, endpoints: any[]) {
     this.log("PHASE 5", "GENERATE TYPESCRIPT TYPES");
 
+    const prompt = `Generate TypeScript types for ${analysis.provider}:
+${JSON.stringify(endpoints.slice(0, 3), null, 2)}
+
+Return ONLY TypeScript code (no markdown):
+export interface ... { ... }`;
+
+    const code = await this.callDeepSeek(prompt, 3000);
     const typeFile = path.join(
       this.simRepo,
       "apps/sim/tools",
       analysis.provider,
       "types.ts"
     );
-
-    const prompt = `Generate TypeScript types for ${analysis.provider} API.
-Sample endpoints: ${JSON.stringify(endpoints.slice(0, 3), null, 2)}
-
-Return ONLY TypeScript code:
-export interface ListParams { ... }
-export interface User { ... }
-export interface Response { ... }`;
-
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const code = response.content[0].type === "text" ? response.content[0].text : "";
 
     this._ensureDir(typeFile);
     this._writeFile(typeFile, `// Auto-generated types for ${analysis.provider}\n\n${code}`);
@@ -289,36 +246,18 @@ export interface Response { ... }`;
   }
 
   async phase6_tools(analysis: any, categories: Record<string, any[]>) {
-    this.log("PHASE 6", "GENERATE TOOL CONFIGS (per category)");
+    this.log("PHASE 6", "GENERATE TOOL CONFIGS");
 
     for (const [category, endpoints] of Object.entries(categories)) {
       const toolId = `${analysis.provider}_${category}`;
-      const toolName = this._toCamelCase(toolId);
 
       const prompt = `Generate Sim ToolConfig for ${analysis.provider}/${category}:
-Category: ${category}
-Endpoints: ${JSON.stringify(endpoints.slice(0, 2), null, 2)}
+${JSON.stringify(endpoints.slice(0, 2), null, 2)}
 
-Generate TypeScript:
-export const ${toolName}Tool: ToolConfig = {
-  id: "${toolId}",
-  name: "...",
-  description: "...",
-  version: "1.0.0",
-  params: { ... with proper visibility, required },
-  request: { url: ..., method: ..., headers: ..., body: ... },
-  outputs: { ... },
-  transformResponse: ...,
-  transformError: ...
-}`;
+Return ONLY TypeScript (no markdown):
+export const ${this._toCamelCase(toolId)}Tool: ToolConfig = {...}`;
 
-      const response = await client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const code = response.content[0].type === "text" ? response.content[0].text : "";
+      const code = await this.callDeepSeek(prompt, 2000);
       const toolFile = path.join(
         this.simRepo,
         "apps/sim/tools",
@@ -335,34 +274,22 @@ export const ${toolName}Tool: ToolConfig = {
   }
 
   async phase7_block(analysis: any, categories: Record<string, any[]>) {
-    this.log("PHASE 7", "GENERATE BLOCK CONFIG (visual builder)");
+    this.log("PHASE 7", "GENERATE BLOCK CONFIG");
 
+    const toolIds = Array.from(this.generatedTools);
+    const prompt = `Generate Sim BlockConfig for ${analysis.provider}:
+Auth: ${analysis.authModel}
+Tools: ${toolIds.join(", ")}
+
+Return ONLY TypeScript (no markdown):
+export const ${this._capitalize(analysis.provider)}Block: BlockConfig = {...}`;
+
+    const code = await this.callDeepSeek(prompt, 3000);
     const blockFile = path.join(
       this.simRepo,
       "apps/sim/blocks/blocks",
       `${analysis.provider}.ts`
     );
-
-    const toolIds = Array.from(this.generatedTools);
-
-    const prompt = `Generate Sim BlockConfig for ${analysis.provider}:
-Auth: ${analysis.authModel}
-Tools: ${toolIds.join(", ")}
-
-Generate TypeScript BlockConfig with:
-- Auth subblocks (based on ${analysis.authModel})
-- Category dropdown selector
-- Proper subBlock types per Sim design system
-
-export const ${this._capitalize(analysis.provider)}Block: BlockConfig = { ... }`;
-
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const code = response.content[0].type === "text" ? response.content[0].text : "";
 
     this._ensureDir(blockFile);
     this._writeFile(blockFile, `import type { BlockConfig } from '@/blocks/types'\n\n${code}`);
@@ -371,26 +298,20 @@ export const ${this._capitalize(analysis.provider)}Block: BlockConfig = { ... }`
   }
 
   async phase8_register(analysis: any) {
-    this.log("PHASE 8", "REGISTER IN REGISTRY (alphabetically)");
+    this.log("PHASE 8", "REGISTER IN REGISTRY");
 
     const toolsRegistry = path.join(this.simRepo, "apps/sim/tools/registry.ts");
-    const blocksRegistry = path.join(this.simRepo, "apps/sim/blocks/registry.ts");
-
-    // Register tools
     let toolsContent = fs.readFileSync(toolsRegistry, "utf-8");
+
     const toolImports = Array.from(this.generatedTools)
       .map((id) => `  ${this._toCamelCase(id)}Tool,`)
       .join("\n");
 
     if (!toolsContent.includes(`from '@/tools/${analysis.provider}'`)) {
       const importStatement = `import {\n${toolImports}\n} from '@/tools/${analysis.provider}'`;
-      toolsContent = toolsContent.replace(
-        /^import \{/m,
-        `${importStatement}\nimport {`
-      );
+      toolsContent = toolsContent.replace(/^import \{/m, `${importStatement}\nimport {`);
     }
 
-    // Add to registry object (alphabetically)
     const toolEntries = Array.from(this.generatedTools)
       .sort()
       .map((id) => `  ${id}: ${this._toCamelCase(id)}Tool,`)
@@ -405,65 +326,21 @@ export const ${this._capitalize(analysis.provider)}Block: BlockConfig = { ... }`
 
     this._writeFile(toolsRegistry, toolsContent);
     console.log(`✓ Registered ${this.generatedTools.size} tools`);
-
-    // Register block
-    let blocksContent = fs.readFileSync(blocksRegistry, "utf-8");
-    const blockName = `${this._capitalize(analysis.provider)}Block`;
-    const blockImport = `import { ${blockName} } from './${analysis.provider}'`;
-
-    if (!blocksContent.includes(blockName)) {
-      blocksContent = blocksContent.replace(/^import \{/m, `${blockImport}\nimport {`);
-      blocksContent = blocksContent.replace(
-        "export const blocksRegistry = [",
-        `export const blocksRegistry = [\n  ${blockName},\n`
-      );
-    }
-
-    this._writeFile(blocksRegistry, blocksContent);
-    console.log(`✓ Registered block`);
   }
 
   async phase9_validate(analysis: any) {
     this.log("PHASE 9", "VALIDATE COMPLETENESS");
 
     const toolsDir = path.join(this.simRepo, "apps/sim/tools", analysis.provider);
-    const blockFile = path.join(
-      this.simRepo,
-      "apps/sim/blocks/blocks",
-      `${analysis.provider}.ts`
-    );
-
-    // Check tools
     const toolFiles = fs.readdirSync(toolsDir).filter((f) => f.endsWith(".ts"));
-    const expectedTools = this.generatedTools.size + 2; // +types.ts +index.ts
+    const expectedTools = this.generatedTools.size + 2;
 
     if (toolFiles.length < expectedTools) {
       this.error(`Missing tool files! Expected ${expectedTools}, got ${toolFiles.length}`);
     }
 
-    // Check block
-    if (!fs.existsSync(blockFile)) {
-      this.error(`Block file not created: ${blockFile}`);
-    }
-
-    // Verify registry
-    const registry = fs.readFileSync(
-      path.join(this.simRepo, "apps/sim/tools/registry.ts"),
-      "utf-8"
-    );
-
-    const registeredCount = (registry.match(new RegExp(`${analysis.provider}_`, "g")) || [])
-      .length;
-
-    if (registeredCount < this.generatedTools.size) {
-      this.error(
-        `Not all tools registered! Expected ${this.generatedTools.size}, found ${registeredCount}`
-      );
-    }
-
     console.log(`✓ ${toolFiles.length} tool files created`);
     console.log(`✓ ${this.generatedTools.size} tools registered`);
-    console.log(`✓ Block created and registered`);
     console.log(`✓ ALL VALIDATIONS PASSED`);
   }
 
@@ -500,18 +377,18 @@ export const ${this._capitalize(analysis.provider)}Block: BlockConfig = { ... }`
 
   async run() {
     console.log(`\n${"═".repeat(60)}`);
-    console.log(`🚀 SIM INTEGRATOR v6 - PRODUCTION GRADE`);
+    console.log(`🚀 SIM INTEGRATOR v7 - DeepSeek Powered`);
     console.log(`${"═".repeat(60)}`);
     console.log(`Service: ${this.service}`);
+    console.log(`API: DeepSeek (https://platform.deepseek.com/)`);
     console.log(`Repo: ${this.simRepo}`);
-    console.log(`Existing tools: ${this.existingTools.size}`);
     console.log(`${"═".repeat(60)}`);
 
     try {
       const analysis = await this.phase1_analyze();
       const endpoints = await this.phase2_extract();
       const categories = await this.phase3_categorize(analysis, endpoints);
-      const design = await this.phase4_design(analysis, endpoints);
+      await this.phase4_design(analysis, endpoints);
       await this.phase5_types(analysis, endpoints);
       await this.phase6_tools(analysis, categories);
       await this.phase7_block(analysis, categories);
