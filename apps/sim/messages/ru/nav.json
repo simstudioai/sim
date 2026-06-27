@@ -1,12 +1,12 @@
 {
-  "home": "Домой",
-  "workflows": "Работы",
+  "home": "Главная страница",
+  "workflows": "воркфлоу",
   "tables": "Таблицы",
-  "knowledge": "Информация",
+  "knowledge": "база знаний",
   "files": "Файлы",
   "logs": "Логи",
   "settings": "Настройки",
-  "integrations": "Интеграции",
+  "integrations": "интеграции",
   "chat": "Чат",
-  "upgrade": "Обновить"
+  "upgrade": "\"Изменить подписку\""
 }

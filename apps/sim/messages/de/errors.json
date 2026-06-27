@@ -1,11 +1,11 @@
 {
-  "unknown": "Ein unbekannter Fehler ist aufgetreten",
-  "network": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung",
-  "unauthorized": "Autorisierung erforderlich",
+  "unknown": "Ein unbekannter Fehler ist aufgetreten.",
+  "network": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung.",
+  "unauthorized": "\"Autorisierung erforderlich.\"",
   "forbidden": "Zugriff verweigert",
-  "notFound": "Nicht gefunden",
-  "rateLimit": "Überschreitet die Anzahl der Requests. Versuchen Sie es später erneut",
-  "timeout": "Request wurde beendet, da sie über eine Zeit hinweg nicht abgearbeitet wurde",
-  "validation": "Bitte überprüfen Sie Ihre Eingabe",
-  "serverError": "Serverfehler. Überprüfen Sie Ihre Verbindung und versuchen Sie es später erneut"
+  "notFound": "\"Nicht gefunden\"",
+  "rateLimit": "Zu viele Anfragen. Versuchen Sie es später noch einmal.",
+  "timeout": "Anfrage abgelaufen",
+  "validation": "Bitte überprüfen Sie Ihre Eingabe.",
+  "serverError": "Serverfehler. Versuchen Sie es später noch einmal."
 }

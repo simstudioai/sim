@@ -1,14 +1,14 @@
 {
-  "noResults": "Нет результатов",
-  "noData": "Ещё нет данных",
-  "noItems": "Ничего не найдено",
-  "emptyState": "Здесь пока ничего нет",
-  "createFirst": "Создайте свой первый проект",
-  "checkBack": "Попробуйте вернуться позже",
-  "startBuilding": "Начните строить",
-  "allCaughtUp": "Вы всё на связи",
-  "nothingToShow": "Нечего показывать",
+  "noResults": "Не найдено результатов",
+  "noData": "Нет данных пока",
+  "noItems": "Нет элементов",
+  "emptyState": "Ничего тут еще нет.",
+  "createFirst": "Создайте свой первый элемент",
+  "checkBack": "Проверьте позже.",
+  "startBuilding": "Начать строить",
+  "allCaughtUp": "Вы все в курсе.",
+  "nothingToShow": "Ничего не отображать",
   "tryDifferentSearch": "Попробуйте другой поиск",
   "tryDifferentFilter": "Попробуйте другие фильтры",
-  "clearFilters": "Очистите фильтры"
+  "clearFilters": "Очистить фильтры"
 }

@@ -1,10 +1,10 @@
 {
-  "today": "Heute",
+  "today": "\"Heute\"",
   "yesterday": "Gestern",
-  "tomorrow": "Morgen",
+  "tomorrow": "\"Morgen\"",
   "now": "Jetzt",
-  "justNow": "Gerade eben",
-  "minute": "Minute",
+  "justNow": "\"Gerade jetzt\"",
+  "minute": "Minutte",
   "minutes": "Minuten",
   "minutes_2": "Minuten",
   "hour": "Stunde",
@@ -16,12 +16,12 @@
   "week": "Woche",
   "weeks": "Wochen",
   "weeks_2": "Wochen",
-  "month": "Monate",
+  "month": "Monat",
   "months": "Monate",
   "months_2": "Monate",
-  "year": "Jahre",
+  "year": "Jahr",
   "years": "Jahre",
   "years_2": "Jahre",
-  "ago": "her",
-  "in": "in"
+  "ago": "vorher",
+  "in": "\"im\""
 }

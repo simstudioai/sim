@@ -1,12 +1,12 @@
 {
   "home": "Startseite",
-  "workflows": "Workflowe",
+  "workflows": "Workflow",
   "tables": "Tabelle",
-  "knowledge": "Wissen",
+  "knowledge": "\"Wissensdatenbank\"",
   "files": "Dateien",
   "logs": "Protokolle",
   "settings": "Einstellungen",
-  "integrations": "Integrationen",
+  "integrations": "Integration",
   "chat": "Chat",
   "upgrade": "Upgrade"
 }

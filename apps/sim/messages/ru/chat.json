@@ -1,14 +1,14 @@
 {
   "newChat": "Новый чат",
   "sendMessage": "Отправить сообщение",
-  "typeMessage": "Типите сообщение...",
-  "thinking": "Подождите...",
-  "generating": "Генерирую...",
-  "attachFile": "Причтите файл",
+  "typeMessage": "Введите сообщение...",
+  "thinking": "Думаем...",
+  "generating": "Создание...",
+  "attachFile": "Прикрепить файл",
   "clearChat": "Очистить чат",
-  "regenerate": "Перегенерировать",
-  "stopGenerating": "Стоп генерации",
-  "copiedToClipboard": "Клонировано в буфер обмена",
+  "regenerate": "\"Перегенерировать\"",
+  "stopGenerating": "Остановить генерацию",
+  "copiedToClipboard": "Скопировано в буфер обмена",
   "noMessages": "Нет сообщений",
-  "startConversation": "Начните диалог"
+  "startConversation": "Начать разговор"
 }
