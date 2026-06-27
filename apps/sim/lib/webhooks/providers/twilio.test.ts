@@ -133,4 +133,75 @@ describe('twilioHandler', () => {
       expect(twilioHandler.extractIdempotencyId!({})).toBeNull()
     })
   })
+
+  describe('formatInput', () => {
+    const ctx = (body: Record<string, unknown>) => ({
+      webhook: {},
+      workflow: { id: 'wf1', userId: 'u1' },
+      body,
+      headers: {},
+      requestId: 'r1',
+    })
+
+    it('maps inbound SMS params to aligned output keys', async () => {
+      const body = {
+        MessageSid: 'SM123',
+        AccountSid: 'AC123',
+        From: '+15551234567',
+        To: '+15557654321',
+        Body: 'hello world',
+        NumMedia: '0',
+        NumSegments: '1',
+        SmsStatus: 'received',
+        ApiVersion: '2010-04-01',
+        FromCity: 'SAN FRANCISCO',
+        FromState: 'CA',
+        FromCountry: 'US',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.messageSid).toBe('SM123')
+      expect(i.from).toBe('+15551234567')
+      expect(i.to).toBe('+15557654321')
+      expect(i.body).toBe('hello world')
+      expect(i.smsStatus).toBe('received')
+      expect(i.numMedia).toBe('0')
+      expect(i.media).toEqual([])
+      expect(i.fromCity).toBe('SAN FRANCISCO')
+      expect(i.raw).toBe(JSON.stringify(body))
+    })
+
+    it('extracts MMS media items from NumMedia / MediaUrl{N}', async () => {
+      const body = {
+        MessageSid: 'MM123',
+        NumMedia: '2',
+        MediaUrl0: 'https://api.twilio.com/media/0',
+        MediaContentType0: 'image/jpeg',
+        MediaUrl1: 'https://api.twilio.com/media/1',
+        MediaContentType1: 'image/png',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.media).toEqual([
+        { url: 'https://api.twilio.com/media/0', contentType: 'image/jpeg' },
+        { url: 'https://api.twilio.com/media/1', contentType: 'image/png' },
+      ])
+    })
+
+    it('maps status-callback params including ErrorCode on failure', async () => {
+      const body = {
+        MessageSid: 'SM999',
+        MessageStatus: 'failed',
+        SmsStatus: 'failed',
+        ErrorCode: '30008',
+        From: '+15550000000',
+        To: '+15551111111',
+      }
+      const { input } = await twilioHandler.formatInput!(ctx(body))
+      const i = input as Record<string, unknown>
+      expect(i.messageStatus).toBe('failed')
+      expect(i.errorCode).toBe('30008')
+      expect(i.media).toEqual([])
+    })
+  })
 })

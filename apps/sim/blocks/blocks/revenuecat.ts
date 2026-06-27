@@ -2,6 +2,7 @@ import { RevenueCatIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RevenueCatResponse } from '@/tools/revenuecat/types'
+import { getTrigger } from '@/triggers'
 
 export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   type: 'revenuecat',
@@ -359,7 +360,24 @@ Return ONLY the numeric timestamp, no text.`,
       },
       mode: 'advanced',
     },
+    ...getTrigger('revenuecat_initial_purchase').subBlocks,
+    ...getTrigger('revenuecat_renewal').subBlocks,
+    ...getTrigger('revenuecat_cancellation').subBlocks,
+    ...getTrigger('revenuecat_expiration').subBlocks,
+    ...getTrigger('revenuecat_non_renewing_purchase').subBlocks,
+    ...getTrigger('revenuecat_product_change').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'revenuecat_initial_purchase',
+      'revenuecat_renewal',
+      'revenuecat_cancellation',
+      'revenuecat_expiration',
+      'revenuecat_non_renewing_purchase',
+      'revenuecat_product_change',
+    ],
+  },
   tools: {
     access: [
       'revenuecat_get_customer',

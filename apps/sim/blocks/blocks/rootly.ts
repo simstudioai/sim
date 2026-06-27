@@ -2,6 +2,7 @@ import { RootlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RootlyResponse } from '@/tools/rootly/types'
+import { getTrigger } from '@/triggers'
 
 export const RootlyBlock: BlockConfig<RootlyResponse> = {
   type: 'rootly',
@@ -16,6 +17,15 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
   bgColor: '#6C72C8',
   iconColor: '#6C72C8',
   icon: RootlyIcon,
+  triggers: {
+    enabled: true,
+    available: [
+      'rootly_incident_created',
+      'rootly_incident_updated',
+      'rootly_incident_resolved',
+      'rootly_alert_created',
+    ],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -1642,6 +1652,11 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       password: true,
       required: true,
     },
+
+    ...getTrigger('rootly_incident_created').subBlocks,
+    ...getTrigger('rootly_incident_updated').subBlocks,
+    ...getTrigger('rootly_incident_resolved').subBlocks,
+    ...getTrigger('rootly_alert_created').subBlocks,
   ],
   tools: {
     access: [
