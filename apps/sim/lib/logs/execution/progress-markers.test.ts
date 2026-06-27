@@ -72,14 +72,18 @@ describe('progress-markers', () => {
       expect(args[7]).toBe(EXPECTED_TTL_MS)
     })
 
-    it('swallows eval errors (fire-and-forget)', async () => {
-      mockRedis.eval.mockRejectedValueOnce(new Error('redis down'))
-      await expect(setLastStartedBlock(EXECUTION_ID, startedMarker)).resolves.toBeUndefined()
+    it('returns true when the Redis write succeeds', async () => {
+      await expect(setLastStartedBlock(EXECUTION_ID, startedMarker)).resolves.toBe(true)
     })
 
-    it('no-ops when Redis is unavailable', async () => {
+    it('returns false (caller falls back to SQL) when the eval fails', async () => {
+      mockRedis.eval.mockRejectedValueOnce(new Error('redis down'))
+      await expect(setLastStartedBlock(EXECUTION_ID, startedMarker)).resolves.toBe(false)
+    })
+
+    it('returns false and no-ops when Redis is unavailable', async () => {
       mockGetRedisClient.mockReturnValue(null)
-      await setLastStartedBlock(EXECUTION_ID, startedMarker)
+      await expect(setLastStartedBlock(EXECUTION_ID, startedMarker)).resolves.toBe(false)
       expect(mockRedis.eval).not.toHaveBeenCalled()
     })
   })
@@ -125,6 +129,21 @@ describe('progress-markers', () => {
     it('returns {} and does not throw on malformed JSON', async () => {
       mockRedis.hgetall.mockResolvedValueOnce({ started: '{not json' })
       expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
+    })
+
+    it('drops wrong-shaped JSON so malformed markers never reach clients', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({
+        started: JSON.stringify('just a string'),
+        completed: JSON.stringify({ blockId: 123, blockName: 'x', blockType: 'api', endedAt: 'z' }),
+      })
+      expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
+    })
+
+    it('strips extra fields, returning only the validated marker shape', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({
+        started: JSON.stringify({ ...startedMarker, secret: 'leak', extra: 1 }),
+      })
+      expect(await getProgressMarkers(EXECUTION_ID)).toEqual({ lastStartedBlock: startedMarker })
     })
 
     it('returns {} when Redis is unavailable', async () => {

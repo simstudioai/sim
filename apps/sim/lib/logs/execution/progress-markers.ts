@@ -61,7 +61,8 @@ return 1
  * TTL is a backstop for executions that die without a terminal/pause boundary
  * (deterministic cleanup is {@link clearProgressMarkers}); it mirrors the
  * admission-reservation TTL so a crashed run's marker key and slot expire
- * together.
+ * together. Returns `true` only when the marker was durably written to Redis,
+ * so callers can fall back to the SQL path on a missing client or a failure.
  */
 async function setMarker(
   executionId: string,
@@ -69,9 +70,9 @@ async function setMarker(
   timestampField: 'startedAt' | 'endedAt',
   timestamp: string,
   marker: ExecutionLastStartedBlock | ExecutionLastCompletedBlock
-): Promise<void> {
+): Promise<boolean> {
   const redis = getMarkerClient()
-  if (!redis) return
+  if (!redis) return false
 
   try {
     await redis.eval(
@@ -84,28 +85,36 @@ async function setMarker(
       JSON.stringify(marker),
       getExecutionReservationTtlMs().toString()
     )
+    return true
   } catch (error) {
     logger.error(`Failed to persist progress marker for execution ${executionId}`, {
       field,
       error: toError(error).message,
     })
+    return false
   }
 }
 
-/** Persist the last-started-block marker. No-op when Redis is unavailable. */
+/**
+ * Persist the last-started-block marker. Returns `false` (caller should fall
+ * back to the durable SQL path) when Redis is unavailable or the write fails.
+ */
 export async function setLastStartedBlock(
   executionId: string,
   marker: ExecutionLastStartedBlock
-): Promise<void> {
-  await setMarker(executionId, STARTED_FIELD, 'startedAt', marker.startedAt, marker)
+): Promise<boolean> {
+  return setMarker(executionId, STARTED_FIELD, 'startedAt', marker.startedAt, marker)
 }
 
-/** Persist the last-completed-block marker. No-op when Redis is unavailable. */
+/**
+ * Persist the last-completed-block marker. Returns `false` (caller should fall
+ * back to the durable SQL path) when Redis is unavailable or the write fails.
+ */
 export async function setLastCompletedBlock(
   executionId: string,
   marker: ExecutionLastCompletedBlock
-): Promise<void> {
-  await setMarker(executionId, COMPLETED_FIELD, 'endedAt', marker.endedAt, marker)
+): Promise<boolean> {
+  return setMarker(executionId, COMPLETED_FIELD, 'endedAt', marker.endedAt, marker)
 }
 
 export interface ExecutionProgressMarkers {
@@ -113,13 +122,56 @@ export interface ExecutionProgressMarkers {
   lastCompletedBlock?: ExecutionLastCompletedBlock
 }
 
-function parseMarker<T>(raw: string | undefined): T | undefined {
+function safeJsonParse(raw: string | undefined): unknown {
   if (!raw) return undefined
   try {
-    return JSON.parse(raw) as T
+    return JSON.parse(raw)
   } catch {
     return undefined
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Parse a stored last-started marker, rebuilding it from validated fields so a
+ * stale or wrong-shaped Redis value can never reach API consumers.
+ */
+function parseStartedMarker(raw: string | undefined): ExecutionLastStartedBlock | undefined {
+  const v = safeJsonParse(raw)
+  if (!isRecord(v)) return undefined
+  const { blockId, blockName, blockType, startedAt } = v
+  if (
+    typeof blockId === 'string' &&
+    typeof blockName === 'string' &&
+    typeof blockType === 'string' &&
+    typeof startedAt === 'string'
+  ) {
+    return { blockId, blockName, blockType, startedAt }
+  }
+  return undefined
+}
+
+/**
+ * Parse a stored last-completed marker, rebuilding it from validated fields so a
+ * stale or wrong-shaped Redis value can never reach API consumers.
+ */
+function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBlock | undefined {
+  const v = safeJsonParse(raw)
+  if (!isRecord(v)) return undefined
+  const { blockId, blockName, blockType, endedAt, success } = v
+  if (
+    typeof blockId === 'string' &&
+    typeof blockName === 'string' &&
+    typeof blockType === 'string' &&
+    typeof endedAt === 'string' &&
+    typeof success === 'boolean'
+  ) {
+    return { blockId, blockName, blockType, endedAt, success }
+  }
+  return undefined
 }
 
 /**
@@ -135,9 +187,9 @@ export async function getProgressMarkers(executionId: string): Promise<Execution
     if (!fields || Object.keys(fields).length === 0) return {}
 
     const result: ExecutionProgressMarkers = {}
-    const started = parseMarker<ExecutionLastStartedBlock>(fields[STARTED_FIELD])
+    const started = parseStartedMarker(fields[STARTED_FIELD])
     if (started) result.lastStartedBlock = started
-    const completed = parseMarker<ExecutionLastCompletedBlock>(fields[COMPLETED_FIELD])
+    const completed = parseCompletedMarker(fields[COMPLETED_FIELD])
     if (completed) result.lastCompletedBlock = completed
     return result
   } catch (error) {

@@ -16,6 +16,7 @@ import {
 } from '@/lib/logs/execution/logging-factory'
 import {
   clearProgressMarkers,
+  getProgressMarkers,
   setLastCompletedBlock,
   setLastStartedBlock,
 } from '@/lib/logs/execution/progress-markers'
@@ -193,8 +194,9 @@ export class LoggingSession {
   }
 
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
-    if (this.useRedisMarkers) {
-      await setLastStartedBlock(this.executionId, marker)
+    // Redis is the primary path when enabled; fall back to the durable SQL write
+    // when Redis is unavailable or the write fails, so a marker is never dropped.
+    if (this.useRedisMarkers && (await setLastStartedBlock(this.executionId, marker))) {
       return
     }
     try {
@@ -215,8 +217,9 @@ export class LoggingSession {
   }
 
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
-    if (this.useRedisMarkers) {
-      await setLastCompletedBlock(this.executionId, marker)
+    // Redis is the primary path when enabled; fall back to the durable SQL write
+    // when Redis is unavailable or the write fails, so a marker is never dropped.
+    if (this.useRedisMarkers && (await setLastCompletedBlock(this.executionId, marker))) {
       return
     }
     try {
@@ -1027,12 +1030,15 @@ export class LoggingSession {
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
-      await db
-        .update(workflowExecutionLogs)
-        .set({
-          level: 'error',
-          status: 'failed',
-          executionData: sql`jsonb_set(
+
+      // This terminal boundary bypasses completeWorkflowExecution, so fold any
+      // live Redis markers into the row here too — otherwise a run whose markers
+      // only ever lived in Redis would be saved with error data but no
+      // last-started/last-completed breadcrumb. Empty when the standard
+      // completion path already folded and cleared them.
+      const markers = await getProgressMarkers(executionId)
+
+      let executionData = sql`jsonb_set(
             jsonb_set(
               jsonb_set(
                 COALESCE(execution_data, '{}'::jsonb),
@@ -1044,8 +1050,17 @@ export class LoggingSession {
             ),
             ARRAY['finalizationPath'],
             to_jsonb('force_failed'::text)
-          )`,
-        })
+          )`
+      if (markers.lastStartedBlock) {
+        executionData = sql`jsonb_set(${executionData}, ARRAY['lastStartedBlock'], ${JSON.stringify(markers.lastStartedBlock)}::jsonb)`
+      }
+      if (markers.lastCompletedBlock) {
+        executionData = sql`jsonb_set(${executionData}, ARRAY['lastCompletedBlock'], ${JSON.stringify(markers.lastCompletedBlock)}::jsonb)`
+      }
+
+      await db
+        .update(workflowExecutionLogs)
+        .set({ level: 'error', status: 'failed', executionData })
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),
@@ -1053,8 +1068,8 @@ export class LoggingSession {
           )
         )
 
-      // Terminal boundary that bypasses completeWorkflowExecution; clear markers
-      // so this path matches the standard clear-at-every-boundary invariant.
+      // Markers are now durable on the row; drop the Redis key to match the
+      // standard clear-at-every-boundary invariant.
       void clearProgressMarkers(executionId)
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
