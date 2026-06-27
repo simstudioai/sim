@@ -41,6 +41,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
       title: 'API Key',
       type: 'short-input',
       password: true,
+      paramVisibility: 'user-only',
       placeholder: 'Enter your RevenueCat API key',
       required: true,
     },

@@ -1650,6 +1650,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       type: 'short-input',
       placeholder: 'Enter your Rootly API key',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
     },
 

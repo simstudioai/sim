@@ -44,6 +44,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'short-input',
       placeholder: 'Your Twilio Auth Token',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
     },
     {
