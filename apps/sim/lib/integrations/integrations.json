@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-26",
+  "updatedAt": "2026-06-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -17521,6 +17521,121 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"]
+    },
+    {
+      "type": "uptimerobot",
+      "slug": "uptimerobot",
+      "name": "UptimeRobot",
+      "description": "Monitor uptime, manage incidents, maintenance windows, and status pages",
+      "longDescription": "Integrate UptimeRobot into your workflow. Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.",
+      "bgColor": "#111921",
+      "iconName": "UptimeRobotIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/uptimerobot",
+      "operations": [
+        {
+          "name": "List Monitors",
+          "description": "List monitors in your UptimeRobot account, with optional filters and pagination"
+        },
+        {
+          "name": "Get Monitor",
+          "description": "Get the details of a single UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Create Monitor",
+          "description": "Create a new monitor in UptimeRobot"
+        },
+        {
+          "name": "Update Monitor",
+          "description": "Update an existing UptimeRobot monitor. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Monitor",
+          "description": "Permanently delete an UptimeRobot monitor by ID"
+        },
+        {
+          "name": "Pause Monitor",
+          "description": "Pause an UptimeRobot monitor so it stops running checks"
+        },
+        {
+          "name": "Start Monitor",
+          "description": "Resume a paused UptimeRobot monitor so it starts running checks again"
+        },
+        {
+          "name": "List Incidents",
+          "description": "List incidents across your UptimeRobot account (last 24 hours by default), with optional filters"
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get the details of a single UptimeRobot incident by ID"
+        },
+        {
+          "name": "List Maintenance Windows",
+          "description": "List maintenance windows in your UptimeRobot account"
+        },
+        {
+          "name": "Get Maintenance Window",
+          "description": "Get the details of a single UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "Create Maintenance Window",
+          "description": "Create a new maintenance window to suppress alerts during planned downtime"
+        },
+        {
+          "name": "Update Maintenance Window",
+          "description": "Update an existing maintenance window. Only the provided fields are changed."
+        },
+        {
+          "name": "Delete Maintenance Window",
+          "description": "Permanently delete an UptimeRobot maintenance window by ID"
+        },
+        {
+          "name": "List Alert Contacts",
+          "description": "List the personal alert contacts in your UptimeRobot account"
+        },
+        {
+          "name": "Get Alert Contact",
+          "description": "Get the details of a single UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "Create Alert Contact",
+          "description": "Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts."
+        },
+        {
+          "name": "Delete Alert Contact",
+          "description": "Permanently delete an UptimeRobot alert contact by ID"
+        },
+        {
+          "name": "List Status Pages",
+          "description": "List the public status pages in your UptimeRobot account"
+        },
+        {
+          "name": "Get Status Page",
+          "description": "Get the details of a single UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Create Status Page",
+          "description": "Create a public status page in UptimeRobot, optionally with a logo and icon image"
+        },
+        {
+          "name": "Update Status Page",
+          "description": "Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced."
+        },
+        {
+          "name": "Delete Status Page",
+          "description": "Permanently delete an UptimeRobot public status page by ID"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get details about the authenticated UptimeRobot account, including plan and limits"
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "automation"]
     },
     {
       "type": "vanta",
