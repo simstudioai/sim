@@ -109,6 +109,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 | --------- | ---- | -------- | ----------- |
 | `tableId` | string | Yes | Table ID |
 | `data` | object | Yes | Row data to insert or update |
+| `conflictTarget` | string | No | Unique column to match on. Required only when the table has more than one unique column. |
 
 #### Output
 
@@ -261,7 +262,10 @@ Get the schema configuration of a table
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether schema was retrieved |
 | `name` | string | Table name |
-| `columns` | array | Column definitions |
+| `columns` | array | Column definitions \(each includes its stable id\) |
+| `columnCount` | number | Number of columns |
+| `rowCount` | number | Number of rows in the table |
+| `maxRows` | number | Max rows per table for the workspace's plan |
 | `message` | string | Status message |
 
 {/* MANUAL-CONTENT-START:notes */}

@@ -23,8 +23,8 @@ import {
   getProcessingConfig,
   KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
-  type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
+import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 

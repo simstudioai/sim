@@ -18,6 +18,8 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -278,25 +280,25 @@ export function WhitelabelingSettings() {
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           You must be part of an organization to configure whitelabeling.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           Whitelabeling is available on Enterprise plans only.
-        </div>
+        </SettingsEmptyState>
       )
     }
 
     if (!canManage) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <SettingsEmptyState>
           Only organization owners and admins can configure whitelabeling settings.
-        </div>
+        </SettingsEmptyState>
       )
     }
   }
@@ -308,222 +310,216 @@ export function WhitelabelingSettings() {
   const isUploading = logoUpload.isUploading || wordmarkUpload.isUploading
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
-          <Button
-            variant='primary'
-            onClick={handleSave}
-            disabled={updateSettings.isPending || isUploading || !hasChanges}
+    <SettingsPanel
+      actions={
+        <Button
+          variant='primary'
+          onClick={handleSave}
+          disabled={updateSettings.isPending || isUploading || !hasChanges}
+        >
+          {updateSettings.isPending ? 'Saving...' : 'Save'}
+        </Button>
+      }
+    >
+      <SettingsSection label='Brand Identity'>
+        <div className='flex flex-col gap-5'>
+          <SettingRow
+            label='Brand name'
+            description='Replaces "Sim" in the sidebar and select UI elements.'
           >
-            {updateSettings.isPending ? 'Saving...' : 'Save'}
-          </Button>
-        </div>
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
-          <SettingsSection label='Brand Identity'>
-            <div className='flex flex-col gap-5'>
-              <SettingRow
-                label='Brand name'
-                description='Replaces "Sim" in the sidebar and select UI elements.'
-              >
-                <ChipInput
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  placeholder='Your Company'
-                  className='max-w-[320px]'
-                  maxLength={64}
+            <ChipInput
+              value={brandName}
+              onChange={(e) => setBrandName(e.target.value)}
+              placeholder='Your Company'
+              className='max-w-[320px]'
+              maxLength={64}
+            />
+          </SettingRow>
+          <div className='grid grid-cols-2 gap-4'>
+            <SettingRow
+              label='Logo'
+              labelTooltip='Shown in the collapsed sidebar. Square image — PNG, JPEG, or SVG, max 5MB.'
+            >
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={logoUpload.handleFileDrop}>
+                  <button
+                    type='button'
+                    onClick={logoUpload.handleThumbnailClick}
+                    disabled={logoUpload.isUploading}
+                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {logoUpload.isUploading ? (
+                      <Loader className='size-5 text-[var(--text-muted)]' animate />
+                    ) : logoUpload.previewUrl ? (
+                      <Image
+                        src={logoUpload.previewUrl}
+                        alt='Logo'
+                        fill
+                        className='object-contain p-1'
+                        unoptimized
+                      />
+                    ) : (
+                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
+                    )}
+                  </button>
+                </DropZone>
+                <div className='flex gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={logoUpload.handleThumbnailClick}
+                    disabled={logoUpload.isUploading}
+                    className='text-[13px]'
+                  >
+                    {logoUpload.previewUrl ? 'Change' : 'Upload'}
+                  </Button>
+                  {logoUpload.previewUrl && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={logoUpload.handleRemove}
+                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      <X className='size-[14px]' />
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={logoUpload.fileInputRef}
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
+                  onChange={logoUpload.handleFileChange}
+                  className='hidden'
                 />
-              </SettingRow>
-              <div className='grid grid-cols-2 gap-4'>
-                <SettingRow
-                  label='Logo'
-                  labelTooltip='Shown in the collapsed sidebar. Square image — PNG, JPEG, or SVG, max 5MB.'
-                >
-                  <div className='flex items-center gap-4'>
-                    <DropZone onDrop={logoUpload.handleFileDrop}>
-                      <button
-                        type='button'
-                        onClick={logoUpload.handleThumbnailClick}
-                        disabled={logoUpload.isUploading}
-                        className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                      >
-                        {logoUpload.isUploading ? (
-                          <Loader className='size-5 text-[var(--text-muted)]' animate />
-                        ) : logoUpload.previewUrl ? (
-                          <Image
-                            src={logoUpload.previewUrl}
-                            alt='Logo'
-                            fill
-                            className='object-contain p-1'
-                            unoptimized
-                          />
-                        ) : (
-                          <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                        )}
-                      </button>
-                    </DropZone>
-                    <div className='flex gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={logoUpload.handleThumbnailClick}
-                        disabled={logoUpload.isUploading}
-                        className='text-[13px]'
-                      >
-                        {logoUpload.previewUrl ? 'Change' : 'Upload'}
-                      </Button>
-                      {logoUpload.previewUrl && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={logoUpload.handleRemove}
-                          className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        >
-                          <X className='size-[14px]' />
-                        </Button>
-                      )}
-                    </div>
-                    <input
-                      ref={logoUpload.fileInputRef}
-                      type='file'
-                      accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
-                      onChange={logoUpload.handleFileChange}
-                      className='hidden'
-                    />
-                  </div>
-                </SettingRow>
-
-                <SettingRow
-                  label='Wordmark'
-                  labelTooltip='Shown in the expanded sidebar. Wide image — PNG, JPEG, or SVG, max 5MB.'
-                >
-                  <div className='flex items-center gap-4'>
-                    <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
-                      <button
-                        type='button'
-                        onClick={wordmarkUpload.handleThumbnailClick}
-                        disabled={wordmarkUpload.isUploading}
-                        className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                      >
-                        {wordmarkUpload.isUploading ? (
-                          <Loader className='size-5 text-[var(--text-muted)]' animate />
-                        ) : wordmarkUpload.previewUrl ? (
-                          <Image
-                            src={wordmarkUpload.previewUrl}
-                            alt='Wordmark'
-                            fill
-                            className='object-contain p-2'
-                            unoptimized
-                          />
-                        ) : (
-                          <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                        )}
-                      </button>
-                    </DropZone>
-                    <div className='flex gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={wordmarkUpload.handleThumbnailClick}
-                        disabled={wordmarkUpload.isUploading}
-                        className='text-[13px]'
-                      >
-                        {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
-                      </Button>
-                      {wordmarkUpload.previewUrl && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={wordmarkUpload.handleRemove}
-                          className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        >
-                          <X className='size-[14px]' />
-                        </Button>
-                      )}
-                    </div>
-                    <input
-                      ref={wordmarkUpload.fileInputRef}
-                      type='file'
-                      accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
-                      onChange={wordmarkUpload.handleFileChange}
-                      className='hidden'
-                    />
-                  </div>
-                </SettingRow>
               </div>
-            </div>
-          </SettingsSection>
+            </SettingRow>
 
-          <SettingsSection label='Colors'>
-            <div className='grid grid-cols-2 gap-4'>
-              <ColorInput
-                label='Primary color'
-                value={primaryColor}
-                onChange={setPrimaryColor}
-                placeholder='#33c482'
-              />
-              <ColorInput
-                label='Primary hover color'
-                value={primaryHoverColor}
-                onChange={setPrimaryHoverColor}
-                placeholder='#2dac72'
-              />
-              <ColorInput
-                label='Accent color'
-                value={accentColor}
-                onChange={setAccentColor}
-                placeholder='#33b4ff'
-              />
-              <ColorInput
-                label='Accent hover color'
-                value={accentHoverColor}
-                onChange={setAccentHoverColor}
-                placeholder='#29a0e8'
-              />
-            </div>
-          </SettingsSection>
-
-          <SettingsSection label='Links'>
-            <div className='flex flex-col gap-4'>
-              <SettingRow label='Support email'>
-                <ChipInput
-                  type='email'
-                  value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
-                  placeholder='support@yourcompany.com'
+            <SettingRow
+              label='Wordmark'
+              labelTooltip='Shown in the expanded sidebar. Wide image — PNG, JPEG, or SVG, max 5MB.'
+            >
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
+                  <button
+                    type='button'
+                    onClick={wordmarkUpload.handleThumbnailClick}
+                    disabled={wordmarkUpload.isUploading}
+                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {wordmarkUpload.isUploading ? (
+                      <Loader className='size-5 text-[var(--text-muted)]' animate />
+                    ) : wordmarkUpload.previewUrl ? (
+                      <Image
+                        src={wordmarkUpload.previewUrl}
+                        alt='Wordmark'
+                        fill
+                        className='object-contain p-2'
+                        unoptimized
+                      />
+                    ) : (
+                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
+                    )}
+                  </button>
+                </DropZone>
+                <div className='flex gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={wordmarkUpload.handleThumbnailClick}
+                    disabled={wordmarkUpload.isUploading}
+                    className='text-[13px]'
+                  >
+                    {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
+                  </Button>
+                  {wordmarkUpload.previewUrl && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={wordmarkUpload.handleRemove}
+                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      <X className='size-[14px]' />
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={wordmarkUpload.fileInputRef}
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
+                  onChange={wordmarkUpload.handleFileChange}
+                  className='hidden'
                 />
-              </SettingRow>
-              <SettingRow label='Documentation URL'>
-                <ChipInput
-                  type='url'
-                  value={documentationUrl}
-                  onChange={(e) => setDocumentationUrl(e.target.value)}
-                  placeholder='https://docs.yourcompany.com'
-                />
-              </SettingRow>
-              <SettingRow label='Terms of service URL'>
-                <ChipInput
-                  type='url'
-                  value={termsUrl}
-                  onChange={(e) => setTermsUrl(e.target.value)}
-                  placeholder='https://yourcompany.com/terms'
-                />
-              </SettingRow>
-              <SettingRow label='Privacy policy URL'>
-                <ChipInput
-                  type='url'
-                  value={privacyUrl}
-                  onChange={(e) => setPrivacyUrl(e.target.value)}
-                  placeholder='https://yourcompany.com/privacy'
-                />
-              </SettingRow>
-            </div>
-          </SettingsSection>
+              </div>
+            </SettingRow>
+          </div>
         </div>
-      </div>
-    </div>
+      </SettingsSection>
+
+      <SettingsSection label='Colors'>
+        <div className='grid grid-cols-2 gap-4'>
+          <ColorInput
+            label='Primary color'
+            value={primaryColor}
+            onChange={setPrimaryColor}
+            placeholder='#33c482'
+          />
+          <ColorInput
+            label='Primary hover color'
+            value={primaryHoverColor}
+            onChange={setPrimaryHoverColor}
+            placeholder='#2dac72'
+          />
+          <ColorInput
+            label='Accent color'
+            value={accentColor}
+            onChange={setAccentColor}
+            placeholder='#33b4ff'
+          />
+          <ColorInput
+            label='Accent hover color'
+            value={accentHoverColor}
+            onChange={setAccentHoverColor}
+            placeholder='#29a0e8'
+          />
+        </div>
+      </SettingsSection>
+
+      <SettingsSection label='Links'>
+        <div className='flex flex-col gap-4'>
+          <SettingRow label='Support email'>
+            <ChipInput
+              type='email'
+              value={supportEmail}
+              onChange={(e) => setSupportEmail(e.target.value)}
+              placeholder='support@yourcompany.com'
+            />
+          </SettingRow>
+          <SettingRow label='Documentation URL'>
+            <ChipInput
+              type='url'
+              value={documentationUrl}
+              onChange={(e) => setDocumentationUrl(e.target.value)}
+              placeholder='https://docs.yourcompany.com'
+            />
+          </SettingRow>
+          <SettingRow label='Terms of service URL'>
+            <ChipInput
+              type='url'
+              value={termsUrl}
+              onChange={(e) => setTermsUrl(e.target.value)}
+              placeholder='https://yourcompany.com/terms'
+            />
+          </SettingRow>
+          <SettingRow label='Privacy policy URL'>
+            <ChipInput
+              type='url'
+              value={privacyUrl}
+              onChange={(e) => setPrivacyUrl(e.target.value)}
+              placeholder='https://yourcompany.com/privacy'
+            />
+          </SettingRow>
+        </div>
+      </SettingsSection>
+    </SettingsPanel>
   )
 }

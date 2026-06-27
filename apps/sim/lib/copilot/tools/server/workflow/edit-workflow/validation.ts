@@ -3,6 +3,8 @@ import { toError } from '@sim/utils/errors'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -14,6 +16,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
 import { EDGE, normalizeName } from '@/executor/constants'
 import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { getTool } from '@/tools/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
@@ -25,6 +28,7 @@ import type {
 import { SELECTOR_TYPES } from './types'
 
 const validationLogger = createLogger('EditWorkflowValidation')
+const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
 
 /**
  * Finds an existing block with the same normalized name.
@@ -114,6 +118,114 @@ export function validateInputsForBlock(
   }
 
   return { validInputs: validatedInputs, errors }
+}
+
+/** Tool-entry `type` values that are valid but are not registry block types. */
+const KNOWN_NON_BLOCK_TOOL_TYPES = new Set(['custom-tool', 'mcp', 'workflow'])
+
+/**
+ * Validates a single entry in an agent block's `tools` (tool-input) array and
+ * returns a human-readable error string for LLM feedback, or null when valid.
+ *
+ * Targets the shapes that silently fail to attach (the entry is stored but the
+ * wrench icon never renders and/or the runtime drops the tool so the agent never
+ * sees it): a custom tool missing `type: 'custom-tool'`, a custom tool with
+ * neither `customToolId` nor an inline `schema.function`, an MCP tool missing
+ * its `params.serverId`/`params.toolName`, a raw OpenAI function schema pasted
+ * into the array, and unrecognized tool types.
+ */
+function validateAgentToolEntry(item: any, index: number): string | null {
+  const where = `tools[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a tool object`
+  }
+
+  const type = item.type
+
+  // Raw OpenAI function schema pasted directly into the array (common mistake).
+  // Keyed on type === 'function' (OpenAI's exact discriminator) so a real
+  // integration tool that happens to carry a `function` property is not
+  // misreported here - it falls through to the block-type check below.
+  if (
+    type === 'function' &&
+    item.function &&
+    typeof item.function === 'object' &&
+    typeof item.function.name === 'string'
+  ) {
+    return `${where} looks like a raw function schema. A custom tool must be {"type":"custom-tool","customToolId":"<id>"} (preferred) or {"type":"custom-tool","schema":{"type":"function","function":{...}},"code":"..."}`
+  }
+
+  if (typeof type !== 'string' || type.trim() === '') {
+    return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
+  }
+
+  if (type === 'custom-tool') {
+    const hasReference = typeof item.customToolId === 'string' && item.customToolId.trim() !== ''
+    const fn = item.schema?.function
+    const hasInlineSchema =
+      !!fn &&
+      typeof fn.name === 'string' &&
+      fn.name.trim() !== '' &&
+      !!fn.parameters &&
+      typeof fn.parameters === 'object'
+    if (!hasReference && !hasInlineSchema) {
+      return `${where} (custom-tool) must include "customToolId" (the "id" from agent/custom-tools/{name}.json - not the filename, not schema.function.name) or an inline "schema.function" with "name" and "parameters"`
+    }
+    return null
+  }
+
+  if (type === 'mcp') {
+    const serverId = item.params?.serverId
+    const toolName = item.params?.toolName
+    const ok =
+      typeof serverId === 'string' &&
+      serverId.trim() !== '' &&
+      typeof toolName === 'string' &&
+      toolName.trim() !== ''
+    if (!ok) {
+      return `${where} (mcp) must include params.serverId and params.toolName`
+    }
+    return null
+  }
+
+  // Integration/block-based tool: the type must be a real registry block that
+  // actually exposes callable tools. A known block with an empty tools.access
+  // (control-flow blocks like condition/loop/parallel/router, or the agent block
+  // itself) can't attach as an agent tool, so the addition would not apply
+  // correctly even though the type "exists".
+  if (!KNOWN_NON_BLOCK_TOOL_TYPES.has(type)) {
+    const block = getBlock(type)
+    if (!block) {
+      return `${where} has unrecognized tool type "${type}". Use "custom-tool" for custom tools, "mcp" for MCP tools, or a valid integration block type`
+    }
+    if (!Array.isArray(block.tools?.access) || block.tools.access.length === 0) {
+      return `${where} block type "${type}" cannot be attached as an agent tool (it exposes no callable tools)`
+    }
+  }
+
+  return null
+}
+
+/**
+ * Validates a single entry in an agent block's `skills` (skill-input) array.
+ * Skills are a SEPARATE array from tools; each entry references a workspace or
+ * builtin skill by `skillId`. Returns an error string or null when valid.
+ */
+function validateAgentSkillEntry(item: any, index: number): string | null {
+  const where = `skills[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a skill object like {"skillId":"<id>","name":"<name>"}`
+  }
+  if (typeof item.skillId !== 'string' || item.skillId.trim() === '') {
+    if (typeof item.id === 'string') {
+      return `${where} uses "id" but skills require "skillId" (the "id" from agent/skills/{name}.json)`
+    }
+    if (typeof item.type === 'string' || item.schema || item.customToolId) {
+      return `${where} looks like a tool entry. Skills go in the SEPARATE "skills" array and need only {"skillId":"<id>"} - no "type"/"schema"/"customToolId"`
+    }
+    return `${where} must include "skillId" (the "id" from agent/skills/{name}.json)`
+  }
+  return null
 }
 
 /**
@@ -294,6 +406,53 @@ export function validateValueForSubBlockType(
             field: fieldName,
             value,
             error: `Invalid tool-input value for field "${fieldName}" - expected an array of tool objects`,
+          },
+        }
+      }
+      const toolErrors = value
+        .map((item, index) => validateAgentToolEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (toolErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid tool ${toolErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${toolErrors.join('; ')}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'skill-input': {
+      // Should be an array of skill reference objects ({ skillId, name? })
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill-input value for field "${fieldName}" - expected an array of skill objects`,
+          },
+        }
+      }
+      const skillErrors = value
+        .map((item, index) => validateAgentSkillEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (skillErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill ${skillErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${skillErrors.join('; ')}`,
           },
         }
       }
@@ -735,7 +894,7 @@ export interface UnresolvedSelectorReference {
   blockType?: string
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource'
+  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
   reason: string
 }
 
@@ -938,9 +1097,127 @@ export async function collectUnresolvedReferences(
 }
 
 /**
+ * Lint-facing existence check for agent-block tool/skill references. Walks every
+ * agent block and verifies that reference-format custom tools (`customToolId`),
+ * MCP tools (`params.serverId`), and skills (`skillId`) resolve to real
+ * workspace/builtin entities. A well-shaped entry whose id does not resolve
+ * passes shape validation but is silently dropped at runtime (the agent never
+ * sees the tool/skill), so surface it through the lint channel. Best-effort:
+ * per-entry resolution failures are skipped rather than failing the edit.
+ */
+export async function collectUnresolvedAgentToolReferences(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string }
+): Promise<UnresolvedSelectorReference[]> {
+  const logger = agentToolLintLogger
+  const references: UnresolvedSelectorReference[] = []
+  const { userId, workspaceId } = context
+
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const blockData = block as any
+    if (blockData?.type !== 'agent') continue
+    const blockName = blockData.name as string | undefined
+
+    const tools = blockData.subBlocks?.tools?.value
+    if (Array.isArray(tools)) {
+      for (const tool of tools) {
+        if (!tool || typeof tool !== 'object') continue
+
+        // Reference-format custom tools must resolve to a DB row. Inline tools
+        // (those carrying their own schema) are self-contained, so skip them.
+        // Gated on workspaceId (like the MCP/skill paths below): without a
+        // workspace, getCustomToolById only sees legacy tools and would
+        // false-positive on every workspace-scoped tool.
+        if (tool.type === 'custom-tool' && !tool.schema && workspaceId) {
+          const toolId = tool.customToolId
+          if (typeof toolId !== 'string' || toolId.trim() === '') continue
+          try {
+            const found = await getCustomToolById({ toolId, userId, workspaceId })
+            if (!found) {
+              references.push({
+                blockId,
+                blockName,
+                blockType: 'agent',
+                field: 'tools',
+                value: toolId,
+                kind: 'custom-tool',
+                reason: `custom tool id "${toolId}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`,
+              })
+            }
+          } catch (error) {
+            logger.warn('Custom tool resolution failed; skipping', {
+              blockId,
+              toolId,
+              error: toError(error).message,
+            })
+          }
+        } else if (tool.type === 'mcp' && workspaceId) {
+          const serverId = tool.params?.serverId
+          if (typeof serverId !== 'string' || serverId.trim() === '') continue
+          try {
+            const result = await validateSelectorIds('mcp-server-selector', serverId, context)
+            if (result.invalid.length > 0) {
+              references.push({
+                blockId,
+                blockName,
+                blockType: 'agent',
+                field: 'tools',
+                value: serverId,
+                kind: 'mcp-tool',
+                reason: `MCP server "${serverId}" does not resolve to an enabled MCP server in this workspace`,
+              })
+            }
+          } catch (error) {
+            logger.warn('MCP server resolution failed; skipping', {
+              blockId,
+              serverId,
+              error: toError(error).message,
+            })
+          }
+        }
+      }
+    }
+
+    const skills = blockData.subBlocks?.skills?.value
+    if (Array.isArray(skills) && workspaceId) {
+      for (const skillEntry of skills) {
+        if (!skillEntry || typeof skillEntry !== 'object') continue
+        const skillId = skillEntry.skillId
+        if (typeof skillId !== 'string' || skillId.trim() === '') continue
+        try {
+          const found = await getSkillById({ skillId, workspaceId })
+          if (!found) {
+            references.push({
+              blockId,
+              blockName,
+              blockType: 'agent',
+              field: 'skills',
+              value: skillId,
+              kind: 'skill',
+              reason: `skill id "${skillId}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`,
+            })
+          }
+        } catch (error) {
+          logger.warn('Skill resolution failed; skipping', {
+            blockId,
+            skillId,
+            error: toError(error).message,
+          })
+        }
+      }
+    }
+  }
+
+  return references
+}
+
+/**
  * Pre-validates credential and apiKey inputs in operations before they are applied.
  * - Validates oauth-input (credential) IDs are accessible to the user in the workflow workspace
- * - Filters out apiKey inputs for hosted models when isHosted is true
+ * - Filters out apiKey inputs when isHosted is true and the key is platform-managed: either a
+ *   hosted LLM model (model in getHostedModels) or a block whose active tool declares
+ *   `hosting` (e.g. Fal-backed video/image generators) - the canonical signal also used by
+ *   injectHostedKeyIfNeeded at execution
  * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
  * Returns validation errors for any removed inputs.
  */
@@ -969,7 +1246,9 @@ export async function preValidateCredentialInputs(
     operationIndex: number
     blockId: string
     blockType: string
-    model: string
+    fieldName: string
+    reason: 'hosted_model' | 'hosted_tool'
+    model?: string
     nestedBlockId?: string
   }> = []
 
@@ -1024,85 +1303,218 @@ export async function preValidateCredentialInputs(
         operationIndex: opIndex,
         blockId,
         blockType,
+        fieldName: 'apiKey',
+        reason: 'hosted_model',
         model: modelValue,
         nestedBlockId,
       })
     }
   }
 
-  operations.forEach((op, opIndex) => {
-    // Process main block inputs
-    if (op.params?.inputs && op.params?.type) {
-      const blockConfig = getBlock(op.params.type)
-      if (blockConfig) {
-        // Collect credentials from main block
-        collectCredentialInputs(
-          blockConfig,
-          op.params.inputs as Record<string, unknown>,
-          opIndex,
-          op.block_id,
-          op.params.type
-        )
+  /**
+   * Collect inputs targeting a hosted tool's key param. `tool.hosting` is the canonical
+   * "Sim provides this key" signal — the same one injectHostedKeyIfNeeded uses at execution. It
+   * names the managed field (`apiKeyParam`) and gates per-provider (`enabled`). We resolve the
+   * tool the block's current inputs select (via the block's `tools.config.tool` selector), so
+   * multi-provider blocks (video routing falai -> video_falai) and per-provider gates
+   * (image_generate, falai-only) match execution exactly. The UI hides these fields, but the
+   * copilot can still author them, so strip them here.
+   */
+  function collectHostedToolApiKeyInput(
+    blockConfig: ReturnType<typeof getBlock>,
+    inputs: Record<string, unknown>,
+    toolParams: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!isHosted || !blockConfig?.tools) return
 
-        // Check for apiKey inputs on hosted models
-        let modelValue = (op.params.inputs as Record<string, unknown>).model as string | undefined
-
-        // For edit operations, if model is not being changed, check existing block's model
-        if (
-          !modelValue &&
-          op.operation_type === 'edit' &&
-          (op.params.inputs as Record<string, unknown>).apiKey &&
-          workflowState
-        ) {
-          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
-            | Record<string, unknown>
-            | undefined
-          const existingSubBlocks = existingBlock?.subBlocks as Record<string, unknown> | undefined
-          const existingModelSubBlock = existingSubBlocks?.model as
-            | Record<string, unknown>
-            | undefined
-          modelValue = existingModelSubBlock?.value as string | undefined
-        }
-
-        collectHostedApiKeyInput(
-          op.params.inputs as Record<string, unknown>,
-          modelValue,
-          opIndex,
-          op.block_id,
-          op.params.type
-        )
+    // Resolve which tool(s) the current inputs select. With a selector there is exactly one active
+    // tool; without one (or if the selector throws on partial params), every accessible tool is a
+    // candidate — failing toward considering all hosted params so a key can't slip through.
+    const accessToolIds = blockConfig.tools.access ?? []
+    let candidateToolIds: string[]
+    const toolSelector = blockConfig.tools.config?.tool
+    if (toolSelector) {
+      try {
+        candidateToolIds = [toolSelector(toolParams)]
+      } catch {
+        candidateToolIds = accessToolIds
       }
+    } else {
+      candidateToolIds = accessToolIds
     }
 
-    // Process nested nodes (blocks inside loop/parallel containers)
-    const nestedNodes = op.params?.nestedNodes as
-      | Record<string, Record<string, unknown>>
-      | undefined
-    if (nestedNodes) {
-      Object.entries(nestedNodes).forEach(([childId, childBlock]) => {
-        const childType = childBlock.type as string | undefined
-        const childInputs = childBlock.inputs as Record<string, unknown> | undefined
-        if (!childType || !childInputs) return
+    const managedFieldIds = new Set<string>()
+    for (const toolId of candidateToolIds) {
+      const tool = getTool(toolId)
+      if (!tool?.hosting) continue
+      // The enabled predicate is tool-defined; guard it so a throw can't break edit_workflow. On
+      // a throw the hosting state is unknown, so fail toward treating the key as managed (strip)
+      // rather than preserving a key that may actually be platform-managed.
+      if (tool.hosting.enabled) {
+        let isManaged: boolean
+        try {
+          isManaged = tool.hosting.enabled(toolParams)
+        } catch {
+          isManaged = true
+        }
+        if (!isManaged) continue
+      }
+      managedFieldIds.add(tool.hosting.apiKeyParam)
+    }
 
-        const childBlockConfig = getBlock(childType)
-        if (!childBlockConfig) return
+    for (const fieldId of managedFieldIds) {
+      const value = inputs[fieldId]
+      if (typeof value !== 'string' || value.trim() === '') continue
 
-        // Collect credentials from nested block
-        collectCredentialInputs(
-          childBlockConfig,
-          childInputs,
-          opIndex,
-          op.block_id,
-          childType,
-          childId
-        )
+      const alreadyCollected = hostedApiKeyInputs.some(
+        (e) =>
+          e.operationIndex === opIndex &&
+          e.blockId === blockId &&
+          e.nestedBlockId === nestedBlockId &&
+          e.fieldName === fieldId
+      )
+      if (alreadyCollected) continue
 
-        // Check for apiKey inputs on hosted models in nested block
-        const modelValue = childInputs.model as string | undefined
-        collectHostedApiKeyInput(childInputs, modelValue, opIndex, op.block_id, childType, childId)
+      hostedApiKeyInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: fieldId,
+        reason: 'hosted_tool',
+        nestedBlockId,
       })
     }
-  })
+  }
+
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+  const snapshotBlock = (blockId: string) => asRecord(asRecord(workflowState?.blocks)?.[blockId])
+
+  // nestedNodes can nest recursively (a loop/parallel child can itself contain nestedNodes), and
+  // the apply path processes them recursively — so find a descendant's inputs at any depth.
+  const findNestedInputs = (
+    nodes: unknown,
+    targetId: string
+  ): Record<string, unknown> | undefined => {
+    const map = asRecord(nodes)
+    if (!map) return undefined
+    for (const [id, node] of Object.entries(map)) {
+      if (id === targetId) return asRecord(asRecord(node)?.inputs)
+      const found = findNestedInputs(asRecord(node)?.nestedNodes, targetId)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const validType = (type: unknown): string | undefined =>
+    typeof type === 'string' && type.trim() ? type : undefined
+
+  // Visit every block an op touches — its main block and each nestedNodes descendant (recursively,
+  // since loop/parallel children can themselves contain nestedNodes) — keyed by the block's own id.
+  const visitOpBlocks = (
+    op: EditWorkflowOperation,
+    opIndex: number,
+    visit: (b: {
+      opIndex: number
+      stateKey: string
+      reportBlockId: string
+      rawType: string | undefined
+      inputs: Record<string, unknown> | undefined
+      nestedBlockId?: string
+    }) => void
+  ) => {
+    visit({
+      opIndex,
+      stateKey: op.block_id,
+      reportBlockId: op.block_id,
+      rawType: op.params?.type as string | undefined,
+      inputs: asRecord(op.params?.inputs),
+    })
+    const walk = (nodes: unknown, parentBlockId: string) => {
+      const map = asRecord(nodes)
+      if (!map) return
+      for (const [childId, childBlock] of Object.entries(map)) {
+        const child = asRecord(childBlock)
+        visit({
+          opIndex,
+          stateKey: childId,
+          reportBlockId: parentBlockId,
+          rawType: child?.type as string | undefined,
+          inputs: asRecord(child?.inputs),
+          nestedBlockId: childId,
+        })
+        walk(child?.nestedNodes, parentBlockId)
+      }
+    }
+    walk(op.params?.nestedNodes, op.block_id)
+  }
+
+  // Pass 1: fold every op into each block's FINAL effective state (type + values) for the batch,
+  // seeded from the snapshot. Deciding strips against the final state (not a forward prefix) makes
+  // order irrelevant — a key set before a later op makes the block hosted is still caught.
+  const finalType = new Map<string, string | undefined>()
+  const finalValues = new Map<string, Record<string, unknown>>()
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, rawType, inputs }) => {
+      const priorType = finalType.has(stateKey)
+        ? finalType.get(stateKey)
+        : (snapshotBlock(stateKey)?.type as string | undefined)
+      // Only advance the type to one apply will honor: a registry-known type. An unknown type
+      // (apply skips the change and keeps the existing block) must not poison the fallback, or a
+      // later type-less apiKey edit would be judged against a block config that never applies.
+      const candidate = validType(rawType)
+      const resolved = (candidate && getBlock(candidate) ? candidate : undefined) ?? priorType
+      if (resolved) finalType.set(stateKey, resolved)
+      if (isHosted) {
+        const priorValues =
+          finalValues.get(stateKey) ??
+          buildSubBlockValues(
+            (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+          )
+        finalValues.set(stateKey, { ...priorValues, ...(inputs ?? {}) })
+      }
+    })
+  }
+
+  // Pass 2: for each op, strip the managed fields it actually sets, judged against the block's
+  // final state. Both top-level and nested blocks route through the same visit so they can't drift.
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, reportBlockId, inputs, nestedBlockId }) => {
+      const blockType = finalType.get(stateKey)
+      if (!inputs || !blockType) return
+      const blockConfig = getBlock(blockType)
+      if (!blockConfig) return
+
+      collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
+
+      // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
+      if (isHosted) {
+        const toolParams = finalValues.get(stateKey) ?? inputs
+        const modelValue = toolParams.model as string | undefined
+        collectHostedApiKeyInput(
+          inputs,
+          modelValue,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+        collectHostedToolApiKeyInput(
+          blockConfig,
+          inputs,
+          toolParams,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+      }
+    })
+  }
 
   const hasCredentialsToValidate = credentialInputs.length > 0
   const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0
@@ -1116,48 +1528,54 @@ export async function preValidateCredentialInputs(
 
   // Filter out apiKey inputs for hosted models and add validation errors
   if (hasHostedApiKeysToFilter) {
-    logger.info('Filtering apiKey inputs for hosted models', { count: hostedApiKeyInputs.length })
+    logger.info('Filtering platform-managed apiKey inputs', { count: hostedApiKeyInputs.length })
+
+    const stripMessage = (input: (typeof hostedApiKeyInputs)[number]): string =>
+      input.reason === 'hosted_tool'
+        ? `Cannot set "${input.fieldName}" for "${input.blockType}" - it is managed by Sim on the hosted platform. Leave "${input.fieldName}" unset.`
+        : `Cannot set API key for hosted model "${input.model}" - API keys are managed by the platform when using hosted models`
 
     for (const apiKeyInput of hostedApiKeyInputs) {
       const op = filteredOperations[apiKeyInput.operationIndex]
+      const field = apiKeyInput.fieldName
 
       // Handle nested block apiKey filtering
       if (apiKeyInput.nestedBlockId) {
-        const nestedNodes = op.params?.nestedNodes as
-          | Record<string, Record<string, unknown>>
-          | undefined
-        const nestedBlock = nestedNodes?.[apiKeyInput.nestedBlockId]
-        const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
-        if (nestedInputs?.apiKey) {
-          nestedInputs.apiKey = undefined
-          logger.debug('Filtered apiKey for hosted model in nested block', {
+        const nestedInputs = findNestedInputs(op.params?.nestedNodes, apiKeyInput.nestedBlockId)
+        if (nestedInputs?.[field]) {
+          nestedInputs[field] = undefined
+          logger.debug('Filtered platform-managed apiKey in nested block', {
             parentBlockId: apiKeyInput.blockId,
             nestedBlockId: apiKeyInput.nestedBlockId,
+            field,
+            reason: apiKeyInput.reason,
             model: apiKeyInput.model,
           })
 
           errors.push({
             blockId: apiKeyInput.nestedBlockId,
             blockType: apiKeyInput.blockType,
-            field: 'apiKey',
+            field,
             value: '[redacted]',
-            error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+            error: stripMessage(apiKeyInput),
           })
         }
-      } else if (op.params?.inputs?.apiKey) {
+      } else if (op.params?.inputs?.[field]) {
         // Handle main block apiKey filtering
-        op.params.inputs.apiKey = undefined
-        logger.debug('Filtered apiKey for hosted model', {
+        op.params.inputs[field] = undefined
+        logger.debug('Filtered platform-managed apiKey', {
           blockId: apiKeyInput.blockId,
+          field,
+          reason: apiKeyInput.reason,
           model: apiKeyInput.model,
         })
 
         errors.push({
           blockId: apiKeyInput.blockId,
           blockType: apiKeyInput.blockType,
-          field: 'apiKey',
+          field,
           value: '[redacted]',
-          error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+          error: stripMessage(apiKeyInput),
         })
       }
     }
@@ -1182,11 +1600,7 @@ export async function preValidateCredentialInputs(
 
         // Handle nested block credential removal
         if (credInput.nestedBlockId) {
-          const nestedNodes = op.params?.nestedNodes as
-            | Record<string, Record<string, unknown>>
-            | undefined
-          const nestedBlock = nestedNodes?.[credInput.nestedBlockId]
-          const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+          const nestedInputs = findNestedInputs(op.params?.nestedNodes, credInput.nestedBlockId)
           if (nestedInputs?.[credInput.fieldName]) {
             delete nestedInputs[credInput.fieldName]
             logger.info('Removed invalid credential from nested block', {

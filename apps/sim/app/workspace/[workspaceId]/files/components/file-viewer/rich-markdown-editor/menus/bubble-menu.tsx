@@ -19,7 +19,7 @@ import {
   TextQuote,
   Unlink,
 } from 'lucide-react'
-import { normalizeLinkHref } from '../markdown-fidelity'
+import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 
 /**
@@ -167,17 +167,12 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
   }
 
   const commitLink = () => {
-    const href = normalizeLinkHref((linkValue ?? '').trim())
-    const chain = selectCapturedRange(editor.chain().focus())
-    chain.extendMarkRange('link')
-    if (href) chain.setLink({ href })
-    else chain.unsetLink()
-    chain.run()
+    applyLink(selectCapturedRange(editor.chain().focus()), linkValue ?? '')
     setLinkValue(null)
   }
 
   const removeLink = () => {
-    selectCapturedRange(editor.chain().focus()).extendMarkRange('link').unsetLink().run()
+    applyLink(selectCapturedRange(editor.chain().focus()), '')
     setLinkValue(null)
   }
 
@@ -227,24 +222,12 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     >
       {isEditingLink ? (
         <>
-          <input
-            ref={linkInputRef}
-            aria-label='Link URL'
-            type='text'
-            inputMode='url'
-            value={linkValue}
-            onChange={(event) => setLinkValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commitLink()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                setLinkValue(null)
-              }
-            }}
-            placeholder='Paste or type a link…'
-            className='h-[28px] w-[220px] bg-transparent px-2 text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-subtle)]'
+          <LinkUrlInput
+            inputRef={linkInputRef}
+            value={linkValue ?? ''}
+            onChange={setLinkValue}
+            onCommit={commitLink}
+            onCancel={() => setLinkValue(null)}
           />
           {active.link && (
             <ToolbarButton

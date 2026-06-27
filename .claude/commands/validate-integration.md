@@ -185,7 +185,7 @@ For **each tool** in `tools.access`:
 - [ ] `name` is human-readable (e.g., `'X'`, `'Cloudflare'`)
 - [ ] `description` is a concise one-liner
 - [ ] `longDescription` provides detail for docs
-- [ ] `docsLink` points to `'https://docs.sim.ai/tools/{service}'`
+- [ ] `docsLink` points to `'https://docs.sim.ai/integrations/{service}'`
 - [ ] `category` is `'tools'`
 - [ ] `bgColor` uses the service's brand color hex
 - [ ] `icon` references the correct icon component from `@/components/icons`

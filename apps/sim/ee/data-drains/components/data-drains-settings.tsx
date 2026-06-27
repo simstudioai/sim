@@ -7,10 +7,8 @@ import { toError } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
-  Button,
   Chip,
   ChipConfirmModal,
-  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -18,12 +16,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MoreHorizontal,
-  Search,
   Switch,
   Table,
   TableBody,
@@ -38,6 +30,9 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
@@ -118,44 +113,39 @@ export function DataDrainsSettings() {
 
   if (!orgId) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Data drains are configured per organization. Join or create one to continue.
-      </div>
+      </SettingsEmptyState>
     )
   }
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+      <SettingsEmptyState>
         Only organization owners and admins can configure data drains.
-      </div>
+      </SettingsEmptyState>
     )
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
+    <>
+      <SettingsPanel
+        actions={
           <Chip leftIcon={Plus} variant='primary' onClick={() => setCreateOpen(true)}>
             New Drain
           </Chip>
-        </div>
-      </div>
-
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search data drains...',
+        }}
+      >
+        <div className='flex flex-col gap-4.5'>
           <InfoNote>
             Drains continuously export Sim data to your own storage on a schedule. Combine with Data
             Retention to satisfy long-term compliance archives.
           </InfoNote>
-
-          <ChipInput
-            icon={Search}
-            placeholder='Search data drains...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
 
           <div>
             {drainsError ? (
@@ -193,23 +183,21 @@ export function DataDrainsSettings() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                <SettingsEmptyState variant='inline'>
                   No results for "{searchTerm.trim()}"
-                </div>
+                </SettingsEmptyState>
               )
             ) : (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "New Drain" above to get started
-              </div>
+              <SettingsEmptyState>Click "New Drain" above to get started</SettingsEmptyState>
             )}
           </div>
         </div>
-      </div>
+      </SettingsPanel>
 
       {createOpen && (
         <CreateDrainModal organizationId={orgId} onClose={() => setCreateOpen(false)} />
       )}
-    </div>
+    </>
   )
 }
 
@@ -304,22 +292,14 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           />
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='sm' aria-label='Drain actions'>
-                <MoreHorizontal className='size-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem onClick={handleRunNow} disabled={!drain.enabled}>
-                Run now
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleTest}>Test connection</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDelete} className='text-[var(--text-error)]'>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <RowActionsMenu
+            label='Drain actions'
+            actions={[
+              { label: 'Run now', onSelect: handleRunNow, disabled: !drain.enabled },
+              { label: 'Test connection', onSelect: handleTest },
+              { label: 'Delete', onSelect: handleDelete, destructive: true },
+            ]}
+          />
         </TableCell>
       </TableRow>
       {expanded && (

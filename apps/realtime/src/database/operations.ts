@@ -40,6 +40,7 @@ const socketDb = drizzle(
       connect_timeout: 20,
       max: 15,
       onnotice: () => {},
+      connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
     }),
     'socketDb'
   ),

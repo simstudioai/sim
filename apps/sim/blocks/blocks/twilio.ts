@@ -2,6 +2,7 @@ import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { TwilioSMSBlockOutput } from '@/tools/twilio/types'
+import { getTrigger } from '@/triggers'
 
 export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   type: 'twilio_sms',
@@ -43,6 +44,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'short-input',
       placeholder: 'Your Twilio Auth Token',
       password: true,
+      paramVisibility: 'user-only',
       required: true,
     },
     {
@@ -52,7 +54,13 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       placeholder: 'e.g. +1234567890',
       required: true,
     },
+    ...getTrigger('twilio_sms_received').subBlocks,
+    ...getTrigger('twilio_sms_status').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: ['twilio_sms_received', 'twilio_sms_status'],
+  },
   tools: {
     access: ['twilio_send_sms'],
     config: {

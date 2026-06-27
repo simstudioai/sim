@@ -5,13 +5,14 @@ import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
-import { createMarkdownEditorExtensions } from './extensions'
+import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
 import { extractImageFiles } from './image-paste'
 import {
@@ -21,8 +22,10 @@ import {
   splitFrontmatter,
 } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
+import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
+import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
@@ -31,7 +34,7 @@ const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
 })
 
-// Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread.
+/** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
 
@@ -86,6 +89,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    normalizeBaseline: normalizeMarkdownContent,
   })
 
   if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
@@ -100,7 +104,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
 
   return (
     <LoadedRichMarkdownEditor
-      // Remount on a new streaming context so the stream/settle state is re-established fresh.
       key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
       file={file}
       workspaceId={workspaceId}
@@ -137,7 +140,7 @@ interface SettledContent {
   verdict: boolean
 }
 
-/** Locks the round-trip verdict + frontmatter once; a round-trip-unsafe doc (raw HTML, footnotes, >128KB) opens read-only. */
+/** Locks the round-trip verdict + frontmatter once; a round-trip-unsafe doc (raw HTML, footnotes, >256KB) opens read-only. */
 function lockSettled(content: string): SettledContent {
   return { frontmatter: splitFrontmatter(content).frontmatter, verdict: isRoundTripSafe(content) }
 }
@@ -155,17 +158,17 @@ export function LoadedRichMarkdownEditor({
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
-  // Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle.
+  /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
 
-  // Verdict + frontmatter, locked once (at mount if settled, else on settle); null reads as read-only.
+  /** Verdict + frontmatter, locked once (at mount if settled, else on settle); null reads as read-only. */
   const settledRef = useRef<SettledContent | null>(null)
   if (!streamingAtMountRef.current && settledRef.current === null) {
     settledRef.current = lockSettled(content)
   }
   const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
 
-  // Seed the doc once via lazy init — chunked parse is linear vs the editor's ~O(n²) whole-body markdown parse.
+  /** Seed the doc once via lazy init — chunked parse is linear vs the editor's ~O(n²) whole-body markdown parse. */
   const [initialContent] = useState<JSONContent | string>(() =>
     streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
@@ -182,8 +185,10 @@ export function LoadedRichMarkdownEditor({
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
-  // Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
-  // between sessions within one turn, e.g. an append followed by a rewrite).
+  /**
+   * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
+   * between sessions within one turn, e.g. an append followed by a rewrite).
+   */
   const streamIsIncrementalRef = useRef(streamIsIncremental)
   streamIsIncrementalRef.current = streamIsIncremental
   const router = useRouter()
@@ -194,21 +199,29 @@ export function LoadedRichMarkdownEditor({
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
 
-  // The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
-  // captured when the command ran, so the upload inserts where `/Image` was typed.
+  /**
+   * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
+   * captured when the command ran, so the upload inserts where `/Image` was typed.
+   */
   const imageInputRef = useRef<HTMLInputElement>(null)
   const pendingImagePosRef = useRef<number | null>(null)
 
-  // Upload then insert each image at `at` (paste caret / drop point), sequentially; held in a ref so handlers reach the latest.
+  /**
+   * Upload then insert each image at `at` (paste caret / drop point), sequentially; held in a ref so
+   * handlers reach the latest. A persistent (`duration: 0`) progress toast shows per image during the
+   * upload and is dismissed once it settles, when the upload hook's own "Uploaded"/"Failed" toast takes over.
+   */
   const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
     Promise.resolve()
   )
   insertImagesRef.current = async (images, at) => {
     let position = at
     for (const image of images) {
+      const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
       const result = await uploadFile
         .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
         .catch(() => null)
+      toast.dismiss(uploadingToastId)
       const editor = editorInstanceRef.current
       if (!result || !editor) continue
       const safePosition = Math.min(position, editor.state.doc.content.size)
@@ -243,12 +256,15 @@ export function LoadedRichMarkdownEditor({
         void onSaveShortcutRef.current()
         return true
       },
+      /**
+       * Follows a clicked link. While editing a modifier is required (a plain click places the cursor);
+       * read-only follows directly. A same-page anchor (`[x](#slug)`) scrolls to the matching heading; a
+       * same-origin in-app path navigates within the SPA (same tab); everything else opens a new tab.
+       */
       handleClick: (view, _pos, event) => {
         const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
         if (!href) return false
-        // Editing requires a modifier to follow a link (a plain click places the cursor); read-only follows it directly.
         if (view.editable && !(event.metaKey || event.ctrlKey)) return false
-        // Same-page anchor (`[x](#slug)`): scroll to the matching heading instead of opening a tab.
         if (href.startsWith('#')) {
           const pos = findHeadingPos(view.state.doc, href.slice(1))
           if (pos < 0) return false
@@ -260,7 +276,6 @@ export function LoadedRichMarkdownEditor({
         }
         const normalized = normalizeLinkHref(href)
         if (!normalized) return false
-        // A same-origin in-app path navigates within the SPA (same tab); external URLs open a new tab.
         if (
           !(event.metaKey || event.ctrlKey) &&
           normalized.startsWith('/') &&
@@ -280,14 +295,25 @@ export function LoadedRichMarkdownEditor({
         void insertImagesRef.current(images, view.state.selection.from)
         return true
       },
+      /**
+       * Inserts dropped image files at the drop point. Any other file drop (e.g. a PDF) is swallowed so
+       * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
+       * through to the default behavior.
+       */
       handleDrop: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
-        if (images.length === 0) return false
-        event.preventDefault()
-        const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
-        void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
-        return true
+        if (images.length > 0) {
+          event.preventDefault()
+          const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+          void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
+          return true
+        }
+        if (event.dataTransfer?.files.length) {
+          event.preventDefault()
+          return true
+        }
+        return false
       },
     },
     onUpdate: ({ editor }) => {
@@ -298,8 +324,10 @@ export function LoadedRichMarkdownEditor({
   })
   editorInstanceRef.current = editor
 
-  // Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
-  // shared across instances). Reads only refs, so the handler stays stable across the editor's life.
+  /**
+   * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
+   * shared across instances). Reads only refs, so the handler stays stable across the editor's life.
+   */
   useEffect(() => {
     if (!editor) return
     editor.storage.slashCommand.insertImage = (at: number) => {
@@ -310,6 +338,8 @@ export function LoadedRichMarkdownEditor({
       editor.storage.slashCommand.insertImage = null
     }
   }, [editor])
+
+  useEditorMentions(editor, workspaceId, { navigable: true })
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 
@@ -325,7 +355,7 @@ export function LoadedRichMarkdownEditor({
       if (body === lastSyncedBodyRef.current) return
       pendingStreamBodyRef.current = body
       if (streamRafRef.current !== null) return
-      // Self-re-arming tick: parse the latest pending body, but throttle a large one (cheap re-check, no parse) until due.
+      /** Self-re-arming tick: parse the latest pending body, but throttle a large one (cheap re-check, no parse) until due. */
       const tick = () => {
         const pending = pendingStreamBodyRef.current
         if (pending === null || pending === lastSyncedBodyRef.current) {
@@ -334,10 +364,6 @@ export function LoadedRichMarkdownEditor({
         }
         const shownBody = lastSyncedBodyRef.current
         const extendsShown = shownBody === null || pending.startsWith(shownBody)
-        // Incremental edits (append/patch) arrive as complete full-file snapshots, so each is applied
-        // live — ProseMirror diffs the localized change in place (mid-doc rewrite, insertion, delete).
-        // A rebuild (create/update streamed from scratch) only extends while revealing from empty; once
-        // a chunk would collapse the established document it is held until settle, avoiding the flicker.
         if (!streamIsIncrementalRef.current && !extendsShown) {
           streamRafRef.current = null
           return
@@ -364,17 +390,15 @@ export function LoadedRichMarkdownEditor({
       streamRafRef.current = requestAnimationFrame(tick)
       return
     }
-    // Drop a frame scheduled just before settle so it can't land afterward and clobber the final content.
     if (streamRafRef.current !== null) {
       cancelAnimationFrame(streamRafRef.current)
       streamRafRef.current = null
     }
-    // Settle: re-lock the verdict + frontmatter on the freshly-settled content (every stream→settle, not just the first).
+    /** Settle: re-lock the verdict + frontmatter on the freshly-settled content (every stream→settle, not just the first). */
     const isInitialSettle = settledRef.current === null
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      // Re-seed only if the settled body differs from the last streamed chunk (avoids a needless doc rebuild + selection loss).
       const body = splitFrontmatter(content).body
       if (body !== lastSyncedBodyRef.current) {
         lastSyncedBodyRef.current = body
