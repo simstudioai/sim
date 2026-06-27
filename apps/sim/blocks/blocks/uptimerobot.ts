@@ -123,7 +123,12 @@ export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
       type: 'short-input',
       placeholder: 'e.g. https://example.com',
       condition: { field: 'operation', value: [...MONITOR_EDIT_OPS, 'list_monitors'] },
-      required: { field: 'operation', value: 'create_monitor' },
+      // Required to create a monitor, except Heartbeat monitors which have no URL.
+      required: {
+        field: 'operation',
+        value: 'create_monitor',
+        and: { field: 'type', value: 'HEARTBEAT', not: true },
+      },
     },
 
     // Monitor: interval (seconds) — aliased to `interval`

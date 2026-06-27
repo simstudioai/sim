@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the UptimeRobot v3 REST API. */
@@ -225,14 +226,18 @@ function parseNumberCsv(value: unknown): number[] | undefined {
   return numbers.length > 0 ? numbers : undefined
 }
 
-/** Parses a JSON string (or passes through an already-parsed value). */
-function parseJson(value: unknown): unknown {
+/**
+ * Parses a JSON string (or passes through an already-parsed value). Throws a
+ * descriptive error on malformed JSON so a user-supplied value is never silently
+ * dropped from the request body.
+ */
+function parseJson(value: unknown, field: string): unknown {
   if (value == null || value === '') return undefined
   if (typeof value !== 'string') return value
   try {
     return JSON.parse(value)
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new Error(`Invalid JSON in "${field}": ${getErrorMessage(error, 'could not parse')}`)
   }
 }
 
@@ -272,8 +277,12 @@ export function buildMonitorBody(
   assignDefined(body, 'groupId', params.groupId)
   assignDefined(body, 'successHttpResponseCodes', parseCsv(params.successHttpResponseCodes))
   assignDefined(body, 'tagNames', parseCsv(params.tagNames))
-  assignDefined(body, 'assignedAlertContacts', parseJson(params.assignedAlertContacts))
-  assignDefined(body, 'customHttpHeaders', parseJson(params.customHttpHeaders))
+  assignDefined(
+    body,
+    'assignedAlertContacts',
+    parseJson(params.assignedAlertContacts, 'assignedAlertContacts')
+  )
+  assignDefined(body, 'customHttpHeaders', parseJson(params.customHttpHeaders, 'customHttpHeaders'))
   return body
 }
 

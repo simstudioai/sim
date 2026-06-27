@@ -22,7 +22,8 @@ interface PspFormFields {
  * Appends a single optional image file (logo or icon) to the form after
  * downloading it from storage and verifying the caller may access it.
  *
- * @returns an error `NextResponse` if access is denied, otherwise `null`.
+ * @returns an error `NextResponse` if the file is invalid or access is denied,
+ * otherwise `null`.
  */
 async function appendPspImage(
   form: FormData,
@@ -33,7 +34,14 @@ async function appendPspImage(
   logger: Logger
 ): Promise<NextResponse | null> {
   const userFiles = processFilesToUserFiles([file as RawFileInput], requestId, logger)
-  if (userFiles.length === 0) return null
+  if (userFiles.length === 0) {
+    // A file was supplied but could not be resolved to a stored UserFile (e.g. a
+    // bare string reference). Surface it rather than silently dropping the image.
+    return NextResponse.json(
+      { success: false, error: `Invalid ${field} file: expected an uploaded file reference` },
+      { status: 400 }
+    )
+  }
 
   const userFile = userFiles[0]
   const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
@@ -110,6 +118,18 @@ export async function forwardPspRequest(options: {
     )
   }
 
-  const data = text ? JSON.parse(text) : {}
+  let data: Record<string, unknown> = {}
+  if (text) {
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed && typeof parsed === 'object') data = parsed as Record<string, unknown>
+    } catch {
+      logger.error(`[${requestId}] UptimeRobot returned a non-JSON PSP response`, { body: text })
+      return NextResponse.json(
+        { success: false, error: 'UptimeRobot returned an unexpected response' },
+        { status: 502 }
+      )
+    }
+  }
   return NextResponse.json({ success: true, output: { psp: mapPsp(data) } })
 }
