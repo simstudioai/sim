@@ -66,6 +66,28 @@ vi.mock('@/lib/logs/execution/logger', () => ({
   },
 }))
 
+const {
+  isFeatureEnabledMock,
+  setLastStartedBlockMock,
+  setLastCompletedBlockMock,
+  clearProgressMarkersMock,
+} = vi.hoisted(() => ({
+  isFeatureEnabledMock: vi.fn().mockResolvedValue(false),
+  setLastStartedBlockMock: vi.fn().mockResolvedValue(undefined),
+  setLastCompletedBlockMock: vi.fn().mockResolvedValue(undefined),
+  clearProgressMarkersMock: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: isFeatureEnabledMock,
+}))
+
+vi.mock('@/lib/logs/execution/progress-markers', () => ({
+  setLastStartedBlock: setLastStartedBlockMock,
+  setLastCompletedBlock: setLastCompletedBlockMock,
+  clearProgressMarkers: clearProgressMarkersMock,
+}))
+
 vi.mock('@/lib/logs/execution/logging-factory', () => ({
   calculateCostSummary: vi.fn().mockReturnValue({
     totalCost: 0,
@@ -646,5 +668,65 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     const [strings, ...values] = lastCall
     const combined = String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
     expect(combined).toContain('force_failed')
+  })
+
+  it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-3', 'boom', undefined, 'wf-3')
+    expect(clearProgressMarkersMock).toHaveBeenCalledWith('exec-3')
+  })
+})
+
+describe('LoggingSession progress-marker write path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    startWorkflowExecutionMock.mockResolvedValue({})
+    loadWorkflowStateForExecutionMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    dbMocks.execute.mockResolvedValue(undefined)
+  })
+
+  it('writes markers to Redis (not the row) when the flag is on', async () => {
+    isFeatureEnabledMock.mockResolvedValue(true)
+    const session = new LoggingSession('wf-1', 'exec-redis', 'manual', 'req-1')
+    await session.start({ workspaceId: 'ws-1' })
+
+    await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
+    await session.onBlockComplete('b1', 'Fetch', 'api', { endedAt: '2026-06-27T10:00:01.000Z' })
+
+    expect(setLastStartedBlockMock).toHaveBeenCalledWith(
+      'exec-redis',
+      expect.objectContaining({ blockId: 'b1', startedAt: '2026-06-27T10:00:00.000Z' })
+    )
+    expect(setLastCompletedBlockMock).toHaveBeenCalledWith(
+      'exec-redis',
+      expect.objectContaining({ blockId: 'b1', success: true })
+    )
+    expect(dbMocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('writes markers via jsonb_set UPDATE when the flag is off', async () => {
+    isFeatureEnabledMock.mockResolvedValue(false)
+    const session = new LoggingSession('wf-1', 'exec-sql', 'manual', 'req-1')
+    await session.start({ workspaceId: 'ws-1' })
+
+    await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
+
+    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(setLastStartedBlockMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the SQL path when flag resolution throws', async () => {
+    isFeatureEnabledMock.mockRejectedValue(new Error('appconfig unavailable'))
+    const session = new LoggingSession('wf-1', 'exec-fallback', 'manual', 'req-1')
+    await session.start({ workspaceId: 'ws-1' })
+
+    await session.onBlockStart('b1', 'Fetch', 'api', '2026-06-27T10:00:00.000Z')
+
+    expect(dbMocks.execute).toHaveBeenCalledTimes(1)
+    expect(setLastStartedBlockMock).not.toHaveBeenCalled()
   })
 })

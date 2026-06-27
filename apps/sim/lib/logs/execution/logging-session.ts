@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -13,6 +14,11 @@ import {
   loadDeployedWorkflowStateForLogging,
   loadWorkflowStateForExecution,
 } from '@/lib/logs/execution/logging-factory'
+import {
+  clearProgressMarkers,
+  setLastCompletedBlock,
+  setLastStartedBlock,
+} from '@/lib/logs/execution/progress-markers'
 import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
@@ -129,6 +135,13 @@ export class LoggingSession {
   private workflowState?: WorkflowState
   private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
   private isResume = false
+  /**
+   * Whether per-block progress markers go to Redis (vs jsonb_set UPDATEs on the
+   * log row). Resolved once in {@link start} and cached so an execution never
+   * mixes write paths across its block callbacks. Defaults to the legacy SQL
+   * path until resolved.
+   */
+  private useRedisMarkers = false
   private completed = false
   /** Synchronous flag to prevent concurrent completion attempts (race condition guard) */
   private completing = false
@@ -167,7 +180,23 @@ export class LoggingSession {
     )
   }
 
+  /**
+   * Resolve the per-block marker write path (Redis vs jsonb_set UPDATE) for this
+   * session. Defaults to the legacy SQL path if flag resolution fails.
+   */
+  private async resolveRedisMarkerMode(): Promise<boolean> {
+    try {
+      return await isFeatureEnabled('redis-progress-markers')
+    } catch {
+      return false
+    }
+  }
+
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
+    if (this.useRedisMarkers) {
+      await setLastStartedBlock(this.executionId, marker)
+      return
+    }
     try {
       await db.execute(
         buildStartedMarkerPersistenceQuery({
@@ -186,6 +215,10 @@ export class LoggingSession {
   }
 
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
+    if (this.useRedisMarkers) {
+      await setLastCompletedBlock(this.executionId, marker)
+      return
+    }
     try {
       await db.execute(
         buildCompletedMarkerPersistenceQuery({
@@ -313,6 +346,8 @@ export class LoggingSession {
     } = params
 
     try {
+      this.useRedisMarkers = await this.resolveRedisMarkerMode()
+
       this.trigger = createTriggerObject(this.triggerType, triggerData)
       this.correlation = triggerData?.correlation
       this.environment = createEnvironmentObject(
@@ -1017,6 +1052,10 @@ export class LoggingSession {
             eq(workflowExecutionLogs.workflowId, workflowId)
           )
         )
+
+      // Terminal boundary that bypasses completeWorkflowExecution; clear markers
+      // so this path matches the standard clear-at-every-boundary invariant.
+      void clearProgressMarkers(executionId)
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {

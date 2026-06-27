@@ -1,0 +1,154 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
+
+const { mockGetRedisClient, mockRedis } = vi.hoisted(() => {
+  const mockRedis = {
+    eval: vi.fn(),
+    hgetall: vi.fn(),
+    del: vi.fn(),
+  }
+  return { mockGetRedisClient: vi.fn<[], typeof mockRedis | null>(() => mockRedis), mockRedis }
+})
+
+vi.mock('@/lib/core/config/redis', () => ({
+  getRedisClient: mockGetRedisClient,
+}))
+
+vi.mock('@/lib/core/execution-limits', () => ({
+  getExecutionReservationTtlMs: () => 5_460_000,
+}))
+
+import {
+  clearProgressMarkers,
+  getProgressMarkers,
+  setLastCompletedBlock,
+  setLastStartedBlock,
+} from '@/lib/logs/execution/progress-markers'
+
+const EXECUTION_ID = 'exec-1'
+const KEY = `execution:progress:${EXECUTION_ID}`
+const EXPECTED_TTL_MS = '5460000' // getExecutionReservationTtlMs() mock value
+
+const startedMarker: ExecutionLastStartedBlock = {
+  blockId: 'b1',
+  blockName: 'Fetch',
+  blockType: 'api',
+  startedAt: '2026-06-27T10:00:00.000Z',
+}
+
+const completedMarker: ExecutionLastCompletedBlock = {
+  blockId: 'b1',
+  blockName: 'Fetch',
+  blockType: 'api',
+  endedAt: '2026-06-27T10:00:01.000Z',
+  success: true,
+}
+
+describe('progress-markers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetRedisClient.mockReturnValue(mockRedis)
+    mockRedis.eval.mockResolvedValue(1)
+    mockRedis.hgetall.mockResolvedValue({})
+    mockRedis.del.mockResolvedValue(1)
+  })
+
+  describe('setLastStartedBlock', () => {
+    it('evals the monotonic-guard script with key, started field, timestamp, json, and TTL', async () => {
+      await setLastStartedBlock(EXECUTION_ID, startedMarker)
+
+      expect(mockRedis.eval).toHaveBeenCalledTimes(1)
+      const args = mockRedis.eval.mock.calls[0]
+      // [script, numKeys, key, field, tsField, timestamp, json, ttl]
+      expect(args[1]).toBe(1)
+      expect(args[2]).toBe(KEY)
+      expect(args[3]).toBe('started')
+      expect(args[4]).toBe('startedAt')
+      expect(args[5]).toBe(startedMarker.startedAt)
+      expect(JSON.parse(args[6] as string)).toEqual(startedMarker)
+      expect(args[7]).toBe(EXPECTED_TTL_MS)
+    })
+
+    it('swallows eval errors (fire-and-forget)', async () => {
+      mockRedis.eval.mockRejectedValueOnce(new Error('redis down'))
+      await expect(setLastStartedBlock(EXECUTION_ID, startedMarker)).resolves.toBeUndefined()
+    })
+
+    it('no-ops when Redis is unavailable', async () => {
+      mockGetRedisClient.mockReturnValue(null)
+      await setLastStartedBlock(EXECUTION_ID, startedMarker)
+      expect(mockRedis.eval).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setLastCompletedBlock', () => {
+    it('evals with the completed field and endedAt timestamp', async () => {
+      await setLastCompletedBlock(EXECUTION_ID, completedMarker)
+
+      const args = mockRedis.eval.mock.calls[0]
+      expect(args[3]).toBe('completed')
+      expect(args[4]).toBe('endedAt')
+      expect(args[5]).toBe(completedMarker.endedAt)
+      expect(JSON.parse(args[6] as string)).toEqual(completedMarker)
+    })
+  })
+
+  describe('getProgressMarkers', () => {
+    it('parses both markers from the hash', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({
+        started: JSON.stringify(startedMarker),
+        completed: JSON.stringify(completedMarker),
+      })
+
+      const result = await getProgressMarkers(EXECUTION_ID)
+      expect(mockRedis.hgetall).toHaveBeenCalledWith(KEY)
+      expect(result).toEqual({
+        lastStartedBlock: startedMarker,
+        lastCompletedBlock: completedMarker,
+      })
+    })
+
+    it('returns only the present field', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({ started: JSON.stringify(startedMarker) })
+      const result = await getProgressMarkers(EXECUTION_ID)
+      expect(result).toEqual({ lastStartedBlock: startedMarker })
+    })
+
+    it('returns {} for an empty / missing key', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({})
+      expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
+    })
+
+    it('returns {} and does not throw on malformed JSON', async () => {
+      mockRedis.hgetall.mockResolvedValueOnce({ started: '{not json' })
+      expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
+    })
+
+    it('returns {} when Redis is unavailable', async () => {
+      mockGetRedisClient.mockReturnValue(null)
+      expect(await getProgressMarkers(EXECUTION_ID)).toEqual({})
+      expect(mockRedis.hgetall).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('clearProgressMarkers', () => {
+    it('deletes the key', async () => {
+      await clearProgressMarkers(EXECUTION_ID)
+      expect(mockRedis.del).toHaveBeenCalledWith(KEY)
+    })
+
+    it('swallows del errors', async () => {
+      mockRedis.del.mockRejectedValueOnce(new Error('redis down'))
+      await expect(clearProgressMarkers(EXECUTION_ID)).resolves.toBeUndefined()
+    })
+
+    it('no-ops when Redis is unavailable', async () => {
+      mockGetRedisClient.mockReturnValue(null)
+      await clearProgressMarkers(EXECUTION_ID)
+      expect(mockRedis.del).not.toHaveBeenCalled()
+    })
+  })
+})

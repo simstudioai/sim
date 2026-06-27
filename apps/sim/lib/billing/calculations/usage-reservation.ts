@@ -5,7 +5,7 @@ import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 
 const logger = createLogger('UsageReservation')
@@ -40,9 +40,6 @@ const MAX_CONCURRENT_EXECUTIONS: Record<SubscriptionPlan, number> = {
  * execution finishes).
  */
 const SLOT_COST_ESTIMATE = BASE_EXECUTION_CHARGE
-
-/** Safety buffer added to the reservation TTL beyond the max execution timeout. */
-const RESERVATION_TTL_BUFFER_MS = 60_000
 
 const INFLIGHT_KEY_PREFIX = 'usage:inflight:'
 const POINTER_KEY_PREFIX = 'usage:reservation:'
@@ -135,7 +132,7 @@ export async function reserveExecutionSlot(
   const maxConcurrency = getMaxConcurrentExecutions(subscription?.plan)
   const headroom = Math.max(0, limit - currentUsage)
   const headroomSlots = Math.floor(headroom / SLOT_COST_ESTIMATE)
-  const ttlMs = getMaxExecutionTimeout() + RESERVATION_TTL_BUFFER_MS
+  const ttlMs = getExecutionReservationTtlMs()
   const now = Date.now()
   const expiryScore = now + ttlMs
 

@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
+import { getProgressMarkers } from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -165,6 +166,12 @@ export async function fetchLogDetail({
       { workspaceId, workflowId: log.workflowId, executionId: log.executionId }
     )
 
+    // In-flight markers live in Redis until folded into the row at a terminal/pause boundary.
+    const liveMarkers =
+      log.status === 'running' || log.status === 'pending'
+        ? await getProgressMarkers(log.executionId)
+        : {}
+
     return {
       id: log.id,
       workflowId: log.workflowId,
@@ -190,6 +197,7 @@ export async function fetchLogDetail({
       executionData: {
         totalDuration: log.totalDurationMs,
         ...executionData,
+        ...liveMarkers,
         enhanced: true as const,
       },
       files: log.files ?? null,
