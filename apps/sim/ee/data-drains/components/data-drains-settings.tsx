@@ -33,7 +33,6 @@ import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -142,11 +141,6 @@ export function DataDrainsSettings() {
         }}
       >
         <div className='flex flex-col gap-4.5'>
-          <InfoNote>
-            Drains continuously export Sim data to your own storage on a schedule. Combine with Data
-            Retention to satisfy long-term compliance archives.
-          </InfoNote>
-
           <div>
             {drainsError ? (
               <div className='flex h-full flex-col items-center justify-center gap-2'>
