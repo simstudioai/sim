@@ -1,0 +1,28 @@
+{
+  "title": "Academy",
+  "root": true,
+  "pages": [
+    "---Get Started---",
+    "index",
+    "---Workflows---",
+    "workflows/intro",
+    "workflows/logs",
+    "workflows/branching",
+    "workflows/loops",
+    "workflows/subworkflows",
+    "workflows/deployment",
+    "---Agents---",
+    "agents/intro",
+    "---Tables---",
+    "tables/intro",
+    "---Files---",
+    "files/intro",
+    "---Knowledge Bases---",
+    "knowledge-bases/intro",
+    "---Use Cases---",
+    "use-cases/slack-it-triage",
+    "use-cases/document-extraction",
+    "use-cases/monitoring-research",
+    "use-cases/sales-data-enrichment"
+  ]
+}

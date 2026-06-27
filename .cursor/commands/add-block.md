@@ -608,16 +608,19 @@ export const ServiceV2Block: BlockConfig = {
 
 ## Registering Blocks
 
-After creating the block, remind the user to:
-1. Import in `apps/sim/blocks/registry.ts`
-2. Add to the `registry` object (alphabetically):
+After creating the block, remind the user to register it in `apps/sim/blocks/registry-maps.ts` (the data maps live here; `registry.ts` holds only the accessor functions). Add the import and an entry to each map alphabetically:
 
 ```typescript
-import { ServiceBlock } from '@/blocks/blocks/service'
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
 
-export const registry: Record<string, BlockConfig> = {
+export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...
   service: ServiceBlock,
+}
+
+export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  // ... existing metas ...
+  service: ServiceBlockMeta,
 }
 ```
 
@@ -847,7 +850,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
-- [ ] Block registered in registry.ts
+- [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

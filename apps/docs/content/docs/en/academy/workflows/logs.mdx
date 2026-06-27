@@ -1,0 +1,76 @@
+---
+title: Logs
+description: A log is the complete record of one workflow run — and debugging is reading that record backwards, from a wrong value to the block that produced it.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, ROUTER_TRIAGE_WORKFLOW } from '@/components/workflow-preview'
+
+<VideoPlaceholder eyebrow="Workflows" title="Logs" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Every time a workflow runs, Sim writes down exactly what happened: the trigger, every block in the order it ran, and for each block its input, its output, its timing, and any error. That record is a **log** — the ground truth for understanding and debugging a run.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Every run is recorded',
+      body: 'You never turn logging on. Each run automatically writes a complete record: the trigger, every block in order, and what each one received, returned, and how long it took.',
+    },
+    {
+      title: 'The log is the ground truth',
+      body: 'To see what a run actually did — not what you think it did — you read its log: which blocks ran, in what order, and the real input and output of each.',
+    },
+    {
+      title: 'Debug by reading backwards',
+      body: 'Start from the wrong value and trace it back, block by block — which block produced it, what that block read — until you reach the source.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'A run happens', time: '0:00' },
+    { title: 'The record', time: '0:11' },
+    { title: 'What it really did', time: '0:21' },
+    { title: 'Reading it backwards', time: '0:33' },
+    { title: 'Every run writes one', time: '0:53' },
+  ]}
+/>
+
+</div>
+
+## Every run leaves a record
+
+When a workflow runs, the run isn't a black box. Sim records the **trigger** that started it, every **block** in the order it executed, and for each block its **input**, its **output**, its **timing**, and an error message if it failed. Nothing about a run is a mystery — it all gets written down.
+
+Here's the kind of workflow whose runs you'll read — a trigger, an agent, and the branches it routes between:
+
+<WorkflowPreview workflow={ROUTER_TRIAGE_WORKFLOW} />
+
+## The record
+
+Open a run and the log lists every block in the order it ran, each with its **duration**. So when a run is slow, you can see exactly where the time went — which block took the seconds — instead of guessing.
+
+## What each block did
+
+Selecting a block shows everything it actually did: the **input** it received, the **output** it returned, and — for an agent — the **tool calls** it made and the **tokens** it used. From the outside a step can look instant; the log keeps everything that happened inside it.
+
+## Read it backwards
+
+The log also shows where every value came from. A block's input names the block that produced it — a connection tag like `<triage.content>`. So to debug, you start from the **wrong value** and step **backwards**: which block produced it, what that block read, and on back through the chain until you reach the source. Debugging a workflow is reading its log backward from the symptom.
+
+## Every run writes one
+
+You don't enable any of this — every run produces a log automatically. When a workflow does something you didn't expect, the log is the first place to look, because it's the one place that records what actually happened.
+
+## Related documentation
+
+- [Logs &amp; debugging overview](/logs-debugging)
+- [The Logs page](/logs-debugging/logging)

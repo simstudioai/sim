@@ -375,6 +375,20 @@ describe('validateMcpServerSsrf', () => {
     )
   })
 
+  it('returns the literal IP for a public IPv4 literal so the caller pins it', async () => {
+    await expect(validateMcpServerSsrf('http://93.184.216.34:8080/mcp')).resolves.toBe(
+      '93.184.216.34'
+    )
+    expect(mockDnsLookup).not.toHaveBeenCalled()
+  })
+
+  it('returns the literal IP for a public IPv6 literal (brackets stripped)', async () => {
+    await expect(
+      validateMcpServerSsrf('http://[2606:2800:220:1:248:1893:25c8:1946]/mcp')
+    ).resolves.toBe('2606:2800:220:1:248:1893:25c8:1946')
+    expect(mockDnsLookup).not.toHaveBeenCalled()
+  })
+
   it('throws McpSsrfError for cloud metadata IP literal', async () => {
     await expect(validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(
       McpSsrfError
@@ -445,6 +459,11 @@ describe('validateMcpServerSsrf', () => {
     it('returns resolved IP for public IP resolutions on hosted', async () => {
       mockDnsLookup.mockResolvedValue({ address: '93.184.216.34' })
       await expect(validateMcpServerSsrf('https://example.com/mcp')).resolves.toBe('93.184.216.34')
+    })
+
+    it('pins public IP literals on hosted so redirects cannot escape', async () => {
+      await expect(validateMcpServerSsrf('http://93.184.216.34/mcp')).resolves.toBe('93.184.216.34')
+      expect(mockDnsLookup).not.toHaveBeenCalled()
     })
 
     it('skips loopback check on hosted when allowlist is configured', async () => {

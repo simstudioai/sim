@@ -11,14 +11,19 @@ import {
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  DatePicker,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
   RefreshCw,
   Search,
 } from '@/components/emcn'
+import { Calendar } from '@/components/emcn/components/calendar/calendar'
 import { cn } from '@/lib/core/utils/cn'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import type { TimeRange } from '@/stores/logs/filters/types'
@@ -357,102 +362,99 @@ export function AuditLogs() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-          {/* Search + filter bar */}
-          <div className='flex items-center gap-2'>
-            <ChipInput
-              icon={Search}
-              className='min-w-0 flex-1'
-              placeholder='Search audit logs...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <ChipSelect
-              options={RESOURCE_TYPE_OPTIONS}
-              multiSelect
-              multiSelectValues={selectedTypes}
-              onMultiSelectChange={setSelectedTypes}
-              placeholder='All types'
-              displayLabel={typeDisplayLabel}
-              searchable
-              searchPlaceholder='Search types...'
-              showAllOption
-              allOptionLabel='All types'
-              align='start'
-            />
-            <div className='relative'>
-              <ChipSelect
-                options={TIME_RANGE_OPTIONS}
-                value={timeRange}
-                onChange={handleTimeRangeChange}
-                placeholder='All time'
-                displayLabel={timeDisplayLabel}
-                maxHeight={320}
-                align='start'
-              />
-              <DatePicker
+    <SettingsPanel>
+      <div className='flex items-center gap-2'>
+        <ChipInput
+          icon={Search}
+          className='min-w-0 flex-1'
+          placeholder='Search audit logs...'
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <ChipSelect
+          options={RESOURCE_TYPE_OPTIONS}
+          multiSelect
+          multiSelectValues={selectedTypes}
+          onMultiSelectChange={setSelectedTypes}
+          placeholder='All types'
+          displayLabel={typeDisplayLabel}
+          searchable
+          searchPlaceholder='Search types...'
+          showAllOption
+          allOptionLabel='All types'
+          align='start'
+        />
+        <div className='relative'>
+          <ChipSelect
+            options={TIME_RANGE_OPTIONS}
+            value={timeRange}
+            onChange={handleTimeRangeChange}
+            placeholder='All time'
+            displayLabel={timeDisplayLabel}
+            maxHeight={320}
+            align='start'
+          />
+          <Popover
+            open={datePickerOpen}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                if (dateRangeAppliedRef.current) {
+                  dateRangeAppliedRef.current = false
+                } else {
+                  handleDatePickerCancel()
+                }
+              }
+            }}
+          >
+            <PopoverAnchor className='pointer-events-none absolute inset-0' />
+            <PopoverContent align='start' sideOffset={4} className='w-auto p-0'>
+              <Calendar
                 mode='range'
-                showTrigger={false}
                 showTime
-                open={datePickerOpen}
-                onOpenChange={(isOpen) => {
-                  if (!isOpen) {
-                    if (dateRangeAppliedRef.current) {
-                      dateRangeAppliedRef.current = false
-                    } else {
-                      handleDatePickerCancel()
-                    }
-                  }
-                }}
                 startDate={customStartDate}
                 endDate={customEndDate}
                 onRangeChange={handleDateRangeApply}
                 onCancel={handleDatePickerCancel}
               />
-            </div>
-            <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
-              <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />
-            </Button>
-          </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
+          <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />
+        </Button>
+      </div>
 
-          {/* Table */}
-          <div className='flex flex-col'>
-            <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-              <span className='w-[160px] flex-shrink-0'>Timestamp</span>
-              <span className='w-[180px] flex-shrink-0'>Event</span>
-              <span className='min-w-0 flex-1'>Description</span>
-              <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
-            </div>
+      <div className='flex flex-col'>
+        <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
+          <span className='w-[160px] flex-shrink-0'>Timestamp</span>
+          <span className='w-[180px] flex-shrink-0'>Event</span>
+          <span className='min-w-0 flex-1'>Description</span>
+          <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
+        </div>
 
-            {isLoading ? null : allEntries.length === 0 ? (
-              debouncedSearch ? (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No results for "{debouncedSearch}"
-                </div>
-              ) : (
-                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                  No audit logs found
-                </div>
-              )
-            ) : (
-              <div className='flex flex-col gap-0.5'>
-                {allEntries.map((entry) => (
-                  <AuditLogRow key={entry.id} entry={entry} />
-                ))}
-                {hasNextPage && (
-                  <div className='flex justify-center py-4'>
-                    <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
-                      {isFetchingNextPage ? 'Loading...' : 'Load more'}
-                    </Button>
-                  </div>
-                )}
+        {isLoading ? null : allEntries.length === 0 ? (
+          debouncedSearch ? (
+            <SettingsEmptyState variant='inline'>
+              No results for "{debouncedSearch}"
+            </SettingsEmptyState>
+          ) : (
+            <SettingsEmptyState>No audit logs found</SettingsEmptyState>
+          )
+        ) : (
+          <div className='flex flex-col gap-0.5'>
+            {allEntries.map((entry) => (
+              <AuditLogRow key={entry.id} entry={entry} />
+            ))}
+            {hasNextPage && (
+              <div className='flex justify-center py-4'>
+                <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
+                  {isFetchingNextPage ? 'Loading...' : 'Load more'}
+                </Button>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </SettingsPanel>
   )
 }

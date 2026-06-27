@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 import { DEFAULT_MAX_TICKETS, zendeskConnectorMeta } from '@/connectors/zendesk/meta'
@@ -51,10 +52,31 @@ interface ZendeskComment {
 }
 
 /**
- * Builds the base URL for a Zendesk subdomain.
+ * Strict Zendesk subdomain label: a single DNS label of lowercase letters,
+ * digits, and hyphens (not leading/trailing). Rejects anything that could
+ * smuggle a scheme, host, path, port, or fragment into the base URL.
  */
-function buildBaseUrl(subdomain: string): string {
-  return `https://${subdomain}.zendesk.com`
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+
+/**
+ * Validates and normalizes a Zendesk subdomain.
+ *
+ * @throws {Error} when the subdomain is missing or not a valid DNS label.
+ */
+function normalizeSubdomain(subdomain: string): string {
+  const normalized = subdomain.trim().toLowerCase()
+  if (!SUBDOMAIN_PATTERN.test(normalized)) {
+    throw new Error('Invalid Zendesk subdomain')
+  }
+  return normalized
+}
+
+/**
+ * Builds the base URL for a Zendesk subdomain. The subdomain is validated to a
+ * strict DNS label so it cannot be used to forge requests to arbitrary hosts.
+ */
+export function buildBaseUrl(subdomain: string): string {
+  return `https://${normalizeSubdomain(subdomain)}.zendesk.com`
 }
 
 /**
@@ -65,11 +87,11 @@ async function zendeskApiGet(
   url: string,
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof secureFetchWithRetry>[2]
 ): Promise<Record<string, unknown>> {
   const email = sourceConfig.email as string
 
-  const response = await fetchWithRetry(
+  const response = await secureFetchWithRetry(
     url,
     {
       method: 'GET',

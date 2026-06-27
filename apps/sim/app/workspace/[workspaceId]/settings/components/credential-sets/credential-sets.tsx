@@ -13,7 +13,6 @@ import {
   ButtonGroupItem,
   Chip,
   ChipConfirmModal,
-  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -21,7 +20,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type FileInputOptions,
-  Search,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
@@ -33,6 +31,9 @@ import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-s
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type CredentialSet,
@@ -516,13 +517,17 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <Chip
-                            variant='destructive'
-                            onClick={() => handleRemoveMember(member.id)}
-                            disabled={removeMember.isPending}
-                          >
-                            Remove
-                          </Chip>
+                          <RowActionsMenu
+                            label='Member actions'
+                            actions={[
+                              {
+                                label: 'Remove',
+                                destructive: true,
+                                disabled: removeMember.isPending,
+                                onSelect: () => handleRemoveMember(member.id),
+                              },
+                            ]}
+                          />
                         </div>
                       </div>
                     )
@@ -561,25 +566,30 @@ export function CredentialSets() {
                         </div>
 
                         <div className='ml-4 flex items-center gap-1'>
-                          <Chip
-                            onClick={() => handleResendInvitation(invitation.id, email)}
-                            disabled={
-                              resendingInvitations.has(invitation.id) ||
-                              (resendCooldowns[invitation.id] ?? 0) > 0
-                            }
-                          >
-                            {resendingInvitations.has(invitation.id)
-                              ? 'Sending...'
-                              : resendCooldowns[invitation.id]
-                                ? `Resend (${resendCooldowns[invitation.id]}s)`
-                                : 'Resend'}
-                          </Chip>
-                          <Chip
-                            onClick={() => handleCancelInvitation(invitation.id)}
-                            disabled={cancellingInvitations.has(invitation.id)}
-                          >
-                            {cancellingInvitations.has(invitation.id) ? 'Cancelling...' : 'Cancel'}
-                          </Chip>
+                          <RowActionsMenu
+                            label='Invitation actions'
+                            actions={[
+                              {
+                                label: resendingInvitations.has(invitation.id)
+                                  ? 'Sending...'
+                                  : resendCooldowns[invitation.id]
+                                    ? `Resend (${resendCooldowns[invitation.id]}s)`
+                                    : 'Resend',
+                                disabled:
+                                  resendingInvitations.has(invitation.id) ||
+                                  (resendCooldowns[invitation.id] ?? 0) > 0,
+                                onSelect: () => handleResendInvitation(invitation.id, email),
+                              },
+                              {
+                                label: cancellingInvitations.has(invitation.id)
+                                  ? 'Cancelling...'
+                                  : 'Cancel',
+                                destructive: true,
+                                disabled: cancellingInvitations.has(invitation.id),
+                                onSelect: () => handleCancelInvitation(invitation.id),
+                              },
+                            ]}
+                          />
                         </div>
                       </div>
                     )
@@ -595,161 +605,154 @@ export function CredentialSets() {
 
   return (
     <>
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <div />
-          <div className='flex items-center'>
-            {canManageCredentialSets && (
-              <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-                Create Group
-              </Chip>
-            )}
-          </div>
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search polling groups...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            <div className='relative'>
-              {hasNoContent && !canManageCredentialSets ? (
-                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                  You're not a member of any polling groups yet. When someone invites you, it will
-                  appear here.
-                </div>
-              ) : hasNoResults ? (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No results found matching "{searchTerm}"
-                </div>
-              ) : (
-                <div className='flex flex-col gap-4.5'>
-                  {filteredInvitations.length > 0 && (
-                    <SettingsSection label='Pending Invitations'>
-                      <div className='flex flex-col gap-3'>
-                        {filteredInvitations.map((invitation) => (
-                          <div
-                            key={invitation.invitationId}
-                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                          >
-                            <div className='flex items-center gap-2.5'>
-                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                                {getProviderIcon(invitation.providerId)}
-                              </div>
-                              <div className='flex flex-col'>
-                                <span className='text-[14px] text-[var(--text-body)]'>
-                                  {invitation.credentialSetName}
-                                </span>
-                                <span className='text-[12px] text-[var(--text-muted)]'>
-                                  {invitation.organizationName}
-                                </span>
-                              </div>
-                            </div>
-                            <Chip
-                              variant='primary'
-                              onClick={() => handleAcceptInvitation(invitation.token)}
-                              disabled={acceptInvitation.isPending}
-                            >
-                              {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
-                            </Chip>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search polling groups...',
+        }}
+        actions={
+          canManageCredentialSets && (
+            <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
+              Create Group
+            </Chip>
+          )
+        }
+      >
+        <div className='relative'>
+          {hasNoContent && !canManageCredentialSets ? (
+            <SettingsEmptyState>
+              You're not a member of any polling groups yet. When someone invites you, it will
+              appear here.
+            </SettingsEmptyState>
+          ) : hasNoResults ? (
+            <SettingsEmptyState variant='inline'>
+              No results found matching "{searchTerm}"
+            </SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-4.5'>
+              {filteredInvitations.length > 0 && (
+                <SettingsSection label='Pending Invitations'>
+                  <div className='flex flex-col gap-3'>
+                    {filteredInvitations.map((invitation) => (
+                      <div
+                        key={invitation.invitationId}
+                        className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                      >
+                        <div className='flex items-center gap-2.5'>
+                          <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                            {getProviderIcon(invitation.providerId)}
                           </div>
-                        ))}
+                          <div className='flex flex-col'>
+                            <span className='text-[14px] text-[var(--text-body)]'>
+                              {invitation.credentialSetName}
+                            </span>
+                            <span className='text-[12px] text-[var(--text-muted)]'>
+                              {invitation.organizationName}
+                            </span>
+                          </div>
+                        </div>
+                        <Chip
+                          variant='primary'
+                          onClick={() => handleAcceptInvitation(invitation.token)}
+                          disabled={acceptInvitation.isPending}
+                        >
+                          {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
+                        </Chip>
                       </div>
-                    </SettingsSection>
-                  )}
-
-                  {filteredMemberships.length > 0 && (
-                    <SettingsSection label='My Memberships'>
-                      <div className='flex flex-col gap-3'>
-                        {filteredMemberships.map((membership) => (
-                          <div
-                            key={membership.membershipId}
-                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                          >
-                            <div className='flex items-center gap-2.5'>
-                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                                {getProviderIcon(membership.providerId)}
-                              </div>
-                              <div className='flex flex-col'>
-                                <span className='text-[14px] text-[var(--text-body)]'>
-                                  {membership.credentialSetName}
-                                </span>
-                                <span className='text-[12px] text-[var(--text-muted)]'>
-                                  {membership.organizationName}
-                                </span>
-                              </div>
-                            </div>
-                            <Chip
-                              onClick={() =>
-                                handleLeave(
-                                  membership.credentialSetId,
-                                  membership.credentialSetName
-                                )
-                              }
-                              disabled={leaveCredentialSet.isPending}
-                            >
-                              Leave
-                            </Chip>
-                          </div>
-                        ))}
-                      </div>
-                    </SettingsSection>
-                  )}
-
-                  {canManageCredentialSets &&
-                    (filteredOwnedSets.length > 0 ||
-                      ownedSetsLoading ||
-                      (!searchTerm.trim() && ownedSets.length === 0)) && (
-                      <SettingsSection label='Manage'>
-                        {ownedSetsLoading ? null : !searchTerm.trim() && ownedSets.length === 0 ? (
-                          <div className='text-[var(--text-muted)] text-sm'>
-                            No polling groups created yet
-                          </div>
-                        ) : (
-                          <div className='flex flex-col gap-3'>
-                            {filteredOwnedSets.map((set) => (
-                              <div
-                                key={set.id}
-                                className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                              >
-                                <div className='flex items-center gap-2.5'>
-                                  <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                                    {getProviderIcon(set.providerId)}
-                                  </div>
-                                  <div className='flex flex-col'>
-                                    <span className='text-[14px] text-[var(--text-body)]'>
-                                      {set.name}
-                                    </span>
-                                    <span className='text-[12px] text-[var(--text-muted)]'>
-                                      {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className='flex items-center gap-2'>
-                                  <Chip onClick={() => setViewingSet(set)}>Details</Chip>
-                                  <Chip
-                                    onClick={() => handleDeleteClick(set)}
-                                    disabled={deletingSetIds.has(set.id)}
-                                  >
-                                    {deletingSetIds.has(set.id) ? 'Deleting...' : 'Delete'}
-                                  </Chip>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </SettingsSection>
-                    )}
-                </div>
+                    ))}
+                  </div>
+                </SettingsSection>
               )}
+
+              {filteredMemberships.length > 0 && (
+                <SettingsSection label='My Memberships'>
+                  <div className='flex flex-col gap-3'>
+                    {filteredMemberships.map((membership) => (
+                      <div
+                        key={membership.membershipId}
+                        className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                      >
+                        <div className='flex items-center gap-2.5'>
+                          <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                            {getProviderIcon(membership.providerId)}
+                          </div>
+                          <div className='flex flex-col'>
+                            <span className='text-[14px] text-[var(--text-body)]'>
+                              {membership.credentialSetName}
+                            </span>
+                            <span className='text-[12px] text-[var(--text-muted)]'>
+                              {membership.organizationName}
+                            </span>
+                          </div>
+                        </div>
+                        <Chip
+                          onClick={() =>
+                            handleLeave(membership.credentialSetId, membership.credentialSetName)
+                          }
+                          disabled={leaveCredentialSet.isPending}
+                        >
+                          Leave
+                        </Chip>
+                      </div>
+                    ))}
+                  </div>
+                </SettingsSection>
+              )}
+
+              {canManageCredentialSets &&
+                (filteredOwnedSets.length > 0 ||
+                  ownedSetsLoading ||
+                  (!searchTerm.trim() && ownedSets.length === 0)) && (
+                  <SettingsSection label='Manage'>
+                    {ownedSetsLoading ? null : !searchTerm.trim() && ownedSets.length === 0 ? (
+                      <div className='text-[var(--text-muted)] text-sm'>
+                        No polling groups created yet
+                      </div>
+                    ) : (
+                      <div className='flex flex-col gap-3'>
+                        {filteredOwnedSets.map((set) => (
+                          <div
+                            key={set.id}
+                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                          >
+                            <div className='flex items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                {getProviderIcon(set.providerId)}
+                              </div>
+                              <div className='flex flex-col'>
+                                <span className='text-[14px] text-[var(--text-body)]'>
+                                  {set.name}
+                                </span>
+                                <span className='text-[12px] text-[var(--text-muted)]'>
+                                  {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            </div>
+                            <div className='flex items-center gap-1'>
+                              <RowActionsMenu
+                                label='Group actions'
+                                actions={[
+                                  { label: 'Details', onSelect: () => setViewingSet(set) },
+                                  {
+                                    label: 'Delete',
+                                    destructive: true,
+                                    disabled: deletingSetIds.has(set.id),
+                                    onSelect: () => handleDeleteClick(set),
+                                  },
+                                ]}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </SettingsSection>
+                )}
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      </SettingsPanel>
 
       <ChipModal
         open={showCreateModal}

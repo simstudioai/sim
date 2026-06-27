@@ -1,0 +1,74 @@
+---
+title: Subworkflows
+description: Call one workflow from another, the way you'd call a function in code — reuse logic and compose small workflows into larger systems.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, WORKFLOW_CALL_WORKFLOW } from '@/components/workflow-preview'
+
+<VideoPlaceholder eyebrow="Workflows" title="Subworkflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-subworkflows-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Once you've built a workflow that does something well, you can **call it from another workflow** — the way you'd call a function in code. The Workflow block turns any workflow into a reusable step.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'A workflow becomes a block',
+      body: 'Any workflow can be invoked as a single block inside another, with an input in and its result out.',
+    },
+    {
+      title: 'Call, run, return',
+      body: 'The parent pauses at the call, the child workflow runs start to finish, and its output flows back into the parent.',
+    },
+    {
+      title: 'Reuse and compose',
+      body: 'Factor shared logic into one subworkflow instead of duplicating blocks; compose small workflows into big systems.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'Start with a workflow', time: '0:22' },
+    { title: 'Turning it into a block', time: '0:30' },
+    { title: 'Calling a subworkflow', time: '0:41' },
+    { title: 'Inside the subworkflow', time: '0:48' },
+    { title: 'Returning the result', time: '1:02' },
+    { title: 'Composing workflows', time: '1:12' },
+  ]}
+/>
+
+</div>
+
+## The workflow you already know
+
+Start with a workflow you've built and trust — say one that classifies a message. On its own it's a complete process you can run.
+
+Here's the shape of it — one workflow invoked as a single block inside another:
+
+<WorkflowPreview workflow={WORKFLOW_CALL_WORKFLOW} />
+
+## It becomes a block
+
+Any workflow can be used as a **block** inside another. You drop a **Workflow block**, point it at the workflow you want, and pass it an input — just like calling a function. You don't rebuild its logic; you reuse it.
+
+## Call, run, return
+
+When the parent run reaches the Workflow block, the **child workflow runs** start to finish — its own blocks, its own logic — and its **result comes back** into the parent, where the next block reads it. The parent doesn't need to know how the child works, only what it returns.
+
+## Workflows all the way up
+
+This is how big systems stay manageable: factor shared logic into focused subworkflows and **compose** them. Each workflow you build becomes a building block for the next — small, tested pieces assembling into larger processes, without turning into a mess.
+
+## Related documentation
+
+- [Workflow block](/workflows/blocks/workflow)
+- [Workflows overview](/workflows)

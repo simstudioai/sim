@@ -1,5 +1,10 @@
 import { Editor, type JSONContent } from '@tiptap/core'
 import { createMarkdownContentExtensions } from './extensions'
+import {
+  applyFrontmatter,
+  postProcessSerializedMarkdown,
+  splitFrontmatter,
+} from './markdown-fidelity'
 
 /**
  * A single reused editor for chunked markdown parse/serialize, created lazily so importing this
@@ -140,4 +145,14 @@ export function serializeMarkdownBody(body: string): string {
   const editor = parserEditor()
   editor.commands.setContent(parseMarkdownToDoc(body), { contentType: 'json' })
   return editor.getMarkdown()
+}
+
+/**
+ * Serialize a full markdown document to the editor's canonical form: frontmatter is held aside and
+ * re-attached byte-exact while the body round-trips through {@link serializeMarkdownBody}. The single
+ * source of this pipeline (the dirty-check baseline and the round-trip-safety probe both use it).
+ */
+export function serializeMarkdownDocument(content: string): string {
+  const { frontmatter, body } = splitFrontmatter(content)
+  return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(serializeMarkdownBody(body)))
 }

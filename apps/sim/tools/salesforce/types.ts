@@ -1201,6 +1201,83 @@ export const REFRESH_DASHBOARD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Output definition for a Tooling API custom field create response.
+ * Creating a CustomField via POST to /tooling/sobjects/CustomField returns the
+ * standard Tooling sObject create envelope ({ id, success, errors }).
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
+ */
+export const CUSTOM_FIELD_CREATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Tooling API Id of the newly created custom field' },
+  fullName: {
+    type: 'string',
+    description: 'Full API name of the field, including object (e.g., Account.Region__c)',
+  },
+  success: { type: 'boolean', description: 'Whether the create operation was successful' },
+  created: {
+    type: 'boolean',
+    description: 'Whether the field was created (always true on success)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a Tooling API custom field update response.
+ * A successful PATCH to /tooling/sobjects/CustomField/{id} returns HTTP 204.
+ */
+export const CUSTOM_FIELD_UPDATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Tooling API Id of the updated custom field' },
+  updated: {
+    type: 'boolean',
+    description: 'Whether the field was updated (always true on success)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a Tooling API custom field delete response.
+ * A successful DELETE to /tooling/sobjects/CustomField/{id} returns HTTP 204.
+ */
+export const CUSTOM_FIELD_DELETE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Tooling API Id of the deleted custom field' },
+  deleted: {
+    type: 'boolean',
+    description: 'Whether the field was deleted (always true on success)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a Tooling API custom object create response.
+ * Creating a CustomObject via POST to /tooling/sobjects/CustomObject returns the
+ * standard Tooling sObject create envelope ({ id, success, errors }).
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customobject.htm
+ */
+export const CUSTOM_OBJECT_CREATE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Tooling API Id of the newly created custom object' },
+  fullName: { type: 'string', description: 'Full API name of the object (e.g., Project__c)' },
+  success: { type: 'boolean', description: 'Whether the create operation was successful' },
+  created: {
+    type: 'boolean',
+    description: 'Whether the object was created (always true on success)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a Tooling API SOQL query response.
+ * The Tooling query endpoint mirrors the data query endpoint shape.
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/intro_rest_resources.htm
+ */
+export const TOOLING_QUERY_OUTPUT_PROPERTIES = {
+  records: {
+    type: 'array',
+    description: 'Array of Tooling API records matching the query',
+  },
+  totalSize: QUERY_PAGING_OUTPUT_PROPERTIES.totalSize,
+  done: QUERY_PAGING_OUTPUT_PROPERTIES.done,
+  nextRecordsUrl: QUERY_PAGING_OUTPUT_PROPERTIES.nextRecordsUrl,
+  query: { type: 'string', description: 'The executed Tooling SOQL query' },
+  metadata: RESPONSE_METADATA_OUTPUT,
+  success: { type: 'boolean', description: 'Salesforce operation success' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Base parameters shared by all Salesforce operations
  */
 interface BaseSalesforceParams {
@@ -1873,6 +1950,108 @@ export interface SalesforceListObjectsResponse {
   }
 }
 
+/**
+ * Shared metadata parameters for creating or updating a custom field via the
+ * Tooling API. Which properties apply depends on `fieldType`:
+ * - Text / LongTextArea / Html / EncryptedText: `length`
+ * - LongTextArea / Html / MultiselectPicklist: `visibleLines`
+ * - Number / Currency / Percent: `precision`, `scale`
+ * - Checkbox: `defaultValue` (true/false, required by Salesforce)
+ * - Picklist / MultiselectPicklist: `picklistValues`
+ */
+interface SalesforceCustomFieldMetadataParams {
+  fieldType?: string
+  label?: string
+  length?: number | string
+  precision?: number | string
+  scale?: number | string
+  visibleLines?: number | string
+  required?: boolean | string
+  unique?: boolean | string
+  externalId?: boolean | string
+  defaultValue?: string
+  description?: string
+  inlineHelpText?: string
+  picklistValues?: string
+}
+
+export interface SalesforceCreateCustomFieldParams
+  extends BaseSalesforceParams,
+    SalesforceCustomFieldMetadataParams {
+  objectName: string
+  fieldName: string
+}
+
+export interface SalesforceCreateCustomFieldResponse extends ToolResponse {
+  output: {
+    id: string
+    fullName: string
+    success: boolean
+    created: boolean
+  }
+}
+
+export interface SalesforceUpdateCustomFieldParams
+  extends BaseSalesforceParams,
+    SalesforceCustomFieldMetadataParams {
+  fieldId: string
+}
+
+export interface SalesforceUpdateCustomFieldResponse extends ToolResponse {
+  output: {
+    id: string
+    updated: boolean
+  }
+}
+
+export interface SalesforceDeleteCustomFieldParams extends BaseSalesforceParams {
+  fieldId: string
+}
+
+export interface SalesforceDeleteCustomFieldResponse extends ToolResponse {
+  output: {
+    id: string
+    deleted: boolean
+  }
+}
+
+export interface SalesforceCreateCustomObjectParams extends BaseSalesforceParams {
+  objectName: string
+  label: string
+  pluralLabel: string
+  nameFieldLabel?: string
+  description?: string
+  sharingModel?: string
+}
+
+export interface SalesforceCreateCustomObjectResponse extends ToolResponse {
+  output: {
+    id: string
+    fullName: string
+    success: boolean
+    created: boolean
+  }
+}
+
+export interface SalesforceToolingQueryParams extends BaseSalesforceParams {
+  query: string
+}
+
+export interface SalesforceToolingQueryResponse extends ToolResponse {
+  output: {
+    records: any[]
+    totalSize: number
+    done: boolean
+    nextRecordsUrl?: string | null
+    query: string
+    metadata: {
+      totalReturned: number
+      hasMore: boolean
+    }
+    success: boolean
+  }
+}
+
 export type SalesforceResponse =
   | SalesforceGetAccountsResponse
   | SalesforceCreateAccountResponse
@@ -1909,3 +2088,8 @@ export type SalesforceResponse =
   | SalesforceQueryMoreResponse
   | SalesforceDescribeObjectResponse
   | SalesforceListObjectsResponse
+  | SalesforceCreateCustomFieldResponse
+  | SalesforceUpdateCustomFieldResponse
+  | SalesforceDeleteCustomFieldResponse
+  | SalesforceCreateCustomObjectResponse
+  | SalesforceToolingQueryResponse

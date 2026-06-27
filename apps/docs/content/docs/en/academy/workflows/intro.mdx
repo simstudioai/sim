@@ -1,0 +1,84 @@
+---
+title: Workflows
+description: A workflow is a visual program made of blocks — where you compose data, operations, integrations, and AI agents into a process.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
+
+<VideoPlaceholder eyebrow="Workflows" title="Workflows" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/workflows-intro-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+A **workflow** is a visual program made of blocks. It's where you compose everything else in Sim — data, operations, integrations, and AI agents — into a process, and bind it to a trigger so it runs.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Read a workflow',
+      body: 'Blocks are steps, some blocks are triggers, and connections wire them into an order that runs.',
+    },
+    {
+      title: 'Follow the data',
+      body: 'Each block has parameters and produces an output. A later block reads an earlier output with a connection tag.',
+    },
+    {
+      title: 'See how it executes',
+      body: 'Independent blocks run at once; a block waits only for what it depends on. Every run is recorded in the logs.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'What a workflow is', time: '0:32' },
+    { title: 'Blocks and triggers', time: '0:41' },
+    { title: 'Parameters', time: '0:54' },
+    { title: 'Connection tags', time: '1:06' },
+    { title: 'Following the data', time: '1:23' },
+    { title: 'Running in parallel', time: '1:34' },
+    { title: 'Waiting for inputs', time: '1:45' },
+    { title: 'The whole model', time: '1:57' },
+    { title: 'Scaling up', time: '2:08' },
+  ]}
+/>
+
+</div>
+
+## The pieces
+
+- A workflow is a **visual program** — you build it by placing and wiring blocks, not by writing a script.
+- It's made of **blocks**, each one a step. Some blocks are **triggers** — they decide what starts the run and what it receives.
+- **Connections** link blocks together. They set the order: a block runs after the blocks wired into it finish.
+- Blocks have **parameters** that configure how they work. A Fetch Webpage block takes a URL; an Agent block takes a model and a prompt.
+- When a workflow runs, Sim records what each block produced. Any later block can read an earlier block's output through a **connection tag**, like `<fetch.content>`.
+- Everything that happened is saved in the **logs** — the trigger, every block, and each block's input and output — so you can see exactly where a value came from.
+
+Here's a small workflow you can read top to bottom — blocks wired in order, each one a step. The highlighted block reads an earlier block's output through a connection tag:
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} highlightBlock="reply" />
+
+## How execution flows
+
+A block waits only for the blocks it depends on — nothing else.
+
+So if `A` feeds both `B` and `C`, then `B` and `C` start at the same moment `A` finishes; they don't wait for each other. And if `B` and `C` both feed `D`, then `D` waits for both before it runs. The shape of the connections *is* the execution plan.
+
+## Branches, loops, and parallel
+
+From those primitives you get expressive control flow: **branch** down one path or another with a Condition or Router, **loop** over a list, run work in **parallel** across many items. These are the expressive core of what you'll build — and they're all just blocks and connections.
+
+Everything complicated — an automated software factory, an autonomous triage system that takes action on its own — is built from these same simple primitives. You start with a few blocks; the platform scales to your ambition. As you get more comfortable, the workflows you compose get richer — more branches, more agents, more reach — without ever leaving the same model you learned here. We're glad you're on this journey: Sim is built of simple primitives that compose into anything you can imagine.
+
+## Related documentation
+
+- [Workflows overview](/workflows)
+- [How workflows run](/workflows/how-it-runs)
+- [Data flow](/workflows/data-flow)
+- [Connections](/workflows/connections)

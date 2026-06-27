@@ -3,6 +3,7 @@ import { SentryIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SentryResponse } from '@/tools/sentry/types'
+import { getTrigger } from '@/triggers'
 
 export const SentryBlock: BlockConfig<SentryResponse> = {
   type: 'sentry',
@@ -605,7 +606,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Your Sentry organization slug',
       required: true,
     },
+
+    ...getTrigger('sentry_issue_created').subBlocks,
+    ...getTrigger('sentry_issue_resolved').subBlocks,
+    ...getTrigger('sentry_error_created').subBlocks,
+    ...getTrigger('sentry_issue_alert').subBlocks,
+    ...getTrigger('sentry_metric_alert').subBlocks,
   ],
+  triggers: {
+    enabled: true,
+    available: [
+      'sentry_issue_created',
+      'sentry_issue_resolved',
+      'sentry_error_created',
+      'sentry_issue_alert',
+      'sentry_metric_alert',
+    ],
+  },
   tools: {
     access: [
       'sentry_issues_list',

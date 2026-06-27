@@ -11,7 +11,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   description: 'Interact with Salesforce CRM',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.',
+    'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.',
   docsLink: 'https://docs.sim.ai/integrations/salesforce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
@@ -69,6 +69,11 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         { label: 'Get More Query Results', id: 'query_more' },
         { label: 'Describe Object', id: 'describe_object' },
         { label: 'List Objects', id: 'list_objects' },
+        { label: 'Create Custom Field', id: 'create_custom_field' },
+        { label: 'Update Custom Field', id: 'update_custom_field' },
+        { label: 'Delete Custom Field', id: 'delete_custom_field' },
+        { label: 'Create Custom Object', id: 'create_custom_object' },
+        { label: 'Run Tooling Query', id: 'tooling_query' },
       ],
       value: () => 'get_accounts',
     },
@@ -445,7 +450,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (required for create)',
       condition: { field: 'operation', value: ['create_opportunity', 'update_opportunity'] },
-      required: true,
+      required: { field: 'operation', value: ['create_opportunity'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
@@ -608,8 +613,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'SOQL Query',
       type: 'long-input',
       placeholder: 'SELECT Id, Name FROM Account LIMIT 10',
-      condition: { field: 'operation', value: ['query'] },
-      required: true,
+      condition: { field: 'operation', value: ['query', 'tooling_query'] },
+      required: { field: 'operation', value: ['query', 'tooling_query'] },
     },
     {
       id: 'nextRecordsUrl',
@@ -624,8 +629,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Object Name',
       type: 'short-input',
       placeholder: 'API name (e.g., Account, Lead, Custom_Object__c)',
-      condition: { field: 'operation', value: ['describe_object'] },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['describe_object', 'create_custom_field', 'create_custom_object'],
+      },
+      required: {
+        field: 'operation',
+        value: ['describe_object', 'create_custom_field', 'create_custom_object'],
+      },
     },
     // Long-input fields at the bottom
     {
@@ -649,8 +660,181 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           'update_case',
           'create_task',
           'update_task',
+          'create_custom_field',
+          'update_custom_field',
+          'create_custom_object',
         ],
       },
+    },
+    // Schema / metadata fields (Tooling API)
+    {
+      id: 'fieldName',
+      title: 'Field Name',
+      type: 'short-input',
+      placeholder: 'API name without __c (e.g., Region)',
+      condition: { field: 'operation', value: ['create_custom_field'] },
+      required: { field: 'operation', value: ['create_custom_field'] },
+    },
+    {
+      id: 'fieldId',
+      title: 'Field ID',
+      type: 'short-input',
+      placeholder: 'Tooling API Id (find via Run Tooling Query)',
+      condition: { field: 'operation', value: ['update_custom_field', 'delete_custom_field'] },
+      required: { field: 'operation', value: ['update_custom_field', 'delete_custom_field'] },
+    },
+    {
+      id: 'fieldType',
+      title: 'Field Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Text', id: 'Text' },
+        { label: 'Text Area', id: 'TextArea' },
+        { label: 'Text Area (Long)', id: 'LongTextArea' },
+        { label: 'Rich Text Area', id: 'Html' },
+        { label: 'Number', id: 'Number' },
+        { label: 'Currency', id: 'Currency' },
+        { label: 'Percent', id: 'Percent' },
+        { label: 'Checkbox', id: 'Checkbox' },
+        { label: 'Date', id: 'Date' },
+        { label: 'Date/Time', id: 'DateTime' },
+        { label: 'Time', id: 'Time' },
+        { label: 'Phone', id: 'Phone' },
+        { label: 'Email', id: 'Email' },
+        { label: 'URL', id: 'Url' },
+        { label: 'Picklist', id: 'Picklist' },
+        { label: 'Picklist (Multi-Select)', id: 'MultiselectPicklist' },
+      ],
+      condition: { field: 'operation', value: ['create_custom_field'] },
+      required: { field: 'operation', value: ['create_custom_field'] },
+    },
+    {
+      id: 'label',
+      title: 'Label',
+      type: 'short-input',
+      placeholder: 'Display label',
+      condition: {
+        field: 'operation',
+        value: ['create_custom_field', 'update_custom_field', 'create_custom_object'],
+      },
+      required: { field: 'operation', value: ['create_custom_object'] },
+    },
+    {
+      id: 'pluralLabel',
+      title: 'Plural Label',
+      type: 'short-input',
+      placeholder: 'Plural display label (e.g., Projects)',
+      condition: { field: 'operation', value: ['create_custom_object'] },
+      required: { field: 'operation', value: ['create_custom_object'] },
+    },
+    {
+      id: 'picklistValues',
+      title: 'Picklist Values',
+      type: 'short-input',
+      placeholder: 'Comma-separated values (e.g., Low, Medium, High)',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'length',
+      title: 'Length',
+      type: 'short-input',
+      placeholder: 'Max length for Text/LongTextArea/Html',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'precision',
+      title: 'Precision',
+      type: 'short-input',
+      placeholder: 'Total digits for Number/Currency/Percent',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'scale',
+      title: 'Scale',
+      type: 'short-input',
+      placeholder: 'Decimal places for numeric fields',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'visibleLines',
+      title: 'Visible Lines',
+      type: 'short-input',
+      placeholder: 'Lines for LongTextArea/Html/MultiselectPicklist',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'defaultValue',
+      title: 'Default Value',
+      type: 'short-input',
+      placeholder: 'Default value (true/false for Checkbox)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'inlineHelpText',
+      title: 'Help Text',
+      type: 'short-input',
+      placeholder: 'Help text shown next to the field',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'required',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'unique',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'externalId',
+      title: 'External ID',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_field', 'update_custom_field'] },
+    },
+    {
+      id: 'nameFieldLabel',
+      title: 'Name Field Label',
+      type: 'short-input',
+      placeholder: 'Label for the Name field (defaults to "<label> Name")',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_object'] },
+    },
+    {
+      id: 'sharingModel',
+      title: 'Sharing Model',
+      type: 'dropdown',
+      options: [
+        { label: 'Read/Write', id: 'ReadWrite' },
+        { label: 'Read Only', id: 'Read' },
+        { label: 'Private', id: 'Private' },
+        { label: 'Controlled By Parent', id: 'ControlledByParent' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_custom_object'] },
     },
     ...getTrigger('salesforce_record_created').subBlocks,
     ...getTrigger('salesforce_record_updated').subBlocks,
@@ -696,6 +880,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       'salesforce_query_more',
       'salesforce_describe_object',
       'salesforce_list_objects',
+      'salesforce_create_custom_field',
+      'salesforce_update_custom_field',
+      'salesforce_delete_custom_field',
+      'salesforce_create_custom_object',
+      'salesforce_tooling_query',
     ],
     config: {
       tool: (params) => {
@@ -770,6 +959,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'salesforce_describe_object'
           case 'list_objects':
             return 'salesforce_list_objects'
+          case 'create_custom_field':
+            return 'salesforce_create_custom_field'
+          case 'update_custom_field':
+            return 'salesforce_update_custom_field'
+          case 'delete_custom_field':
+            return 'salesforce_delete_custom_field'
+          case 'create_custom_object':
+            return 'salesforce_create_custom_object'
+          case 'tooling_query':
+            return 'salesforce_tooling_query'
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }

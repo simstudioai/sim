@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { useBlockCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-current-workflow'
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
 import { useLastRunPath } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
@@ -40,7 +40,7 @@ export function useBlockVisual({
   const isEmbedded = data.isEmbedded ?? false
   const isPreviewSelected = data.isPreviewSelected ?? false
 
-  const currentWorkflow = useCurrentWorkflow()
+  const currentWorkflow = useBlockCurrentWorkflow(blockId)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const {

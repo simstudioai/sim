@@ -10,7 +10,9 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('SalesforceDashboards')
 
 /**
- * List all dashboards accessible by the current user
+ * List the current user's recently used dashboards.
+ * The Dashboard List resource returns recently used dashboards, not the org's
+ * full dashboard catalog.
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_getbasic_dashboardlist.htm
  */
 export const salesforceListDashboardsTool: ToolConfig<
@@ -19,7 +21,7 @@ export const salesforceListDashboardsTool: ToolConfig<
 > = {
   id: 'salesforce_list_dashboards',
   name: 'List Dashboards from Salesforce',
-  description: 'Get a list of dashboards accessible by the current user',
+  description: 'Get a list of recently used dashboards for the current user',
   version: '1.0.0',
 
   oauth: {

@@ -337,16 +337,24 @@ export const tools: Record<string, ToolConfig> = {
 }
 ```
 
-### Block Registry (`apps/sim/blocks/registry.ts`)
+### Block Registry (`apps/sim/blocks/registry-maps.ts`)
+
+The data maps (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`) live in `registry-maps.ts`; `registry.ts` holds only the accessor functions. Add the import and an entry to each map alphabetically:
 
 ```typescript
 // Add import (alphabetically)
-import { {Service}Block } from '@/blocks/blocks/{service}'
+import { {Service}Block, {Service}BlockMeta } from '@/blocks/blocks/{service}'
 
-// Add to registry (alphabetically)
-export const registry: Record<string, BlockConfig> = {
+// Add to the config map (alphabetically)
+export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   // ... existing blocks ...
   {service}: {Service}Block,
+}
+
+// Add to the catalog-meta map (alphabetically)
+export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  // ... existing metas ...
+  {service}: {Service}BlockMeta,
 }
 ```
 
@@ -416,7 +424,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
-- [ ] Registered block in `blocks/registry.ts`
+- [ ] Registered block + meta in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
 

@@ -31,6 +31,7 @@ export type {
   ResourceCellEditing,
   ResourceColumn,
   ResourceRow,
+  ResourceTableHandle,
   RowDragDropConfig,
   SelectableConfig,
 } from './resource/resource'

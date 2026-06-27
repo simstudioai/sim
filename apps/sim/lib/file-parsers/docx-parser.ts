@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import mammoth from 'mammoth'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocxParser')
 
@@ -36,6 +37,8 @@ export class DocxParser implements FileParser {
       if (!buffer || buffer.length === 0) {
         throw new Error('Empty buffer provided')
       }
+
+      assertOoxmlArchiveWithinLimits(buffer)
 
       try {
         const result = await mammoth.extractRawText({ buffer })

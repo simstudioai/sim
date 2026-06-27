@@ -61,6 +61,7 @@ function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionConte
     userId: 'user-1',
     workflowId: 'wf-1',
     workspaceId: 'workspace-1',
+    userPermission: 'write',
     ...overrides,
   }
 }
@@ -83,6 +84,20 @@ describe('maybeWriteOutputToTable', () => {
     )
 
     expect(result).toEqual({ success: false, error: 'Table "tbl_1" not found' })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
+  it('denies a read-only principal without touching the table', async () => {
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'Alice' }] } },
+      buildContext({ userPermission: 'read' })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('requires write access')
+    expect(mockGetTableById).not.toHaveBeenCalled()
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 
@@ -176,6 +191,20 @@ describe('maybeWriteReadCsvToTable', () => {
     )
 
     expect(result).toEqual({ success: false, error: 'Table "tbl_1" not found' })
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
+  it('denies a read-only principal without touching the table', async () => {
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age\nAlice,30' } },
+      buildContext({ userPermission: 'read' })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('requires write access')
+    expect(mockGetTableById).not.toHaveBeenCalled()
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 

@@ -73,7 +73,7 @@ function TreeNode({ node, depth = 0 }: { node: OutputNode; depth?: number }) {
       <div className='flex min-h-[26px] items-center gap-2 rounded-[6px] px-1'>
         <span
           className='text-[13px]'
-          style={{ color: node.highlight ? '#33b4ff' : 'var(--wp-text)' }}
+          style={{ color: node.highlight ? 'var(--wp-highlight)' : 'var(--wp-text)' }}
         >
           {node.key}
         </span>

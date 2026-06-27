@@ -4,7 +4,7 @@ export const SCHEDULE_EXECUTION_QUEUE_NAME = 'schedule-execution'
 
 export const SCHEDULE_EXECUTION_CONCURRENCY_LIMIT = envNumber(
   env.SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
-  50,
+  30,
   { min: 1, integer: true }
 )
 

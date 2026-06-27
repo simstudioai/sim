@@ -311,3 +311,63 @@ describe('preprocessExecution ban gate', () => {
     })
   })
 })
+
+describe('preprocessExecution resolvedActorUserId reuse', () => {
+  const baseOptions = {
+    workflowId: 'workflow-1',
+    userId: 'owner-1',
+    triggerType: 'webhook' as const,
+    executionId: 'execution-1',
+    requestId: 'request-1',
+    checkDeployment: false,
+    checkRateLimit: false,
+    skipConcurrencyReservation: true,
+    workspaceId: 'workspace-1',
+    workflowRecord: { id: 'workflow-1', workspaceId: 'workspace-1', isDeployed: true } as any,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-account-1')
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
+    vi.mocked(getHighestPrioritySubscription).mockResolvedValue({ plan: 'free' } as any)
+    vi.mocked(checkServerSideUsageLimits).mockResolvedValue({
+      isExceeded: false,
+      currentUsage: 1,
+      limit: 10,
+    } as any)
+  })
+
+  it('skips the workspace billed-account lookup when an actor is pre-resolved', async () => {
+    const result = await preprocessExecution({
+      ...baseOptions,
+      resolvedActorUserId: 'pre-resolved-actor',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.actorUserId).toBe('pre-resolved-actor')
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('still runs the ban gate against the pre-resolved actor', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['pre-resolved-actor'])
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      resolvedActorUserId: 'pre-resolved-actor',
+    })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 403 } })
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(
+      expect.arrayContaining(['pre-resolved-actor'])
+    )
+  })
+
+  it('falls back to the billed-account lookup when no actor is pre-resolved', async () => {
+    const result = await preprocessExecution(baseOptions)
+
+    expect(result.success).toBe(true)
+    expect(result.actorUserId).toBe('billed-account-1')
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
+})

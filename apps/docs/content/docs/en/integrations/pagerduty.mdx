@@ -215,3 +215,245 @@ List current on-call entries from PagerDuty.
 | `more` | boolean | Whether more results are available |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### PagerDuty Incident Acknowledged
+
+Trigger workflow when an incident is acknowledged in PagerDuty
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+
+---
+
+### PagerDuty Incident Escalated
+
+Trigger workflow when an incident is escalated in PagerDuty
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+
+---
+
+### PagerDuty Incident Event
+
+Trigger workflow from any PagerDuty incident event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+
+---
+
+### PagerDuty Incident Reassigned
+
+Trigger workflow when an incident is reassigned in PagerDuty
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+
+---
+
+### PagerDuty Incident Resolved
+
+Trigger workflow when an incident is resolved in PagerDuty
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+
+---
+
+### PagerDuty Incident Triggered
+
+Trigger workflow when a new incident is triggered in PagerDuty
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Used to create the webhook subscription. Must be a read/write REST API key. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
+| `occurred_at` | string | When the event occurred \(ISO 8601\) |
+| `agent` | json | The user or service that caused the event \(may be null\) |
+| `incident` | object | incident output from the tool |
+|   ↳ `id` | string | Incident ID |
+|   ↳ `number` | number | Incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `status` | string | Incident status \(triggered, acknowledged, resolved\) |
+|   ↳ `urgency` | string | Incident urgency \(high or low\) |
+|   ↳ `html_url` | string | Web URL of the incident |
+|   ↳ `created_at` | string | Incident creation timestamp |
+|   ↳ `priority` | string | Priority label \(may be null\) |
+|   ↳ `service` | object | service output from the tool |
+|     ↳ `id` | string | Service ID |
+|     ↳ `summary` | string | Service name |
+|     ↳ `html_url` | string | Service web URL |
+|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|     ↳ `id` | string | Escalation policy ID |
+|     ↳ `summary` | string | Escalation policy name |
+|     ↳ `html_url` | string | Escalation policy web URL |
+|   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+

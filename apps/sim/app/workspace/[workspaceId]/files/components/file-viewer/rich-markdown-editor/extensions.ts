@@ -1,7 +1,6 @@
-import type { Extensions, JSONContent, MarkdownRendererHelpers } from '@tiptap/core'
+import type { Extensions, JSONContent, MarkdownRendererHelpers, Node } from '@tiptap/core'
 import { Code } from '@tiptap/extension-code'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
-import Placeholder from '@tiptap/extension-placeholder'
 import {
   renderTableToMarkdown,
   Table,
@@ -11,13 +10,18 @@ import {
 } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { CodeBlockWithLanguage, MarkdownCodeBlock } from './code-block'
-import { CodeBlockHighlight } from './code-highlight'
-import { MarkdownImage, ResizableImage } from './image'
-import { RichMarkdownKeymap } from './keymap'
+import { MarkdownCodeBlock } from './code-block'
+import { MarkdownImage } from './image'
 import { MarkdownLinkInputRule } from './link-input-rule'
-import { MarkdownPaste } from './markdown-paste'
-import { SlashCommand } from './slash-command/slash-command'
+import { MarkdownMention } from './mention/mention-node'
+import { SIM_LINK_SCHEME } from './mention/sim-link'
+
+/**
+ * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the
+ * `sim:<kind>/<id>` href on parse/round-trip, dropping the mention. `optionalSlashes` allows the
+ * slash-less `sim:kind/id` form.
+ */
+const SIM_LINK_PROTOCOL = { scheme: SIM_LINK_SCHEME, optionalSlashes: true } as const
 
 /**
  * Inline code that can combine with bold/italic/strike (GFM permits `**`x`**`, `~~`x`~~`).
@@ -52,13 +56,16 @@ const PipeSafeTable = Table.extend({
       .replace(/\n+$/, ''),
 })
 
-interface MarkdownEditorExtensionOptions {
-  placeholder: string
-}
-
-interface ContentExtensionOptions {
-  /** Use the React node views (code-block language picker, image resize). Off for headless tests. */
-  nodeViews?: boolean
+/**
+ * Node-view variants the live editor injects in place of the headless defaults — the code-block
+ * language picker, the resizable image, and the mention chip. The mention chip pulls the block registry
+ * (for brand icons), so the headless round-trip path omits it: passing nothing keeps
+ * {@link createMarkdownContentExtensions} free of the registry and constructs no React node views.
+ */
+export interface ContentNodeViews {
+  codeBlock?: Node
+  image?: Node
+  mention?: Node
 }
 
 /**
@@ -67,25 +74,26 @@ interface ContentExtensionOptions {
  * Markdown-style input rules (`# `, `- `, `**bold**`, …); `TaskList`/`TaskItem` add
  * `- [ ]` checklists; `TableKit` adds GFM tables; `Markdown` serializes back to markdown.
  *
- * The code block is the standalone `CodeBlock` so the live editor can swap in a node view;
- * the schema and markdown output are identical either way.
+ * Headless by default (the `nodeViews` overrides are empty), so importing this module — e.g. for the
+ * markdown round-trip in `markdown-parse.ts` — never constructs React node views or pulls the block
+ * registry. The live editor passes the node-view nodes via {@link createMarkdownEditorExtensions}; the
+ * schema and markdown output are identical either way.
  */
-export function createMarkdownContentExtensions({
-  nodeViews = false,
-}: ContentExtensionOptions = {}): Extensions {
-  const codeBlock = (nodeViews ? CodeBlockWithLanguage : MarkdownCodeBlock).configure({
+export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}): Extensions {
+  const codeBlock = (nodeViews.codeBlock ?? MarkdownCodeBlock).configure({
     HTMLAttributes: { class: 'code-editor-theme' },
   })
   return [
     StarterKit.configure({
-      link: { openOnClick: false },
+      link: { openOnClick: false, protocols: [SIM_LINK_PROTOCOL] },
       underline: false,
       codeBlock: false,
       code: false,
     }),
     InlineCode,
     codeBlock,
-    (nodeViews ? ResizableImage : MarkdownImage).configure({ allowBase64: true }),
+    (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),
+    nodeViews.mention ?? MarkdownMention,
     TaskList,
     TaskItem.configure({ nested: true }),
     PipeSafeTable.configure({ resizable: true }),
@@ -94,23 +102,5 @@ export function createMarkdownContentExtensions({
     TableCell,
     MarkdownLinkInputRule,
     Markdown,
-  ]
-}
-
-/**
- * The full extension set for the live editor: the content extensions plus the UI-only
- * extensions — `CodeBlockHighlight` (Prism), `SlashCommand` (the `/` block menu), and
- * `Placeholder`.
- */
-export function createMarkdownEditorExtensions({
-  placeholder,
-}: MarkdownEditorExtensionOptions): Extensions {
-  return [
-    ...createMarkdownContentExtensions({ nodeViews: true }),
-    CodeBlockHighlight,
-    SlashCommand,
-    RichMarkdownKeymap,
-    MarkdownPaste,
-    Placeholder.configure({ placeholder }),
   ]
 }

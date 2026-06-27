@@ -1,0 +1,85 @@
+---
+title: Knowledge Bases
+description: Knowledge bases give your workflows searchable memory — large volumes of text an agent can search by meaning and use to ground its answers.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
+
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/knowledge-bases-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+A **knowledge base** gives your workflows searchable memory. You put in large volumes of text, and an agent retrieves just the parts that matter — by meaning, not keywords.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'The context problem',
+      body: 'You cannot stuff everything into a model\'s context. A knowledge base lets you search a large corpus and pass back only what is relevant.',
+    },
+    {
+      title: 'What is inside one',
+      body: 'Documents and connectors that sync them, automatically indexed into searchable chunks you can query by meaning.',
+    },
+    {
+      title: 'How it grounds an answer',
+      body: 'A search returns the most relevant chunks with similarity scores; feeding those into the model produces accurate, cited answers.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'The problem: scattered docs', time: '0:29' },
+    { title: 'Too much for one prompt', time: '0:35' },
+    { title: 'Enter the knowledge base', time: '0:44' },
+    { title: 'In your workspace', time: '0:51' },
+    { title: 'Multiple knowledge bases', time: '0:57' },
+    { title: 'Answering from your docs', time: '1:05' },
+    { title: 'Inside a knowledge base', time: '1:15' },
+    { title: 'Chunking into passages', time: '1:24' },
+    { title: 'Retrieving the closest passages', time: '1:36' },
+    { title: 'Adding to the context', time: '1:47' },
+    { title: 'Retrieval in the logs', time: '2:01' },
+    { title: 'Grounded in your docs', time: '2:10' },
+  ]}
+/>
+
+</div>
+
+## The context problem
+
+The naive way to give a model knowledge is to paste everything into its context. That breaks down fast — too much text, too much cost, too much noise. A knowledge base is the answer: store the corpus once, and at run time pull back only the passages that bear on the question.
+
+Here's the shape of it — a workflow that searches a knowledge base and grounds the answer in what comes back:
+
+<WorkflowPreview workflow={SUPPORT_KB_WORKFLOW} />
+
+## Inside a knowledge base
+
+A knowledge base is a resource that lives in your workspace — you can have several. Open one and it holds **documents**, plus **connectors** that bring in and keep documents in sync from outside sources.
+
+Sim automatically **indexes and embeds** every document into searchable **chunks**, so the contents become queryable by meaning — you don't manage any of that yourself.
+
+## Searching by meaning
+
+Use a Knowledge block with a query and it returns the most relevant chunks, each with a **similarity score** — how closely it matches the *meaning* of the query, not its words. So "refund timelines" can match a passage that says "we process returns within 14 days," even with no shared words.
+
+## Grounding an answer
+
+On its own, that's retrieval. The power comes one step later: feed those chunks into an [Agent](/academy/agents/intro) block's context, and the model answers from your actual documents — accurate, up to date, and able to **cite** where each fact came from. That's grounding plus retrieval.
+
+Knowledge bases power systems that need to give agents accurate, current context — and they're where you store what your systems learn over time.
+
+## Related documentation
+
+- [Knowledge Bases overview](/knowledgebase)
+- [Using a knowledge base in workflows](/knowledgebase/using-in-workflows)
+- [Connectors](/knowledgebase/connectors)

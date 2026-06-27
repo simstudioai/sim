@@ -67,6 +67,10 @@ export function isRetryableError(error: unknown): boolean {
     'enetunreach',
     'socket hang up',
     'network error',
+    // Transient DNS resolution failure surfaced by secureFetchWithValidation
+    // before the request is made. The deterministic "resolves to a blocked IP
+    // address" security rejection is a distinct message and stays non-retryable.
+    'could not be resolved',
   ]
 
   if (networkKeywords.some((keyword) => lowerMessage.includes(keyword))) {

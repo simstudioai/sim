@@ -38,3 +38,6 @@ next-env.d.ts
 # Fumadocs
 /.source/ 
 .plans/
+
+# fumadocs generates .source dirs anywhere a source.config sits
+**/.source/

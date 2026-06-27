@@ -24,8 +24,25 @@ export function splitFrontmatter(markdown: string): SplitMarkdown {
   const bom = markdown.startsWith(BOM) ? BOM : ''
   const rest = bom ? markdown.slice(1) : markdown
   const match = rest.match(FRONTMATTER_REGEX)
-  if (!match) return { frontmatter: bom, body: rest }
+  if (!match || !isYamlFrontmatterBlock(match[0])) return { frontmatter: bom, body: rest }
   return { frontmatter: bom + match[0], body: rest.slice(match[0].length) }
+}
+
+/**
+ * A leading `---…---` block is YAML frontmatter unless its first content line is markdown rather than
+ * a `key:` — so a doc that opens with a `---` thematic break (e.g. a changelog whose next `---` closes
+ * the regex) stays in the editor body instead of being held out-of-band and hidden. An empty block
+ * (`---\n---`) is still treated as (empty) frontmatter.
+ */
+function isYamlFrontmatterBlock(block: string): boolean {
+  const interior = block.replace(/^---[ \t]*\r?\n/, '')
+  for (const rawLine of interior.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '') continue
+    if (line.startsWith('---')) return true
+    return /^[A-Za-z0-9_-]+[ \t]*:/.test(line)
+  }
+  return true
 }
 
 export function applyFrontmatter(frontmatter: string, body: string): string {
@@ -41,10 +58,12 @@ const HOST_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i
 
 /**
  * Normalize a user-entered link target: prefix a bare domain with `https://` so it doesn't resolve
- * as an in-app relative URL, while leaving already-qualified, relative, and protocol-relative URLs
- * intact. Dangerous schemes are rejected outright rather than trusted or mangled: any `scheme:`
- * without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`, `blob:`, …), and
- * `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …) pass through.
+ * as an in-app relative URL, while leaving already-qualified, relative (`./other.md`, `../doc.md`), and
+ * protocol-relative URLs intact. Dangerous schemes are rejected outright rather than trusted or mangled:
+ * any `scheme:` without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`,
+ * `blob:`, …), and `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …)
+ * pass through. A bare `host:port` (digits after the colon) is a domain, not a scheme, so it still gets
+ * the `https://` prefix.
  */
 export function normalizeLinkHref(href: string): string {
   const trimmed = href.trim()
@@ -52,13 +71,10 @@ export function normalizeLinkHref(href: string): string {
   if (/^[#?]/.test(trimmed)) return trimmed
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
-  // Relative paths (`./other.md`, `../doc.md`) stay relative — never prefixed into `https://./…`.
   if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed
   if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
   const schemed = trimmed.match(SCHEME_URL)
   if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed
-  // A `scheme:` without `//` (and not mailto/tel) is a script/data scheme — reject it. A bare
-  // host:port (digits after the colon) is a domain, not a scheme, so it falls through to https.
   if (HAS_SCHEME.test(trimmed) && !HOST_PORT.test(trimmed)) return ''
   return `https://${trimmed}`
 }

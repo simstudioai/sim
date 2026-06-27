@@ -3,6 +3,7 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
+import { AskAI } from '@/components/ai/ask-ai'
 import {
   SidebarFolder,
   SidebarItem,
@@ -120,6 +121,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
+          <AskAI locale={lang} />
         </RootProvider>
       </body>
     </html>

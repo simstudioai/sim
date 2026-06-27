@@ -726,7 +726,7 @@ export function Files() {
       isAnyDragActive: draggedRowIds.size > 0,
       isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
       isRowDropTarget: (rowId) => canEdit && parseRowId(rowId).kind === 'folder',
-      onDragStart: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragStart: (e: DragEvent<HTMLDivElement>, rowId) => {
         if (!canEdit || listRename.editingId === rowId) {
           e.preventDefault()
           return
@@ -769,7 +769,7 @@ export function Files() {
         e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
         dragGhostRef.current = ghost
       },
-      onDragOver: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
         const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
         if (!isExternalFileDrag && isInvalidDropTarget(rowId, sourceRowIds)) return
@@ -779,12 +779,12 @@ export function Files() {
         e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
         setActiveDropTargetId(rowId)
       },
-      onDragLeave: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
-      onDrop: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+      onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
         e.preventDefault()
         e.stopPropagation()
         dragCounterRef.current = 0

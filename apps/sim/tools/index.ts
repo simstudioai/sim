@@ -936,10 +936,13 @@ export async function executeTool(
             ? 'mcp'
             : undefined
 
-    if (toolKind && scope.userId && scope.workspaceId) {
+    // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
+    // denylist is enforced alongside the existing mcp/custom/skill gates.
+    if (scope.userId && scope.workspaceId) {
       await assertPermissionsAllowed({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
+        toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
       })

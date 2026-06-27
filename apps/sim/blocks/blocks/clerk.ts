@@ -2,6 +2,7 @@ import { ClerkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ClerkResponse } from '@/tools/clerk/types'
+import { getTrigger } from '@/triggers'
 
 export const ClerkBlock: BlockConfig<ClerkResponse> = {
   type: 'clerk',
@@ -275,7 +276,27 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
       },
       mode: 'advanced',
     },
+    ...getTrigger('clerk_user_created').subBlocks,
+    ...getTrigger('clerk_user_updated').subBlocks,
+    ...getTrigger('clerk_user_deleted').subBlocks,
+    ...getTrigger('clerk_session_created').subBlocks,
+    ...getTrigger('clerk_organization_created').subBlocks,
+    ...getTrigger('clerk_organization_membership_created').subBlocks,
+    ...getTrigger('clerk_webhook').subBlocks,
   ],
+
+  triggers: {
+    enabled: true,
+    available: [
+      'clerk_user_created',
+      'clerk_user_updated',
+      'clerk_user_deleted',
+      'clerk_session_created',
+      'clerk_organization_created',
+      'clerk_organization_membership_created',
+      'clerk_webhook',
+    ],
+  },
 
   tools: {
     access: [

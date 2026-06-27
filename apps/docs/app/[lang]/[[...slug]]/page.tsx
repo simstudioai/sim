@@ -75,16 +75,23 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
+  // Academy lessons are video-first: drop the "On this page" TOC and go full
+  // width so the lesson hero/video gets the room (chapters live in-page instead).
+  const isAcademy = slug?.[0] === 'academy'
 
   const pageTreeRecord = source.pageTree as Record<string, Root>
   const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
   const rawNeighbours = pageTree ? findNeighbour(pageTree, page.url) : null
-  const neighbours = isApiReference
+  // Academy and API Reference are self-contained sections; keep prev/next inside
+  // the section instead of spilling into the main documentation tree. Match both
+  // the section's pages (`/<slug>/...`) and its index (`/<slug>`).
+  const sectionSlug = isApiReference ? 'api-reference' : isAcademy ? 'academy' : null
+  const inSection = (url?: string) =>
+    url != null && (url.includes(`/${sectionSlug}/`) || url.endsWith(`/${sectionSlug}`))
+  const neighbours = sectionSlug
     ? {
-        previous: rawNeighbours?.previous?.url.includes('/api-reference/')
-          ? rawNeighbours.previous
-          : undefined,
-        next: rawNeighbours?.next?.url.includes('/api-reference/') ? rawNeighbours.next : undefined,
+        previous: inSection(rawNeighbours?.previous?.url) ? rawNeighbours?.previous : undefined,
+        next: inSection(rawNeighbours?.next?.url) ? rawNeighbours?.next : undefined,
       }
     : rawNeighbours
 
@@ -197,18 +204,18 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       />
       <DocsPage
         toc={data.toc}
-        full={data.full}
+        full={data.full || isAcademy}
         breadcrumb={{
           enabled: false,
         }}
         tableOfContent={{
           style: 'clerk',
-          enabled: true,
+          enabled: !isAcademy,
           single: false,
         }}
         tableOfContentPopover={{
           style: 'clerk',
-          enabled: true,
+          enabled: !isAcademy,
         }}
         footer={{
           enabled: true,

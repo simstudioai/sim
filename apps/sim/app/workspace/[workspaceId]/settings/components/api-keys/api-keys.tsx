@@ -5,9 +5,12 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipConfirmModal, ChipInput, Search, Switch, Tooltip } from '@/components/emcn'
+import { Chip, ChipConfirmModal, Switch, Tooltip, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ApiKey,
@@ -20,6 +23,37 @@ import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
 
+/** Copies an API key's name and confirms with a toast. */
+function copyKeyName(name: string) {
+  void navigator.clipboard.writeText(name)
+  toast.success('Copied name to clipboard')
+}
+
+interface ApiKeyRowMenuProps {
+  keyName: string
+  onDelete: () => void
+  /** When false, the Delete item is disabled (e.g. non-admins on workspace keys). */
+  canDelete?: boolean
+}
+
+/**
+ * Trailing `...` actions menu for an API key row. Mirrors the Secrets /
+ * Teammates row menu so the settings experience is consistent.
+ */
+function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
+  return (
+    <div className='flex-shrink-0'>
+      <RowActionsMenu
+        label='API key actions'
+        actions={[
+          { label: 'Copy name', onSelect: () => copyKeyName(keyName) },
+          { label: 'Delete', destructive: true, disabled: !canDelete, onSelect: onDelete },
+        ]}
+      />
+    </div>
+  )
+}
+
 export function ApiKeys() {
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -28,7 +62,6 @@ export function ApiKeys() {
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
 
-  // React Query hooks
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
@@ -39,7 +72,6 @@ export function ApiKeys() {
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
-  // Extract data from queries
   const workspaceKeys = apiKeysData?.workspaceKeys || []
   const personalKeys = apiKeysData?.personalKeys || []
   const conflicts = apiKeysData?.conflicts || []
@@ -48,7 +80,6 @@ export function ApiKeys() {
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
 
-  // Local UI state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -92,7 +123,6 @@ export function ApiKeys() {
       })
     } catch (error) {
       logger.error('Error deleting API key:', { error })
-      // Refetch to restore correct state in case of error
       refetchApiKeys()
     }
   }
@@ -103,11 +133,14 @@ export function ApiKeys() {
   }
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      {/* Fixed header bar */}
-      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
-        <div className='flex items-center'>
+    <>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search API keys...',
+        }}
+        actions={
           <Chip
             leftIcon={Plus}
             variant='primary'
@@ -119,70 +152,19 @@ export function ApiKeys() {
           >
             Create API Key
           </Chip>
-        </div>
-      </div>
-
-      {/* Scrollable content */}
-      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-          {/* Search Input */}
-          <ChipInput
-            icon={Search}
-            placeholder='Search API keys...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-
-          {/* Key list */}
-          {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-              Click "Create API Key" above to get started
-            </div>
-          ) : (
-            <div className='flex flex-col gap-6'>
-              {/* Workspace section */}
-              {!searchTerm.trim() ? (
-                <SettingsSection label='Workspace'>
-                  {workspaceKeys.length === 0 ? (
-                    <div className='text-[var(--text-muted)] text-sm'>
-                      No workspace API keys yet
-                    </div>
-                  ) : (
-                    <div className='flex flex-col gap-2'>
-                      {workspaceKeys.map((key) => (
-                        <div key={key.id} className='flex items-center justify-between gap-3'>
-                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                            <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                                {key.name}
-                              </span>
-                              <span className='text-[var(--text-secondary)] text-sm'>
-                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                              </span>
-                            </div>
-                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                              {key.displayKey || key.key}
-                            </p>
-                          </div>
-                          <Chip
-                            className='flex-shrink-0'
-                            onClick={() => {
-                              setDeleteKey(key)
-                              setShowDeleteDialog(true)
-                            }}
-                            disabled={!canManageWorkspaceKeys}
-                          >
-                            Delete
-                          </Chip>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </SettingsSection>
-              ) : filteredWorkspaceKeys.length > 0 ? (
-                <SettingsSection label='Workspace'>
+        }
+      >
+        {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+        ) : (
+          <div className='flex flex-col gap-6'>
+            {!searchTerm.trim() ? (
+              <SettingsSection label='Workspace'>
+                {workspaceKeys.length === 0 ? (
+                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
+                ) : (
                   <div className='flex flex-col gap-2'>
-                    {filteredWorkspaceKeys.map(({ key }) => (
+                    {workspaceKeys.map((key) => (
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
@@ -197,127 +179,149 @@ export function ApiKeys() {
                             {key.displayKey || key.key}
                           </p>
                         </div>
-                        <Chip
-                          className='flex-shrink-0'
-                          onClick={() => {
+                        <ApiKeyRowMenu
+                          keyName={key.name}
+                          onDelete={() => {
                             setDeleteKey(key)
                             setShowDeleteDialog(true)
                           }}
-                          disabled={!canManageWorkspaceKeys}
-                        >
-                          Delete
-                        </Chip>
+                          canDelete={canManageWorkspaceKeys}
+                        />
                       </div>
                     ))}
                   </div>
-                </SettingsSection>
-              ) : null}
-
-              {/* Personal section */}
-              {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
-                <SettingsSection label='Personal'>
-                  <div className='flex flex-col gap-2'>
-                    {filteredPersonalKeys.map(({ key }) => {
-                      const isConflict = conflicts.includes(key.name)
-                      return (
-                        <div key={key.id} className='flex flex-col gap-2'>
-                          <div className='flex items-center justify-between gap-3'>
-                            <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                              <div className='flex items-center gap-1.5'>
-                                <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                                  {key.name}
-                                </span>
-                                <span className='text-[var(--text-secondary)] text-sm'>
-                                  (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                                </span>
-                              </div>
-                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                                {key.displayKey || key.key}
-                              </p>
-                            </div>
-                            <Chip
-                              className='flex-shrink-0'
-                              onClick={() => {
-                                setDeleteKey(key)
-                                setShowDeleteDialog(true)
-                              }}
-                            >
-                              Delete
-                            </Chip>
-                          </div>
-                          {isConflict && (
-                            <div className='text-[var(--text-error)] text-small leading-tight'>
-                              Workspace API key with the same name overrides this. Rename your
-                              personal key to use it.
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </SettingsSection>
-              )}
-
-              {/* Show message when search has no results across both sections */}
-              {searchTerm.trim() &&
-                filteredPersonalKeys.length === 0 &&
-                filteredWorkspaceKeys.length === 0 &&
-                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No API keys found matching "{searchTerm}"
-                  </div>
                 )}
-            </div>
-          )}
-
-          {/* Allow Personal API Keys Toggle */}
-          {!isLoading && canManageWorkspaceKeys && (
-            <Tooltip.Provider delayDuration={150}>
-              <SettingsSection label='Permissions'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-[14px] text-[var(--text-body)]'>
-                      Allow personal API keys
-                    </span>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type='button'
-                          className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
-                        >
-                          <Info className='size-[12px]' strokeWidth={2} />
-                        </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top' className='max-w-xs text-small'>
-                        Allow collaborators to create and use their own keys with billing charged to
-                        them.
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  </div>
-                  {isLoadingSettings ? null : (
-                    <Switch
-                      checked={allowPersonalApiKeys}
-                      disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                      onCheckedChange={async (checked) => {
-                        try {
-                          await updateSettingsMutation.mutateAsync({
-                            workspaceId,
-                            allowPersonalApiKeys: checked,
-                          })
-                        } catch (error) {
-                          logger.error('Error updating workspace settings:', { error })
-                        }
-                      }}
-                    />
-                  )}
+              </SettingsSection>
+            ) : filteredWorkspaceKeys.length > 0 ? (
+              <SettingsSection label='Workspace'>
+                <div className='flex flex-col gap-2'>
+                  {filteredWorkspaceKeys.map(({ key }) => (
+                    <div key={key.id} className='flex items-center justify-between gap-3'>
+                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                        <div className='flex items-center gap-1.5'>
+                          <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                            {key.name}
+                          </span>
+                          <span className='text-[var(--text-secondary)] text-sm'>
+                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                          </span>
+                        </div>
+                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                          {key.displayKey || key.key}
+                        </p>
+                      </div>
+                      <ApiKeyRowMenu
+                        keyName={key.name}
+                        onDelete={() => {
+                          setDeleteKey(key)
+                          setShowDeleteDialog(true)
+                        }}
+                        canDelete={canManageWorkspaceKeys}
+                      />
+                    </div>
+                  ))}
                 </div>
               </SettingsSection>
-            </Tooltip.Provider>
-          )}
-        </div>
-      </div>
+            ) : null}
 
-      {/* Create API Key Modal */}
+            {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+              <SettingsSection label='Personal'>
+                <div className='flex flex-col gap-2'>
+                  {filteredPersonalKeys.map(({ key }) => {
+                    const isConflict = conflicts.includes(key.name)
+                    return (
+                      <div key={key.id} className='flex flex-col gap-2'>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                            <div className='flex items-center gap-1.5'>
+                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
+                                {key.name}
+                              </span>
+                              <span className='text-[var(--text-secondary)] text-sm'>
+                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                              </span>
+                            </div>
+                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                              {key.displayKey || key.key}
+                            </p>
+                          </div>
+                          <ApiKeyRowMenu
+                            keyName={key.name}
+                            onDelete={() => {
+                              setDeleteKey(key)
+                              setShowDeleteDialog(true)
+                            }}
+                          />
+                        </div>
+                        {isConflict && (
+                          <div className='text-[var(--text-error)] text-small leading-tight'>
+                            Workspace API key with the same name overrides this. Rename your
+                            personal key to use it.
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </SettingsSection>
+            )}
+
+            {searchTerm.trim() &&
+              filteredPersonalKeys.length === 0 &&
+              filteredWorkspaceKeys.length === 0 &&
+              (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                <SettingsEmptyState variant='inline'>
+                  No API keys found matching "{searchTerm}"
+                </SettingsEmptyState>
+              )}
+          </div>
+        )}
+
+        {!isLoading && canManageWorkspaceKeys && (
+          <Tooltip.Provider delayDuration={150}>
+            <SettingsSection label='Permissions'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-[14px] text-[var(--text-body)]'>
+                    Allow personal API keys
+                  </span>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
+                      >
+                        <Info className='size-[12px]' strokeWidth={2} />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top' className='max-w-xs text-small'>
+                      Allow collaborators to create and use their own keys with billing charged to
+                      them.
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </div>
+                {isLoadingSettings ? null : (
+                  <Switch
+                    checked={allowPersonalApiKeys}
+                    disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                    onCheckedChange={async (checked) => {
+                      try {
+                        await updateSettingsMutation.mutateAsync({
+                          workspaceId,
+                          allowPersonalApiKeys: checked,
+                        })
+                      } catch (error) {
+                        logger.error('Error updating workspace settings:', { error })
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            </SettingsSection>
+          </Tooltip.Provider>
+        )}
+      </SettingsPanel>
+
       <CreateApiKeyModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
@@ -328,7 +332,6 @@ export function ApiKeys() {
         defaultKeyType={defaultKeyType}
       />
 
-      {/* Delete Confirmation Dialog */}
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={(open) => {
@@ -353,6 +356,6 @@ export function ApiKeys() {
           pendingLabel: 'Deleting...',
         }}
       />
-    </div>
+    </>
   )
 }

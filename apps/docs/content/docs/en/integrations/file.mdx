@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read, get content, fetch, write, append, compress, and decompress files
+description: Read, get content, fetch, write, append, compress, decompress, and manage sharing for files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, or extract a .zip archive into the workspace.
+Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -146,5 +146,30 @@ Extract the contents of a .zip archive into the workspace, preserving the archiv
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | file[] | Extracted workspace file objects |
+
+### `file_manage_sharing`
+
+Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical ID of the workspace file to update sharing for. |
+| `fileInput` | file | No | Selected workspace file object \(from the file picker\). |
+| `isActive` | boolean | Yes | Whether the public link is enabled. Set to false to make the file private. |
+| `authType` | string | No | Access mode for the link: "public", "password", "email", or "sso". Defaults to "public". |
+| `password` | string | No | Password to protect the link. Required when authType is "password". |
+| `allowedEmails` | array | No | Allowed emails or "@domain" patterns. Required when authType is "email" or "sso". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Public share URL for the file |
+| `isActive` | boolean | Whether the public link is enabled |
+| `authType` | string | Access mode: public, password, email, or sso |
+| `hasPassword` | boolean | Whether the share is password-protected |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access |
 
 

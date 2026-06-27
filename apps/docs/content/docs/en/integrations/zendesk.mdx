@@ -1285,3 +1285,210 @@ Count the number of search results matching a query in Zendesk
 | `count` | number | Number of matching results |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Zendesk Ticket Comment Added
+
+Trigger workflow when a comment is added to a Zendesk ticket
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | Your Zendesk subdomain. |
+| `email` | string | Yes | Email of a Zendesk admin used with the API token. |
+| `apiToken` | string | Yes | Used to create the webhook. Requires admin access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
+| `time` | string | When the event occurred \(ISO 8601\) |
+| `account_id` | number | Zendesk account ID |
+| `ticket` | object | ticket output from the tool |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
+|   ↳ `priority` | string | Ticket priority \(low, normal, high, urgent\) |
+|   ↳ `ticket_type` | string | Ticket type \(question, incident, problem, task\) |
+|   ↳ `description` | string | Ticket description |
+|   ↳ `requester_id` | string | ID of the requester |
+|   ↳ `assignee_id` | string | ID of the assignee |
+|   ↳ `group_id` | string | ID of the assigned group |
+|   ↳ `organization_id` | string | ID of the organization |
+|   ↳ `tags` | json | Array of ticket tags |
+|   ↳ `via_channel` | string | Channel the ticket came in through |
+|   ↳ `is_public` | boolean | Whether the ticket is public |
+|   ↳ `created_at` | string | Ticket creation timestamp |
+|   ↳ `updated_at` | string | Ticket last update timestamp |
+| `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+
+
+---
+
+### Zendesk Ticket Created
+
+Trigger workflow when a new ticket is created in Zendesk
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | Your Zendesk subdomain. |
+| `email` | string | Yes | Email of a Zendesk admin used with the API token. |
+| `apiToken` | string | Yes | Used to create the webhook. Requires admin access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
+| `time` | string | When the event occurred \(ISO 8601\) |
+| `account_id` | number | Zendesk account ID |
+| `ticket` | object | ticket output from the tool |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
+|   ↳ `priority` | string | Ticket priority \(low, normal, high, urgent\) |
+|   ↳ `ticket_type` | string | Ticket type \(question, incident, problem, task\) |
+|   ↳ `description` | string | Ticket description |
+|   ↳ `requester_id` | string | ID of the requester |
+|   ↳ `assignee_id` | string | ID of the assignee |
+|   ↳ `group_id` | string | ID of the assigned group |
+|   ↳ `organization_id` | string | ID of the organization |
+|   ↳ `tags` | json | Array of ticket tags |
+|   ↳ `via_channel` | string | Channel the ticket came in through |
+|   ↳ `is_public` | boolean | Whether the ticket is public |
+|   ↳ `created_at` | string | Ticket creation timestamp |
+|   ↳ `updated_at` | string | Ticket last update timestamp |
+| `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+
+
+---
+
+### Zendesk Ticket Event
+
+Trigger workflow from any Zendesk ticket event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | Your Zendesk subdomain. |
+| `email` | string | Yes | Email of a Zendesk admin used with the API token. |
+| `apiToken` | string | Yes | Used to create the webhook. Requires admin access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
+| `time` | string | When the event occurred \(ISO 8601\) |
+| `account_id` | number | Zendesk account ID |
+| `ticket` | object | ticket output from the tool |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
+|   ↳ `priority` | string | Ticket priority \(low, normal, high, urgent\) |
+|   ↳ `ticket_type` | string | Ticket type \(question, incident, problem, task\) |
+|   ↳ `description` | string | Ticket description |
+|   ↳ `requester_id` | string | ID of the requester |
+|   ↳ `assignee_id` | string | ID of the assignee |
+|   ↳ `group_id` | string | ID of the assigned group |
+|   ↳ `organization_id` | string | ID of the organization |
+|   ↳ `tags` | json | Array of ticket tags |
+|   ↳ `via_channel` | string | Channel the ticket came in through |
+|   ↳ `is_public` | boolean | Whether the ticket is public |
+|   ↳ `created_at` | string | Ticket creation timestamp |
+|   ↳ `updated_at` | string | Ticket last update timestamp |
+| `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+
+
+---
+
+### Zendesk Ticket Priority Changed
+
+Trigger workflow when a ticket priority changes in Zendesk
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | Your Zendesk subdomain. |
+| `email` | string | Yes | Email of a Zendesk admin used with the API token. |
+| `apiToken` | string | Yes | Used to create the webhook. Requires admin access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
+| `time` | string | When the event occurred \(ISO 8601\) |
+| `account_id` | number | Zendesk account ID |
+| `ticket` | object | ticket output from the tool |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
+|   ↳ `priority` | string | Ticket priority \(low, normal, high, urgent\) |
+|   ↳ `ticket_type` | string | Ticket type \(question, incident, problem, task\) |
+|   ↳ `description` | string | Ticket description |
+|   ↳ `requester_id` | string | ID of the requester |
+|   ↳ `assignee_id` | string | ID of the assignee |
+|   ↳ `group_id` | string | ID of the assigned group |
+|   ↳ `organization_id` | string | ID of the organization |
+|   ↳ `tags` | json | Array of ticket tags |
+|   ↳ `via_channel` | string | Channel the ticket came in through |
+|   ↳ `is_public` | boolean | Whether the ticket is public |
+|   ↳ `created_at` | string | Ticket creation timestamp |
+|   ↳ `updated_at` | string | Ticket last update timestamp |
+| `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+
+
+---
+
+### Zendesk Ticket Status Changed
+
+Trigger workflow when a ticket status changes in Zendesk
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | Your Zendesk subdomain. |
+| `email` | string | Yes | Email of a Zendesk admin used with the API token. |
+| `apiToken` | string | Yes | Used to create the webhook. Requires admin access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique ID of the webhook event |
+| `event_type` | string | Full event type \(e.g. zen:event-type:ticket.created\) |
+| `time` | string | When the event occurred \(ISO 8601\) |
+| `account_id` | number | Zendesk account ID |
+| `ticket` | object | ticket output from the tool |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `status` | string | Ticket status \(new, open, pending, solved, etc.\) |
+|   ↳ `priority` | string | Ticket priority \(low, normal, high, urgent\) |
+|   ↳ `ticket_type` | string | Ticket type \(question, incident, problem, task\) |
+|   ↳ `description` | string | Ticket description |
+|   ↳ `requester_id` | string | ID of the requester |
+|   ↳ `assignee_id` | string | ID of the assignee |
+|   ↳ `group_id` | string | ID of the assigned group |
+|   ↳ `organization_id` | string | ID of the organization |
+|   ↳ `tags` | json | Array of ticket tags |
+|   ↳ `via_channel` | string | Channel the ticket came in through |
+|   ↳ `is_public` | boolean | Whether the ticket is public |
+|   ↳ `created_at` | string | Ticket creation timestamp |
+|   ↳ `updated_at` | string | Ticket last update timestamp |
+| `event` | json | Event-specific changed data \(e.g. status/priority diff\) |
+

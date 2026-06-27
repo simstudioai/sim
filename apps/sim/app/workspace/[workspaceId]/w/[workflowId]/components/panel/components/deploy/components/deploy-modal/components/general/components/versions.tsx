@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
@@ -77,12 +78,14 @@ export function Versions({
 
   const handleSaveRename = (version: number) => {
     if (renameMutation.isPending) return
+    // Clearing the name is a no-op — the version number is always the canonical reference.
     if (!workflowId || !editValue.trim()) {
       setEditingVersion(null)
       return
     }
 
     const currentVersion = versions.find((v) => v.version === version)
+    // Compare against the `v{n}` fallback so re-submitting the displayed token saves no redundant name.
     const currentName = currentVersion?.name || `v${version}`
 
     if (editValue.trim() === currentName) {
@@ -261,11 +264,16 @@ export function Versions({
                       spellCheck='false'
                     />
                   ) : (
-                    <span className={cn('block flex items-center gap-1 truncate', ROW_TEXT_CLASS)}>
-                      <span className='truncate'>{v.name || `v${v.version}`}</span>
-                      {v.isActive && <span className='text-[var(--text-tertiary)]'> (live)</span>}
+                    <span className={cn('flex min-w-0 items-center gap-1.5', ROW_TEXT_CLASS)}>
+                      <span className='shrink-0 text-[var(--text-tertiary)] tabular-nums'>
+                        v{v.version}
+                      </span>
+                      {v.name && <span className='truncate'>{v.name}</span>}
+                      {v.isActive && (
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
+                      )}
                       {isSelected && (
-                        <span className='text-[var(--text-tertiary)]'> (selected)</span>
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>
                       )}
                     </span>
                   )}
@@ -364,9 +372,10 @@ export function Versions({
           onOpenChange={(open) => !open && setDescriptionModalVersion(null)}
           workflowId={workflowId}
           version={descriptionModalVersionData.version}
-          versionName={
-            descriptionModalVersionData.name || `v${descriptionModalVersionData.version}`
-          }
+          versionName={formatVersionLabel(
+            descriptionModalVersionData.version,
+            descriptionModalVersionData.name
+          )}
           currentDescription={descriptionModalVersionData.description}
         />
       )}

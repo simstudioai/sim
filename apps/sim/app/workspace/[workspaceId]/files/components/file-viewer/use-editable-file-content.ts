@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   useUpdateWorkspaceFileContent,
@@ -36,6 +36,13 @@ interface UseEditableFileContentOptions {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  /**
+   * Optional transform applied to the fetched content before it becomes the editor's baseline. A
+   * surface whose editor re-serializes its content to a canonical form (the rich markdown editor)
+   * passes its normalizer so an already-canonical file never reads as dirty on open. Applied only to
+   * the at-rest baseline, never while an agent stream is in flight. Stable reference required.
+   */
+  normalizeBaseline?: (raw: string) => string
 }
 
 interface EditableFileContent {
@@ -108,6 +115,7 @@ export function useEditableFileContent({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  normalizeBaseline,
 }: UseEditableFileContentOptions): EditableFileContent {
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
@@ -125,6 +133,24 @@ export function useEditableFileContent({
     GENERATED_SOURCE_FILE_TYPES.has(file.type)
   )
 
+  /**
+   * Latches once this mount has ever streamed (agent edit). A mount that streams keeps the raw fetched
+   * value as its baseline for its whole life, so normalization can never perturb the stream-reconcile
+   * comparisons in {@link syncTextEditorContentState}. A pure at-rest open never latches and normalizes
+   * freely. Set during render (not an effect) so it is observed before the baseline is derived.
+   */
+  const everStreamedRef = useRef(false)
+  if (streamingContent !== undefined || isAgentEditing) everStreamedRef.current = true
+
+  // Re-derived only when the fetched content changes (never on a stream-flag flip), so the dirty
+  // baseline stays stable through a post-stream reconcile.
+  const baselineContent = useMemo(() => {
+    if (fetchedContent === undefined || !normalizeBaseline || everStreamedRef.current) {
+      return fetchedContent
+    }
+    return normalizeBaseline(fetchedContent)
+  }, [fetchedContent, normalizeBaseline])
+
   const updateContent = useUpdateWorkspaceFileContent()
   const updateContentRef = useRef(updateContent)
   updateContentRef.current = updateContent
@@ -138,7 +164,7 @@ export function useEditableFileContent({
     markSavedContent,
   } = useFileContentState({
     canReconcileToFetchedContent: file.key.length > 0,
-    fetchedContent,
+    fetchedContent: baselineContent,
     streamingContent,
   })
 

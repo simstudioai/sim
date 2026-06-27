@@ -22,6 +22,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
@@ -323,9 +324,9 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
             ))}
           </div>
         ) : showNoResults ? (
-          <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+          <SettingsEmptyState variant='inline'>
             No providers found matching "{searchTerm}"
-          </div>
+          </SettingsEmptyState>
         ) : sections ? (
           <div className='flex flex-col gap-7'>
             {sections.map((section) => {
@@ -382,7 +383,6 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
           <ChipModalField type='custom' title='API Key' required>
-            {/* Hidden decoy fields to prevent browser autofill */}
             <input
               type='text'
               name='fakeusernameremembered'

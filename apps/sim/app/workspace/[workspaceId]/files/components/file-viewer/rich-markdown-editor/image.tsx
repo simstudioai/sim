@@ -3,6 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { cn } from '@/lib/core/utils/cn'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { normalizeLinkHref } from './markdown-fidelity'
 
@@ -32,6 +33,11 @@ function escapeAttr(value: string): string {
  * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
  * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
  * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
+ *
+ * A *sized **and** linked* image is the one case markdown can't represent: the linked-image tokenizer
+ * only recognizes `[![alt](src)](href)`, so emitting `[<img …>](href)` would silently drop the link on
+ * reparse (and the round-trip-safety probe wouldn't catch it). We keep the link and fall back to the
+ * unsized `[![alt](src)](href)` form — the link matters more than the exact dimensions for a badge.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}
@@ -43,7 +49,7 @@ function imageMarkdown(node: JSONContent): string {
   const width = attrs.width
   const height = attrs.height
   let image: string
-  if (width || height) {
+  if ((width || height) && !href) {
     const parts = [`src="${escapeAttr(src)}"`]
     if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
     if (title) parts.push(`title="${escapeAttr(title)}"`)
@@ -58,7 +64,9 @@ function imageMarkdown(node: JSONContent): string {
     image = `![${alt.replace(/[\\[\]]/g, '\\$&')}](${safeSrc}${titlePart})`
   }
   if (!href) return image
-  const hrefTitlePart = hrefTitle ? ` "${hrefTitle}"` : ''
+  // Escape `"`/`\` so an href title can't break out of the `[…](href "title")` syntax (mirrors the
+  // image title escaping above).
+  const hrefTitlePart = hrefTitle ? ` "${hrefTitle.replace(/["\\]/g, '\\$&')}"` : ''
   return `[${image}](${href}${hrefTitlePart})`
 }
 
@@ -225,7 +233,10 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
       style={widthStyle}
-      className={`block max-w-full rounded-lg border border-[var(--border)]${editable ? ' cursor-grab' : ''}`}
+      className={cn(
+        'block max-w-full rounded-lg border border-[var(--border)]',
+        editable && 'cursor-grab'
+      )}
     />
   )
 

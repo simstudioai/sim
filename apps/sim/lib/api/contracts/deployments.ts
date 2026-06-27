@@ -36,12 +36,7 @@ export const deploymentVersionMetadataFieldsSchema = z.object({
     .min(1, 'Name cannot be empty')
     .max(100, 'Name must be 100 characters or less')
     .optional(),
-  description: z
-    .string()
-    .trim()
-    .max(2000, 'Description must be 2000 characters or less')
-    .nullable()
-    .optional(),
+  description: z.string().trim().max(50_000, 'Description is too long').nullable().optional(),
 })
 export const updateDeploymentVersionMetadataBodySchema =
   deploymentVersionMetadataFieldsSchema.refine(

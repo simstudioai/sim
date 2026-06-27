@@ -2,6 +2,7 @@ import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
+import { getTrigger } from '@/triggers'
 
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
@@ -15,6 +16,15 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: IncidentioIcon,
+  triggers: {
+    enabled: true,
+    available: [
+      'incidentio_incident_created',
+      'incidentio_incident_updated',
+      'incidentio_incident_status_updated',
+      'incidentio_alert_created',
+    ],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -929,6 +939,11 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       password: true,
       required: true,
     },
+    // Trigger subBlocks (webhook configuration)
+    ...getTrigger('incidentio_incident_created').subBlocks,
+    ...getTrigger('incidentio_incident_updated').subBlocks,
+    ...getTrigger('incidentio_incident_status_updated').subBlocks,
+    ...getTrigger('incidentio_alert_created').subBlocks,
   ],
   tools: {
     access: [

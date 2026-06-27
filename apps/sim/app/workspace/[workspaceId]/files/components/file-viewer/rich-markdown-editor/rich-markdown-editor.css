@@ -36,6 +36,14 @@
   outline-offset: 2px;
 }
 
+/* The inline mention chip isn't a block leaf, so it skips the heavy outline ring above and just uses
+   the same native text-selection highlight as the surrounding prose. ProseMirror puts `selectednode`
+   on the node-view wrapper, so match it via `:has` (the chip span itself when it's the selected node). */
+.rich-markdown-prose .mention-chip.ProseMirror-selectednode,
+.rich-markdown-prose .ProseMirror-selectednode:has(.mention-chip) {
+  outline: none;
+}
+
 .rich-markdown-prose > * + * {
   margin-top: 0.6em;
 }
@@ -102,6 +110,13 @@
   text-decoration: line-through;
 }
 
+/* Selecting struck-through text reads in the primary color like any other highlighted text, so the
+   selection looks uniform (it returns to the muted strike color when deselected). */
+.rich-markdown-prose del::selection,
+.rich-markdown-prose s::selection {
+  color: var(--text-primary);
+}
+
 .rich-markdown-prose a {
   color: var(--brand-secondary);
   cursor: pointer;
@@ -109,6 +124,14 @@
 
 .rich-markdown-prose a:hover {
   text-decoration: underline;
+}
+
+/* When a link is selected, drop its blue so it reads like any other highlighted text — the standard
+   MD-editor convention (Linear, Slack) where the selection takes precedence over the link color.
+   Only the selected state is affected; an unselected link stays blue. */
+.rich-markdown-prose a::selection,
+.rich-markdown-prose a ::selection {
+  color: var(--text-primary);
 }
 
 /* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
@@ -119,6 +142,14 @@
   height: 1.25em;
   border-top: none;
   background-color: var(--text-primary);
+}
+
+/* …except between two adjacent leaves (dividers/images), where that caret floats as a stray mark in
+   empty space the view gives no hint about. Hide it there (matching Linear): the gap cursor stays
+   functional — typing still inserts a block between them — it just isn't drawn. Leading/trailing gaps
+   keep theirs. The keymap plugin sets `data-gap-between-leaves` when both neighbours are leaves. */
+.rich-markdown-prose[data-gap-between-leaves] .ProseMirror-gapcursor::after {
+  display: none;
 }
 
 .rich-markdown-prose ul,
@@ -267,6 +298,26 @@
   margin: 1.5em 0;
 }
 
+/* A divider/image swept into a range selection (e.g. select-all) — the browser's native ::selection
+   highlight skips leaf nodes (they hold no text), so the keymap's decoration paints the band itself.
+   A divider is a void <hr> (no pseudo-elements), so a box-shadow spreads the selection band around its
+   hairline without shifting layout; an image rings instead. */
+.rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-bg);
+  border-radius: 1px;
+}
+
+.dark .rich-markdown-prose hr.rich-leaf-in-selection {
+  box-shadow: 0 0 0 0.4em var(--selection-dark);
+}
+
+.rich-markdown-prose .rich-leaf-in-selection:has(img) img,
+.rich-markdown-prose img.rich-leaf-in-selection {
+  outline: 2px solid var(--selection-bg);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .rich-markdown-prose table {
   width: 100%;
   border-collapse: collapse;
@@ -321,4 +372,18 @@
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/*
+ * Field variant (modal embed): match the surrounding chip fields' typography exactly —
+ * body at the chip `text-sm` (14px) scale and the placeholder at `--text-muted` (not the
+ * lighter document `--text-subtle`), so the editor reads as one of the form's fields.
+ */
+.rich-markdown-field-prose {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.rich-markdown-field-prose p.is-editor-empty:first-child::before {
+  color: var(--text-muted);
 }

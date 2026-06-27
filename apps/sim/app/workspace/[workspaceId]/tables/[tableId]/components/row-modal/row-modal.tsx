@@ -7,13 +7,13 @@ import { useParams } from 'next/navigation'
 import {
   Checkbox,
   ChipConfirmModal,
+  ChipDatePicker,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  DatePicker,
   Label,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
@@ -238,11 +238,11 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   if (column.type === 'date') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
-        <DatePicker
-          mode='single'
+        <ChipDatePicker
           value={formatValueForInput(value, column.type) || undefined}
-          onChange={(dateStr) => onChange(dateStr)}
+          onChange={onChange}
           placeholder='Select date'
+          fullWidth
         />
       </ChipModalField>
     )

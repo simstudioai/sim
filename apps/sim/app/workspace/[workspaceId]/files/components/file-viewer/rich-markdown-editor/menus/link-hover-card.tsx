@@ -4,7 +4,9 @@ import { getMarkRange } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { Check, Copy, Pencil, Unlink } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { normalizeLinkHref } from '../markdown-fidelity'
+import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton } from './toolbar-button'
 
 interface LinkHoverCardProps {
@@ -45,6 +47,7 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
   const isEditing = draftHref !== null
   const editInputRef = useRef<HTMLInputElement>(null)
   const floatingRef = useRef<HTMLDivElement>(null)
+  const { copied, copy } = useCopyToClipboard()
   const hideTimerRef = useRef<number | undefined>(undefined)
 
   // Keep the card anchored to the hovered link with Floating UI's DOM core (the same primitive the
@@ -119,21 +122,13 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
 
   const commitEdit = () => {
     const range = resolveLinkRange(editor, activeLink)
-    if (range) {
-      const href = normalizeLinkHref((draftHref ?? '').trim())
-      const chain = editor.chain().focus().setTextSelection(range).extendMarkRange('link')
-      if (href) chain.setLink({ href })
-      else chain.unsetLink()
-      chain.run()
-    }
+    if (range) applyLink(editor.chain().focus().setTextSelection(range), draftHref ?? '')
     dismiss()
   }
 
   const removeLink = () => {
     const range = resolveLinkRange(editor, activeLink)
-    if (range) {
-      editor.chain().focus().setTextSelection(range).extendMarkRange('link').unsetLink().run()
-    }
+    if (range) applyLink(editor.chain().focus().setTextSelection(range), '')
     dismiss()
   }
 
@@ -156,24 +151,12 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
     >
       {isEditing ? (
         <>
-          <input
-            ref={editInputRef}
-            aria-label='Link URL'
-            type='text'
-            inputMode='url'
+          <LinkUrlInput
+            inputRef={editInputRef}
             value={draftHref ?? ''}
-            onChange={(event) => setDraftHref(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commitEdit()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                setDraftHref(null)
-              }
-            }}
-            placeholder='Paste or type a link…'
-            className='h-[28px] w-[220px] bg-transparent px-2 text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-subtle)]'
+            onChange={setDraftHref}
+            onCommit={commitEdit}
+            onCancel={() => setDraftHref(null)}
           />
           <ToolbarButton icon={Check} label='Apply link' onClick={commitEdit} />
         </>
@@ -194,7 +177,13 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
               {rawHref}
             </span>
           )}
-          <ToolbarButton icon={Copy} label='Copy link' onClick={() => copyToClipboard(rawHref)} />
+          <ToolbarButton
+            icon={copied ? Check : Copy}
+            label={copied ? 'Copied' : 'Copy link'}
+            onClick={() => {
+              void copy(rawHref)
+            }}
+          />
           {canEdit && <ToolbarButton icon={Pencil} label='Edit link' onClick={startEdit} />}
           {canEdit && <ToolbarButton icon={Unlink} label='Remove link' onClick={removeLink} />}
         </>
@@ -202,8 +191,4 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
     </div>,
     document.body
   )
-}
-
-function copyToClipboard(text: string) {
-  if (text) void navigator.clipboard?.writeText(text).catch(() => {})
 }

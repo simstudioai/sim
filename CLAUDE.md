@@ -469,7 +469,7 @@ New integrations are built in order: **Tools** → **Block** → **Icon** → (o
 
 Two hard rules that the skills assume:
 
-- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry.ts` (alphabetically).
+- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry-maps.ts` — the `BLOCK_REGISTRY` config map and `BLOCK_META_REGISTRY` catalog-meta map (alphabetically). `blocks/registry.ts` holds only the accessor functions (`getBlock`, `getAllBlocks`, …).
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.

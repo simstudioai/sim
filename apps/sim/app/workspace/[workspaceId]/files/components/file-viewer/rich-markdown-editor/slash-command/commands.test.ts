@@ -32,6 +32,16 @@ describe('filterSlashCommands', () => {
   it('returns empty for no match', () => {
     expect(filterSlashCommands('zzz')).toEqual([])
   })
+
+  it('drops the Image command when image insertion is disallowed', () => {
+    expect(filterSlashCommands('', { allowImages: false }).map((c) => c.title)).not.toContain(
+      'Image'
+    )
+    expect(filterSlashCommands('image', { allowImages: false })).toEqual([])
+    expect(filterSlashCommands('image', { allowImages: true }).map((c) => c.title)).toContain(
+      'Image'
+    )
+  })
 })
 
 describe('SLASH_COMMANDS registry', () => {

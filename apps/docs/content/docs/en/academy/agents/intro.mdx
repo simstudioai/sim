@@ -1,0 +1,88 @@
+---
+title: Agents
+description: An AI agent is a Sim workflow that uses Agent blocks — the reasoning engine you shape, parameterize, and compose into intelligent processes.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
+
+<VideoPlaceholder eyebrow="Agents" title="Agents" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-intro-light-with-intro.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+In Sim, you build AI agents as **workflows that use the Agent block**. There's no separate "agent" object to learn — an AI agent *is* a workflow, and the Agent block is where it thinks.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'An agent is a workflow',
+      body: 'You build agents by composing workflows around one or more Agent blocks — the same blocks and connections you already know.',
+    },
+    {
+      title: 'The Agent block is the reasoning engine',
+      body: 'It is a model call you can shape: customize its messages, give it tools to act, and load skills for guidance.',
+    },
+    {
+      title: 'Composition is the design',
+      body: 'Wiring multiple agent calls together is how you compose and design an intelligent process.',
+    },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'Introduction', time: '0:00' },
+    { title: 'A rules-based workflow', time: '0:31' },
+    { title: 'Adding an Agent block', time: '0:41' },
+    { title: 'The agent responds', time: '0:49' },
+    { title: 'Composing with agents', time: '1:07' },
+    { title: 'Building a bigger system', time: '1:16' },
+    { title: 'Scaling up', time: '1:24' },
+  ]}
+/>
+
+</div>
+
+## An agent is a workflow
+
+This is the one idea to hold onto: **an AI agent is a workflow** — one built around the Agent block. Everything you learned about [workflows](/academy/workflows/intro) applies. You don't leave the model; you add reasoning to it.
+
+Here's the shape of it — a workflow built around an Agent block where it thinks:
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
+
+## Inside the Agent block
+
+The Agent block is **a chat with a model, spawned programmatically**. Picture a conversation in ChatGPT or Claude: the block's **Messages** parameter is exactly those messages, except you set them — you decide what instructions, context, and earlier outputs go in. The model reasons over that and returns a result the rest of the workflow can read.
+
+The Agent block is where it *thinks* — the reasoning engine of your agent. You design the blocks *around* it to shape how the agent processes data: what it reads before it reasons, what it does with the result after.
+
+## Tools and skills
+
+Two parameters extend the Agent block, and both fit the chat-box picture:
+
+- **Tools** are the functions and blocks the agent can decide to call while answering — search the web, send an email, run another workflow. They're the tool calls the model makes mid-response.
+- **Skills** are prompt modules the model loads on demand — like a manual it looks up only when a task calls for it, instead of stuffing everything into every prompt.
+
+## Make a workflow agentic
+
+The clearest way to see an agent isn't to build one from nothing — it's to take a **deterministic workflow and let an agent into it**. Replace a fixed rule with an agent that *decides* the path (routing), or *augment* a step with real reasoning — or both. Same workflow, now with judgment in it.
+
+## Composing intelligence
+
+Your ability to compose workflows that make **multiple agent calls** is central to designing intelligent processes. And every agentic workflow you build becomes a building block — your workspace's library of agents composes into larger AI systems.
+
+Start with one Agent block; the platform scales as your ambition does. The most sophisticated systems are just more of these, composed — more agent blocks swapping in, more reasoning, more reach, all from the same model you learned here.
+
+## Related documentation
+
+- [Agents overview](/agents)
+- [Choosing a model](/agents/choosing)
+- [Custom tools](/agents/custom-tools)
+- [MCP](/agents/mcp)
+- [Skills](/agents/skills)

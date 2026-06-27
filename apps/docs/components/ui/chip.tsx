@@ -26,6 +26,9 @@ export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-
 export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
 /** The filled FILL (surface only, no border) — `--surface-5` light / `--surface-4` dark. */
 export const chipFilledFillTokens = 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
+/** The inverse/primary FILL — dark surface + inverse text in light, white + `--bg` text in dark. */
+const chipPrimaryFillTokens =
+  'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
 /** 1px `--border-1` border applied to chip triggers so they read as controls. */
 export const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
 
@@ -34,8 +37,9 @@ export const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
  *
  * @remarks
  * The implicit default variant is the bare pill — transparent, `--surface-active`
- * on hover. `filled` adds the filled surface; `brand` is the green CTA surface
- * (`--brand-accent`) used for the "Get started" link.
+ * on hover. `filled` adds the filled surface; `primary` is the canonical inverse
+ * CTA surface (dark in light mode, white in dark mode) used for the "Get started"
+ * link.
  */
 const chipVariants = cva(
   `group cursor-pointer font-season ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
@@ -44,8 +48,7 @@ const chipVariants = cva(
       variant: {
         default: 'hover:bg-[var(--surface-active)]',
         filled: `${chipFilledFillTokens} hover:bg-[var(--surface-active)]`,
-        brand:
-          'bg-[var(--brand-accent)] text-white hover:bg-[var(--brand-accent-hover)] hover:text-white',
+        primary: `${chipPrimaryFillTokens} hover:bg-[var(--text-body)] dark:hover:bg-[var(--text-secondary)]`,
       },
       fullWidth: { true: 'flex', false: 'inline-flex' },
     },
@@ -66,7 +69,7 @@ interface ChipBaseProps extends VariantProps<typeof chipVariants> {
 }
 
 /**
- * `brand` sets text color on the chip itself — its icon and label inherit via
+ * `primary` sets text color on the chip itself — its icon and label inherit via
  * `currentColor`. The default and `filled` chips use explicit icon
  * (`--text-icon`) and label (`--text-body`) colors.
  */
@@ -76,7 +79,7 @@ function ChipContent({
   rightIcon: RightIcon,
   children,
 }: ChipBaseProps) {
-  const isInverse = variant === 'brand'
+  const isInverse = variant === 'primary'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
   const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
   return (
@@ -121,7 +124,7 @@ interface ChipLinkProps
     ChipBaseProps {}
 
 /**
- * @example <ChipLink href='https://sim.ai' variant='brand'>Get started</ChipLink>
+ * @example <ChipLink href='https://sim.ai' variant='primary'>Get started</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   { className, variant, fullWidth, leftIcon, rightIcon, children, ...props },
