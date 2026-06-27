@@ -1,13 +1,33 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
+  mockWriteWorkspaceFileByPath: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
+  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+}))
+
+vi.mock('@/lib/copilot/request/otel', () => ({
+  withCopilotSpan: (
+    _name: string,
+    _attrs: Record<string, unknown> | undefined,
+    fn: (span: unknown) => Promise<unknown>
+  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: vi.fn() }),
+}))
+
+import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   extractTabularData,
+  maybeWriteOutputToFile,
   normalizeOutputWorkspaceFileName,
   serializeOutputForFile,
   unwrapFunctionExecuteOutput,
 } from '@/lib/copilot/request/tools/files'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 describe('unwrapFunctionExecuteOutput', () => {
   it('unwraps the function_execute envelope { result, stdout }', () => {
@@ -84,6 +104,53 @@ describe('normalizeOutputWorkspaceFileName', () => {
 
   it('still handles normal workspace file output paths', () => {
     expect(normalizeOutputWorkspaceFileName('files/Reports/output.csv')).toBe('output.csv')
+  })
+})
+
+describe('maybeWriteOutputToFile', () => {
+  function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+    return {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+      workspaceId: 'workspace-1',
+      userPermission: 'write',
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockWriteWorkspaceFileByPath.mockResolvedValue({
+      id: 'file-1',
+      name: 'report.csv',
+      vfsPath: 'files/report.csv',
+      mode: 'overwrite',
+    })
+  })
+
+  it('denies a read-only principal without writing the file', async () => {
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
+      buildContext({ userPermission: 'read' })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('requires write access')
+    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+  })
+
+  it('writes the output file for a write principal', async () => {
+    const result = await maybeWriteOutputToFile(
+      FunctionExecute.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
   })
 })
 

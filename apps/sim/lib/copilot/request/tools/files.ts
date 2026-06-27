@@ -6,6 +6,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
+import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -209,6 +210,9 @@ export async function maybeWriteOutputToFile(
 
   const outputFiles = getOutputFileDeclarations(params).filter((file) => !file.sandboxPath)
   if (outputFiles.length === 0) return result
+
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
 
   const outputObject =
     result.output && typeof result.output === 'object' && !Array.isArray(result.output)
