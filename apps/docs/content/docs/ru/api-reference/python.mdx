@@ -7,21 +7,30 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Официальный SDK для Sim позволяет вам выполнять рабочие процессы программно из ваших приложений на Python, используя официальный SDK для Python.
+Официальный SDK для Sim позволяет вам программно выполнять рабочие процессы из ваших приложений на Python, используя официальный SDK для Python.
+
 
 <Callout type="info">
   The Python SDK supports Python 3.8+ with async execution support, automatic rate limiting with exponential backoff, and usage tracking.
 </Callout>
 
+
 ## Установка
+
+
 Установите SDK с помощью pip:
+
 
 ```bash
 pip install simstudio-sdk
 ```
 
-## Быстрый старт
+
+## Бысткое начало
+
+
 Вот простой пример, который поможет вам начать работу:
+
 
 ```python
 from simstudio import SimStudioClient
@@ -40,18 +49,36 @@ except Exception as error:
     print("Workflow execution failed:", error)
 ```
 
+
 ## Справочник API
-### Клиент SimStudio
+
+
+### SimStudioClient
+
+
 #### Конструктор
+
+
 ```python
 SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 ```
 
+
 **Параметры:**
-- `api_key` (строка): Ваш ключ API для Sim- `base_url` (строка, необязательно): Базовый URL для API Sim
+
+- `api_key` (str): Ваш ключ API для Sim
+
+- `base_url` (str, необязательно): Базовый URL для API Sim
+
+
 #### Методы
-##### выполнить рабочий процесс()
+
+
+##### execute_workflow()
+
+
 Выполните рабочий процесс с необязательными входными данными.
+
 
 ```python
 result = client.execute_workflow(
@@ -61,26 +88,53 @@ result = client.execute_workflow(
 )
 ```
 
+
 **Параметры:**
-- `workflow_id` (строка): Идентификатор рабочего процесса для выполнения- `input` (словарь, необязательный параметр): Входные данные для передачи в рабочий процесс.- `timeout` (число с плавающей точкой, необязательный параметр): Время ожидания в секундах (по умолчанию: 30.0)- `stream` (логическое значение, необязательное): Включить потоковую передачу ответов (по умолчанию: False)- `selected_outputs` (список строк, необязательный): Отключает вывод в поток в формате `blockName.attribute` (например, `["agent1.content"]`)- `async_execution` (логическое значение, необязательное): Выполнять асинхронно (по умолчанию: False)
-**Возвращаемые значения:** `WorkflowExecutionResult | AsyncExecutionResult`
 
-Когда выполняется условие `async_execution=True`, функция немедленно возвращается с результатом и данными для повторного запроса. В противном случае, она ждет завершения операции.
+- `workflow_id` (str): ID рабочего процесса, который нужно выполнить
 
-##### получить статус рабочего процесса
-Получите информацию о статусе рабочего процесса (статус развертывания и т.д.).
+- `input` (dict, необязательно): Входные данные для передачи рабочему процессу
+
+- `timeout` (float, необязательно): Время ожидания в секундах (по умолчанию: 30.0)
+
+- `stream` (bool, необязательно): Включить потоковую передачу ответов (по умолчанию: False)
+
+- `selected_outputs` (list[str], необязательно): Блокировать потоковую передачу в формате "имя_блока.атрибут" (например, `["agent1.content"]`)
+
+- `async_execution` (bool, необязательно): Выполнять асинхронно (по умолчанию: False)
+
+
+**Возвращает:** `WorkflowExecutionResult | AsyncExecutionResult`
+
+
+Когда `async_execution=True`, возвращается немедленно с `job_id` и `status_url` для опроса. В противном случае, ожидается завершение.
+
+
+##### get_workflow_status()
+
+
+Получить статус рабочего процесса (статус развертывания и т.д.).
+
 
 ```python
 status = client.get_workflow_status("workflow-id")
 print("Is deployed:", status.is_deployed)
 ```
 
-**Параметры:**
-- `workflow_id` (строка): Идентификатор рабочего процесса
-**Возвращаемые значения:** `WorkflowStatus`
 
-##### проверить рабочий процесс()
-Убедитесь, что рабочий процесс готов к выполнению.
+**Параметры:**
+
+- `workflow_id` (str): ID рабочего процесса
+
+
+**Возвращает:** `WorkflowStatus`
+
+
+##### validate_workflow()
+
+
+Проверить, готов ли рабочий процесс к выполнению.
+
 
 ```python
 is_ready = client.validate_workflow("workflow-id")
@@ -89,12 +143,20 @@ if is_ready:
     pass
 ```
 
-**Параметры:**
-- `workflow_id` (строка): Идентификатор рабочего процесса
-**Возвращаемые значения:** `bool`
 
-##### получить статус работы
-Получите статус выполнения асинхронной задачи.
+**Параметры:**
+
+- `workflow_id` (str): ID рабочего процесса
+
+
+**Возвращает:** `bool`
+
+
+##### get_job_status()
+
+
+Получить статус асинхронного выполнения задания.
+
 
 ```python
 status = client.get_job_status("job-id-from-async-execution")
@@ -103,14 +165,37 @@ if status["status"] == "completed":
     print("Output:", status["output"])
 ```
 
+
 **Параметры:**
-- `task_id` (строка): Идентификатор задачи, возвращаемый после асинхронного выполнения.
-**Возвращаемые значения:** `Dict[str, Any]`
+
+- `task_id` (str): ID задания, возвращенный из асинхронного выполнения
+
+
+**Возвращает:** `Dict[str, Any]`
+
 
 **Поля ответа:**
-- `success` (логическое значение): Указывает, был ли запрос успешным.- `taskId` (строка): Идентификатор задачи- `status` (строка): Один из `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`- `metadata` (словарь): Содержит `startedAt`, `completedAt` и `duration`.- `output` (любой, необязательный): Результат выполнения рабочего процесса (после завершения)- `error` (любой, необязательный): Подробности об ошибке (в случае неудачи)- `estimatedDuration` (целое число, необязательный параметр): Ориентировочная продолжительность в миллисекундах (при обработке или добавлении в очередь).
-##### Выполнить с повторной попыткой
-Запустите рабочий процесс с автоматической повторной попыткой при возникновении ошибок, связанных с ограничением скорости, используя экспоненциальное уменьшение задержки.
+
+- `success` (bool): Указывает, был ли запрос успешным
+
+- `taskId` (str): ID задания
+
+- `status` (str): Один из `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
+
+- `metadata` (dict): Содержит `startedAt`, `completedAt`, и `duration`
+
+- `output` (any, необязательно): Выход рабочего процесса (при завершении)
+
+- `error` (any, необязательно): Детали ошибки (при неудаче)
+
+- `estimatedDuration` (int, необязательно): Оценочное время выполнения в миллисекундах (при обработке/очередях)
+
+
+##### execute_with_retry()
+
+
+Выполните рабочий процесс с автоматическим повтором при ошибках, связанных с лимитом скорости, используя экспоненциальное обратное отсчет.
+
 
 ```python
 result = client.execute_with_retry(
@@ -124,14 +209,41 @@ result = client.execute_with_retry(
 )
 ```
 
+
 **Параметры:**
-- `workflow_id` (строка): Идентификатор рабочего процесса для выполнения.- `input` (словарь, необязательный параметр): Входные данные для передачи в рабочий процесс.- `timeout` (число с плавающей точкой, необязательный параметр): Время ожидания в секундах.- `stream` (логическое значение, необязательный параметр): Включить потоковую передачу ответов.- `selected_outputs` (список, необязательный параметр): Отключает вывод в поток.- `async_execution` (логическое значение, необязательный параметр): Выполнять асинхронно- `max_retries` (целое число, необязательный параметр): Максимальное количество повторных попыток (по умолчанию: 3)- `initial_delay` (число с плавающей точкой, необязательный параметр): Начальная задержка в секундах (по умолчанию: 1.0)- `max_delay` (число с плавающей точкой, необязательный параметр): Максимальная задержка в секундах (по умолчанию: 30.0)- `backoff_multiplier` (число с плавающей точкой, необязательный параметр): Множитель для повторных попыток (по умолчанию: 2.0)
-**Возвращаемые значения:** `WorkflowExecutionResult | AsyncExecutionResult`
 
-Логика повторных попыток использует экспоненциальное уменьшение задержки (1с → 2с → 4с → 8с...) с отклонением ±25%, чтобы предотвратить ситуацию, когда одновременно отправляется большое количество запросов. Если API предоставляет заголовок `retry-after`, он будет использован вместо этого.
+- `workflow_id` (str): ID рабочего процесса, который нужно выполнить
 
-##### получить информацию о лимитах использования
-Получите информацию о текущем ограничении использования API из последнего ответа API.
+- `input` (dict, необязательно): Входные данные для передачи рабочему процессу
+
+- `timeout` (float, необязательно): Время ожидания в секундах
+
+- `stream` (bool, необязательно): Включить потоковую передачу ответов
+
+- `selected_outputs` (list, необязательно): Блокировать потоковую передачу
+
+- `async_execution` (bool, необязательно): Выполнять асинхронно
+
+- `max_retries` (int, необязательно): Максимальное количество повторов (по умолчанию: 3)
+
+- `initial_delay` (float, необязательно): Начальная задержка в секундах (по умолчанию: 1.0)
+
+- `max_delay` (float, необязательно): Максимальная задержка в секундах (по умолчанию: 30.0)
+
+- `backoff_multiplier` (float, необязательно): Множитель обратного отсчета (по умолчанию: 2.0)
+
+
+**Возвращает:** `WorkflowExecutionResult | AsyncExecutionResult`
+
+
+Логика повтора использует экспоненциальный обратный отсчет (1с → 2с → 4с → 8с...) с ±25% задержкой, чтобы избежать "толпы". Если API предоставляет заголовок `retry-after`, он будет использоваться вместо этого.
+
+
+##### get_rate_limit_info()
+
+
+Получить текущую информацию о лимите скорости из последнего ответа API.
+
 
 ```python
 rate_limit_info = client.get_rate_limit_info()
@@ -141,10 +253,15 @@ if rate_limit_info:
     print("Reset:", datetime.fromtimestamp(rate_limit_info.reset))
 ```
 
-**Возвращаемые значения:** `RateLimitInfo | None`
 
-##### получить лимиты использования
-Узнайте текущие ограничения и информацию о лимитах для вашего аккаунта.
+**Возвращает:** `RateLimitInfo | None`
+
+
+##### get_usage_limits()
+
+
+Получить текущие пределы использования и информацию о квоте для вашей учетной записи.
+
 
 ```python
 limits = client.get_usage_limits()
@@ -154,9 +271,12 @@ print("Current period cost:", limits.usage["currentPeriodCost"])
 print("Plan:", limits.usage["plan"])
 ```
 
-**Возвращаемые значения:** `UsageLimits`
+
+**Возвращает:** `UsageLimits`
+
 
 **Структура ответа:**
+
 ```python
 {
     "success": bool,
@@ -183,29 +303,46 @@ print("Plan:", limits.usage["plan"])
 }
 ```
 
-##### установить ключ API()
-Обновите ключ API.
+
+##### set_api_key()
+
+
+Обновить ключ API.
+
 
 ```python
 client.set_api_key("new-api-key")
 ```
 
-##### установить базовый URL
-Обновите базовый URL.
+
+##### set_base_url()
+
+
+Обновить базовый URL.
+
 
 ```python
 client.set_base_url("https://my-custom-domain.com")
 ```
 
-##### закрыть()
-Завершить текущую сессию HTTP.
+
+##### close()
+
+
+Закрыть сессию HTTP.
+
 
 ```python
 client.close()
 ```
 
-## Классы данных
-### Результат выполнения рабочего процесса
+
+## Данные классы
+
+
+### WorkflowExecutionResult
+
+
 ```python
 @dataclass
 class WorkflowExecutionResult:
@@ -218,7 +355,10 @@ class WorkflowExecutionResult:
     total_duration: Optional[float] = None
 ```
 
-### Результат асинхронного выполнения
+
+### AsyncExecutionResult
+
+
 ```python
 @dataclass
 class AsyncExecutionResult:
@@ -230,7 +370,10 @@ class AsyncExecutionResult:
     async_execution: bool = True
 ```
 
-### Статус рабочего процесса
+
+### WorkflowStatus
+
+
 ```python
 @dataclass
 class WorkflowStatus:
@@ -239,7 +382,10 @@ class WorkflowStatus:
     needs_redeployment: bool = False
 ```
 
-### Информация о лимите скорости
+
+### RateLimitInfo
+
+
 ```python
 @dataclass
 class RateLimitInfo:
@@ -249,7 +395,10 @@ class RateLimitInfo:
     retry_after: Optional[int] = None
 ```
 
-### Ограничения использования
+
+### UsageLimits
+
+
 ```python
 @dataclass
 class UsageLimits:
@@ -258,7 +407,10 @@ class UsageLimits:
     usage: Dict[str, Any]
 ```
 
-### Ошибка SimStudio
+
+### SimStudioError
+
+
 ```python
 class SimStudioError(Exception):
     def __init__(self, message: str, code: Optional[str] = None, status: Optional[int] = None):
@@ -267,10 +419,26 @@ class SimStudioError(Exception):
         self.status = status
 ```
 
-**Наиболее распространенные коды ошибок:**
-- `UNAUTHORIZED`: Неверный ключ API- `TIMEOUT`: Запрос не был выполнен в течение установленного времени.- `RATE_LIMIT_EXCEEDED`: Превышен лимит запросов.- `USAGE_LIMIT_EXCEEDED`: Превышен лимит использования.- `EXECUTION_ERROR`: Не удалось выполнить рабочий процесс.
+
+**Общие коды ошибок:**
+
+- `UNAUTHORIZED`: Неверный ключ API
+
+- `TIMEOUT`: Запрос истек
+
+- `RATE_LIMIT_EXCEEDED`: Превышен лимит скорости
+
+- `USAGE_LIMIT_EXCEEDED`: Превышена квота использования
+
+- `EXECUTION_ERROR`: Ошибка выполнения рабочего процесса
+
+
 ## Примеры
-### Основная схема выполнения задач
+
+
+### Базовое выполнение рабочего процесса
+
+
 <Steps>
   <Step title="Initialize the client">
     Set up the SimStudioClient with your API key.
@@ -285,6 +453,7 @@ class SimStudioError(Exception):
     Process the execution result and handle any errors.
   </Step>
 </Steps>
+
 
 ```python
 import os
@@ -320,8 +489,12 @@ def run_workflow():
 run_workflow()
 ```
 
+
 ### Обработка ошибок
-Обрабатывать различные типы ошибок, которые могут возникнуть во время выполнения рабочего процесса:
+
+
+Обрабатывайте различные типы ошибок, которые могут возникнуть при выполнении рабочих процессов:
+
 
 ```python
 from simstudio import SimStudioClient, SimStudioError
@@ -350,8 +523,12 @@ def execute_with_error_handling():
         raise
 ```
 
-### Использование Context Manager
-Используйте клиент как менеджер контекста для автоматической обработки освобождения ресурсов.
+
+### Использование контекстного менеджера
+
+
+Используйте клиент как контекстный менеджер для автоматической очистки ресурсов:
+
 
 ```python
 from simstudio import SimStudioClient
@@ -364,8 +541,12 @@ with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
 # Session is automatically closed here
 ```
 
-### Выполнение задач в пакетном режиме
+
+### Выполнение нескольких рабочих процессов
+
+
 Эффективно выполняйте несколько рабочих процессов:
+
 
 ```python
 from simstudio import SimStudioClient
@@ -412,8 +593,12 @@ for result in results:
     print(f"Workflow {result['workflow_id']}: {'Success' if result['success'] else 'Failed'}")
 ```
 
-### Асинхронное выполнение рабочих процессов
-Выполняйте рабочие процессы асинхронно для задач, требующих длительного времени выполнения:
+
+### Асинхронное выполнение рабочего процесса
+
+
+Выполняйте рабочие процессы асинхронно для длительных задач:
+
 
 ```python
 import os
@@ -457,8 +642,12 @@ def execute_async():
 execute_async()
 ```
 
-### Ограничение скорости и повторные попытки
-Автоматически обрабатывайте ограничения скорости с помощью экспоненциального повторного запроса.
+
+### Обработка лимитов скорости и повторов
+
+
+Автоматически обрабатывайте ограничения скорости с помощью экспоненциального обратного отсчета:
+
 
 ```python
 import os
@@ -493,8 +682,12 @@ def execute_with_retry_handling():
 execute_with_retry_handling()
 ```
 
+
 ### Мониторинг использования
-Отслеживайте использование и лимиты вашего аккаунта:
+
+
+Отслеживайте использование и квоты вашей учетной записи:
+
 
 ```python
 import os
@@ -536,8 +729,12 @@ def check_usage():
 check_usage()
 ```
 
-### Выполнение рабочего процесса потокового видео
-Выполняйте рабочие процессы с мгновенными откликами в режиме реального времени:
+
+### Выполнение рабочего процесса со потоковой передачей
+
+
+Выполняйте рабочие процессы с потоковой передачей ответов в формате Server-Sent Events (SSE):
+
 
 ```python
 from simstudio import SimStudioClient
@@ -563,7 +760,9 @@ def execute_with_streaming():
 execute_with_streaming()
 ```
 
-Ответ при потоковой передаче соответствует формату Server-Sent Events (SSE):
+
+**Пример Flask для потоковой передачи:**
+
 
 ```
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
@@ -575,7 +774,9 @@ data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 data: [DONE]
 ```
 
-**Пример использования Flask для потоковой передачи данных:**
+
+### Конфигурация среды
+
 
 ```python
 from flask import Flask, Response, stream_with_context
@@ -632,8 +833,12 @@ if __name__ == '__main__':
     app.run(debug=True)
 ```
 
-### Настройка окружения
-Настройте клиента с помощью переменных окружения:
+
+Настройте клиент, используя переменные окружения:
+
+
+## Получение ключа API
+
 
 <Tabs items={['Development', 'Production']}>
   <Tab value="Development">
@@ -666,7 +871,10 @@ if __name__ == '__main__':
   </Tab>
 </Tabs>
 
-## Получение вашего ключа API
+
+## Требования
+
+
 <Steps>
   <Step title="Log in to Sim">
     Navigate to [Sim](https://sim.ai) and log in to your account.
@@ -685,10 +893,20 @@ if __name__ == '__main__':
   </Step>
 </Steps>
 
-## Требования
-- Python 3.8+- requests >= 2.25.0
-## License
+
+- Python 3.8+
+
+
+- requests >= 2.25.0
+
+## Лицензия
+
+
 Apache-2.0
+
+
+Apache-2.0
+
 
 import { FAQ } from '@/components/ui/faq'
 
