@@ -52,6 +52,7 @@ import { DeploymentsBlock } from '@/blocks/blocks/deployments'
 import { DevinBlock, DevinBlockMeta } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordBlockMeta } from '@/blocks/blocks/discord'
 import { DocuSignBlock, DocuSignBlockMeta } from '@/blocks/blocks/docusign'
+import { DowndetectorBlock, DowndetectorBlockMeta } from '@/blocks/blocks/downdetector'
 import { DropboxBlock, DropboxBlockMeta } from '@/blocks/blocks/dropbox'
 import { DropcontactBlock, DropcontactBlockMeta } from '@/blocks/blocks/dropcontact'
 import { DSPyBlock, DSPyBlockMeta } from '@/blocks/blocks/dspy'
@@ -393,6 +394,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   devin: DevinBlock,
   discord: DiscordBlock,
   docusign: DocuSignBlock,
+  downdetector: DowndetectorBlock,
   dropbox: DropboxBlock,
   dropcontact: DropcontactBlock,
   dspy: DSPyBlock,
@@ -699,6 +701,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   devin: DevinBlockMeta,
   discord: DiscordBlockMeta,
   docusign: DocuSignBlockMeta,
+  downdetector: DowndetectorBlockMeta,
   dropbox: DropboxBlockMeta,
   dropcontact: DropcontactBlockMeta,
   dspy: DSPyBlockMeta,
