@@ -24,7 +24,7 @@ Read **every** file for the integration — do not skip any:
 apps/sim/tools/{service}/          # All tool files, types.ts, index.ts
 apps/sim/blocks/blocks/{service}.ts # Block definition
 apps/sim/tools/registry.ts          # Tool registry entries for this service
-apps/sim/blocks/registry.ts         # Block registry entry for this service
+apps/sim/blocks/registry-maps.ts    # Block + meta registry entry (BLOCK_REGISTRY / BLOCK_META_REGISTRY)
 apps/sim/components/icons.tsx        # Icon definition
 apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
@@ -190,7 +190,7 @@ For **each tool** in `tools.access`:
 - [ ] `bgColor` uses the service's brand color hex
 - [ ] `icon` references the correct icon component from `@/components/icons`
 - [ ] `authMode` is set correctly (`AuthMode.OAuth` or `AuthMode.ApiKey`)
-- [ ] Block is registered in `blocks/registry.ts` alphabetically
+- [ ] Block + meta are registered in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`) alphabetically
 
 ### BlockMeta
 - [ ] `{Service}BlockMeta` is exported in the same file as the block

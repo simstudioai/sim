@@ -16,6 +16,7 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
+import { TableBlock } from '@/blocks/blocks/table'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -46,6 +47,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,
+  table: TableBlock,
   variables: VariablesBlock,
   workflow: WorkflowBlock,
 }
