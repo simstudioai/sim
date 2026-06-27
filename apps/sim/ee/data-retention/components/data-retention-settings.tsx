@@ -11,10 +11,6 @@ import {
   Chip,
   ChipDropdown,
   ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
   ChipSelect,
   ChipSwitch,
   ChipTag,
@@ -33,9 +29,12 @@ import {
   SUPPORTED_PII_ENTITIES,
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
@@ -320,7 +319,6 @@ function PolicyDetail({
   const description = isOrg
     ? 'Applied to every workspace without its own override.'
     : 'Overrides the organization defaults for the selected workspaces.'
-  const saveDisabled = isSaving || (!isOrg && draft.workspaceIds.length === 0)
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -329,16 +327,13 @@ function PolicyDetail({
           Data retention
         </Chip>
         <div className='flex items-center gap-1'>
-          {changed && (
-            <>
-              <Chip onClick={onDiscard} disabled={isSaving}>
-                Discard
-              </Chip>
-              <Chip variant='primary' onClick={onSave} disabled={saveDisabled}>
-                {isSaving ? 'Saving...' : 'Save'}
-              </Chip>
-            </>
-          )}
+          <SaveDiscardActions
+            dirty={changed}
+            saving={isSaving}
+            onSave={onSave}
+            onDiscard={onDiscard}
+            saveDisabled={!isOrg && draft.workspaceIds.length === 0}
+          />
           {canRemove && (
             <Chip variant='destructive' onClick={onRemove} disabled={isSaving}>
               Remove override
@@ -474,7 +469,6 @@ export function DataRetentionSettings() {
   const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>([])
   const [overrides, setOverrides] = useState<RetentionOverride[]>([])
   const [editing, setEditing] = useState<EditingPolicy | null>(null)
-  const [showUnsaved, setShowUnsaved] = useState(false)
   const hydratedOrgRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -511,6 +505,7 @@ export function DataRetentionSettings() {
   const editingChanged =
     editing !== null &&
     normalizePolicyDraft(editing.draft) !== normalizePolicyDraft(editing.original)
+  const guard = useSettingsUnsavedGuard({ isDirty: editingChanged })
 
   const overrideWorkspaceIds = Array.from(
     new Set([
@@ -657,15 +652,6 @@ export function DataRetentionSettings() {
 
   function closeEditing() {
     setEditing(null)
-    setShowUnsaved(false)
-  }
-
-  function requestBack() {
-    if (editingChanged) {
-      setShowUnsaved(true)
-    } else {
-      closeEditing()
-    }
   }
 
   function handleDiscard() {
@@ -787,7 +773,7 @@ export function DataRetentionSettings() {
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
           workspaceOptions={workspacePickerOptions(editing.draft)}
           onChange={(draft) => setEditing({ ...editing, draft })}
-          onBack={requestBack}
+          onBack={() => guard.guardBack(closeEditing)}
           onDiscard={handleDiscard}
           onSave={savePolicy}
           onRemove={removeCurrentOverride}
@@ -854,29 +840,11 @@ export function DataRetentionSettings() {
           </SettingsSection>
         </SettingsPanel>
       )}
-      <ChipModal
-        open={showUnsaved}
-        onOpenChange={setShowUnsaved}
-        size='sm'
-        srTitle='Unsaved changes'
-      >
-        <ChipModalHeader onClose={() => setShowUnsaved(false)}>Unsaved changes</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-muted)] text-small'>
-            You have unsaved changes. Save them before closing?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowUnsaved(false)}
-          cancelDisabled={updateMutation.isPending}
-          secondaryActions={[{ label: 'Discard', onClick: closeEditing, variant: 'destructive' }]}
-          primaryAction={{
-            label: updateMutation.isPending ? 'Saving...' : 'Save',
-            onClick: savePolicy,
-            disabled: updateMutation.isPending,
-          }}
-        />
-      </ChipModal>
+      <UnsavedChangesModal
+        open={guard.showUnsavedModal}
+        onOpenChange={guard.setShowUnsavedModal}
+        onDiscard={guard.confirmDiscard}
+      />
     </>
   )
 }

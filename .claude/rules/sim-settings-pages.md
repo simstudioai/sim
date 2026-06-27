@@ -101,6 +101,46 @@ Adding a new settings page:
   Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
   hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
 
+## Save / Discard + unsaved-changes guard
+
+Any settings surface with editable state uses **one** shared stack — never
+hand-roll a Save button, a Discard button, a `beforeunload`, or an "Unsaved
+changes" modal:
+
+- **`SaveDiscardActions`** (`…/components/save-discard-actions/save-discard-actions`)
+  — the canonical dirty-gated **Discard + Save** chip pair. Renders nothing when
+  `!dirty`; otherwise a fragment so it composes beside sibling chips (a detail
+  view's Delete / Remove override, a Share chip). Props: `dirty`, `saving`,
+  `onSave`, `onDiscard`, `saveDisabled?`, `saveLabel?`, `savingLabel?`. Put it in
+  the `SettingsPanel actions` slot (top-level pages) or the detail header bar.
+- **`useSettingsUnsavedGuard({ isDirty })`** (`…/settings/hooks/use-settings-unsaved-guard`)
+  — syncs the page's local `isDirty` into the shared `useSettingsDirtyStore` (so
+  the sidebar's **section-switch** confirm + the centralized `beforeunload` both
+  apply for free) and returns `{ showUnsavedModal, setShowUnsavedModal, guardBack,
+  confirmDiscard }` for a detail view's **in-view back** chip.
+  - **Top-level pages** (whitelabeling, sso): call it **unassigned** —
+    `useSettingsUnsavedGuard({ isDirty: hasChanges })` — they only need the
+    store-sync; the sidebar/`beforeunload` do the rest.
+  - **Detail sub-views** (data-retention, access-control group-detail): route the
+    back chip through `onClick={() => guard.guardBack(closeFn)}` and render the
+    shared `<UnsavedChangesModal open={guard.showUnsavedModal}
+    onOpenChange={guard.setShowUnsavedModal} onDiscard={guard.confirmDiscard} />`
+    (from `@/app/workspace/[workspaceId]/components/credential-detail`). The
+    in-view header **Discard** chip (via `SaveDiscardActions onDiscard`) is a
+    *reset to original* — distinct from the back-confirm's discard, which leaves.
+- **`useSettingsBeforeUnload`** is mounted **once** in the settings shell
+  (`settings/[section]/settings.tsx`) — never add a per-page `beforeunload`.
+- **Dirty *computation* stays local** (shapes differ: field-compare vs
+  normalize+stringify) — only how dirty is *consumed* is shared. Derive it (a
+  `const`/`useMemo`), never store it in `useState`.
+- **CRITICAL — rules of hooks:** call `useSettingsUnsavedGuard(...)`
+  **unconditionally, before every early-return gate** (entitlement / loading /
+  not-entitled `return <SettingsEmptyState>`). A hook placed after a gate is
+  skipped on gated renders and crashes.
+- The route-based credential detail keeps its own `useUnsavedChangesGuard` (it
+  guards real `router.push` navigation + browser Back via a history sentinel);
+  it already shares `UnsavedChangesModal`, so copy stays unified.
+
 ## Detail sub-views (the one exception)
 
 A drill-down view reached from a list row (selected MCP server, workflow MCP
@@ -119,5 +159,6 @@ A settings page is design-system-clean when:
 - [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
 - [ ] Its `NavigationItem` has an accurate, consistent-length `description`.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
+- [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration.
 - [ ] `tsc`, `biome`, and the page's tests pass.

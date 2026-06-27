@@ -29,12 +29,15 @@ import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { cn } from '@/lib/core/utils/cn'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   MemberAvatar,
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
@@ -603,7 +606,6 @@ export function GroupDetail({
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
 
   const { data: members = [], isPending: membersLoading } = usePermissionGroupMembers(
     organizationId,
@@ -823,6 +825,7 @@ export function GroupDetail({
   const hasConfigChanges = useMemo(() => {
     return JSON.stringify(viewingGroup.config) !== JSON.stringify(editingConfig)
   }, [viewingGroup.config, editingConfig])
+  const guard = useSettingsUnsavedGuard({ isDirty: hasConfigChanges })
 
   const filteredProviders = useMemo(() => {
     if (!providerSearchTerm.trim()) return allProviderIds
@@ -1096,8 +1099,8 @@ export function GroupDetail({
     }))
   }, [])
 
-  /** Persists the editing buffer. Returns whether the save succeeded so callers can decide whether to navigate away. */
-  const handleSaveConfig = useCallback(async (): Promise<boolean> => {
+  /** Persists the editing buffer. */
+  const handleSaveConfig = useCallback(async () => {
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
@@ -1105,13 +1108,11 @@ export function GroupDetail({
         config: editingConfig,
       })
       setViewingGroup((prev) => ({ ...prev, config: editingConfig }))
-      return true
     } catch (error) {
       logger.error('Failed to update config', error)
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
-      return false
     }
   }, [viewingGroup.id, editingConfig, organizationId, updatePermissionGroup])
 
@@ -1120,12 +1121,8 @@ export function GroupDetail({
   }, [viewingGroup.config])
 
   const handleBack = useCallback(() => {
-    if (hasConfigChanges) {
-      setShowUnsavedChanges(true)
-      return
-    }
-    onBack()
-  }, [hasConfigChanges, onBack])
+    guard.guardBack(onBack)
+  }, [guard.guardBack, onBack])
 
   const handleScopeChange = useCallback(
     async (workspaceIds: string[]) => {
@@ -1270,20 +1267,12 @@ export function GroupDetail({
             Access Control
           </Chip>
           <div className='flex items-center gap-1'>
-            {hasConfigChanges && (
-              <>
-                <Chip onClick={handleDiscardConfig} disabled={updatePermissionGroup.isPending}>
-                  Discard
-                </Chip>
-                <Chip
-                  variant='primary'
-                  onClick={handleSaveConfig}
-                  disabled={updatePermissionGroup.isPending}
-                >
-                  {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
-                </Chip>
-              </>
-            )}
+            <SaveDiscardActions
+              dirty={hasConfigChanges}
+              saving={updatePermissionGroup.isPending}
+              onSave={handleSaveConfig}
+              onDiscard={handleDiscardConfig}
+            />
             <Chip
               variant='destructive'
               onClick={() => setShowDeleteConfirm(true)}
@@ -1689,45 +1678,11 @@ export function GroupDetail({
         }}
       />
 
-      <ChipModal
-        open={showUnsavedChanges}
-        onOpenChange={setShowUnsavedChanges}
-        size='sm'
-        srTitle='Unsaved Changes'
-      >
-        <ChipModalHeader onClose={() => setShowUnsavedChanges(false)}>
-          Unsaved Changes
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Do you want to save them before leaving?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowUnsavedChanges(false)}
-          secondaryActions={[
-            {
-              label: 'Discard Changes',
-              onClick: () => {
-                setShowUnsavedChanges(false)
-                onBack()
-              },
-              variant: 'destructive',
-            },
-          ]}
-          primaryAction={{
-            label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
-            onClick: async () => {
-              const saved = await handleSaveConfig()
-              if (saved) {
-                setShowUnsavedChanges(false)
-                onBack()
-              }
-            },
-            disabled: updatePermissionGroup.isPending,
-          }}
-        />
-      </ChipModal>
+      <UnsavedChangesModal
+        open={guard.showUnsavedModal}
+        onOpenChange={guard.setShowUnsavedModal}
+        onDiscard={guard.confirmDiscard}
+      />
     </>
   )
 }
