@@ -1,38 +1,33 @@
 ---
 title: Представители
-description: AI-агент – это рабочий процесс Sim, который использует блоки "Агент" – движок рассуждений, над которым вы определяете параметры и создаете интеллектуальные процессы.
+description: AI-агент – это рабочий процесс Sim, который использует блоки "Агент" – движок рассуждений, который вы формируете, параметризуете и объединяете для создания интеллектуальных процессов.
 ---
 
-import { VideoPlaceholder } from "@/components/ui/video-placeholder";
-import { WhatYouWillLearn } from "@/components/ui/what-you-will-learn";
-import { VideoChapters } from "@/components/ui/video-chapters";
-import { WorkflowPreview, CLASSIFY_WORKFLOW } from "@/components/workflow-preview";
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder
-  eyebrow="Agents"
-  title="Agents"
-  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-intro-light-with-intro.mp4"
-  className="mt-2"
-/>
+<VideoPlaceholder eyebrow="Agents" title="Agents" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/agents-intro-light-with-intro.mp4" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-В Sim вы создаете ИИ-агентов в виде **рабочих процессов**, которые используют блок «Агент». Нет отдельного объекта «агент», который нужно изучать – ИИ-агент _является_ рабочим процессом, а блок «Агент» отвечает за его работу.
+В Sim вы создаете ИИ-агентов в виде **рабочих процессов**, которые используют блок «Агент». Нет отдельного объекта «агент», который нужно изучать – ИИ-агент *является* рабочим процессом, а блок «Агент» отвечает за его функционирование.
 
 <WhatYouWillLearn
   items={[
     {
-      title: "An agent is a workflow",
-      body: "You build agents by composing workflows around one or more Agent blocks — the same blocks and connections you already know.",
+      title: 'An agent is a workflow',
+      body: 'You build agents by composing workflows around one or more Agent blocks — the same blocks and connections you already know.',
     },
     {
-      title: "The Agent block is the reasoning engine",
-      body: "It is a model call you can shape: customize its messages, give it tools to act, and load skills for guidance.",
+      title: 'The Agent block is the reasoning engine',
+      body: 'It is a model call you can shape: customize its messages, give it tools to act, and load skills for guidance.',
     },
     {
-      title: "Composition is the design",
-      body: "Wiring multiple agent calls together is how you compose and design an intelligent process.",
+      title: 'Composition is the design',
+      body: 'Wiring multiple agent calls together is how you compose and design an intelligent process.',
     },
   ]}
 />
@@ -41,48 +36,41 @@ import { WorkflowPreview, CLASSIFY_WORKFLOW } from "@/components/workflow-previe
 
 <VideoChapters
   chapters={[
-    { title: "Introduction", time: "0:00" },
-    { title: "A rules-based workflow", time: "0:31" },
-    { title: "Adding an Agent block", time: "0:41" },
-    { title: "The agent responds", time: "0:49" },
-    { title: "Composing with agents", time: "1:07" },
-    { title: "Building a bigger system", time: "1:16" },
-    { title: "Scaling up", time: "1:24" },
+    { title: 'Introduction', time: '0:00' },
+    { title: 'A rules-based workflow', time: '0:31' },
+    { title: 'Adding an Agent block', time: '0:41' },
+    { title: 'The agent responds', time: '0:49' },
+    { title: 'Composing with agents', time: '1:07' },
+    { title: 'Building a bigger system', time: '1:16' },
+    { title: 'Scaling up', time: '1:24' },
   ]}
 />
 
 </div>
 
 ## Агент — это рабочий процесс.
-
 Это одна ключевая идея, на которую стоит обратить внимание: **AI-агент – это рабочий процесс**, который строится вокруг блока "Агент". Все, что вы узнали о…[рабочие процессы](/academy/workflows/intro)рабочие процессы/курсы/рабочие процессы /введениеприменяется. Вы не изменяете модель, а добавляете к ней логику рассуждений.
 
-Вот как это выглядит: рабочий процесс, построенный вокруг блока "Агент", который выполняет определенные действия.
+Вот как это выглядит: рабочий процесс, построенный вокруг блока "Агент", который принимает решения.
 
 <WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
 
 ## Внутри блока «Agent»
-
 Блок "Агент" представляет собой **чат с моделью, который создается программно**. Представьте себе разговор в ChatGPT или Claude: параметр "**Сообщения**" этого блока содержит именно эти сообщения, но вы определяете, какие инструкции, контекст и предыдущие результаты включаются. Модель анализирует эту информацию и возвращает результат, который может обработать остальная часть рабочего процесса.
 
 Блок "Агент" – это место, где происходит «мыслительная» деятельность агента – его движок рассуждений. Вы проектируете блоки вокруг него, чтобы определить, как агент обрабатывает данные: что он читает перед тем, как делать выводы, и что он делает с полученными результатами.
 
 ## Инструменты и навыки
-
 Два параметра расширяют блок "Agent", и оба соответствуют изображению чата:
 
-- **Инструменты** – это функции и блоки, которые агент может выбрать для использования при ответе на вопрос: поиск в интернете, отправка электронного письма, запуск другого рабочего процесса. Это те вызовы инструментов, которые делает модель во время ответа.- **Навыки** – это модули, которые модель загружает по мере необходимости – подобно инструкции, она использует их только тогда, когда это требуется для выполнения задачи, вместо того чтобы включать все в каждый запрос.
-
-## Создайте автоматизированный рабочий процесс.
-
-Самый простой способ реализовать агента – не создавать его с нуля, а использовать **определённый рабочий процесс** и добавить в него агента. Заменить фиксированное правило на агента, который _принимает решение_ о маршрутизации, или _дополнить_ шаг реальным рассуждением – или то, и другое. То же самое рабочее пространство, но теперь с возможностью принятия решений.
+- **Инструменты** – это функции и блоки, которые агент может выбрать для использования при ответе на вопрос: поиск в интернете, отправка электронной почты, запуск другого рабочего процесса. Это те вызовы инструментов, которые делает модель во время ответа.- **Навыки** – это модули, которые модель загружает по мере необходимости – подобно инструкции, она использует их только тогда, когда это требуется для выполнения задачи, вместо того чтобы включать все в каждый запрос.
+## Создайте агента для автоматизации рабочих процессов.
+Самый простой способ реализовать агента – не создавать его с нуля, а использовать **определённый рабочий процесс** и добавить в него агента. Заменить фиксированное правило на агента, который *принимает решение* о маршрутизации, или *дополнить* шаг реальным рассуждением – или то, и другое. То же самое рабочее пространство, но теперь с возможностью принятия решений.
 
 ## Создание интеллектуальных систем
-
 Ваша способность создавать рабочие процессы, которые позволяют проводить **несколько вызовов для агентов**, является ключевым фактором при разработке интеллектуальных процессов. И каждый созданный вами рабочий процесс становится строительным блоком – библиотека агентов в вашем рабочем пространстве объединяется для создания более сложных систем искусственного интеллекта.
 
 Начните с одного блока "Агента"; платформа масштабируется вместе с вашими амбициями. Самые сложные системы – это просто больше таких блоков, состоящих из дополнительных агентов, более сложного рассуждения и расширенного охвата, все это на той же модели, которую вы изучили здесь.
 
 ## Связанная документация
-
 - [Обзор агентов](/agents)- [Выбор модели](/agents/choosing)- [Индивидуальные инструменты](/agents/custom-tools)- [MCP](/agents/mcp)- [Навыки](/agents/skills)

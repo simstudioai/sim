@@ -305,7 +305,7 @@ def main():
         rp.write_text(res, "utf-8")
         return (f, len(c), len(res), None)
 
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         futures = {ex.submit(process_one, f): f for f in files}
         for fut in as_completed(futures):
             f, enc, resc, err = fut.result()
