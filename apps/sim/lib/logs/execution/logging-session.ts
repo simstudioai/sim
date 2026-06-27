@@ -193,9 +193,12 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Persist the last-started-block marker. Redis is the primary path when the
+   * flag is on; falls back to the durable jsonb_set UPDATE when Redis is
+   * unavailable or the write fails, so a marker is never dropped.
+   */
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
-    // Redis is the primary path when enabled; fall back to the durable SQL write
-    // when Redis is unavailable or the write fails, so a marker is never dropped.
     if (this.useRedisMarkers && (await setLastStartedBlock(this.executionId, marker))) {
       return
     }
@@ -216,9 +219,12 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Persist the last-completed-block marker. Redis is the primary path when the
+   * flag is on; falls back to the durable jsonb_set UPDATE when Redis is
+   * unavailable or the write fails, so a marker is never dropped.
+   */
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
-    // Redis is the primary path when enabled; fall back to the durable SQL write
-    // when Redis is unavailable or the write fails, so a marker is never dropped.
     if (this.useRedisMarkers && (await setLastCompletedBlock(this.executionId, marker))) {
       return
     }
@@ -1022,6 +1028,13 @@ export class LoggingSession {
     )
   }
 
+  /**
+   * Force-fail terminal boundary that bypasses completeWorkflowExecution. Folds
+   * any live Redis progress markers into execution_data before clearing the key,
+   * so a run whose markers only ever lived in Redis still keeps its
+   * last-started/last-completed breadcrumb. Both the fold and clear are no-ops
+   * when the standard completion path already persisted and cleared them.
+   */
   static async markExecutionAsFailed(
     executionId: string,
     errorMessage: string | undefined,
@@ -1031,11 +1044,6 @@ export class LoggingSession {
     try {
       const message = errorMessage || 'Run failed'
 
-      // This terminal boundary bypasses completeWorkflowExecution, so fold any
-      // live Redis markers into the row here too — otherwise a run whose markers
-      // only ever lived in Redis would be saved with error data but no
-      // last-started/last-completed breadcrumb. Empty when the standard
-      // completion path already folded and cleared them.
       const markers = await getProgressMarkers(executionId)
 
       let executionData = sql`jsonb_set(
@@ -1068,8 +1076,6 @@ export class LoggingSession {
           )
         )
 
-      // Markers are now durable on the row; drop the Redis key to match the
-      // standard clear-at-every-boundary invariant.
       void clearProgressMarkers(executionId)
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)

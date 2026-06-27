@@ -61,15 +61,15 @@ describe('progress-markers', () => {
       await setLastStartedBlock(EXECUTION_ID, startedMarker)
 
       expect(mockRedis.eval).toHaveBeenCalledTimes(1)
-      const args = mockRedis.eval.mock.calls[0]
-      // [script, numKeys, key, field, tsField, timestamp, json, ttl]
-      expect(args[1]).toBe(1)
-      expect(args[2]).toBe(KEY)
-      expect(args[3]).toBe('started')
-      expect(args[4]).toBe('startedAt')
-      expect(args[5]).toBe(startedMarker.startedAt)
-      expect(JSON.parse(args[6] as string)).toEqual(startedMarker)
-      expect(args[7]).toBe(EXPECTED_TTL_MS)
+      const [, numKeys, key, field, timestampField, timestamp, json, ttl] =
+        mockRedis.eval.mock.calls[0]
+      expect(numKeys).toBe(1)
+      expect(key).toBe(KEY)
+      expect(field).toBe('started')
+      expect(timestampField).toBe('startedAt')
+      expect(timestamp).toBe(startedMarker.startedAt)
+      expect(JSON.parse(json as string)).toEqual(startedMarker)
+      expect(ttl).toBe(EXPECTED_TTL_MS)
     })
 
     it('returns true when the Redis write succeeds', async () => {
