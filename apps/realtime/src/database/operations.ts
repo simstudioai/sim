@@ -32,13 +32,14 @@ import { env } from '@/env'
 const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
+// Realtime process footprint = this socketDb pool + the shared @sim/db pool.
 const socketDb = drizzle(
   instrumentPoolClient(
     postgres(connectionString, {
       prepare: false,
       idle_timeout: 10,
       connect_timeout: 20,
-      max: 15,
+      max: 10,
       onnotice: () => {},
       connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
     }),
