@@ -294,7 +294,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     kind: 'fork_content_copy',
     // Append-only: each fork is a distinct entry in the source workspace's fork history.
     supersede: false,
-    message: hasContent ? `Copying resources to "${forkedName}"` : `Forked to "${forkedName}"`,
+    message: hasContent ? `Copying resources to "${forkedName}"` : `Forked into "${forkedName}"`,
     metadata: {
       childWorkspaceId: result.workspace.id,
       childWorkspaceName: forkedName,
@@ -308,7 +308,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   if (!hasContent) {
     await finishBackgroundWork(db, statusId, {
       status: 'completed',
-      message: `Forked to "${forkedName}"`,
+      message: `Forked into "${forkedName}"`,
       metadata: { copied: 0, failed: 0 },
     }).catch(() => {})
     return result

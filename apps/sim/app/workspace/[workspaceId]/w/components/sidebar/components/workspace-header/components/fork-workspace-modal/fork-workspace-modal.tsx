@@ -244,7 +244,7 @@ export function ForkWorkspaceModal({
       { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy } },
       {
         onSuccess: (result) => {
-          toast.success(`Forked to "${result.workspace.name}"`)
+          toast.success(`Forked into "${result.workspace.name}"`)
           setForkedWorkspace({ id: result.workspace.id, name: result.workspace.name })
           setActiveTab('activity')
         },
