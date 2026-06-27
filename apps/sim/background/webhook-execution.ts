@@ -241,6 +241,14 @@ export type WebhookExecutionPayload = {
   webhookReceivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
+  /**
+   * Billing actor resolved by the webhook route, set ONLY for in-process inline
+   * execution that runs microseconds after resolution. The background pass reuses
+   * it to skip the redundant billed-account lookup. Deliberately absent on queued
+   * (Trigger.dev) and persisted payloads — a deferred run could outlive a
+   * billed-account change, so it re-resolves the current actor instead.
+   */
+  resolvedActorUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -367,10 +375,11 @@ async function executeWebhookJobInternal(
     skipUsageLimits: true,
     workspaceId: payload.workspaceId,
     loggingSession,
-    // The webhook route already resolved the billing actor and carried it as
-    // payload.userId. Reuse it to skip the redundant billed-account lookup; the
-    // ban and archived-workflow gates still run fresh here.
-    resolvedActorUserId: payload.userId,
+    // Reuse the route-resolved actor only for inline execution (set on the
+    // in-process payload). When absent — queued/Trigger.dev runs — preprocessing
+    // re-resolves the current billed account. Either way the ban and
+    // archived-workflow gates run fresh against the resolved actor.
+    resolvedActorUserId: payload.resolvedActorUserId,
   })
 
   if (!preprocessResult.success) {

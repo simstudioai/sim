@@ -667,10 +667,16 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
+      // Inline runs in-process microseconds after the route resolved the actor,
+      // so reuse it to skip a redundant billed-account lookup. Set only on the
+      // in-process payload — the enqueued/persisted copy omits it so any deferred
+      // re-run re-resolves the current billed account.
+      const inlinePayload = { ...payload, resolvedActorUserId: actorUserId }
+
       void (async () => {
         try {
           await jobQueue.startJob(jobId)
-          const output = await executeWebhookJob(payload)
+          const output = await executeWebhookJob(inlinePayload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
           const errorMessage = toError(error).message
