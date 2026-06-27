@@ -1,4 +1,4 @@
-import { Blimp } from '@/components/emcn'
+import { MothershipBlockDisplay } from '@/blocks/blocks/mothership.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -16,18 +16,11 @@ interface MothershipResponse extends ToolResponse {
 }
 
 export const MothershipBlock: BlockConfig<MothershipResponse> = {
-  type: 'mothership',
-  name: 'Sim',
-  description: 'Talk to Sim',
-  longDescription:
-    'The Sim block sends messages to Sim, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.',
+  ...MothershipBlockDisplay,
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
   - Sim picks its own model and tools internally — you only provide a prompt.
   `,
-  category: 'blocks',
-  bgColor: '#802FDE',
-  icon: Blimp,
   subBlocks: [
     {
       id: 'prompt',

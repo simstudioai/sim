@@ -1,6 +1,7 @@
 import { DevinIcon } from '@/components/icons'
+import { DevinBlockDisplay } from '@/blocks/blocks/devin.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 const SESSION_OBJECT_OPERATIONS = [
   'create_session',
@@ -11,11 +12,7 @@ const SESSION_OBJECT_OPERATIONS = [
 ] as const
 
 export const DevinBlock: BlockConfig = {
-  type: 'devin',
-  name: 'Devin',
-  description: 'Autonomous AI software engineer',
-  longDescription:
-    'Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.',
+  ...DevinBlockDisplay,
   bestPractices: `
   - Write clear, specific prompts describing the task, expected outcome, and any constraints.
   - Use playbook IDs to standardize recurring task patterns across sessions.
@@ -23,11 +20,6 @@ export const DevinBlock: BlockConfig = {
   - Use Get Session to poll for completion status before consuming structured output.
   - Send Message auto-resumes suspended sessions — no need to resume separately.
   `,
-  docsLink: 'https://docs.sim.ai/integrations/devin',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#12141A',
-  icon: DevinIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

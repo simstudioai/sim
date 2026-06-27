@@ -1,21 +1,13 @@
 import { DocuSignIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { DocuSignBlockDisplay } from '@/blocks/blocks/docusign.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DocuSignResponse } from '@/tools/docusign/types'
 
 export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
-  type: 'docusign',
-  name: 'DocuSign',
-  description: 'Send documents for e-signature via DocuSign',
-  longDescription:
-    'Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.',
-  docsLink: 'https://docs.sim.ai/integrations/docusign',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: DocuSignIcon,
+  ...DocuSignBlockDisplay,
   authMode: AuthMode.OAuth,
 
   subBlocks: [

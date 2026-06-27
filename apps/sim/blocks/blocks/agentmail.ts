@@ -1,18 +1,10 @@
 import { AgentMailIcon } from '@/components/icons'
+import { AgentMailBlockDisplay } from '@/blocks/blocks/agentmail.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const AgentMailBlock: BlockConfig = {
-  type: 'agentmail',
-  name: 'AgentMail',
-  description: 'Manage email inboxes, threads, and messages with AgentMail',
-  longDescription:
-    'Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.',
-  docsLink: 'https://docs.sim.ai/integrations/agentmail',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#000000',
-  icon: AgentMailIcon,
+  ...AgentMailBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

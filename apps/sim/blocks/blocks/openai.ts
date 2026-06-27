@@ -1,18 +1,11 @@
 import { OpenAIIcon } from '@/components/icons'
+import { OpenAIBlockDisplay } from '@/blocks/blocks/openai.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const OpenAIBlock: BlockConfig = {
-  type: 'openai',
-  name: 'Embeddings',
-  description: 'Generate Open AI embeddings',
+  ...OpenAIBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Embeddings into the workflow. Can generate embeddings from text.',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/integrations/openai',
-  bgColor: '#000000',
-  icon: OpenAIIcon,
   subBlocks: [
     {
       id: 'input',

@@ -1,20 +1,12 @@
 import { STSIcon } from '@/components/icons'
+import { STSBlockDisplay } from '@/blocks/blocks/sts.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { STSBaseResponse } from '@/tools/sts/types'
 
 export const STSBlock: BlockConfig<STSBaseResponse> = {
-  type: 'sts',
-  name: 'AWS STS',
-  description: 'Connect to AWS Security Token Service',
-  longDescription:
-    'Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.',
-  docsLink: 'https://docs.sim.ai/integrations/sts',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
+  ...STSBlockDisplay,
   authMode: AuthMode.ApiKey,
-  bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: STSIcon,
   subBlocks: [
     {
       id: 'operation',

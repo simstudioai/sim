@@ -1,19 +1,11 @@
 import { CloudflareIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { CloudflareBlockDisplay } from '@/blocks/blocks/cloudflare.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { CloudflareResponse } from '@/tools/cloudflare/types'
 
 export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
-  type: 'cloudflare',
-  name: 'Cloudflare',
-  description: 'Manage DNS, domains, certificates, and cache',
+  ...CloudflareBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.',
-  docsLink: 'https://docs.sim.ai/integrations/cloudflare',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#F5F6FA',
-  icon: CloudflareIcon,
   subBlocks: [
     {
       id: 'operation',

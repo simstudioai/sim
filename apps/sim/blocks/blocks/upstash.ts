@@ -1,6 +1,7 @@
 import { UpstashIcon } from '@/components/icons'
+import { UpstashBlockDisplay } from '@/blocks/blocks/upstash.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type {
   UpstashRedisCommandResponse,
   UpstashRedisDeleteResponse,
@@ -39,17 +40,8 @@ type UpstashResponse =
   | UpstashRedisSetnxResponse
 
 export const UpstashBlock: BlockConfig<UpstashResponse> = {
-  type: 'upstash',
-  name: 'Upstash',
-  description: 'Serverless Redis with Upstash',
-  longDescription:
-    'Connect to Upstash Redis to perform key-value, hash, list, and utility operations via the REST API.',
-  docsLink: 'https://docs.sim.ai/integrations/upstash',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#181C1E',
+  ...UpstashBlockDisplay,
   authMode: AuthMode.ApiKey,
-  icon: UpstashIcon,
   subBlocks: [
     {
       id: 'operation',

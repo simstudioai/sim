@@ -1,21 +1,12 @@
 import { CrowdStrikeIcon } from '@/components/icons'
+import { CrowdStrikeBlockDisplay } from '@/blocks/blocks/crowdstrike.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
 
 export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
-  type: 'crowdstrike',
-  name: 'CrowdStrike',
-  description: 'Query CrowdStrike Identity Protection sensors and documented aggregates',
-  longDescription:
-    'Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.',
-  docsLink: 'https://docs.sim.ai/integrations/crowdstrike',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: '#E01F3D',
-  iconColor: '#E01F3D',
-  icon: CrowdStrikeIcon,
+  ...CrowdStrikeBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

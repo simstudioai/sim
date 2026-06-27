@@ -1,19 +1,12 @@
 import { QdrantIcon } from '@/components/icons'
+import { QdrantBlockDisplay } from '@/blocks/blocks/qdrant.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { QdrantResponse } from '@/tools/qdrant/types'
 
 export const QdrantBlock: BlockConfig<QdrantResponse> = {
-  type: 'qdrant',
-  name: 'Qdrant',
-  description: 'Use Qdrant vector database',
+  ...QdrantBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Qdrant into the workflow. Can upsert, search, and fetch points.',
-  docsLink: 'https://qdrant.tech/documentation/',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#1A223F',
-  icon: QdrantIcon,
 
   subBlocks: [
     {

@@ -1,22 +1,12 @@
 import { GongIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { GongBlockDisplay } from '@/blocks/blocks/gong.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { GongResponse } from '@/tools/gong/types'
 import { getTrigger } from '@/triggers'
 
 export const GongBlock: BlockConfig<GongResponse> = {
-  type: 'gong',
-  name: 'Gong',
-  description: 'Revenue intelligence and conversation analytics',
+  ...GongBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.',
-  docsLink: 'https://docs.sim.ai/integrations/gong',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#8039DF',
-  iconColor: '#8039DF',
-  icon: GongIcon,
-  triggerAllowed: true,
   subBlocks: [
     ...getTrigger('gong_webhook').subBlocks,
     ...getTrigger('gong_call_completed').subBlocks,

@@ -1,27 +1,12 @@
 import { PulseIcon } from '@/components/icons'
-import {
-  AuthMode,
-  type BlockConfig,
-  type BlockMeta,
-  IntegrationType,
-  type SubBlockType,
-} from '@/blocks/types'
+import { PulseBlockDisplay, PulseV2BlockDisplay } from '@/blocks/blocks/pulse.display'
+import { AuthMode, type BlockConfig, type BlockMeta, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
 export const PulseBlock: BlockConfig<PulseParserOutput> = {
-  type: 'pulse',
-  name: 'Pulse',
-  description: 'Extract text from documents using Pulse OCR',
-  hideFromToolbar: true,
+  ...PulseBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
-  docsLink: 'https://docs.sim.ai/integrations/pulse',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#FFFFFF',
-  icon: PulseIcon,
   subBlocks: [
     {
       id: 'fileUpload',
@@ -162,11 +147,7 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
 
 export const PulseV2Block: BlockConfig<PulseParserOutput> = {
   ...PulseBlock,
-  type: 'pulse_v2',
-  name: 'Pulse',
-  hideFromToolbar: false,
-  longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
+  ...PulseV2BlockDisplay,
   subBlocks: pulseV2SubBlocks,
   tools: {
     access: ['pulse_parser_v2'],

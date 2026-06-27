@@ -1,24 +1,15 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MicrosoftTeamsBlockDisplay } from '@/blocks/blocks/microsoft_teams.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 import { getTrigger } from '@/triggers'
 
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
-  type: 'microsoft_teams',
-  name: 'Microsoft Teams',
-  description: 'Manage messages, reactions, and members in Teams',
+  ...MicrosoftTeamsBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
-  docsLink: 'https://docs.sim.ai/integrations/microsoft_teams',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  triggerAllowed: true,
-  bgColor: '#FFFFFF',
-  icon: MicrosoftTeamsIcon,
   subBlocks: [
     {
       id: 'operation',

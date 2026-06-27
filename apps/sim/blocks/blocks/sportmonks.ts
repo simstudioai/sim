@@ -1,5 +1,6 @@
 import { SportmonksIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { SportmonksBlockDisplay } from '@/blocks/blocks/sportmonks.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 const DATE_WAND_CONFIG = {
   enabled: true,
@@ -803,16 +804,7 @@ const TYPE_ID_OPS = ['core_get_type']
 const VENUE_ID_OPS = ['football_get_venue', 'motorsport_get_venue']
 
 export const SportmonksBlock: BlockConfig = {
-  type: 'sportmonks',
-  name: 'Sportmonks',
-  description: 'Access Sportmonks football, motorsport, odds, and reference data',
-  longDescription:
-    'Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, seasons, stages, rounds, teams, squads, players, coaches, referees, venues, standings, topscorers, transfers, schedules, commentaries, TV stations, rivals, expected goals (xG), and predictions. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.',
-  docsLink: 'https://docs.sim.ai/integrations/sportmonks',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: '#171534',
-  icon: SportmonksIcon,
+  ...SportmonksBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

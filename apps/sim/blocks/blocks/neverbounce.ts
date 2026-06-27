@@ -1,19 +1,10 @@
-import { NeverBounceIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { NeverBounceBlockDisplay } from '@/blocks/blocks/neverbounce.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { NeverBounceResponse } from '@/tools/neverbounce/types'
 
 export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
-  type: 'neverbounce',
-  name: 'NeverBounce',
-  description: 'Verify email deliverability and check account credits',
+  ...NeverBounceBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.',
-  docsLink: 'https://docs.sim.ai/integrations/neverbounce',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#064AF4',
-  icon: NeverBounceIcon,
   subBlocks: [
     {
       id: 'operation',

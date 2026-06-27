@@ -1,19 +1,11 @@
 import { ConvexIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ConvexBlockDisplay } from '@/blocks/blocks/convex.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ConvexResponse } from '@/tools/convex/types'
 
 export const ConvexBlock: BlockConfig<ConvexResponse> = {
-  type: 'convex',
-  name: 'Convex',
-  description: 'Use Convex database',
+  ...ConvexBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.',
-  docsLink: 'https://docs.sim.ai/integrations/convex',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#FFFFFF',
-  icon: ConvexIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,22 +1,13 @@
 import { IntercomIcon } from '@/components/icons'
+import { IntercomBlockDisplay, IntercomV2BlockDisplay } from '@/blocks/blocks/intercom.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const IntercomBlock: BlockConfig = {
-  type: 'intercom',
-  name: 'Intercom (Legacy)',
-  hideFromToolbar: true,
-  description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
-  longDescription:
-    'Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.',
-  docsLink: 'https://docs.sim.ai/integrations/intercom',
+  ...IntercomBlockDisplay,
   authMode: AuthMode.ApiKey,
-  category: 'tools',
-  integrationType: IntegrationType.Support,
-  bgColor: '#FFFFFF',
-  icon: IntercomIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -1404,10 +1395,7 @@ Return ONLY the numeric timestamp.`,
 
 export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
-  type: 'intercom_v2',
-  name: 'Intercom',
-  integrationType: IntegrationType.Support,
-  hideFromToolbar: false,
+  ...IntercomV2BlockDisplay,
   subBlocks: [
     ...IntercomBlock.subBlocks,
     ...getTrigger('intercom_conversation_created').subBlocks,

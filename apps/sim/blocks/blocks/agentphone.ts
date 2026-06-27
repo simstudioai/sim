@@ -1,7 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { AgentPhoneIcon } from '@/components/icons'
+import { AgentPhoneBlockDisplay } from '@/blocks/blocks/agentphone.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 const CONVERSATION_OPS = [
   'get_conversation',
@@ -25,16 +26,7 @@ const OFFSET_LIMIT_OPS = [
 const CURSOR_MESSAGE_OPS = ['get_number_messages', 'get_conversation_messages'] as const
 
 export const AgentPhoneBlock: BlockConfig = {
-  type: 'agentphone',
-  name: 'AgentPhone',
-  description: 'Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone',
-  longDescription:
-    'Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.',
-  docsLink: 'https://docs.sim.ai/integrations/agentphone',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',
-  icon: AgentPhoneIcon,
+  ...AgentPhoneBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

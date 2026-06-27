@@ -1,19 +1,11 @@
 import { ProspeoIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ProspeoBlockDisplay } from '@/blocks/blocks/prospeo.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ProspeoResponse } from '@/tools/prospeo/types'
 
 export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
-  type: 'prospeo',
-  name: 'Prospeo',
-  description: 'Enrich and search B2B contacts and companies',
+  ...ProspeoBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.',
-  docsLink: 'https://docs.sim.ai/integrations/prospeo',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FF1A26',
-  icon: ProspeoIcon,
   subBlocks: [
     {
       id: 'operation',

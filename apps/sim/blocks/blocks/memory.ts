@@ -1,20 +1,12 @@
-import { BrainIcon } from '@/components/icons'
+import { MemoryBlockDisplay } from '@/blocks/blocks/memory.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const MemoryBlock: BlockConfig = {
-  type: 'memory',
-  name: 'Memory',
-  description: 'Add memory store',
-  longDescription:
-    'Integrate Memory into the workflow. Can add, get a memory, get all memories, and delete memories.',
-  bgColor: '#F64F9E',
+  ...MemoryBlockDisplay,
   bestPractices: `
   - Do not use this block unless the user explicitly asks for it.
   - Used in conjunction with agent blocks to inject artificial memory into the conversation. For natural conversations, use the agent block memories modes directly instead.
   `,
-  icon: BrainIcon,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/integrations/memory',
   subBlocks: [
     {
       id: 'operation',

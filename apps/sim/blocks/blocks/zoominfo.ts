@@ -1,20 +1,12 @@
 import { ZoomInfoIcon } from '@/components/icons'
+import { ZoomInfoBlockDisplay } from '@/blocks/blocks/zoominfo.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ZoomInfoResponse } from '@/tools/zoominfo/types'
 
 export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
-  type: 'zoominfo',
-  name: 'ZoomInfo',
-  description: 'Search and enrich B2B company and contact data with ZoomInfo.',
+  ...ZoomInfoBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.',
-  docsLink: 'https://docs.sim.ai/integrations/zoominfo',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#EA1B15',
-  icon: ZoomInfoIcon,
   subBlocks: [
     {
       id: 'operation',

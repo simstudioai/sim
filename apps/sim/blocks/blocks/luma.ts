@@ -1,17 +1,9 @@
 import { LumaIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { LumaBlockDisplay } from '@/blocks/blocks/luma.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 export const LumaBlock: BlockConfig = {
-  type: 'luma',
-  name: 'Luma',
-  description: 'Manage events and guests on Luma',
-  longDescription:
-    'Integrate Luma into the workflow. Can create, update, look up, and cancel events, list calendar events, manage guest lists (get one or many, add guests, send invites, and update approval status).',
-  docsLink: 'https://docs.sim.ai/integrations/luma',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#000000',
-  icon: LumaIcon,
+  ...LumaBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

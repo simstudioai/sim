@@ -1,19 +1,11 @@
 import { JinaAIIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { JinaBlockDisplay } from '@/blocks/blocks/jina.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ReadUrlResponse, SearchResponse } from '@/tools/jina/types'
 
 export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
-  type: 'jina',
-  name: 'Jina',
-  description: 'Search the web or extract content from URLs',
+  ...JinaBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.',
-  docsLink: 'https://docs.sim.ai/integrations/jina',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#333333',
-  icon: JinaAIIcon,
   subBlocks: [
     {
       id: 'operation',

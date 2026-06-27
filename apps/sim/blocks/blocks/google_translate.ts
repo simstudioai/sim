@@ -1,5 +1,6 @@
 import { GoogleTranslateIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { GoogleTranslateBlockDisplay } from '@/blocks/blocks/google_translate.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 const SUPPORTED_LANGUAGES = [
   { label: 'Afrikaans', id: 'af' },
@@ -138,16 +139,7 @@ const SUPPORTED_LANGUAGES = [
 ] satisfies { label: string; id: string }[]
 
 export const GoogleTranslateBlock: BlockConfig = {
-  type: 'google_translate',
-  name: 'Google Translate',
-  description: 'Translate text using Google Cloud Translation',
-  longDescription:
-    'Translate and detect languages using the Google Cloud Translation API. Supports auto-detection of the source language.',
-  docsLink: 'https://docs.sim.ai/integrations/google_translate',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#FFFFFF',
-  icon: GoogleTranslateIcon,
+  ...GoogleTranslateBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

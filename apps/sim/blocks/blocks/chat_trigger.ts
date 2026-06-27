@@ -1,23 +1,16 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
 import { MessageCircle } from 'lucide-react'
+import { ChatTriggerBlockDisplay } from '@/blocks/blocks/chat_trigger.display'
 import type { BlockConfig } from '@/blocks/types'
 
 const ChatTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(MessageCircle, props)
 
 export const ChatTriggerBlock: BlockConfig = {
-  type: 'chat_trigger',
-  triggerAllowed: true,
-  name: 'Chat',
-  description: 'Legacy chat start block. Prefer the unified Start block.',
-  longDescription: 'Chat trigger to run the workflow via deployed chat interfaces.',
+  ...ChatTriggerBlockDisplay,
   bestPractices: `
   - Can run the workflow manually to test implementation when this is the trigger point by passing in a message.
   `,
-  category: 'triggers',
-  hideFromToolbar: true,
-  bgColor: '#6F3DFA',
-  icon: ChatTriggerIcon,
   subBlocks: [],
   tools: {
     access: [],

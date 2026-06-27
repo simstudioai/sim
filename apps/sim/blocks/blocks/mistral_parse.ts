@@ -1,27 +1,17 @@
 import { toError } from '@sim/utils/errors'
 import { MistralIcon } from '@/components/icons'
 import {
-  AuthMode,
-  type BlockConfig,
-  type BlockMeta,
-  IntegrationType,
-  type SubBlockType,
-} from '@/blocks/types'
+  MistralParseBlockDisplay,
+  MistralParseV2BlockDisplay,
+  MistralParseV3BlockDisplay,
+} from '@/blocks/blocks/mistral_parse.display'
+import { AuthMode, type BlockConfig, type BlockMeta, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
-  type: 'mistral_parse',
-  name: 'Mistral Parser (Legacy)',
-  description: 'Extract text from PDF documents',
-  hideFromToolbar: true,
+  ...MistralParseBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
-  docsLink: 'https://docs.sim.ai/integrations/mistral_parse',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#000000',
-  icon: MistralIcon,
   subBlocks: [
     {
       id: 'inputMethod',
@@ -157,10 +147,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
  */
 export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
   ...MistralParseBlock,
-  type: 'mistral_parse_v2',
-  name: 'Mistral Parser',
-  description: 'Extract text from PDF documents',
-  hideFromToolbar: true,
+  ...MistralParseV2BlockDisplay,
   subBlocks: [
     {
       id: 'fileUpload',
@@ -287,10 +274,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
  */
 export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
   ...MistralParseBlock,
-  type: 'mistral_parse_v3',
-  name: 'Mistral Parser',
-  description: 'Extract text from PDF documents',
-  hideFromToolbar: false,
+  ...MistralParseV3BlockDisplay,
   subBlocks: [
     {
       id: 'fileUpload',

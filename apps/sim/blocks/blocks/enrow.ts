@@ -1,19 +1,10 @@
-import { EnrowIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { EnrowBlockDisplay } from '@/blocks/blocks/enrow.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { EnrowResponse } from '@/tools/enrow/types'
 
 export const EnrowBlock: BlockConfig<EnrowResponse> = {
-  type: 'enrow',
-  name: 'Enrow',
-  description: 'Find and verify B2B emails with triple-verified accuracy',
+  ...EnrowBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.',
-  docsLink: 'https://enrow.readme.io',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: EnrowIcon,
   subBlocks: [
     {
       id: 'operation',

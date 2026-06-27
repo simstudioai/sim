@@ -1,21 +1,12 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
+import { PeopleDataLabsBlockDisplay } from '@/blocks/blocks/peopledatalabs.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { PdlPersonEnrichResponse } from '@/tools/peopledatalabs/types'
 
 export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
-  type: 'peopledatalabs',
-  name: 'People Data Labs',
-  description: 'Enrich and search people and companies',
+  ...PeopleDataLabsBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.',
-  docsLink: 'https://docs.sim.ai/integrations/peopledatalabs',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#4831C3',
-  iconColor: '#4831C3',
-  icon: PeopleDataLabsIcon,
   subBlocks: [
     {
       id: 'operation',

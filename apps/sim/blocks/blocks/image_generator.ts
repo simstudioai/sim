@@ -1,5 +1,8 @@
-import { ImageIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import {
+  ImageGeneratorBlockDisplay,
+  ImageGeneratorV2BlockDisplay,
+} from '@/blocks/blocks/image_generator.display'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import { parseOptionalBooleanInput } from '@/blocks/utils'
 import type { ImageGenerationResponse } from '@/tools/image/types'
 import type { DalleResponse } from '@/tools/openai/types'
@@ -53,18 +56,8 @@ const OUTPUT_FORMAT_OPTIONS = [
 ]
 
 export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
-  type: 'image_generator',
-  name: 'Image Generator',
-  description: 'Generate images',
-  hideFromToolbar: true,
+  ...ImageGeneratorBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 and GPT Image models.',
-  docsLink: 'https://docs.sim.ai/integrations/image_generator',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#4D5FFF',
-  icon: ImageIcon,
   subBlocks: [
     {
       id: 'model',
@@ -310,17 +303,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
 }
 
 export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
-  type: 'image_generator_v2',
-  name: 'Image Generator',
-  description: 'Generate images',
+  ...ImageGeneratorV2BlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Generate images using OpenAI GPT Image, Google Nano Banana, or Fal.ai image models.',
-  docsLink: 'https://docs.sim.ai/integrations/image_generator',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#4D5FFF',
-  icon: ImageIcon,
   subBlocks: [
     {
       id: 'provider',

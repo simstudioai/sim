@@ -1,19 +1,12 @@
-import { WorkflowIcon } from '@/components/icons'
+import { WorkflowInputBlockDisplay } from '@/blocks/blocks/workflow_input.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const WorkflowInputBlock: BlockConfig = {
-  type: 'workflow_input',
-  name: 'Workflow',
-  description: 'Execute another workflow and map variables to its Start trigger schema.',
-  longDescription: `Execute another child workflow and map variables to its Start trigger schema. Helps with modularizing workflows.`,
+  ...WorkflowInputBlockDisplay,
   bestPractices: `
   - Usually clarify/check if the user has tagged a workflow to use as the child workflow. Understand the child workflow to determine the logical position of this block in the workflow.
   - Remember, that the start point of the child workflow is the Start block.
   `,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/workflows/blocks/workflow',
-  bgColor: '#6366F1',
-  icon: WorkflowIcon,
   subBlocks: [
     {
       id: 'workflowId',

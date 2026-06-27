@@ -1,18 +1,10 @@
 import { SimilarwebIcon } from '@/components/icons'
+import { SimilarwebBlockDisplay } from '@/blocks/blocks/similarweb.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const SimilarwebBlock: BlockConfig = {
-  type: 'similarweb',
-  name: 'Similarweb',
-  description: 'Website traffic and analytics data',
-  longDescription:
-    'Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.',
-  docsLink: 'https://developers.similarweb.com/docs/similarweb-web-traffic-api',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: '#000922',
-  icon: SimilarwebIcon,
+  ...SimilarwebBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

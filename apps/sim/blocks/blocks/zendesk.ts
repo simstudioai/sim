@@ -1,21 +1,12 @@
 import { ZendeskIcon } from '@/components/icons'
+import { ZendeskBlockDisplay } from '@/blocks/blocks/zendesk.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const ZendeskBlock: BlockConfig = {
-  type: 'zendesk',
-  name: 'Zendesk',
-  description: 'Manage support tickets, users, and organizations in Zendesk',
-  triggerAllowed: true,
-  longDescription:
-    'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.',
-  docsLink: 'https://docs.sim.ai/integrations/zendesk',
+  ...ZendeskBlockDisplay,
   authMode: AuthMode.ApiKey,
-  category: 'tools',
-  integrationType: IntegrationType.Support,
-  bgColor: '#03363D',
-  icon: ZendeskIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,20 +1,12 @@
 import { SESIcon } from '@/components/icons'
+import { SESBlockDisplay } from '@/blocks/blocks/ses.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export const SESBlock: BlockConfig<ToolResponse> = {
-  type: 'ses',
-  name: 'AWS SES',
-  description: 'Send emails and manage templates with AWS Simple Email Service',
-  longDescription:
-    'Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.',
-  docsLink: 'https://docs.sim.ai/integrations/ses',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
+  ...SESBlockDisplay,
   authMode: AuthMode.ApiKey,
-  bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: SESIcon,
   subBlocks: [
     {
       id: 'operation',

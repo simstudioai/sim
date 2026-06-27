@@ -1,6 +1,6 @@
 import { DagsterIcon } from '@/components/icons'
+import { DagsterBlockDisplay } from '@/blocks/blocks/dagster.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { DagsterResponse } from '@/tools/dagster/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
@@ -11,17 +11,7 @@ function toFiniteNumber(value: unknown): number | undefined {
 }
 
 export const DagsterBlock: BlockConfig<DagsterResponse> = {
-  type: 'dagster',
-  name: 'Dagster',
-  description: 'Orchestrate data pipelines and manage job runs with Dagster',
-  longDescription:
-    'Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.',
-  docsLink: 'https://docs.sim.ai/integrations/dagster',
-  category: 'tools',
-  integrationType: IntegrationType.Observability,
-  bgColor: '#ffffff',
-  icon: DagsterIcon,
-
+  ...DagsterBlockDisplay,
   subBlocks: [
     // ── Operation selector ─────────────────────────────────────────────────────
     {

@@ -1,14 +1,10 @@
-import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
+import { KnowledgeBlockDisplay } from '@/blocks/blocks/knowledge.display'
 import type { BlockConfig } from '@/blocks/types'
 import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
 
 export const KnowledgeBlock: BlockConfig = {
-  type: 'knowledge',
-  name: 'Knowledge',
-  description: 'Use vector search',
-  longDescription:
-    'Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.',
+  ...KnowledgeBlockDisplay,
   bestPractices: `
   - Clarify which tags are available for the knowledge base to understand whether to use tag filters on a search.
   - Use List Documents to enumerate documents before operating on them.
@@ -17,10 +13,6 @@ export const KnowledgeBlock: BlockConfig = {
   - Use List Connectors to see which external sources are syncing documents into the knowledge base.
   - Use Get Connector to check sync health and review recent sync logs.
   `,
-  bgColor: '#00B0B0',
-  icon: PackageSearchIcon,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/integrations/knowledge',
   subBlocks: [
     {
       id: 'operation',

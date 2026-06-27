@@ -1,20 +1,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
+import { SQSBlockDisplay } from '@/blocks/blocks/sqs.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { SqsResponse } from '@/tools/sqs/types'
 
 export const SQSBlock: BlockConfig<SqsResponse> = {
-  type: 'sqs',
-  name: 'Amazon SQS',
-  description: 'Connect to Amazon SQS',
-  longDescription: 'Integrate Amazon SQS into the workflow. Can send messages to SQS queues.',
-  docsLink: 'https://docs.sim.ai/integrations/sqs',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
-  iconColor: '#527FFF',
-  icon: SQSIcon,
+  ...SQSBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

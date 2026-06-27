@@ -1,25 +1,17 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
 import { Clock } from 'lucide-react'
+import { ScheduleBlockDisplay } from '@/blocks/blocks/schedule.display'
 import type { BlockConfig } from '@/blocks/types'
 
 const ScheduleIcon = (props: SVGProps<SVGSVGElement>) => createElement(Clock, props)
 
 export const ScheduleBlock: BlockConfig = {
-  type: 'schedule',
-  triggerAllowed: true,
-  name: 'Schedule',
-  description: 'Trigger workflow execution on a schedule',
-  docsLink: 'https://docs.sim.ai/workflows/triggers/schedule',
-  longDescription:
-    'Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.',
+  ...ScheduleBlockDisplay,
   bestPractices: `
   - Prefer the custom cron expression input method over the other schedule configuration methods. 
   - Clarify the timezone if the user doesn't specify it.
   `,
-  category: 'triggers',
-  bgColor: '#6366F1',
-  icon: ScheduleIcon,
 
   subBlocks: [
     {

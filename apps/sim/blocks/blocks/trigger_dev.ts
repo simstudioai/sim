@@ -1,6 +1,7 @@
 import { TriggerDevIcon } from '@/components/icons'
+import { TriggerDevBlockDisplay } from '@/blocks/blocks/trigger_dev.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { TriggerDevResponse } from '@/tools/trigger_dev/types'
 
 const TASK_IDENTIFIER_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_batch_trigger_task']
@@ -73,17 +74,8 @@ const PAGE_BEFORE_OPERATIONS = ['trigger_dev_list_runs', 'trigger_dev_list_waitp
 const NUMBERED_PAGE_OPERATIONS = ['trigger_dev_list_schedules', 'trigger_dev_list_queues']
 
 export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
-  type: 'trigger_dev',
-  name: 'Trigger.dev',
-  description: 'Trigger tasks and manage runs and schedules',
+  ...TriggerDevBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.',
-  docsLink: 'https://docs.sim.ai/integrations/trigger_dev',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#000000',
-  icon: TriggerDevIcon,
 
   subBlocks: [
     {

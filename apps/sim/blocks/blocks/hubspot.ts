@@ -1,23 +1,14 @@
 import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { HubSpotBlockDisplay } from '@/blocks/blocks/hubspot.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { HubSpotResponse } from '@/tools/hubspot/types'
 import { getTrigger } from '@/triggers'
 
 export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
-  type: 'hubspot',
-  name: 'HubSpot',
-  description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
+  ...HubSpotBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.',
-  docsLink: 'https://docs.sim.ai/integrations/hubspot',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FF7A59',
-  iconColor: '#FF7A59',
-  icon: HubspotIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -1475,7 +1466,6 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
     metadata: { type: 'json', description: 'Operation metadata' },
     success: { type: 'boolean', description: 'Operation success status' },
   } as any,
-  triggerAllowed: true,
   triggers: {
     enabled: true,
     available: ['hubspot_poller'],

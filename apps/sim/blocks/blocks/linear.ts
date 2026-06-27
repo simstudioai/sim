@@ -1,25 +1,15 @@
 import { DevinIcon, LinearIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { LinearBlockDisplay, LinearV2BlockDisplay } from '@/blocks/blocks/linear.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
-  type: 'linear',
-  name: 'Linear (Legacy)',
-  description: 'Interact with Linear issues, projects, and more',
-  hideFromToolbar: true,
+  ...LinearBlockDisplay,
   authMode: AuthMode.OAuth,
-  triggerAllowed: true,
-  longDescription:
-    'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.',
-  docsLink: 'https://docs.sim.ai/integrations/linear',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  icon: LinearIcon,
-  bgColor: '#5E6AD2',
   subBlocks: [
     {
       id: 'operation',
@@ -2561,9 +2551,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
  */
 export const LinearV2Block: BlockConfig<LinearResponse> = {
   ...LinearBlock,
-  type: 'linear_v2',
-  name: 'Linear',
-  hideFromToolbar: false,
+  ...LinearV2BlockDisplay,
   subBlocks: [
     ...LinearBlock.subBlocks.filter(
       (sb) =>

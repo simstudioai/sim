@@ -1,19 +1,11 @@
 import { ZepIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ZepBlockDisplay } from '@/blocks/blocks/zep.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const ZepBlock: BlockConfig<ZepResponse> = {
-  type: 'zep',
-  name: 'Zep',
-  description: 'Long-term memory for AI agents',
+  ...ZepBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.',
-  bgColor: '#E8E8E8',
-  icon: ZepIcon,
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/integrations/zep',
   subBlocks: [
     {
       id: 'operation',

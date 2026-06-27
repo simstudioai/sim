@@ -1,20 +1,12 @@
 import { LemlistIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { LemlistBlockDisplay } from '@/blocks/blocks/lemlist.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { LemlistResponse } from '@/tools/lemlist/types'
 import { getTrigger } from '@/triggers'
 
 export const LemlistBlock: BlockConfig<LemlistResponse> = {
-  type: 'lemlist',
-  name: 'Lemlist',
-  description: 'Manage outreach activities, leads, and send emails via Lemlist',
+  ...LemlistBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.',
-  docsLink: 'https://docs.sim.ai/integrations/lemlist',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#316BFF',
-  icon: LemlistIcon,
   subBlocks: [
     {
       id: 'operation',

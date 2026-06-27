@@ -1,7 +1,8 @@
 import { ShopifyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { ShopifyBlockDisplay } from '@/blocks/blocks/shopify.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 
 interface ShopifyResponse {
@@ -20,17 +21,8 @@ const LIST_OPERATIONS = [
 ] as const
 
 export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
-  type: 'shopify',
-  name: 'Shopify',
-  description: 'Manage products, orders, customers, and inventory in your Shopify store',
+  ...ShopifyBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.',
-  docsLink: 'https://docs.sim.ai/integrations/shopify',
-  category: 'tools',
-  integrationType: IntegrationType.Commerce,
-  icon: ShopifyIcon,
-  bgColor: '#FFFFFF',
   subBlocks: [
     {
       id: 'operation',

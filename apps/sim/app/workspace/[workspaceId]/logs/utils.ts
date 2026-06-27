@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
 import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
-import { getBlock } from '@/blocks/registry'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
@@ -109,7 +109,7 @@ interface TriggerBadgeProps {
 export function TriggerBadge({ trigger }: TriggerBadgeProps) {
   const metadata = getIntegrationMetadata(trigger)
   const isIntegration = !(CORE_TRIGGER_TYPES as readonly string[]).includes(trigger)
-  const block = isIntegration ? getBlock(trigger) : null
+  const block = isIntegration ? getBlockDisplay(trigger) : null
   const IconComponent = block?.icon
 
   const coreVariant = TRIGGER_VARIANT_MAP[trigger]

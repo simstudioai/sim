@@ -1,22 +1,13 @@
 import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { RedditBlockDisplay } from '@/blocks/blocks/reddit.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
 export const RedditBlock: BlockConfig<RedditResponse> = {
-  type: 'reddit',
-  name: 'Reddit',
-  description: 'Access Reddit data and content',
+  ...RedditBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.',
-  docsLink: 'https://docs.sim.ai/integrations/reddit',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: '#FF5700',
-  iconColor: '#FF5700',
-  icon: RedditIcon,
   subBlocks: [
     {
       id: 'operation',

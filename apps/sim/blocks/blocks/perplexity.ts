@@ -1,22 +1,13 @@
 import { PerplexityIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { PerplexityBlockDisplay } from '@/blocks/blocks/perplexity.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { PerplexityChatResponse, PerplexitySearchResponse } from '@/tools/perplexity/types'
 
 type PerplexityResponse = PerplexityChatResponse | PerplexitySearchResponse
 
 export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
-  type: 'perplexity',
-  name: 'Perplexity',
-  description: 'Use Perplexity AI for chat and search',
-  longDescription:
-    'Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
-  authMode: AuthMode.ApiKey,
-  docsLink: 'https://docs.sim.ai/integrations/perplexity',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#20808D', // Perplexity turquoise color
-  iconColor: '#20808D',
-  icon: PerplexityIcon,
+  ...PerplexityBlockDisplay,
+  authMode: AuthMode.ApiKey, // Perplexity turquoise color
   subBlocks: [
     {
       id: 'operation',

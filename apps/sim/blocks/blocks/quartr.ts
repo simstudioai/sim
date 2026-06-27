@@ -1,6 +1,7 @@
 import { QuartrIcon } from '@/components/icons'
+import { QuartrBlockDisplay } from '@/blocks/blocks/quartr.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 const ALL_LIST_OPERATIONS = [
@@ -46,17 +47,8 @@ const DATE_RANGE_LIST_OPERATIONS = [
 const UPDATED_RANGE_LIST_OPERATIONS = ['list_companies', ...DATE_RANGE_LIST_OPERATIONS]
 
 export const QuartrBlock: BlockConfig<ToolResponse> = {
-  type: 'quartr',
-  name: 'Quartr',
-  description: 'Access earnings calls, transcripts, filings, and slides',
+  ...QuartrBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Quartr into the workflow. Look up public companies, corporate events, and event types; fetch AI-generated event summaries; list and download filings, reports, slide decks, and transcripts; and access archived audio and live event streams. Requires API Key.',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  docsLink: 'https://docs.sim.ai/integrations/quartr',
-  bgColor: '#000000',
-  icon: QuartrIcon,
   subBlocks: [
     {
       id: 'operation',

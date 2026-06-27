@@ -1,17 +1,9 @@
-import { WebhookIcon } from '@/components/icons'
+import { WebhookRequestBlockDisplay } from '@/blocks/blocks/webhook_request.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { RequestResponse } from '@/tools/http/types'
 
 export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
-  type: 'webhook_request',
-  name: 'Outgoing Webhook',
-  description: 'Send a webhook request',
-  longDescription:
-    'Send an HTTP POST request to a webhook URL with automatic webhook headers. Optionally sign the payload with HMAC-SHA256 for secure webhook delivery.',
-  docsLink: 'https://docs.sim.ai/workflows/blocks/webhook',
-  category: 'blocks',
-  bgColor: '#10B981',
-  icon: WebhookIcon,
+  ...WebhookRequestBlockDisplay,
   subBlocks: [
     {
       id: 'url',

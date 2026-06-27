@@ -1,19 +1,10 @@
 import { KetchIcon } from '@/components/icons'
+import { KetchBlockDisplay } from '@/blocks/blocks/ketch.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { KetchResponse } from '@/tools/ketch/types'
 
 export const KetchBlock: BlockConfig<KetchResponse> = {
-  type: 'ketch',
-  name: 'Ketch',
-  description: 'Manage privacy consent, subscriptions, and data subject rights',
-  longDescription:
-    'Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.',
-  docsLink: 'https://docs.sim.ai/integrations/ketch',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: '#9B5CFF',
-  icon: KetchIcon,
+  ...KetchBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

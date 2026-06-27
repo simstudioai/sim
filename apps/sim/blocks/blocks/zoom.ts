@@ -1,23 +1,14 @@
 import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { ZoomBlockDisplay } from '@/blocks/blocks/zoom.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
 import { getTrigger } from '@/triggers'
 
 export const ZoomBlock: BlockConfig<ZoomResponse> = {
-  type: 'zoom',
-  name: 'Zoom',
-  description: 'Create and manage Zoom meetings and recordings',
+  ...ZoomBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.',
-  docsLink: 'https://docs.sim.ai/integrations/zoom',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: '#2D8CFF',
-  iconColor: '#2D8CFF',
-  icon: ZoomIcon,
   triggers: {
     enabled: true,
     available: [

@@ -1,26 +1,17 @@
 import { toError } from '@sim/utils/errors'
 import { Send } from '@/components/emcn/icons'
 import { NotionIcon } from '@/components/icons'
+import { NotionBlockDisplay, NotionV2BlockDisplay } from '@/blocks/blocks/notion.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { NotionResponse } from '@/tools/notion/types'
 import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const NotionBlock: BlockConfig<NotionResponse> = {
-  type: 'notion',
-  name: 'Notion (Legacy)',
-  hideFromToolbar: true,
-  description: 'Manage Notion pages',
+  ...NotionBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/integrations/notion',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: NotionIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -421,18 +412,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 // V2 Block with API-aligned outputs
 
 export const NotionV2Block: BlockConfig<any> = {
-  type: 'notion_v2',
-  name: 'Notion',
-  description: 'Manage Notion pages',
+  ...NotionV2BlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/integrations/notion',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: NotionIcon,
-  hideFromToolbar: false,
   subBlocks: [
     ...NotionBlock.subBlocks,
 

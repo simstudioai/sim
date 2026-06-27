@@ -1,6 +1,7 @@
 import { BrexIcon } from '@/components/icons'
+import { BrexBlockDisplay } from '@/blocks/blocks/brex.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { BrexResponse } from '@/tools/brex/types'
 
@@ -23,17 +24,8 @@ const PAGINATED_OPERATIONS = new Set([
 ])
 
 export const BrexBlock: BlockConfig<BrexResponse> = {
-  type: 'brex',
-  name: 'Brex',
-  description: 'Manage expenses, receipts, transactions, and team data in Brex',
+  ...BrexBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrates Brex into the workflow. List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.',
-  docsLink: 'https://docs.sim.ai/integrations/brex',
-  category: 'tools',
-  integrationType: IntegrationType.Commerce,
-  bgColor: '#171717',
-  icon: BrexIcon,
   subBlocks: [
     {
       id: 'operation',

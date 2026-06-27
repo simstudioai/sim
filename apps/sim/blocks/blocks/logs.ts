@@ -1,24 +1,15 @@
-import { Library } from '@/components/emcn/icons'
 import { fetchWorkspaceWorkflowOptions } from '@/lib/workflows/subblocks/options'
+import { LogsBlockDisplay, LogsV2BlockDisplay } from '@/blocks/blocks/logs.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const LogsBlock: BlockConfig = {
-  type: 'logs',
-  name: 'Logs',
-  hideFromToolbar: true,
-  description: 'Query workflow execution logs',
-  longDescription:
-    'Search workflow execution logs in the current workspace, fetch a single log by id, or load full execution details with the per-block state snapshot.',
-  bgColor: '#EAB308',
+  ...LogsBlockDisplay,
   bestPractices: `
   - The block always operates on the current workspace; you cannot query other workspaces.
   - 'Query Logs' returns summary rows. To get a full log entry (executionData, files), use 'Get Log by ID' on a row's id.
   - Use 'Get Execution Details' (with an executionId) to inspect per-block state for a single run.
   - Pagination is cursor-based: pass the previous response's nextCursor as Cursor to fetch the next page.
   `,
-  icon: Library,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/api-reference/logs/getExecutionDetails',
   subBlocks: [
     {
       id: 'operation',
@@ -287,21 +278,13 @@ function joinIds(value: unknown): string | undefined {
 }
 
 export const LogsV2Block: BlockConfig = {
-  type: 'logs_v2',
-  name: 'Logs',
-  description: 'Query workflow runs and fetch run details',
-  longDescription:
-    'Query workflow run logs in the current workspace with the same filters as the Logs page, returning matching run IDs. Fetch full details for a single run, including its trace spans.',
-  bgColor: '#EAB308',
+  ...LogsV2BlockDisplay,
   bestPractices: `
   - The block always operates on the current workspace; you cannot query other workspaces.
   - 'Query Logs' returns only run IDs, ordered by the sort settings (newest first by default). Feed an ID into 'Get Run Details' for the full picture.
   - 'Get Run Details' returns the run summary plus the full trace spans (per-block inputs, outputs, and timings).
   - Cost filters and outputs are denominated in credits.
   `,
-  icon: Library,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/integrations/logs',
   subBlocks: [
     {
       id: 'operation',

@@ -1,20 +1,10 @@
 import { ClerkIcon } from '@/components/icons'
+import { ClerkBlockDisplay } from '@/blocks/blocks/clerk.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { ClerkResponse } from '@/tools/clerk/types'
 
 export const ClerkBlock: BlockConfig<ClerkResponse> = {
-  type: 'clerk',
-  name: 'Clerk',
-  description: 'Manage users, organizations, and sessions in Clerk',
-  longDescription:
-    'Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.',
-  docsLink: 'https://docs.sim.ai/integrations/clerk',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: '#131316',
-  icon: ClerkIcon,
-
+  ...ClerkBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

@@ -1,22 +1,12 @@
 import { KalshiIcon } from '@/components/icons'
+import { KalshiBlockDisplay, KalshiV2BlockDisplay } from '@/blocks/blocks/kalshi.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
 export const KalshiBlock: BlockConfig = {
-  type: 'kalshi',
-  name: 'Kalshi (Legacy)',
-  description: 'Access prediction markets and trade on Kalshi',
-  longDescription:
-    'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
-  docsLink: 'https://docs.sim.ai/integrations/kalshi',
+  ...KalshiBlockDisplay,
   authMode: AuthMode.ApiKey,
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  hideFromToolbar: true,
-  bgColor: '#09C285',
-  iconColor: '#09C285',
-  icon: KalshiIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -762,13 +752,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
 export const KalshiV2Block: BlockConfig = {
   ...KalshiBlock,
-  type: 'kalshi_v2',
-  name: 'Kalshi',
-  description: 'Access prediction markets and trade on Kalshi',
-  longDescription:
-    'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
-  integrationType: IntegrationType.Analytics,
-  hideFromToolbar: false,
+  ...KalshiV2BlockDisplay,
   tools: {
     ...KalshiBlock.tools,
     access: [

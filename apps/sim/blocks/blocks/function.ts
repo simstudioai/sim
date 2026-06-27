@@ -1,24 +1,16 @@
-import { CodeIcon } from '@/components/icons'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
+import { FunctionBlockDisplay } from '@/blocks/blocks/function.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
 export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
-  type: 'function',
-  name: 'Function',
-  description: 'Run custom logic',
-  longDescription:
-    'This is a core workflow block. Execute custom JavaScript or Python code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports or Python uses E2B sandbox.',
+  ...FunctionBlockDisplay,
   bestPractices: `
   - JavaScript code without external imports runs in a local VM for fastest execution.
   - JavaScript code with import/require statements requires E2B and runs in a secure sandbox.
   - Python code always requires E2B and runs in a secure sandbox.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   `,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/function',
-  category: 'blocks',
-  bgColor: '#FF402F',
-  icon: CodeIcon,
   subBlocks: [
     {
       id: 'language',

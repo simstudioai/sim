@@ -1,22 +1,13 @@
 import { GitLabIcon } from '@/components/icons'
+import { GitLabBlockDisplay } from '@/blocks/blocks/gitlab.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
 import { getTrigger } from '@/triggers'
 
 export const GitLabBlock: BlockConfig<GitLabResponse> = {
-  type: 'gitlab',
-  name: 'GitLab',
-  description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
+  ...GitLabBlockDisplay,
   authMode: AuthMode.ApiKey,
-  triggerAllowed: true,
-  longDescription:
-    'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
-  docsLink: 'https://docs.sim.ai/integrations/gitlab',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  icon: GitLabIcon,
-  bgColor: '#FFFFFF',
   subBlocks: [
     {
       id: 'operation',

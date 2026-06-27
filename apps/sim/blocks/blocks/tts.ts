@@ -1,19 +1,10 @@
-import { TTSIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { TtsBlockDisplay } from '@/blocks/blocks/tts.display'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { TtsBlockResponse } from '@/tools/tts/types'
 
 export const TtsBlock: BlockConfig<TtsBlockResponse> = {
-  type: 'tts',
-  name: 'Text-to-Speech',
-  description: 'Convert text to speech using AI voices',
+  ...TtsBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Generate natural-sounding speech from text using state-of-the-art AI voices from OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure, and PlayHT. Supports multiple voices, languages, and audio formats.',
-  docsLink: 'https://docs.sim.ai/integrations/tts',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#181C1E',
-  icon: TTSIcon,
 
   subBlocks: [
     // Provider selection

@@ -1,7 +1,8 @@
 import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { TrelloBlockDisplay } from '@/blocks/blocks/trello.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { TrelloResponse } from '@/tools/trello'
 
@@ -53,17 +54,8 @@ function parseStringArray(value: unknown): string[] | undefined {
  * the normal OAuth block UX while relying on the custom Trello auth routes.
  */
 export const TrelloBlock: BlockConfig<TrelloResponse> = {
-  type: 'trello',
-  name: 'Trello',
-  description: 'Manage Trello lists, cards, and activity',
+  ...TrelloBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.',
-  docsLink: 'https://docs.sim.ai/integrations/trello',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#0052CC',
-  icon: TrelloIcon,
   subBlocks: [
     {
       id: 'operation',

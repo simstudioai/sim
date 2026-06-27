@@ -1,21 +1,11 @@
-import { STTIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { SttBlockDisplay, SttV2BlockDisplay } from '@/blocks/blocks/stt.display'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
 export const SttBlock: BlockConfig<SttBlockResponse> = {
-  type: 'stt',
-  name: 'Speech-to-Text',
-  description: 'Convert speech to text using AI',
-  hideFromToolbar: true,
+  ...SttBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Transcribe audio and video files to text using leading AI providers. Supports multiple languages, timestamps, and speaker diarization.',
-  docsLink: 'https://docs.sim.ai/integrations/stt',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#181C1E',
-  icon: STTIcon,
 
   subBlocks: [
     // Provider selection
@@ -361,9 +351,7 @@ const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.
 
 export const SttV2Block: BlockConfig<SttBlockResponse> = {
   ...SttBlock,
-  type: 'stt_v2',
-  name: 'Speech-to-Text',
-  hideFromToolbar: false,
+  ...SttV2BlockDisplay,
   subBlocks: sttV2SubBlocks,
   tools: {
     access: [

@@ -1,19 +1,11 @@
 import { RailwayIcon } from '@/components/icons'
+import { RailwayBlockDisplay } from '@/blocks/blocks/railway.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { RailwayResponse } from '@/tools/railway/types'
 
 export const RailwayBlock: BlockConfig<RailwayResponse> = {
-  type: 'railway',
-  name: 'Railway',
-  description: 'Manage Railway projects, services, deployments, and variables',
-  longDescription:
-    'Integrate Railway into workflows to list projects, manage services and environments, monitor deployments, trigger and roll back service deployments, and manage environment variables.',
-  docsLink: 'https://docs.sim.ai/integrations/railway',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#000000',
-  icon: RailwayIcon,
+  ...RailwayBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

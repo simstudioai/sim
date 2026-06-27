@@ -1,20 +1,12 @@
 import { ElevenLabsIcon, YouTubeIcon } from '@/components/icons'
+import { YouTubeBlockDisplay } from '@/blocks/blocks/youtube.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { YouTubeResponse } from '@/tools/youtube/types'
 
 export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
-  type: 'youtube',
-  name: 'YouTube',
-  description: 'Interact with YouTube videos, channels, and playlists',
+  ...YouTubeBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
-  docsLink: 'https://docs.sim.ai/integrations/youtube',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: '#FF0000',
-  icon: YouTubeIcon,
   subBlocks: [
     {
       id: 'operation',

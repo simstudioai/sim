@@ -1,25 +1,19 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  GoogleSheetsBlockDisplay,
+  GoogleSheetsV2BlockDisplay,
+} from '@/blocks/blocks/google_sheets.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
-  type: 'google_sheets',
-  name: 'Google Sheets (Legacy)',
-  description: 'Read, write, and update data',
+  ...GoogleSheetsBlockDisplay,
   authMode: AuthMode.OAuth,
-  hideFromToolbar: true,
-  longDescription:
-    'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
-  docsLink: 'https://docs.sim.ai/integrations/google_sheets',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector
     {
@@ -296,18 +290,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 }
 
 export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
-  type: 'google_sheets_v2',
-  name: 'Google Sheets',
-  description: 'Read, write, and update data with sheet selection',
+  ...GoogleSheetsV2BlockDisplay,
   authMode: AuthMode.OAuth,
-  hideFromToolbar: false,
-  longDescription:
-    'Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.',
-  docsLink: 'https://docs.sim.ai/integrations/google_sheets',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector
     {

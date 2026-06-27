@@ -1,8 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { ClipboardList, File } from '@/components/emcn/icons'
 import { ClickHouseIcon } from '@/components/icons'
+import { ClickHouseBlockDisplay } from '@/blocks/blocks/clickhouse.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { ClickHouseResponse } from '@/tools/clickhouse/types'
 
 const CLICKHOUSE_QUERY_PROMPT = `You are an expert ClickHouse database developer. Write ClickHouse SQL queries based on the user's request.
@@ -62,16 +62,7 @@ const TABLE_REQUIRED_OPERATIONS = [
 ]
 
 export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
-  type: 'clickhouse',
-  name: 'ClickHouse',
-  description: 'Connect to a ClickHouse database',
-  longDescription:
-    'Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.',
-  docsLink: 'https://docs.sim.ai/integrations/clickhouse',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#f9ff69',
-  icon: ClickHouseIcon,
+  ...ClickHouseBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

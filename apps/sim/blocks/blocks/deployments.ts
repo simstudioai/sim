@@ -1,12 +1,8 @@
-import { SimDeploymentsIcon } from '@/components/icons'
+import { DeploymentsBlockDisplay } from '@/blocks/blocks/deployments.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const DeploymentsBlock: BlockConfig = {
-  type: 'deployments',
-  name: 'Deployments',
-  description: 'Manage workflow deployments',
-  longDescription:
-    'Deploy, undeploy, and roll back workflows in the current workspace. Promote a previous deployment version to live, list every version, or fetch the deployed workflow state for a specific version.',
+  ...DeploymentsBlockDisplay,
   bestPractices: `
   - The block operates on workflows in the current workspace; pick one with the selector or pass an ID.
   - Deploy publishes the workflow's current draft as a new live version. Undeploy takes it offline.
@@ -14,11 +10,6 @@ export const DeploymentsBlock: BlockConfig = {
   - Use 'List Versions' to discover version numbers, then feed one into 'Promote Version to Live' or 'Get Version Details'.
   - Deploy, undeploy, and promote require admin permission on the workspace; the read operations require workspace access.
   `,
-  bgColor: '#0C0C0C',
-  iconColor: '#33C482',
-  icon: SimDeploymentsIcon,
-  category: 'blocks',
-  docsLink: 'https://docs.sim.ai/workflows/deployment',
   subBlocks: [
     {
       id: 'operation',

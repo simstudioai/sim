@@ -1,25 +1,19 @@
 import { Search } from '@/components/emcn/icons'
 import { ConfluenceIcon, PagerDutyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  ConfluenceBlockDisplay,
+  ConfluenceV2BlockDisplay,
+} from '@/blocks/blocks/confluence.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
 import { getTrigger } from '@/triggers'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
-  type: 'confluence',
-  name: 'Confluence (Legacy)',
-  description: 'Interact with Confluence',
-  hideFromToolbar: true,
+  ...ConfluenceBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.',
-  docsLink: 'https://docs.sim.ai/integrations/confluence',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: ConfluenceIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -360,9 +354,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
 export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
   ...ConfluenceBlock,
-  type: 'confluence_v2',
-  name: 'Confluence',
-  hideFromToolbar: false,
+  ...ConfluenceV2BlockDisplay,
   subBlocks: [
     {
       id: 'operation',

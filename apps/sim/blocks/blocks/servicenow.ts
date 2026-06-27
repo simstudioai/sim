@@ -1,22 +1,14 @@
 import { ServiceNowIcon } from '@/components/icons'
+import { ServiceNowBlockDisplay } from '@/blocks/blocks/servicenow.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
 export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
-  type: 'servicenow',
-  name: 'ServiceNow',
-  description: 'Create, read, update, and delete ServiceNow records',
-  longDescription:
-    'Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.',
-  docsLink: 'https://docs.sim.ai/integrations/servicenow',
-  category: 'tools',
-  integrationType: IntegrationType.Support,
+  ...ServiceNowBlockDisplay,
   authMode: AuthMode.ApiKey,
-  bgColor: '#032D42',
-  icon: ServiceNowIcon,
   subBlocks: [
     // Operation selector
     {

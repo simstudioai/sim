@@ -64,7 +64,7 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getBlock } from '@/blocks/registry'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import type { LogSortBy, LogSortOrder } from '@/hooks/queries/logs'
 import {
@@ -186,7 +186,7 @@ function getTriggerIcon(
   triggerType: string
 ): React.ComponentType<{ className?: string }> | undefined {
   if ((CORE_TRIGGER_TYPES as readonly string[]).includes(triggerType)) return undefined
-  const block = getBlock(triggerType)
+  const block = getBlockDisplay(triggerType)
   if (!block?.icon) return undefined
   const BlockIcon = block.icon
   const TriggerIcon = ({ className }: { className?: string }) => (

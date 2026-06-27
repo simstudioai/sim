@@ -1,6 +1,7 @@
 import { VantaIcon } from '@/components/icons'
+import { VantaBlockDisplay } from '@/blocks/blocks/vanta.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
@@ -54,17 +55,8 @@ function optionalString(value: unknown): string | undefined {
 }
 
 export const VantaBlock: BlockConfig<ToolResponse> = {
-  type: 'vanta',
-  name: 'Vanta',
-  description: 'Query compliance status and manage evidence in Vanta',
+  ...VantaBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  docsLink: 'https://docs.sim.ai/integrations/vanta',
-  bgColor: '#F8F4F3',
-  icon: VantaIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,20 +1,13 @@
 import { AsanaIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { AsanaBlockDisplay } from '@/blocks/blocks/asana.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { AsanaResponse } from '@/tools/asana/types'
 
 export const AsanaBlock: BlockConfig<AsanaResponse> = {
-  type: 'asana',
-  name: 'Asana',
-  description: 'Interact with Asana',
+  ...AsanaBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription: 'Integrate Asana into the workflow. Can read, write, and update tasks.',
-  docsLink: 'https://docs.sim.ai/integrations/asana',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
-  icon: AsanaIcon,
   subBlocks: [
     {
       id: 'operation',

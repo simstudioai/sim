@@ -7,7 +7,7 @@ import {
   SplitIcon,
   XCircleIcon,
 } from 'lucide-react'
-import { getBlock } from '@/blocks'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -36,7 +36,7 @@ const SPECIAL_BLOCK_COLORS = {
 export function getBlockIcon(
   blockType: string
 ): React.ComponentType<{ className?: string }> | null {
-  const blockConfig = getBlock(blockType)
+  const blockConfig = getBlockDisplay(blockType)
 
   if (blockConfig?.icon) {
     return blockConfig.icon
@@ -73,7 +73,7 @@ export function getBlockIcon(
  * Gets the background color for a block type
  */
 export function getBlockColor(blockType: string): string {
-  const blockConfig = getBlock(blockType)
+  const blockConfig = getBlockDisplay(blockType)
   if (blockConfig?.bgColor) {
     return blockConfig.bgColor
   }

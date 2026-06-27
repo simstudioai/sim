@@ -1,24 +1,18 @@
 import { GoogleSlidesIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
+import {
+  GoogleSlidesBlockDisplay,
+  GoogleSlidesV2BlockDisplay,
+} from '@/blocks/blocks/google_slides.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
-  type: 'google_slides',
-  name: 'Google Slides (Legacy)',
-  description: 'Read, write, and create presentations',
-  hideFromToolbar: true,
+  ...GoogleSlidesBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.',
-  docsLink: 'https://docs.sim.ai/integrations/google_slides',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: GoogleSlidesIcon,
   subBlocks: [
     // Operation selector
     {
@@ -3454,11 +3448,7 @@ const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
 
 export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   ...GoogleSlidesBlock,
-  type: 'google_slides_v2',
-  name: 'Google Slides',
-  description: 'Read, write, and create presentations',
-  hideFromToolbar: false,
-  integrationType: IntegrationType.Documents,
+  ...GoogleSlidesV2BlockDisplay,
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
     access: GoogleSlidesBlock.tools!.access,

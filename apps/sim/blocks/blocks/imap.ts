@@ -1,22 +1,11 @@
 import { ClipboardList, Table } from '@/components/emcn/icons'
 import { MailServerIcon } from '@/components/icons'
+import { ImapBlockDisplay } from '@/blocks/blocks/imap.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const ImapBlock: BlockConfig = {
-  type: 'imap',
-  name: 'IMAP Email',
-  description: 'Trigger workflows when new emails arrive via IMAP (works with any email provider)',
-  longDescription:
-    'Connect to any email server via IMAP protocol to trigger workflows when new emails are received. Supports Gmail, Outlook, Yahoo, and any other IMAP-compatible email provider.',
-  category: 'triggers',
-  integrationType: IntegrationType.Email,
-  bgColor: '#6366F1',
-  icon: MailServerIcon,
-  triggerAllowed: true,
-  docsLink: 'https://docs.sim.ai/integrations/imap',
-  hideFromToolbar: false,
+  ...ImapBlockDisplay,
   subBlocks: [...getTrigger('imap_poller').subBlocks],
   tools: {
     access: [],

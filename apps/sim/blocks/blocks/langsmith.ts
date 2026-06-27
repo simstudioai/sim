@@ -1,19 +1,11 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { LangsmithBlockDisplay } from '@/blocks/blocks/langsmith.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
-  type: 'langsmith',
-  name: 'LangSmith',
-  description: 'Forward workflow runs to LangSmith for observability',
-  longDescription:
-    'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
-  docsLink: 'https://docs.sim.ai/integrations/langsmith',
-  category: 'tools',
-  integrationType: IntegrationType.Observability,
-  bgColor: '#181C1E',
-  icon: LangsmithIcon,
+  ...LangsmithBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

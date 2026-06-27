@@ -10,7 +10,7 @@ import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
-import { getBlock } from '@/blocks'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -199,7 +199,7 @@ export function OutputSelect({
    * @returns The hex color code for the block
    */
   const getOutputColor = (blockType: string) => {
-    const blockConfig = getBlock(blockType)
+    const blockConfig = getBlockDisplay(blockType)
     return blockConfig?.bgColor || '#2F55FF'
   }
 
@@ -254,7 +254,7 @@ export function OutputSelect({
 
     return sortedGroups.map(({ blockName, outputs }) => {
       const firstOutput = outputs[0]
-      const blockConfig = getBlock(firstOutput.blockType)
+      const blockConfig = getBlockDisplay(firstOutput.blockType)
       const blockColor = getOutputColor(firstOutput.blockType)
 
       let blockIcon: string | React.ComponentType<{ className?: string }> = blockName

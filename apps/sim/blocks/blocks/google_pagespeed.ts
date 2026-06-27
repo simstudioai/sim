@@ -1,18 +1,10 @@
 import { GooglePagespeedIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { GooglePagespeedBlockDisplay } from '@/blocks/blocks/google_pagespeed.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { GooglePagespeedAnalyzeResponse } from '@/tools/google_pagespeed/types'
 
 export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> = {
-  type: 'google_pagespeed',
-  name: 'Google PageSpeed',
-  description: 'Analyze webpage performance with Google PageSpeed Insights',
-  longDescription:
-    'Analyze web pages for performance, accessibility, SEO, and best practices using Google PageSpeed Insights API powered by Lighthouse.',
-  docsLink: 'https://docs.sim.ai/integrations/google_pagespeed',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: '#FFFFFF',
-  icon: GooglePagespeedIcon,
+  ...GooglePagespeedBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

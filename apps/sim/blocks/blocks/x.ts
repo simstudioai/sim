@@ -1,20 +1,12 @@
 import { xIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { XBlockDisplay } from '@/blocks/blocks/x.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const XBlock: BlockConfig = {
-  type: 'x',
-  name: 'X',
-  description: 'Interact with X',
+  ...XBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.',
-  docsLink: 'https://docs.sim.ai/integrations/x',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: '#000000',
-  icon: xIcon,
   subBlocks: [
     {
       id: 'operation',

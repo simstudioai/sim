@@ -1,6 +1,7 @@
 import { EmailBisonIcon } from '@/components/icons'
+import { EmailBisonBlockDisplay } from '@/blocks/blocks/emailbison.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { EmailBisonResponse } from '@/tools/emailbison/types'
 import { getTrigger } from '@/triggers'
 
@@ -34,17 +35,7 @@ const EMAILBISON_TRIGGER_IDS = [
 ] as const
 
 export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
-  type: 'emailbison',
-  name: 'Email Bison',
-  description: 'Manage Email Bison leads, campaigns, replies, and tags',
-  longDescription:
-    'Integrate Email Bison into workflows. Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.',
-  docsLink: 'https://docs.sim.ai/integrations/emailbison',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#FB7A22',
-  iconColor: '#FB7A22',
-  icon: EmailBisonIcon,
+  ...EmailBisonBlockDisplay,
   authMode: AuthMode.ApiKey,
   triggers: {
     enabled: true,

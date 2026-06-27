@@ -1,25 +1,15 @@
 import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
+import { FirefliesBlockDisplay, FirefliesV2BlockDisplay } from '@/blocks/blocks/fireflies.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
-  type: 'fireflies',
-  name: 'Fireflies (Legacy)',
-  description: 'Interact with Fireflies.ai meeting transcripts and recordings',
-  hideFromToolbar: true,
+  ...FirefliesBlockDisplay,
   authMode: AuthMode.ApiKey,
-  triggerAllowed: true,
-  longDescription:
-    'Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.',
-  docsLink: 'https://docs.sim.ai/integrations/fireflies',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  icon: FirefliesIcon,
-  bgColor: '#100730',
   subBlocks: [
     {
       id: 'operation',
@@ -646,11 +636,7 @@ const firefliesV2Inputs = FirefliesBlock.inputs
 
 export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   ...FirefliesBlock,
-  type: 'fireflies_v2',
-  name: 'Fireflies',
-  description: 'Interact with Fireflies.ai meeting transcripts and recordings',
-  hideFromToolbar: false,
-  integrationType: IntegrationType.Productivity,
+  ...FirefliesV2BlockDisplay,
   subBlocks: firefliesV2SubBlocks,
   tools: {
     ...FirefliesBlock.tools,

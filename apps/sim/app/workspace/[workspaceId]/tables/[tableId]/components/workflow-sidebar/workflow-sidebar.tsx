@@ -57,7 +57,7 @@ import {
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getBlock } from '@/blocks'
+import { getBlockDisplay } from '@/blocks/manifest'
 import {
   useAddWorkflowGroup,
   useUpdateColumn,
@@ -470,7 +470,7 @@ export function WorkflowSidebarBody({
     for (const f of flat) {
       let group = groupsByBlockId.get(f.blockId)
       if (!group) {
-        const blockConfig = getBlock(f.blockType)
+        const blockConfig = getBlockDisplay(f.blockType)
         const blockColor = blockConfig?.bgColor || '#2F55FF'
         let blockIcon: string | React.ComponentType<{ className?: string }> = f.blockName
           .charAt(0)

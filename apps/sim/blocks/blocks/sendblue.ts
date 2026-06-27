@@ -1,6 +1,7 @@
 import { SendblueIcon } from '@/components/icons'
+import { SendblueBlockDisplay } from '@/blocks/blocks/sendblue.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 const SEND_STYLE_OPTIONS = [
@@ -21,16 +22,7 @@ const SEND_STYLE_OPTIONS = [
 ] as const
 
 export const SendblueBlock: BlockConfig = {
-  type: 'sendblue',
-  name: 'Sendblue',
-  description: 'Send and receive iMessage and SMS',
-  longDescription:
-    'Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.',
-  docsLink: 'https://docs.sim.ai/integrations/sendblue',
-  category: 'tools',
-  integrationType: IntegrationType.Communication,
-  bgColor: '#008BFF',
-  icon: SendblueIcon,
+  ...SendblueBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

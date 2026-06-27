@@ -1,19 +1,11 @@
 import { GoogleBooksIcon } from '@/components/icons'
+import { GoogleBooksBlockDisplay } from '@/blocks/blocks/google_books.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const GoogleBooksBlock: BlockConfig = {
-  type: 'google_books',
-  name: 'Google Books',
-  description: 'Search and retrieve book information',
+  ...GoogleBooksBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Search for books using the Google Books API. Find volumes by title, author, ISBN, or keywords, and retrieve detailed information about specific books including descriptions, ratings, and publication details.',
-  docsLink: 'https://docs.sim.ai/integrations/google_books',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#FFFFFF',
-  icon: GoogleBooksIcon,
 
   subBlocks: [
     {

@@ -1,5 +1,6 @@
 import { ThriveIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ThriveBlockDisplay } from '@/blocks/blocks/thrive.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 const PAGINATED_OPS = [
   'search_users',
@@ -67,16 +68,7 @@ const USER_ID_REQUIRED_OPS = [
 const USER_ID_OPS = [...USER_ID_REQUIRED_OPS, 'list_completions']
 
 export const ThriveBlock: BlockConfig = {
-  type: 'thrive',
-  name: 'Thrive',
-  description: 'Manage users, audiences, learning and CPD on Thrive',
-  longDescription:
-    'Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.',
-  docsLink: 'https://docs.sim.ai/tools/thrive',
-  category: 'tools',
-  integrationType: IntegrationType.HR,
-  bgColor: '#FFFFFF',
-  icon: ThriveIcon,
+  ...ThriveBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

@@ -1,21 +1,13 @@
 import { StagehandIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { StagehandBlockDisplay } from '@/blocks/blocks/stagehand.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/stagehand/types'
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
 
 export const StagehandBlock: BlockConfig<StagehandResponse> = {
-  type: 'stagehand',
-  name: 'Stagehand',
-  description: 'Web automation and data extraction',
+  ...StagehandBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.',
-  docsLink: 'https://docs.sim.ai/integrations/stagehand',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#FFC83C',
-  icon: StagehandIcon,
   subBlocks: [
     // Operation selection
     {

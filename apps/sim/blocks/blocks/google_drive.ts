@@ -1,24 +1,16 @@
 import { BookOpen } from '@/components/emcn/icons'
 import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { GoogleDriveBlockDisplay } from '@/blocks/blocks/google_drive.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 import { getTrigger } from '@/triggers'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
-  type: 'google_drive',
-  name: 'Google Drive',
-  description: 'Manage files, folders, and permissions',
+  ...GoogleDriveBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.',
-  docsLink: 'https://docs.sim.ai/integrations/google_drive',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: GoogleDriveIcon,
   subBlocks: [
     // Operation selector
     {

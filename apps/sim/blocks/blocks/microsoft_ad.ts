@@ -1,20 +1,12 @@
 import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MicrosoftAdBlockDisplay } from '@/blocks/blocks/microsoft_ad.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
 export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
-  type: 'microsoft_ad',
-  name: 'Azure AD',
-  description: 'Manage users and groups in Azure AD (Microsoft Entra ID)',
-  longDescription:
-    'Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.',
-  docsLink: 'https://docs.sim.ai/integrations/microsoft_ad',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: '#0078D4',
-  icon: AzureIcon,
+  ...MicrosoftAdBlockDisplay,
   authMode: AuthMode.OAuth,
   subBlocks: [
     {

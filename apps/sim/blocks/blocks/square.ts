@@ -1,21 +1,13 @@
 import { SquareIcon } from '@/components/icons'
+import { SquareBlockDisplay } from '@/blocks/blocks/square.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SquareResponse } from '@/tools/square/types'
 
 export const SquareBlock: BlockConfig<SquareResponse> = {
-  type: 'square',
-  name: 'Square',
-  description: 'Process payments and manage Square commerce data',
+  ...SquareBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).',
-  docsLink: 'https://docs.sim.ai/integrations/square',
-  category: 'tools',
-  integrationType: IntegrationType.Commerce,
-  bgColor: '#000000',
-  icon: SquareIcon,
 
   subBlocks: [
     {

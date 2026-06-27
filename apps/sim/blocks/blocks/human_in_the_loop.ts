@@ -1,17 +1,9 @@
-import { HumanInTheLoopIcon } from '@/components/icons'
+import { HumanInTheLoopBlockDisplay } from '@/blocks/blocks/human_in_the_loop.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 
 export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
-  type: 'human_in_the_loop',
-  name: 'Human in the Loop',
-  description: 'Pause workflow execution and wait for human input',
-  longDescription:
-    'Combines response and start functionality. Sends structured responses and allows workflow to resume from this point.',
-  category: 'blocks',
-  bgColor: '#10B981',
-  docsLink: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
-  icon: HumanInTheLoopIcon,
+  ...HumanInTheLoopBlockDisplay,
   subBlocks: [
     // Operation dropdown hidden - block defaults to human approval mode
     // {

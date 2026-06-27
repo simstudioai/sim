@@ -1,20 +1,12 @@
 import { TinybirdIcon } from '@/components/icons'
+import { TinybirdBlockDisplay } from '@/blocks/blocks/tinybird.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { TinybirdResponse } from '@/tools/tinybird/types'
 
 export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
-  type: 'tinybird',
-  name: 'Tinybird',
-  description: 'Send events, query data, and manage Data Sources with Tinybird',
+  ...TinybirdBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.',
-  docsLink: 'https://docs.sim.ai/integrations/tinybird',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: '#2EF598',
-  icon: TinybirdIcon,
   subBlocks: [
     {
       id: 'operation',

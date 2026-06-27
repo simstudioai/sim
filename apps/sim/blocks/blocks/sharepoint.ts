@@ -2,26 +2,20 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  SharepointBlockDisplay,
+  SharepointV2BlockDisplay,
+} from '@/blocks/blocks/sharepoint.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
 
 export const SharepointBlock: BlockConfig<SharepointResponse> = {
-  type: 'sharepoint',
-  name: 'Sharepoint',
-  description: 'Work with pages and lists',
+  ...SharepointBlockDisplay,
   authMode: AuthMode.OAuth,
-  hideFromToolbar: true,
-  longDescription:
-    'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
-  docsLink: 'https://docs.sim.ai/integrations/sharepoint',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: MicrosoftSharepointIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -588,9 +582,7 @@ const SHAREPOINT_V2_LIST_ITEM_OPERATIONS = [
 
 export const SharepointV2Block: BlockConfig<SharepointResponse> = {
   ...SharepointBlock,
-  type: 'sharepoint_v2',
-  name: 'SharePoint',
-  hideFromToolbar: false,
+  ...SharepointV2BlockDisplay,
   subBlocks: [
     {
       id: 'operation',

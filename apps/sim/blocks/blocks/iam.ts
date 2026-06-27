@@ -1,19 +1,11 @@
 import { IAMIcon } from '@/components/icons'
+import { IAMBlockDisplay } from '@/blocks/blocks/iam.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { IAMBaseResponse } from '@/tools/iam/types'
 
 export const IAMBlock: BlockConfig<IAMBaseResponse> = {
-  type: 'iam',
-  name: 'AWS IAM',
-  description: 'Manage AWS IAM users, roles, policies, and groups',
-  longDescription:
-    'Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.',
-  docsLink: 'https://docs.sim.ai/integrations/iam',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: IAMIcon,
+  ...IAMBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

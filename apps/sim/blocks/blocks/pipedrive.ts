@@ -1,22 +1,13 @@
 import { PipedriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { PipedriveBlockDisplay } from '@/blocks/blocks/pipedrive.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { PipedriveResponse } from '@/tools/pipedrive/types'
 
 export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
-  type: 'pipedrive',
-  name: 'Pipedrive',
-  description: 'Interact with Pipedrive CRM',
+  ...PipedriveBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
-  docsLink: 'https://docs.sim.ai/integrations/pipedrive',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#2E6936',
-  iconColor: '#26A65B',
-  icon: PipedriveIcon,
   subBlocks: [
     {
       id: 'operation',

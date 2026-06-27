@@ -1,6 +1,7 @@
 import { RipplingIcon } from '@/components/icons'
+import { RipplingBlockDisplay } from '@/blocks/blocks/rippling.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 /** Operations that support the filter query parameter */
 const FILTER_OPS = ['list_workers', 'list_business_partners', 'list_supergroups'] as const
@@ -190,16 +191,7 @@ const DATA_PASSTHROUGH_OPS = [
 ] as const
 
 export const RipplingBlock: BlockConfig = {
-  type: 'rippling',
-  name: 'Rippling',
-  description: 'Manage workers, departments, custom objects, and company data in Rippling',
-  longDescription:
-    'Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.',
-  docsLink: 'https://docs.sim.ai/integrations/rippling',
-  category: 'tools',
-  integrationType: IntegrationType.HR,
-  bgColor: '#502D3C',
-  icon: RipplingIcon,
+  ...RipplingBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

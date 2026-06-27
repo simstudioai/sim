@@ -1,19 +1,10 @@
 import { LaunchDarklyIcon } from '@/components/icons'
+import { LaunchDarklyBlockDisplay } from '@/blocks/blocks/launchdarkly.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const LaunchDarklyBlock: BlockConfig = {
-  type: 'launchdarkly',
-  name: 'LaunchDarkly',
-  description: 'Manage feature flags with LaunchDarkly.',
-  longDescription:
-    'Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.',
-  docsLink: 'https://docs.sim.ai/integrations/launchdarkly',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#191919',
-  iconColor: '#405BFF',
-  icon: LaunchDarklyIcon,
+  ...LaunchDarklyBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

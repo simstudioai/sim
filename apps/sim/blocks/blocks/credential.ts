@@ -1,6 +1,6 @@
-import { CredentialIcon } from '@/components/icons'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { CredentialBlockDisplay } from '@/blocks/blocks/credential.display'
 import type { BlockConfig } from '@/blocks/types'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
@@ -22,11 +22,7 @@ interface CredentialBlockOutput {
 }
 
 export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
-  type: 'credential',
-  name: 'Credential',
-  description: 'Select or list OAuth credentials',
-  longDescription:
-    'Select an OAuth credential once and pipe its ID into any downstream block that requires authentication, or list all OAuth credentials in the workspace for iteration. No secrets are ever exposed — only credential IDs and metadata.',
+  ...CredentialBlockDisplay,
   bestPractices: `
   - Use "Select Credential" to define an OAuth credential once and reference <CredentialBlock.credentialId> in multiple downstream blocks instead of repeating credential IDs.
   - Use "List Credentials" with a ForEach loop to iterate over all OAuth accounts (e.g. all Gmail accounts).
@@ -34,10 +30,6 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
   - The outputs are credential ID references, not secret values — they are safe to log and inspect.
   - To switch credentials across environments, replace the single Credential block rather than updating every downstream block.
   `,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/credential',
-  bgColor: '#6366F1',
-  icon: CredentialIcon,
-  category: 'blocks',
   subBlocks: [
     {
       id: 'operation',

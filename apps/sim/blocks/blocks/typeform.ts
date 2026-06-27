@@ -1,21 +1,13 @@
 import { TypeformIcon } from '@/components/icons'
+import { TypeformBlockDisplay } from '@/blocks/blocks/typeform.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { TypeformResponse } from '@/tools/typeform/types'
 import { getTrigger } from '@/triggers'
 
 export const TypeformBlock: BlockConfig<TypeformResponse> = {
-  type: 'typeform',
-  name: 'Typeform',
-  description: 'Interact with Typeform',
-  authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Typeform into the workflow. Can retrieve responses, download files, and get form insights. Can be used in trigger mode to trigger a workflow when a form is submitted. Requires API Key.',
-  docsLink: 'https://docs.sim.ai/integrations/typeform',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#262627', // Typeform brand color
-  icon: TypeformIcon,
+  ...TypeformBlockDisplay,
+  authMode: AuthMode.ApiKey, // Typeform brand color
   subBlocks: [
     {
       id: 'operation',

@@ -1,20 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { PostgresIcon } from '@/components/icons'
+import { PostgreSQLBlockDisplay } from '@/blocks/blocks/postgresql.display'
 import type { BlockConfig } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { PostgresResponse } from '@/tools/postgresql/types'
 
 export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
-  type: 'postgresql',
-  name: 'PostgreSQL',
-  description: 'Connect to PostgreSQL database',
-  longDescription:
-    'Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
-  docsLink: 'https://docs.sim.ai/integrations/postgresql',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#336791',
-  icon: PostgresIcon,
+  ...PostgreSQLBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

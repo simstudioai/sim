@@ -1,19 +1,11 @@
 import { BrowserUseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { BrowserUseBlockDisplay } from '@/blocks/blocks/browser_use.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { BrowserUseResponse } from '@/tools/browser_use/types'
 
 export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
-  type: 'browser_use',
-  name: 'Browser Use',
-  description: 'Run browser automation tasks',
+  ...BrowserUseBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
-  docsLink: 'https://docs.sim.ai/integrations/browser_use',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#181C1E',
-  icon: BrowserUseIcon,
   subBlocks: [
     {
       id: 'task',

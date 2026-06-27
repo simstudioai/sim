@@ -1,6 +1,6 @@
 import { CloudFormationIcon } from '@/components/icons'
+import { CloudFormationBlockDisplay } from '@/blocks/blocks/cloudformation.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type {
   CloudFormationDescribeStackDriftDetectionStatusResponse,
   CloudFormationDescribeStackEventsResponse,
@@ -20,17 +20,7 @@ export const CloudFormationBlock: BlockConfig<
   | CloudFormationGetTemplateResponse
   | CloudFormationValidateTemplateResponse
 > = {
-  type: 'cloudformation',
-  name: 'CloudFormation',
-  description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
-  longDescription:
-    'Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  docsLink: 'https://docs.sim.ai/integrations/cloudformation',
-  bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
-  iconColor: '#FF4F8B',
-  icon: CloudFormationIcon,
+  ...CloudFormationBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

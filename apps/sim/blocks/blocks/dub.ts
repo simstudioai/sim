@@ -1,20 +1,12 @@
 import { DubIcon } from '@/components/icons'
+import { DubBlockDisplay } from '@/blocks/blocks/dub.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { DubResponse } from '@/tools/dub/types'
 
 export const DubBlock: BlockConfig<DubResponse> = {
-  type: 'dub',
-  name: 'Dub',
-  description: 'Link management with Dub',
+  ...DubBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
-  docsLink: 'https://docs.sim.ai/integrations/dub',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#181C1E',
-  icon: DubIcon,
   subBlocks: [
     {
       id: 'operation',

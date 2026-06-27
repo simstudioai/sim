@@ -1,6 +1,7 @@
 import { RedisIcon } from '@/components/icons'
+import { RedisBlockDisplay } from '@/blocks/blocks/redis.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type {
   RedisCommandResponse,
   RedisDeleteResponse,
@@ -74,18 +75,8 @@ const KEY_OPERATIONS = [
 ] as const
 
 export const RedisBlock: BlockConfig<RedisResponse> = {
-  type: 'redis',
-  name: 'Redis',
-  description: 'Key-value operations with Redis',
-  longDescription:
-    'Connect to any Redis instance to perform key-value, hash, list, and utility operations via a direct connection.',
-  docsLink: 'https://docs.sim.ai/integrations/redis',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#FF4438',
-  iconColor: '#FF4438',
+  ...RedisBlockDisplay,
   authMode: AuthMode.ApiKey,
-  icon: RedisIcon,
   subBlocks: [
     {
       id: 'operation',

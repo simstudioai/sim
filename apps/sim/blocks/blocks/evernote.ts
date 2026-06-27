@@ -1,18 +1,10 @@
 import { EvernoteIcon } from '@/components/icons'
+import { EvernoteBlockDisplay } from '@/blocks/blocks/evernote.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const EvernoteBlock: BlockConfig = {
-  type: 'evernote',
-  name: 'Evernote',
-  description: 'Manage notes, notebooks, and tags in Evernote',
-  longDescription:
-    'Integrate with Evernote to manage notes, notebooks, and tags. Create, read, update, copy, search, and delete notes. Create and list notebooks and tags.',
-  docsLink: 'https://docs.sim.ai/integrations/evernote',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: EvernoteIcon,
+  ...EvernoteBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

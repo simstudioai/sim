@@ -1,21 +1,13 @@
 import { GoogleTasksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { GoogleTasksBlockDisplay } from '@/blocks/blocks/google_tasks.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
 
 export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
-  type: 'google_tasks',
-  name: 'Google Tasks',
-  description: 'Manage Google Tasks',
-  longDescription:
-    'Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.',
-  docsLink: 'https://docs.sim.ai/integrations/google_tasks',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
-  icon: GoogleTasksIcon,
+  ...GoogleTasksBlockDisplay,
   authMode: AuthMode.OAuth,
 
   subBlocks: [

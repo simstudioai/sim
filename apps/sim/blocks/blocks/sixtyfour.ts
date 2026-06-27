@@ -1,17 +1,9 @@
 import { SixtyfourIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { SixtyfourBlockDisplay } from '@/blocks/blocks/sixtyfour.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 export const SixtyfourBlock: BlockConfig = {
-  type: 'sixtyfour',
-  name: 'Sixtyfour AI',
-  description: 'Enrich leads and companies with AI-powered research',
-  longDescription:
-    'Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.',
-  docsLink: 'https://docs.sim.ai/integrations/sixtyfour',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#000000',
-  icon: SixtyfourIcon,
+  ...SixtyfourBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

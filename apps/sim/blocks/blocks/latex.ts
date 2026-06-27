@@ -1,19 +1,10 @@
 import { LatexIcon } from '@/components/icons'
+import { LatexBlockDisplay } from '@/blocks/blocks/latex.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { LatexResponse } from '@/tools/latex/types'
 
 export const LatexBlock: BlockConfig<LatexResponse> = {
-  type: 'latex',
-  name: 'LaTeX',
-  description: 'Compile LaTeX documents into PDFs',
-  longDescription:
-    'Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key. Compilation runs on the public LaTeX-on-HTTP service (latex.ytotech.com), so document source and resources are sent to that third-party service.',
-  docsLink: 'https://docs.sim.ai/integrations/latex',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: LatexIcon,
+  ...LatexBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

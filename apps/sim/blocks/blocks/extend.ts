@@ -1,27 +1,12 @@
 import { ExtendIcon } from '@/components/icons'
-import {
-  AuthMode,
-  type BlockConfig,
-  type BlockMeta,
-  IntegrationType,
-  type SubBlockType,
-} from '@/blocks/types'
+import { ExtendBlockDisplay, ExtendV2BlockDisplay } from '@/blocks/blocks/extend.display'
+import { AuthMode, type BlockConfig, type BlockMeta, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ExtendParserOutput } from '@/tools/extend/types'
 
 export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
-  type: 'extend',
-  name: 'Extend',
-  description: 'Parse and extract content from documents',
-  hideFromToolbar: true,
+  ...ExtendBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Extend AI into the workflow. Parse and extract structured content from documents including PDFs, images, and Office files.',
-  docsLink: 'https://docs.sim.ai/integrations/extend',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#000000',
-  icon: ExtendIcon,
   subBlocks: [
     {
       id: 'fileUpload',
@@ -165,11 +150,7 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
 
 export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
   ...ExtendBlock,
-  type: 'extend_v2',
-  name: 'Extend',
-  hideFromToolbar: false,
-  longDescription:
-    'Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.',
+  ...ExtendV2BlockDisplay,
   subBlocks: extendV2SubBlocks,
   tools: {
     access: ['extend_parser_v2'],

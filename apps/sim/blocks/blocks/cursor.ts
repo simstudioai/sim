@@ -1,22 +1,13 @@
 import { CursorIcon } from '@/components/icons'
+import { CursorBlockDisplay, CursorV2BlockDisplay } from '@/blocks/blocks/cursor.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { CursorResponse } from '@/tools/cursor/types'
 
 export const CursorBlock: BlockConfig<CursorResponse> = {
-  type: 'cursor',
-  name: 'Cursor (Legacy)',
-  description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
-  longDescription:
-    'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
-  docsLink: 'https://cursor.com/docs/cloud-agent/api/endpoints',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#1E1E1E',
-  icon: CursorIcon,
+  ...CursorBlockDisplay,
   authMode: AuthMode.ApiKey,
-  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -223,12 +214,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
 
 export const CursorV2Block: BlockConfig<CursorResponse> = {
   ...CursorBlock,
-  type: 'cursor_v2',
-  name: 'Cursor',
-  description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
-  longDescription:
-    'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
-  hideFromToolbar: false,
+  ...CursorV2BlockDisplay,
   tools: {
     ...CursorBlock.tools,
     access: [

@@ -1,6 +1,7 @@
 import { SapConcurIcon } from '@/components/icons'
+import { SapConcurBlockDisplay } from '@/blocks/blocks/sap_concur.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SapConcurProxyResponse, UserFileLike } from '@/tools/sap_concur/types'
 
@@ -156,17 +157,8 @@ const BODY_OPS = [
 ]
 
 export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
-  type: 'sap_concur',
-  name: 'SAP Concur',
-  description: 'Manage expense reports, travel requests, cash advances, and more in SAP Concur',
+  ...SapConcurBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.',
-  docsLink: 'https://docs.sim.ai/integrations/sap_concur',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
-  icon: SapConcurIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,5 +1,5 @@
 import type { ComponentType, CSSProperties } from 'react'
-import { getAllBlocks } from '@/blocks/registry'
+import { getAllBlockDisplay } from '@/blocks/manifest'
 
 /** A brand icon component that accepts standard styling props. */
 export type StyleableIcon = ComponentType<{ className?: string; style?: CSSProperties }>
@@ -16,7 +16,7 @@ let iconColorByComponent: Map<StyleableIcon, string> | null = null
 function getIconColorMap(): Map<StyleableIcon, string> {
   if (iconColorByComponent) return iconColorByComponent
   const map = new Map<StyleableIcon, string>()
-  for (const block of getAllBlocks()) {
+  for (const block of getAllBlockDisplay()) {
     if (block.iconColor) map.set(block.icon, block.iconColor)
   }
   iconColorByComponent = map

@@ -1,22 +1,14 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { Users } from '@/components/emcn/icons'
 import { ApolloIcon } from '@/components/icons'
+import { ApolloBlockDisplay } from '@/blocks/blocks/apollo.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ApolloResponse } from '@/tools/apollo/types'
 
 export const ApolloBlock: BlockConfig<ApolloResponse> = {
-  type: 'apollo',
-  name: 'Apollo',
-  description: 'Search, enrich, and manage contacts with Apollo.io',
+  ...ApolloBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.',
-  docsLink: 'https://docs.sim.ai/integrations/apollo',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#EBF212',
-  icon: ApolloIcon,
   subBlocks: [
     {
       id: 'operation',

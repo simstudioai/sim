@@ -1,4 +1,4 @@
-import { getBlock } from '@/blocks/registry'
+import { getBlockDisplay } from '@/blocks/manifest'
 
 /**
  * Block types that bypass permission-group access control entirely.
@@ -18,5 +18,5 @@ import { getBlock } from '@/blocks/registry'
  */
 export function isBlockTypeAccessControlExempt(blockType: string): boolean {
   if (blockType === 'start_trigger') return true
-  return getBlock(blockType)?.hideFromToolbar === true
+  return getBlockDisplay(blockType)?.hideFromToolbar === true
 }

@@ -1,24 +1,18 @@
 import { GoogleCalendarIcon, TwilioIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  GoogleCalendarBlockDisplay,
+  GoogleCalendarV2BlockDisplay,
+} from '@/blocks/blocks/google_calendar.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 import { getTrigger } from '@/triggers'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
-  type: 'google_calendar',
-  name: 'Google Calendar (Legacy)',
-  description: 'Manage Google Calendar events',
+  ...GoogleCalendarBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.',
-  docsLink: 'https://docs.sim.ai/integrations/google_calendar',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
-  icon: GoogleCalendarIcon,
-  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -888,10 +882,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
   ...GoogleCalendarBlock,
-  type: 'google_calendar_v2',
-  name: 'Google Calendar',
-  hideFromToolbar: false,
-  integrationType: IntegrationType.Productivity,
+  ...GoogleCalendarV2BlockDisplay,
   tools: {
     ...GoogleCalendarBlock.tools,
     access: [

@@ -1,7 +1,7 @@
-import { PiIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { PiBlockDisplay } from '@/blocks/blocks/pi.display'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import {
   getPiModelOptions,
   getProviderCredentialSubBlocks,
@@ -40,21 +40,13 @@ const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local'
 const MEMORY_TYPES = ['conversation', 'sliding_window', 'sliding_window_tokens']
 
 export const PiBlock: BlockConfig<PiResponse> = {
-  type: 'pi',
-  name: 'Pi Coding Agent',
-  description: 'Run an autonomous coding agent on a repo',
+  ...PiBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. In Cloud mode it spins up an isolated sandbox, clones a connected GitHub repo, edits and tests with native shell + git, and opens a pull request. In Local mode it edits files on your own machine over SSH. Both modes stream progress and reuse your models, skills, and multi-turn memory.',
   bestPractices: `
   - Use Cloud mode for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Local mode to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
   - Cloud mode requires your own provider API key (BYOK); the model key is never injected as a hosted key into the sandbox.
   `,
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#000000',
-  icon: PiIcon,
   subBlocks: [
     {
       id: 'mode',

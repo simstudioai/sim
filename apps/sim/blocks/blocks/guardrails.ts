@@ -1,5 +1,5 @@
-import { ShieldCheckIcon } from '@/components/icons'
 import { PII_ENTITY_GROUPS, PII_LANGUAGES } from '@/lib/guardrails/pii-entities'
+import { GuardrailsBlockDisplay } from '@/blocks/blocks/guardrails.display'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -20,11 +20,7 @@ export interface GuardrailsResponse extends ToolResponse {
 }
 
 export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
-  type: 'guardrails',
-  name: 'Guardrails',
-  description: 'Validate content with guardrails',
-  longDescription:
-    'Validate content using guardrails. Check if content is valid JSON, matches a regex pattern, detect hallucinations using RAG + LLM scoring, or detect PII.',
+  ...GuardrailsBlockDisplay,
   bestPractices: `
   - Reference block outputs using <blockName.output> syntax in the Content field
   - Use JSON validation to ensure structured output from LLMs before parsing
@@ -36,10 +32,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
   - For PII detection, access <guardrails.detectedEntities> and <guardrails.maskedText>
   - Chain with Condition block to handle validation failures
   `,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/guardrails',
-  category: 'blocks',
-  bgColor: '#3D642D',
-  icon: ShieldCheckIcon,
   subBlocks: [
     {
       id: 'input',

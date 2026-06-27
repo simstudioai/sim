@@ -1,19 +1,11 @@
 import { GoogleBigQueryIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { GoogleBigQueryBlockDisplay } from '@/blocks/blocks/google_bigquery.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const GoogleBigQueryBlock: BlockConfig = {
-  type: 'google_bigquery',
-  name: 'Google BigQuery',
-  description: 'Query, list, and insert data in Google BigQuery',
-  longDescription:
-    'Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.',
-  docsLink: 'https://docs.sim.ai/integrations/google_bigquery',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#FFFFFF',
-  icon: GoogleBigQueryIcon,
+  ...GoogleBigQueryBlockDisplay,
   authMode: AuthMode.OAuth,
   subBlocks: [
     {

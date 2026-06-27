@@ -35,7 +35,7 @@ import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/com
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { getBlock } from '@/blocks'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -459,7 +459,7 @@ interface ConnectorTypeCardProps {
 
 function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
   const Icon = config.icon
-  const brandBg = getBlock(type)?.bgColor ?? null
+  const brandBg = getBlockDisplay(type)?.bgColor ?? null
 
   return (
     <button

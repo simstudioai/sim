@@ -1,23 +1,15 @@
 import { ApifyIcon } from '@/components/icons'
+import { ApifyBlockDisplay } from '@/blocks/blocks/apify.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { RunActorResult } from '@/tools/apify/types'
 
 const RUN_OPERATIONS = ['apify_run_actor_sync', 'apify_run_actor_async']
 const RUN_OR_TASK_OPERATIONS = [...RUN_OPERATIONS, 'apify_run_task']
 
 export const ApifyBlock: BlockConfig<RunActorResult> = {
-  type: 'apify',
-  name: 'Apify',
-  description: 'Run Apify actors and retrieve results',
+  ...ApifyBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.',
-  docsLink: 'https://docs.sim.ai/integrations/apify',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#FFFFFF',
-  icon: ApifyIcon,
 
   subBlocks: [
     {

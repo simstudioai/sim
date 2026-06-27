@@ -1,6 +1,7 @@
 import { ProfoundIcon } from '@/components/icons'
+import { ProfoundBlockDisplay } from '@/blocks/blocks/profound.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 const CATEGORY_REPORT_OPS = [
   'visibility_report',
@@ -59,16 +60,7 @@ const DIMENSION_OPS = [
 const FILTER_OPS = [...ALL_REPORT_OPS, 'prompt_volume'] as const
 
 export const ProfoundBlock: BlockConfig = {
-  type: 'profound',
-  name: 'Profound',
-  description: 'AI visibility and analytics with Profound',
-  longDescription:
-    'Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.',
-  docsLink: 'https://docs.sim.ai/integrations/profound',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: '#000000',
-  icon: ProfoundIcon,
+  ...ProfoundBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

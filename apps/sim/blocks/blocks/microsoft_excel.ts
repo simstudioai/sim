@@ -1,7 +1,11 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  MicrosoftExcelBlockDisplay,
+  MicrosoftExcelV2BlockDisplay,
+} from '@/blocks/blocks/microsoft_excel.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type {
   MicrosoftExcelResponse,
@@ -9,18 +13,8 @@ import type {
 } from '@/tools/microsoft_excel/types'
 
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
-  type: 'microsoft_excel',
-  name: 'Microsoft Excel (Legacy)',
-  description: 'Read, write, and update data',
+  ...MicrosoftExcelBlockDisplay,
   authMode: AuthMode.OAuth,
-  hideFromToolbar: true,
-  longDescription:
-    'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
-  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: MicrosoftExcelIcon,
   subBlocks: [
     {
       id: 'operation',
@@ -347,18 +341,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 }
 
 export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
-  type: 'microsoft_excel_v2',
-  name: 'Microsoft Excel',
-  description: 'Read and write data with sheet selection',
+  ...MicrosoftExcelV2BlockDisplay,
   authMode: AuthMode.OAuth,
-  hideFromToolbar: false,
-  longDescription:
-    'Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.',
-  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: MicrosoftExcelIcon,
   subBlocks: [
     // Operation selector
     {

@@ -1,6 +1,5 @@
-import { A2AIcon } from '@/components/icons'
+import { A2ABlockDisplay } from '@/blocks/blocks/a2a.display'
 import type { BlockConfig } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
@@ -55,18 +54,7 @@ export interface A2AResponse extends ToolResponse {
 }
 
 export const A2ABlock: BlockConfig<A2AResponse> = {
-  type: 'a2a',
-  name: 'A2A',
-  description: 'Interact with external A2A-compatible agents',
-  longDescription:
-    'Use the A2A (Agent-to-Agent) protocol to interact with external AI agents. ' +
-    'Send messages, query task status, cancel tasks, or discover agent capabilities. ' +
-    'Compatible with any A2A-compliant agent including LangGraph, Google ADK, and other Sim workflows.',
-  docsLink: 'https://docs.sim.ai/workflows/blocks/a2a',
-  category: 'blocks',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#4151B5',
-  icon: A2AIcon,
+  ...A2ABlockDisplay,
   subBlocks: [
     {
       id: 'operation',

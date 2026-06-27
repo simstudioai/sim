@@ -1,7 +1,8 @@
 import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MondayBlockDisplay } from '@/blocks/blocks/monday.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type {
   MondayArchiveItemResponse,
   MondayCreateGroupResponse,
@@ -53,17 +54,8 @@ const ITEM_ID_OPS = [
 ]
 
 export const MondayBlock: BlockConfig<MondayResponse> = {
-  type: 'monday',
-  name: 'Monday',
-  description: 'Manage Monday.com boards, items, and groups',
+  ...MondayBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.',
-  docsLink: 'https://docs.sim.ai/integrations/monday',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
-  icon: MondayIcon,
   subBlocks: [
     {
       id: 'operation',

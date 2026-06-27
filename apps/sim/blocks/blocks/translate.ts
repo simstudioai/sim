@@ -1,5 +1,5 @@
-import { TranslateIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { TranslateBlockDisplay } from '@/blocks/blocks/translate.display'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
   getProviderCredentialSubBlocks,
@@ -10,16 +10,8 @@ const getTranslationPrompt = (targetLanguage: string) =>
   `Translate the following text into ${targetLanguage || 'English'}. Output ONLY the translated text with no additional commentary, explanations, or notes.`
 
 export const TranslateBlock: BlockConfig = {
-  type: 'translate',
-  name: 'Translate',
-  description: 'Translate text to any language',
+  ...TranslateBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Translate into the workflow. Can translate text to any language.',
-  docsLink: 'https://docs.sim.ai/integrations/translate',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#FF4B4B',
-  icon: TranslateIcon,
   subBlocks: [
     {
       id: 'context',

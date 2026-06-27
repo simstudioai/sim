@@ -1,6 +1,6 @@
 import { AthenaIcon } from '@/components/icons'
+import { AthenaBlockDisplay } from '@/blocks/blocks/athena.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type {
   AthenaCreateNamedQueryResponse,
   AthenaGetNamedQueryResponse,
@@ -22,17 +22,7 @@ export const AthenaBlock: BlockConfig<
   | AthenaGetNamedQueryResponse
   | AthenaListNamedQueriesResponse
 > = {
-  type: 'athena',
-  name: 'Athena',
-  description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
-  longDescription:
-    'Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.',
-  docsLink: 'https://docs.sim.ai/integrations/athena',
-  category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  bgColor: 'linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)',
-  iconColor: '#A166FF',
-  icon: AthenaIcon,
+  ...AthenaBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

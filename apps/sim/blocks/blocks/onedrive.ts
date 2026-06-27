@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { OneDriveBlockDisplay } from '@/blocks/blocks/onedrive.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
@@ -10,17 +11,8 @@ import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 const logger = createLogger('OneDriveBlock')
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
-  type: 'onedrive',
-  name: 'OneDrive',
-  description: 'Create, upload, download, list, and delete files',
+  ...OneDriveBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
-  docsLink: 'https://docs.sim.ai/integrations/onedrive',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: MicrosoftOneDriveIcon,
   subBlocks: [
     // Operation selector
     {

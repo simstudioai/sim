@@ -1,18 +1,11 @@
 import { ClayIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ClayBlockDisplay } from '@/blocks/blocks/clay.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
 
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
-  type: 'clay',
-  name: 'Clay',
-  description: 'Populate Clay workbook',
+  ...ClayBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Clay into the workflow. Can populate a table with data.',
-  docsLink: 'https://docs.sim.ai/integrations/clay',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: ClayIcon,
   subBlocks: [
     {
       id: 'webhookURL',

@@ -22,7 +22,7 @@ import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { getBlock } from '@/blocks'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -296,7 +296,7 @@ function ConnectorCard({
 
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
-  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
+  const brandBg = getBlockDisplay(connector.connectorType)?.bgColor ?? null
   const statusConfig =
     STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 

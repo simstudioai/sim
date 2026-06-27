@@ -1,20 +1,12 @@
 import { PineconeIcon } from '@/components/icons'
+import { PineconeBlockDisplay } from '@/blocks/blocks/pinecone.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { PineconeResponse } from '@/tools/pinecone/types'
 
 export const PineconeBlock: BlockConfig<PineconeResponse> = {
-  type: 'pinecone',
-  name: 'Pinecone',
-  description: 'Use Pinecone vector database',
+  ...PineconeBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.',
-  docsLink: 'https://docs.sim.ai/integrations/pinecone',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#0D1117',
-  icon: PineconeIcon,
 
   subBlocks: [
     {

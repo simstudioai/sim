@@ -1,24 +1,15 @@
 import { OutlookIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { OutlookBlockDisplay } from '@/blocks/blocks/outlook.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { OutlookResponse } from '@/tools/outlook/types'
 import { getTrigger } from '@/triggers'
 
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
-  type: 'outlook',
-  name: 'Outlook',
-  description: 'Send, read, draft, forward, and move Outlook email messages',
+  ...OutlookBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
-  docsLink: 'https://docs.sim.ai/integrations/outlook',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  triggerAllowed: true,
-  bgColor: '#FFFFFF',
-  icon: OutlookIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,19 +1,10 @@
 import { SecretsManagerIcon } from '@/components/icons'
+import { SecretsManagerBlockDisplay } from '@/blocks/blocks/secrets_manager.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { SecretsManagerBaseResponse } from '@/tools/secrets_manager/types'
 
 export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
-  type: 'secrets_manager',
-  name: 'AWS Secrets Manager',
-  description: 'Connect to AWS Secrets Manager',
-  longDescription:
-    'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.',
-  docsLink: 'https://docs.sim.ai/integrations/secrets_manager',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: SecretsManagerIcon,
+  ...SecretsManagerBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

@@ -1,8 +1,13 @@
 import { createLogger } from '@sim/logger'
-import { DocumentIcon } from '@/components/icons'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  FileBlockDisplay,
+  FileV2BlockDisplay,
+  FileV3BlockDisplay,
+  FileV4BlockDisplay,
+  FileV5BlockDisplay,
+} from '@/blocks/blocks/file.display'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
@@ -65,19 +70,10 @@ const resolveHttpFileUrl = (value: unknown): string => {
 }
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
-  type: 'file',
-  name: 'File (Legacy)',
-  description: 'Read and parse multiple files',
-  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
+  ...FileBlockDisplay,
   bestPractices: `
   - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
   `,
-  docsLink: 'https://docs.sim.ai/integrations/file',
-  category: 'blocks',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#40916C',
-  icon: DocumentIcon,
-  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'inputMethod',
@@ -181,10 +177,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
 export const FileV2Block: BlockConfig<FileParserOutput> = {
   ...FileBlock,
-  type: 'file_v2',
-  name: 'File (Legacy)',
-  description: 'Read and parse multiple files',
-  hideFromToolbar: true,
+  ...FileV2BlockDisplay,
   subBlocks: [
     {
       id: 'file',
@@ -267,17 +260,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
 }
 
 export const FileV3Block: BlockConfig<FileParserV3Output> = {
-  type: 'file_v3',
-  name: 'File',
-  description: 'Read and write workspace files',
-  longDescription:
-    'Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.',
-  docsLink: 'https://docs.sim.ai/integrations/file',
-  category: 'blocks',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#40916C',
-  icon: DocumentIcon,
-  hideFromToolbar: true,
+  ...FileV3BlockDisplay,
   subBlocks: [
     {
       id: 'operation',
@@ -562,12 +545,7 @@ const parseReadFileIds = (input: unknown): string | string[] | null => {
 
 export const FileV4Block: BlockConfig<FileParserV3Output> = {
   ...FileV3Block,
-  type: 'file_v4',
-  name: 'File (Legacy)',
-  description: 'Read, fetch, write, and append files',
-  longDescription:
-    'Read workspace files by picker or canonical ID, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.',
-  hideFromToolbar: true,
+  ...FileV4BlockDisplay,
   bestPractices: `
   - Use Read when you need an existing workspace file object by picker selection or canonical file ID.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
@@ -820,13 +798,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
 
 export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
-  type: 'file_v5',
-  name: 'File',
-  description:
-    'Read, get content, fetch, write, append, compress, decompress, and manage sharing for files',
-  longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
-  hideFromToolbar: false,
+  ...FileV5BlockDisplay,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
   - Get Content is how you read file text. It accepts file objects or canonical file IDs and returns a "contents" array with one extracted text string per file (PDF, DOCX, CSV, etc. are parsed automatically).

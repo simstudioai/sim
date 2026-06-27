@@ -1,14 +1,8 @@
-import { WorkflowIcon } from '@/components/icons'
+import { WorkflowBlockDisplay } from '@/blocks/blocks/workflow.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const WorkflowBlock: BlockConfig = {
-  type: 'workflow',
-  name: 'Workflow',
-  description:
-    'This is a core workflow block. Execute another workflow as a block in your workflow. Enter the input variable to pass to the child workflow.',
-  category: 'blocks',
-  bgColor: '#6366F1',
-  icon: WorkflowIcon,
+  ...WorkflowBlockDisplay,
   subBlocks: [
     {
       id: 'workflowId',
@@ -63,5 +57,4 @@ export const WorkflowBlock: BlockConfig = {
       hiddenFromDisplay: true,
     },
   },
-  hideFromToolbar: true,
 }

@@ -1,4 +1,4 @@
-import { ConnectIcon } from '@/components/icons'
+import { RouterBlockDisplay, RouterV2BlockDisplay } from '@/blocks/blocks/router.display'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getModelOptions,
@@ -142,21 +142,12 @@ Respond with a JSON object containing:
  * Hidden from toolbar but still supported for existing workflows.
  */
 export const RouterBlock: BlockConfig<RouterResponse> = {
-  type: 'router',
-  name: 'Router (Legacy)',
-  description: 'Route workflow',
+  ...RouterBlockDisplay,
   authMode: AuthMode.ApiKey,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/router',
-  longDescription:
-    'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to instruct the router to route to certain blocks based on the input.',
   bestPractices: `
   - For the prompt, make it almost programmatic. Use the system prompt to define the routing criteria. Should be very specific with no ambiguity.
   - Use the target block *names* to define the routing criteria.
-  `,
-  category: 'blocks',
-  bgColor: '#28C43F',
-  icon: ConnectIcon,
-  hideFromToolbar: true, // Hide legacy version from toolbar
+  `, // Hide legacy version from toolbar
   subBlocks: [
     {
       id: 'prompt',
@@ -264,22 +255,14 @@ interface RouterV2Response extends ToolResponse {
 }
 
 export const RouterV2Block: BlockConfig<RouterV2Response> = {
-  type: 'router_v2',
-  name: 'Router',
-  description: 'Route workflow based on context',
+  ...RouterV2BlockDisplay,
   authMode: AuthMode.ApiKey,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/router',
-  longDescription:
-    'Intelligently route workflow execution to different paths based on context analysis. Define multiple routes with descriptions, and an LLM will determine which route to take based on the provided context.',
   bestPractices: `
   - Write clear, specific descriptions for each route
   - The context field should contain all relevant information for routing decisions
   - Route descriptions should be mutually exclusive when possible
   - Use descriptive route names to make the workflow readable
   `,
-  category: 'blocks',
-  bgColor: '#28C43F',
-  icon: ConnectIcon,
   subBlocks: [
     {
       id: 'context',

@@ -1,19 +1,12 @@
 import { SerperIcon } from '@/components/icons'
+import { SerperBlockDisplay } from '@/blocks/blocks/serper.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SearchResponse } from '@/tools/serper/types'
 
 export const SerperBlock: BlockConfig<SearchResponse> = {
-  type: 'serper',
-  name: 'Serper',
-  description: 'Search the web using Serper',
+  ...SerperBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Serper into the workflow. Can search the web.',
-  docsLink: 'https://docs.sim.ai/integrations/serper',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#2B3543',
-  icon: SerperIcon,
   subBlocks: [
     {
       id: 'query',

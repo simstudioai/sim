@@ -1,5 +1,9 @@
-import { VideoIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
+import {
+  VideoGeneratorBlockDisplay,
+  VideoGeneratorV2BlockDisplay,
+  VideoGeneratorV3BlockDisplay,
+} from '@/blocks/blocks/video_generator.display'
+import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
 import type { VideoBlockResponse } from '@/tools/video/types'
 
@@ -71,18 +75,8 @@ const withFalAIModelOptions = (
   })
 
 export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
-  type: 'video_generator',
-  name: 'Video Generator (Legacy)',
-  description: 'Generate videos from text using AI',
-  hideFromToolbar: true,
+  ...VideoGeneratorBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.',
-  docsLink: 'https://docs.sim.ai/integrations/video-generator',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#181C1E',
-  icon: VideoIcon,
 
   subBlocks: [
     // Provider selection
@@ -889,9 +883,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
 
 export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
   ...VideoGeneratorBlock,
-  type: 'video_generator_v2',
-  name: 'Video Generator',
-  hideFromToolbar: true,
+  ...VideoGeneratorV2BlockDisplay,
   subBlocks: [
     {
       id: 'provider',
@@ -1649,16 +1641,6 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
 
 export const VideoGeneratorV3Block: BlockConfig<VideoBlockResponse> = {
   ...VideoGeneratorV2Block,
-  type: 'video_generator_v3',
-  name: 'Video Generator',
-  description: 'Generate videos from text using AI',
-  longDescription:
-    'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Veo, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
-  docsLink: 'https://docs.sim.ai/integrations/video_generator',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#181C1E',
-  icon: VideoIcon,
-  hideFromToolbar: false,
+  ...VideoGeneratorV3BlockDisplay,
   subBlocks: withFalAIModelOptions(VideoGeneratorV2Block.subBlocks, FALAI_LATEST_MODEL_OPTIONS),
 }

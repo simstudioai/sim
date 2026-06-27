@@ -1,15 +1,8 @@
-import { StartIcon } from '@/components/icons'
+import { StarterBlockDisplay } from '@/blocks/blocks/starter.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const StarterBlock: BlockConfig = {
-  type: 'starter',
-  name: 'Starter',
-  description: 'Start workflow',
-  longDescription: 'Initiate your workflow manually with optional structured input.',
-  category: 'blocks',
-  bgColor: '#2FB3FF',
-  icon: StartIcon,
-  hideFromToolbar: true,
+  ...StarterBlockDisplay,
   subBlocks: [
     // Main trigger selector
     {

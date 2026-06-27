@@ -1,19 +1,11 @@
 import { ParallelIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ParallelBlockDisplay } from '@/blocks/blocks/parallel.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export const ParallelBlock: BlockConfig<ToolResponse> = {
-  type: 'parallel_ai',
-  name: 'Parallel AI',
-  description: 'Web research with Parallel AI',
+  ...ParallelBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.',
-  docsLink: 'https://docs.sim.ai/integrations/parallel_ai',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#1D1C1A',
-  icon: ParallelIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { AgentIcon } from '@/components/icons'
+import { AgentBlockDisplay } from '@/blocks/blocks/agent.display'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import {
   getModelOptions,
   getProviderCredentialSubBlocks,
@@ -67,21 +67,12 @@ const getToolIdFromBlock = (blockType: string): string | undefined => {
 }
 
 export const AgentBlock: BlockConfig<AgentResponse> = {
-  type: 'agent',
-  name: 'Agent',
-  description: 'Build an agent',
+  ...AgentBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'The Agent block is a core workflow block that is a wrapper around an LLM. It takes in system/user prompts and calls an LLM provider. It can also make tool calls by directly containing tools inside of its tool input. It can additionally return structured output.',
   bestPractices: `
   - Prefer using integrations as tools within the agent block over separate integration blocks unless complete determinism needed. 
   - Response Format should be a valid JSON Schema. This determines the output of the agent only if present. Fields can be accessed at root level by the following blocks: e.g. <agent1.field>. If response format is not present, the agent will return the standard outputs: content, model, tokens, toolCalls.
   `,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/agent',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: 'var(--brand)',
-  icon: AgentIcon,
   subBlocks: [
     {
       id: 'messages',

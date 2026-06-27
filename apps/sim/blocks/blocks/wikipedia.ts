@@ -1,19 +1,10 @@
 import { WikipediaIcon } from '@/components/icons'
+import { WikipediaBlockDisplay } from '@/blocks/blocks/wikipedia.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { WikipediaResponse } from '@/tools/wikipedia/types'
 
 export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
-  type: 'wikipedia',
-  name: 'Wikipedia',
-  description: 'Search and retrieve content from Wikipedia',
-  longDescription:
-    'Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.',
-  docsLink: 'https://docs.sim.ai/integrations/wikipedia',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#000000',
-  icon: WikipediaIcon,
+  ...WikipediaBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

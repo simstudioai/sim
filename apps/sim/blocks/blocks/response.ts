@@ -1,14 +1,9 @@
-import { ResponseIcon } from '@/components/icons'
+import { ResponseBlockDisplay } from '@/blocks/blocks/response.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 
 export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
-  type: 'response',
-  name: 'Response',
-  description: 'Send structured API response',
-  longDescription:
-    'Integrate Response into the workflow. Can send build or edit structured responses into a final workflow response.',
-  docsLink: 'https://docs.sim.ai/workflows/blocks/response',
+  ...ResponseBlockDisplay,
   bestPractices: `
   - Only use this if the trigger block is the API Trigger.
   - Prefer the builder mode over the editor mode.
@@ -16,9 +11,6 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   - Multiple Response blocks can be placed on different branches (e.g. after a Router or Condition). The first one to execute determines the API response and ends the workflow.
   - If a Response block is on a parallel branch, there are no guarantees about whether other parallel blocks will run. Avoid placing Response blocks in parallel with blocks that have important side effects.
   `,
-  category: 'blocks',
-  bgColor: '#2F55FF',
-  icon: ResponseIcon,
   subBlocks: [
     {
       id: 'dataMode',

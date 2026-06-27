@@ -1,8 +1,9 @@
 import { Card } from '@/components/emcn/icons'
 import { GmailIcon, LemlistIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { GmailBlockDisplay, GmailV2BlockDisplay } from '@/blocks/blocks/gmail.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import {
   createVersionedToolSelector,
   normalizeFileInput,
@@ -45,19 +46,8 @@ function selectGmailToolId(params: Record<string, any>): string {
 }
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
-  type: 'gmail',
-  name: 'Gmail (Legacy)',
-  description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
+  ...GmailBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
-  docsLink: 'https://docs.sim.ai/integrations/gmail',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#FFFFFF',
-  icon: GmailIcon,
-  hideFromToolbar: true,
-  triggerAllowed: true,
   subBlocks: [
     // Operation selector
     {
@@ -575,10 +565,7 @@ Return ONLY the search query - no explanations, no extra text.`,
 
 export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   ...GmailBlock,
-  type: 'gmail_v2',
-  name: 'Gmail',
-  hideFromToolbar: false,
-  integrationType: IntegrationType.Email,
+  ...GmailV2BlockDisplay,
   tools: {
     ...GmailBlock.tools,
     access: [

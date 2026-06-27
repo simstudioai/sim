@@ -1,20 +1,12 @@
 import { DatabricksIcon } from '@/components/icons'
+import { DatabricksBlockDisplay } from '@/blocks/blocks/databricks.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { DatabricksResponse } from '@/tools/databricks/types'
 
 export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
-  type: 'databricks',
-  name: 'Databricks',
-  description: 'Run SQL queries and manage jobs on Databricks',
+  ...DatabricksBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.',
-  docsLink: 'https://docs.sim.ai/integrations/databricks',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#F9F7F4',
-  icon: DatabricksIcon,
   subBlocks: [
     {
       id: 'operation',

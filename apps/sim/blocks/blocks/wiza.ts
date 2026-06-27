@@ -1,21 +1,12 @@
 import { WizaIcon } from '@/components/icons'
+import { WizaBlockDisplay } from '@/blocks/blocks/wiza.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { WizaResponse } from '@/tools/wiza/types'
 
 export const WizaBlock: BlockConfig<WizaResponse> = {
-  type: 'wiza',
-  name: 'Wiza',
-  description: 'Find, enrich, and verify B2B contact data with Wiza',
+  ...WizaBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.',
-  docsLink: 'https://docs.sim.ai/integrations/wiza',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#9284BC',
-  iconColor: '#9284BC',
-  icon: WizaIcon,
   subBlocks: [
     {
       id: 'operation',

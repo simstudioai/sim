@@ -1,19 +1,11 @@
 import { FindymailIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { FindymailBlockDisplay } from '@/blocks/blocks/findymail.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { FindymailResponse } from '@/tools/findymail/types'
 
 export const FindymailBlock: BlockConfig<FindymailResponse> = {
-  type: 'findymail',
-  name: 'Findymail',
-  description: 'Find and verify B2B emails, phones, employees, and company data',
+  ...FindymailBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.',
-  docsLink: 'https://docs.sim.ai/integrations/findymail',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: FindymailIcon,
   subBlocks: [
     {
       id: 'operation',

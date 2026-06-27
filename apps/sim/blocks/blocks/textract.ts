@@ -1,27 +1,12 @@
 import { TextractIcon } from '@/components/icons'
-import {
-  AuthMode,
-  type BlockConfig,
-  type BlockMeta,
-  IntegrationType,
-  type SubBlockType,
-} from '@/blocks/types'
+import { TextractBlockDisplay, TextractV2BlockDisplay } from '@/blocks/blocks/textract.display'
+import { AuthMode, type BlockConfig, type BlockMeta, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
 export const TextractBlock: BlockConfig<TextractParserOutput> = {
-  type: 'textract',
-  name: 'AWS Textract',
-  description: 'Extract text, tables, and forms from documents',
-  hideFromToolbar: true,
+  ...TextractBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
-  docsLink: 'https://docs.sim.ai/integrations/textract',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
-  iconColor: '#56C0A7',
-  icon: TextractIcon,
   subBlocks: [
     {
       id: 'processingMode',
@@ -228,9 +213,7 @@ const textractV2SubBlocks = (TextractBlock.subBlocks || []).flatMap((subBlock) =
 
 export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   ...TextractBlock,
-  type: 'textract_v2',
-  name: 'AWS Textract',
-  hideFromToolbar: false,
+  ...TextractV2BlockDisplay,
   subBlocks: textractV2SubBlocks,
   tools: {
     access: ['textract_parser_v2'],

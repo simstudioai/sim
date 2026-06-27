@@ -1,20 +1,12 @@
 import { GrafanaIcon } from '@/components/icons'
+import { GrafanaBlockDisplay } from '@/blocks/blocks/grafana.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GrafanaResponse } from '@/tools/grafana/types'
 
 export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
-  type: 'grafana',
-  name: 'Grafana',
-  description: 'Interact with Grafana dashboards, alerts, and annotations',
+  ...GrafanaBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.',
-  docsLink: 'https://docs.sim.ai/integrations/grafana',
-  category: 'tools',
-  integrationType: IntegrationType.Observability,
-  bgColor: '#F46800',
-  icon: GrafanaIcon,
   subBlocks: [
     {
       id: 'operation',

@@ -1,23 +1,14 @@
 import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { DropboxBlockDisplay } from '@/blocks/blocks/dropbox.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DropboxResponse } from '@/tools/dropbox/types'
 
 export const DropboxBlock: BlockConfig<DropboxResponse> = {
-  type: 'dropbox',
-  name: 'Dropbox',
-  description: 'Upload, download, share, and manage files in Dropbox',
+  ...DropboxBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Dropbox into your workflow for file management, sharing, and collaboration. Upload files, download content, create folders, manage shared links, and more.',
-  docsLink: 'https://docs.sim.ai/integrations/dropbox',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  icon: DropboxIcon,
-  bgColor: '#0061FF',
-  iconColor: '#0061FF',
   subBlocks: [
     {
       id: 'operation',

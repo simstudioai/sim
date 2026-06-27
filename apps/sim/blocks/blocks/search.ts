@@ -1,17 +1,8 @@
-import { SearchIcon } from '@/components/icons'
+import { SearchBlockDisplay } from '@/blocks/blocks/search.display'
 import type { BlockConfig } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 
 export const SearchBlock: BlockConfig = {
-  type: 'search',
-  name: 'Search',
-  description: 'Search the web ($0.01 per search)',
-  longDescription: 'Search the web using the Search tool. Each search costs $0.01 per query.',
-  bgColor: '#3B82F6',
-  icon: SearchIcon,
-  category: 'blocks',
-  integrationType: IntegrationType.Search,
-  docsLink: 'https://docs.sim.ai/integrations/search',
+  ...SearchBlockDisplay,
   subBlocks: [
     {
       id: 'query',

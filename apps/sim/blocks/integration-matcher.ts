@@ -1,5 +1,5 @@
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
-import { getCanonicalBlocksByCategory } from '@/blocks/registry'
+import { getCanonicalBlockDisplayByCategory } from '@/blocks/manifest'
 import type { BlockIcon } from '@/blocks/types'
 
 /**
@@ -50,7 +50,7 @@ function buildMatcher(): IntegrationMatcher {
   const byName = new Map<string, IntegrationDescriptor>()
   const names: string[] = []
 
-  for (const block of getCanonicalBlocksByCategory('tools')) {
+  for (const block of getCanonicalBlockDisplayByCategory('tools')) {
     if (!block.name || block.name.trim().length < 2) continue
     const displayName = normalizeDisplayName(block.name)
     const key = displayName.toLowerCase()

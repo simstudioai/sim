@@ -1,20 +1,13 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { Mem0BlockDisplay } from '@/blocks/blocks/mem0.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
 import { parseMem0Messages } from '@/tools/mem0/utils'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
-  type: 'mem0',
-  name: 'Mem0',
-  description: 'Agent memory management',
+  ...Mem0BlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Mem0 into the workflow. Can add, search, and retrieve memories.',
-  bgColor: '#181C1E',
-  icon: Mem0Icon,
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/integrations/mem0',
   subBlocks: [
     {
       id: 'operation',

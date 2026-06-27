@@ -1,19 +1,10 @@
-import { MillionVerifierIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { MillionVerifierBlockDisplay } from '@/blocks/blocks/millionverifier.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { MillionVerifierResponse } from '@/tools/millionverifier/types'
 
 export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
-  type: 'millionverifier',
-  name: 'MillionVerifier',
-  description: 'Verify email deliverability and check account credits',
+  ...MillionVerifierBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.',
-  docsLink: 'https://docs.sim.ai/integrations/millionverifier',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: MillionVerifierIcon,
   subBlocks: [
     {
       id: 'operation',

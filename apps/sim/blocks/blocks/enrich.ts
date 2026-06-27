@@ -1,19 +1,11 @@
 import { EnrichSoIcon } from '@/components/icons'
+import { EnrichBlockDisplay } from '@/blocks/blocks/enrich.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 export const EnrichBlock: BlockConfig = {
-  type: 'enrich',
-  name: 'Enrich',
-  description: 'B2B data enrichment and LinkedIn intelligence with Enrich.so',
+  ...EnrichBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Access real-time B2B data intelligence with Enrich.so. Enrich profiles from email addresses, find work emails from LinkedIn, verify email deliverability, search for people and companies, and analyze LinkedIn post engagement.',
-  docsLink: 'https://docs.enrich.so/',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#E5E5E6',
-  icon: EnrichSoIcon,
   subBlocks: [
     {
       id: 'operation',

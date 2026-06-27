@@ -1,20 +1,11 @@
-import { SftpIcon } from '@/components/icons'
+import { SftpBlockDisplay } from '@/blocks/blocks/sftp.display'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SftpUploadResult } from '@/tools/sftp/types'
 
 export const SftpBlock: BlockConfig<SftpUploadResult> = {
-  type: 'sftp',
-  name: 'SFTP',
-  description: 'Transfer files via SFTP (SSH File Transfer Protocol)',
-  longDescription:
-    'Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.',
-  docsLink: 'https://docs.sim.ai/integrations/sftp',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#2D3748',
-  icon: SftpIcon,
+  ...SftpBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

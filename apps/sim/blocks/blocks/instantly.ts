@@ -1,7 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import { InstantlyIcon } from '@/components/icons'
+import { InstantlyBlockDisplay } from '@/blocks/blocks/instantly.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { InstantlyResponse } from '@/tools/instantly/types'
 import { getTrigger } from '@/triggers'
 
@@ -47,16 +48,7 @@ const INSTANTLY_TRIGGER_IDS = [
 ] as const
 
 export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
-  type: 'instantly',
-  name: 'Instantly',
-  description: 'Manage Instantly leads, campaigns, emails, and lead lists',
-  longDescription:
-    'Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.',
-  docsLink: 'https://docs.sim.ai/integrations/instantly',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#FFFFFF',
-  icon: InstantlyIcon,
+  ...InstantlyBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

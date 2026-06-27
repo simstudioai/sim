@@ -1,27 +1,13 @@
 import { toError } from '@sim/utils/errors'
 import { ReductoIcon } from '@/components/icons'
-import {
-  AuthMode,
-  type BlockConfig,
-  type BlockMeta,
-  IntegrationType,
-  type SubBlockType,
-} from '@/blocks/types'
+import { ReductoBlockDisplay, ReductoV2BlockDisplay } from '@/blocks/blocks/reducto.display'
+import { AuthMode, type BlockConfig, type BlockMeta, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ReductoParserOutput } from '@/tools/reducto/types'
 
 export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
-  type: 'reducto',
-  name: 'Reducto',
-  description: 'Extract text from PDF documents',
-  hideFromToolbar: true,
+  ...ReductoBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
-  docsLink: 'https://docs.sim.ai/integrations/reducto',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#5c0c5c',
-  icon: ReductoIcon,
   subBlocks: [
     {
       id: 'fileUpload',
@@ -168,10 +154,7 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
 
 export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
   ...ReductoBlock,
-  type: 'reducto_v2',
-  name: 'Reducto',
-  hideFromToolbar: false,
-  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
+  ...ReductoV2BlockDisplay,
   subBlocks: reductoV2SubBlocks,
   tools: {
     access: ['reducto_parser_v2'],

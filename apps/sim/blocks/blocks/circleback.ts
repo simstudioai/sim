@@ -1,22 +1,11 @@
 import { ClipboardList, Table } from '@/components/emcn/icons'
 import { CirclebackIcon } from '@/components/icons'
+import { CirclebackBlockDisplay } from '@/blocks/blocks/circleback.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const CirclebackBlock: BlockConfig = {
-  type: 'circleback',
-  name: 'Circleback',
-  description: 'AI-powered meeting notes and action items',
-  longDescription:
-    'Receive meeting notes, action items, transcripts, and recordings when meetings are processed. Circleback uses webhooks to push data to your workflows.',
-  category: 'triggers',
-  integrationType: IntegrationType.AI,
-  bgColor: 'linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)',
-  docsLink: 'https://docs.sim.ai/integrations/circleback',
-  icon: CirclebackIcon,
-  triggerAllowed: true,
-
+  ...CirclebackBlockDisplay,
   subBlocks: [
     ...getTrigger('circleback_meeting_completed').subBlocks,
     ...getTrigger('circleback_meeting_notes').subBlocks,

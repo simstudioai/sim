@@ -1,6 +1,6 @@
 import { TemporalIcon } from '@/components/icons'
+import { TemporalBlockDisplay } from '@/blocks/blocks/temporal.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 import type { TemporalResponse } from '@/tools/temporal/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
@@ -64,17 +64,7 @@ Examples:
 Return ONLY valid JSON - no explanations, no extra text.`
 
 export const TemporalBlock: BlockConfig<TemporalResponse> = {
-  type: 'temporal',
-  name: 'Temporal',
-  description: 'Start, signal, query, and manage Temporal workflow executions',
-  longDescription:
-    "Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.",
-  docsLink: 'https://docs.sim.ai/integrations/temporal',
-  category: 'tools',
-  integrationType: IntegrationType.DevOps,
-  bgColor: '#141414',
-  icon: TemporalIcon,
-
+  ...TemporalBlockDisplay,
   subBlocks: [
     // ── Operation selector ─────────────────────────────────────────────────────
     {

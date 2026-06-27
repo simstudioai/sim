@@ -1,22 +1,13 @@
 import { GrainIcon } from '@/components/icons'
+import { GrainBlockDisplay } from '@/blocks/blocks/grain.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 import { grainTriggerOptions } from '@/triggers/grain/utils'
 
 export const GrainBlock: BlockConfig = {
-  type: 'grain',
-  name: 'Grain',
-  description: 'Access meeting recordings, transcripts, and AI summaries',
+  ...GrainBlockDisplay,
   authMode: AuthMode.ApiKey,
-  triggerAllowed: true,
-  longDescription:
-    'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  docsLink: 'https://docs.sim.ai/integrations/grain',
-  icon: GrainIcon,
-  bgColor: '#F6FAF9',
   subBlocks: [
     {
       id: 'operation',

@@ -1,22 +1,14 @@
 import { GoogleDocsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { GoogleDocsBlockDisplay } from '@/blocks/blocks/google_docs.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
-  type: 'google_docs',
-  name: 'Google Docs',
-  description: 'Read, write, and create documents',
+  ...GoogleDocsBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Google Docs into the workflow. Can read, write, and create documents.',
-  docsLink: 'https://docs.sim.ai/integrations/google_docs',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: '#FFFFFF',
-  icon: GoogleDocsIcon,
   subBlocks: [
     // Operation selector
     {

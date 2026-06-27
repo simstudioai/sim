@@ -1,6 +1,6 @@
-import { EyeIcon } from '@/components/icons'
+import { VisionBlockDisplay, VisionV2BlockDisplay } from '@/blocks/blocks/vision.display'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { VisionResponse } from '@/tools/vision/types'
 
@@ -22,17 +22,8 @@ const VISION_MODEL_OPTIONS = [
 ]
 
 export const VisionBlock: BlockConfig<VisionResponse> = {
-  type: 'vision',
-  name: 'Vision (Legacy)',
-  description: 'Analyze images with vision models',
-  hideFromToolbar: true,
+  ...VisionBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Vision into the workflow. Can analyze images with vision models.',
-  docsLink: 'https://docs.sim.ai/integrations/vision',
-  category: 'blocks',
-  integrationType: IntegrationType.AI,
-  bgColor: '#4D5FFF',
-  icon: EyeIcon,
   subBlocks: [
     // Image file upload (basic mode)
     {
@@ -105,10 +96,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
 
 export const VisionV2Block: BlockConfig<VisionResponse> = {
   ...VisionBlock,
-  type: 'vision_v2',
-  name: 'Vision',
-  description: 'Analyze images with vision models',
-  hideFromToolbar: true,
+  ...VisionV2BlockDisplay,
   tools: {
     access: ['vision_tool_v2'],
     config: {

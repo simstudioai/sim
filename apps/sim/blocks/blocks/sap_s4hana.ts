@@ -1,20 +1,12 @@
 import { SapS4HanaIcon } from '@/components/icons'
+import { SapS4HanaBlockDisplay } from '@/blocks/blocks/sap_s4hana.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SapProxyResponse } from '@/tools/sap_s4hana/types'
 
 export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
-  type: 'sap_s4hana',
-  name: 'SAP S4HANA',
-  description: 'Read and write SAP S4HANA Cloud business data via OData',
+  ...SapS4HanaBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.',
-  docsLink: 'https://docs.sim.ai/integrations/sap_s4hana',
-  category: 'tools',
-  integrationType: IntegrationType.HR,
-  bgColor: '#FFFFFF',
-  icon: SapS4HanaIcon,
   subBlocks: [
     {
       id: 'operation',

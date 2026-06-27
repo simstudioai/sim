@@ -1,15 +1,8 @@
-import { NoteIcon } from '@/components/icons'
+import { NoteBlockDisplay } from '@/blocks/blocks/note.display'
 import type { BlockConfig } from '@/blocks/types'
 
 export const NoteBlock: BlockConfig = {
-  type: 'note',
-  name: 'Note',
-  description: 'Add contextual annotations directly onto the workflow canvas.',
-  longDescription:
-    'Use Note blocks to document decisions, share instructions, or leave context for collaborators directly on the workflow canvas. Notes support Markdown rendering and YouTube video embeds.',
-  category: 'blocks',
-  bgColor: '#F59E0B',
-  icon: NoteIcon,
+  ...NoteBlockDisplay,
   subBlocks: [
     {
       id: 'content',

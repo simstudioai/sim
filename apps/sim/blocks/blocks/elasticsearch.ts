@@ -1,20 +1,12 @@
 import { ElasticsearchIcon } from '@/components/icons'
+import { ElasticsearchBlockDisplay } from '@/blocks/blocks/elasticsearch.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
 
 export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
-  type: 'elasticsearch',
-  name: 'Elasticsearch',
-  description: 'Search, index, and manage data in Elasticsearch',
+  ...ElasticsearchBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Elasticsearch into workflows for powerful search, indexing, and data management. Supports document CRUD operations, advanced search queries, bulk operations, index management, and cluster monitoring. Works with both self-hosted and Elastic Cloud deployments.',
-  docsLink: 'https://docs.sim.ai/integrations/elasticsearch',
-  category: 'tools',
-  integrationType: IntegrationType.Databases,
-  bgColor: '#FFFFFF',
-  icon: ElasticsearchIcon,
   subBlocks: [
     // Operation selector
     {

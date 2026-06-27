@@ -13,7 +13,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
-import { getBlock } from '@/blocks/registry'
+import { getBlockDisplay } from '@/blocks/manifest'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -103,7 +103,7 @@ function ConnectionItem({
   mergedSubBlocks,
   sourceBlock,
 }: ConnectionItemProps) {
-  const blockConfig = getBlock(connection.type)
+  const blockConfig = getBlockDisplay(connection.type)
 
   const fields = useBlockOutputFields({
     blockId: connection.id,

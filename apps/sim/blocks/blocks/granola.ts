@@ -1,17 +1,9 @@
 import { GranolaIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { GranolaBlockDisplay } from '@/blocks/blocks/granola.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 
 export const GranolaBlock: BlockConfig = {
-  type: 'granola',
-  name: 'Granola',
-  description: 'Access meeting notes and transcripts from Granola',
-  longDescription:
-    'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.',
-  docsLink: 'https://docs.sim.ai/integrations/granola',
-  category: 'tools',
-  integrationType: IntegrationType.Productivity,
-  bgColor: '#B2C147',
-  icon: GranolaIcon,
+  ...GranolaBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

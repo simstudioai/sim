@@ -1,19 +1,10 @@
-import { ZeroBounceIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { ZeroBounceBlockDisplay } from '@/blocks/blocks/zerobounce.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { ZeroBounceResponse } from '@/tools/zerobounce/types'
 
 export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
-  type: 'zerobounce',
-  name: 'ZeroBounce',
-  description: 'Validate email deliverability and check account credits',
+  ...ZeroBounceBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.',
-  docsLink: 'https://docs.sim.ai/integrations/zerobounce',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: ZeroBounceIcon,
   subBlocks: [
     {
       id: 'operation',

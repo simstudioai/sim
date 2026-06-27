@@ -1,19 +1,11 @@
 import { IdentityCenterIcon } from '@/components/icons'
+import { IdentityCenterBlockDisplay } from '@/blocks/blocks/identity_center.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { IdentityCenterBaseResponse } from '@/tools/identity_center/types'
 
 export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
-  type: 'identity_center',
-  name: 'AWS Identity Center',
-  description: 'Manage temporary elevated access in AWS IAM Identity Center',
-  longDescription:
-    'Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.',
-  docsLink: 'https://docs.sim.ai/integrations/identity_center',
-  category: 'tools',
-  integrationType: IntegrationType.Security,
-  bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: IdentityCenterIcon,
+  ...IdentityCenterBlockDisplay,
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

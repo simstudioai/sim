@@ -1,19 +1,11 @@
 import { BrandfetchIcon } from '@/components/icons'
+import { BrandfetchBlockDisplay } from '@/blocks/blocks/brandfetch.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { BrandfetchGetBrandResponse, BrandfetchSearchResponse } from '@/tools/brandfetch/types'
 
 export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | BrandfetchSearchResponse> = {
-  type: 'brandfetch',
-  name: 'Brandfetch',
-  description: 'Look up brand assets, logos, colors, and company info',
-  longDescription:
-    'Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.',
-  docsLink: 'https://docs.sim.ai/integrations/brandfetch',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#000000',
-  icon: BrandfetchIcon,
+  ...BrandfetchBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

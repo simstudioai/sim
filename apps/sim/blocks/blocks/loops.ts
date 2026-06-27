@@ -1,20 +1,12 @@
 import { LoopsIcon } from '@/components/icons'
+import { LoopsBlockDisplay } from '@/blocks/blocks/loops.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { LoopsResponse } from '@/tools/loops/types'
 
 export const LoopsBlock: BlockConfig<LoopsResponse> = {
-  type: 'loops',
-  name: 'Loops',
-  description: 'Manage contacts and send emails with Loops',
+  ...LoopsBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.',
-  docsLink: 'https://docs.sim.ai/integrations/loops',
-  category: 'tools',
-  integrationType: IntegrationType.Email,
-  bgColor: '#FAFAF9',
-  icon: LoopsIcon,
   subBlocks: [
     {
       id: 'operation',

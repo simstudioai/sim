@@ -1,20 +1,11 @@
 import { GreenhouseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { GreenhouseBlockDisplay } from '@/blocks/blocks/greenhouse.display'
+import { AuthMode, type BlockConfig, type BlockMeta } from '@/blocks/types'
 import type { GreenhouseResponse } from '@/tools/greenhouse/types'
 import { getTrigger } from '@/triggers'
 
 export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
-  type: 'greenhouse',
-  name: 'Greenhouse',
-  description: 'Manage candidates, jobs, and applications in Greenhouse',
-  longDescription:
-    'Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.',
-  docsLink: 'https://docs.sim.ai/integrations/greenhouse',
-  category: 'tools',
-  integrationType: IntegrationType.HR,
-  bgColor: '#469776',
-  iconColor: '#469776',
-  icon: GreenhouseIcon,
+  ...GreenhouseBlockDisplay,
   authMode: AuthMode.ApiKey,
 
   triggers: {

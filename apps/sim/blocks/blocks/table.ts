@@ -1,7 +1,7 @@
 import { toError } from '@sim/utils/errors'
-import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
+import { TableBlockDisplay } from '@/blocks/blocks/table.display'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
@@ -178,15 +178,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 }
 
 export const TableBlock: BlockConfig<TableQueryResponse> = {
-  type: 'table',
-  name: 'Table',
-  description: 'User-defined data tables',
-  longDescription:
-    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows.',
-  docsLink: 'https://docs.simstudio.ai/tools/table',
-  category: 'blocks',
-  bgColor: '#10B981',
-  icon: TableIcon,
+  ...TableBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

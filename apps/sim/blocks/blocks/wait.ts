@@ -1,26 +1,19 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
 import { PauseCircle } from 'lucide-react'
+import { WaitBlockDisplay } from '@/blocks/blocks/wait.display'
 import type { BlockConfig } from '@/blocks/types'
 
 const WaitIcon = (props: SVGProps<SVGSVGElement>) => createElement(PauseCircle, props)
 
 export const WaitBlock: BlockConfig = {
-  type: 'wait',
-  name: 'Wait',
-  description: 'Pause workflow execution for a time interval',
-  longDescription:
-    'Pauses workflow execution for a specified time interval. By default the wait runs in-process for up to 5 minutes. Enable Async to pause the run on disk and resume automatically for waits up to 30 days.',
+  ...WaitBlockDisplay,
   bestPractices: `
   - Configure the wait amount and unit
   - Default mode runs in-process and caps at 5 minutes
   - Enable Async for longer waits (up to 30 days); seconds are not available in this mode
   - Enter a positive number for the wait amount
   `,
-  category: 'blocks',
-  bgColor: '#F59E0B',
-  icon: WaitIcon,
-  docsLink: 'https://docs.sim.ai/workflows/blocks/wait',
   subBlocks: [
     {
       id: 'timeValue',

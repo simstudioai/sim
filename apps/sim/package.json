@@ -24,6 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
+    "blocks:manifest-data": "bun run scripts/generate-block-manifest-data.ts",
     "type-check": "NODE_OPTIONS='--max-old-space-size=8192' tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",

@@ -1,21 +1,13 @@
 import { S3Icon } from '@/components/icons'
+import { S3BlockDisplay } from '@/blocks/blocks/s3.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { S3Response } from '@/tools/s3/types'
 
 export const S3Block: BlockConfig<S3Response> = {
-  type: 's3',
-  name: 'S3',
-  description: 'Upload, download, list, and manage S3 files',
+  ...S3BlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.',
-  docsLink: 'https://docs.sim.ai/integrations/s3',
-  category: 'tools',
-  integrationType: IntegrationType.Documents,
-  bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
-  icon: S3Icon,
   subBlocks: [
     // Operation selector
     {

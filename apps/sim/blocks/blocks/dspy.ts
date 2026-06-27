@@ -1,19 +1,9 @@
 import { DsPyIcon } from '@/components/icons'
+import { DSPyBlockDisplay } from '@/blocks/blocks/dspy.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
 
 export const DSPyBlock: BlockConfig = {
-  type: 'dspy',
-  name: 'DSPy',
-  description: 'Run predictions using self-hosted DSPy programs',
-  longDescription:
-    'Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.',
-  docsLink: 'https://docs.sim.ai/integrations/dspy',
-  category: 'tools',
-  integrationType: IntegrationType.AI,
-  bgColor: '#FFFFFF',
-  icon: DsPyIcon,
-
+  ...DSPyBlockDisplay,
   subBlocks: [
     {
       id: 'operation',

@@ -1,22 +1,14 @@
 import { SalesforceIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { SalesforceBlockDisplay } from '@/blocks/blocks/salesforce.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SalesforceResponse } from '@/tools/salesforce/types'
 import { getTrigger } from '@/triggers'
 
 export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
-  type: 'salesforce',
-  name: 'Salesforce',
-  description: 'Interact with Salesforce CRM',
+  ...SalesforceBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.',
-  docsLink: 'https://docs.sim.ai/integrations/salesforce',
-  category: 'tools',
-  integrationType: IntegrationType.Sales,
-  bgColor: '#FFFFFF',
-  icon: SalesforceIcon,
   triggers: {
     enabled: true,
     available: [

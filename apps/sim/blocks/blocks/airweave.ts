@@ -1,21 +1,12 @@
 import { AirweaveIcon } from '@/components/icons'
+import { AirweaveBlockDisplay } from '@/blocks/blocks/airweave.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { AirweaveSearchResponse } from '@/tools/airweave/types'
 
 export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
-  type: 'airweave',
-  name: 'Airweave',
-  description: 'Search your synced data collections',
+  ...AirweaveBlockDisplay,
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.',
-  docsLink: 'https://docs.sim.ai/integrations/airweave',
-  category: 'tools',
-  integrationType: IntegrationType.Search,
-  bgColor: '#6366F1',
-  iconColor: '#6366F1',
-  icon: AirweaveIcon,
   subBlocks: [
     {
       id: 'collectionId',

@@ -1,23 +1,14 @@
 import { WordpressIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { WordPressBlockDisplay } from '@/blocks/blocks/wordpress.display'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { WordPressResponse } from '@/tools/wordpress/types'
 
 export const WordPressBlock: BlockConfig<WordPressResponse> = {
-  type: 'wordpress',
-  name: 'WordPress',
-  description: 'Manage WordPress content',
+  ...WordPressBlockDisplay,
   authMode: AuthMode.OAuth,
-  longDescription:
-    'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.',
-  docsLink: 'https://docs.sim.ai/integrations/wordpress',
-  category: 'tools',
-  integrationType: IntegrationType.Marketing,
-  bgColor: '#21759B',
-  iconColor: '#21759B',
-  icon: WordpressIcon,
   subBlocks: [
     // Operation Selection
     {
