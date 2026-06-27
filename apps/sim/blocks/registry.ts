@@ -302,6 +302,7 @@ import { TwilioSMSBlock, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock, TypeformBlockMeta } from '@/blocks/blocks/typeform'
 import { UpstashBlock, UpstashBlockMeta } from '@/blocks/blocks/upstash'
+import { UptimeRobotBlock, UptimeRobotBlockMeta } from '@/blocks/blocks/uptimerobot'
 import { VantaBlock, VantaBlockMeta } from '@/blocks/blocks/vanta'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock, VercelBlockMeta } from '@/blocks/blocks/vercel'
@@ -615,6 +616,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
   upstash: UpstashBlock,
+  uptimerobot: UptimeRobotBlock,
   vanta: VantaBlock,
   variables: VariablesBlock,
   vercel: VercelBlock,
@@ -872,6 +874,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   twilio_voice: TwilioVoiceBlockMeta,
   typeform: TypeformBlockMeta,
   upstash: UpstashBlockMeta,
+  uptimerobot: UptimeRobotBlockMeta,
   vanta: VantaBlockMeta,
   vercel: VercelBlockMeta,
   wealthbox: WealthboxBlockMeta,
