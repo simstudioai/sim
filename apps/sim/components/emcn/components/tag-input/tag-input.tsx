@@ -44,6 +44,7 @@ import { ChipTag, chipTagVariants } from '@/components/emcn/components/chip-tag/
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { useTranslations } from 'next-intl'
 
 /**
  * Variant styles for the TagInput container.
@@ -228,6 +229,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     },
     ref
   ) => {
+  const t = useTranslations('auto')
     const effectiveMaxHeight = maxHeight ?? (variant === 'block' ? 'max-h-48' : 'max-h-32')
     const [inputValue, setInputValue] = React.useState('')
     const [isDragging, setIsDragging] = React.useState(false)
@@ -366,7 +368,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     return (
       <div
         role='group'
-        aria-label='Tag input'
+        aria-label={t('tag_input')}
         className={cn(
           tagInputVariants({ variant }),
           effectiveMaxHeight,
@@ -395,7 +397,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         )}
         {isDragging && (
           <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--surface-5)_90%,transparent)]'>
-            <span className='text-[var(--text-tertiary)] text-small'>Drop file here</span>
+            <span className='text-[var(--text-tertiary)] text-small'>{t('drop_file_here')}</span>
           </div>
         )}
         {items.map((item, index) => (
@@ -472,7 +474,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               }}
               className='relative flex flex-shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
               disabled={disabled}
-              aria-label='Add tag'
+              aria-label={t('add_tag')}
             >
               <Plus className='size-[14px]' />
             </button>

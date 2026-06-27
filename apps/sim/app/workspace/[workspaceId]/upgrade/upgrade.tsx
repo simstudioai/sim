@@ -33,6 +33,7 @@ import {
   upgradeUrlKeys,
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
+import { useTranslations } from 'next-intl'
 
 const TYPEFORM_ENTERPRISE_URL = 'https://form.typeform.com/to/jqCO12pF' as const
 
@@ -50,6 +51,7 @@ export interface UpgradeProps {
  * Billing settings page.
  */
 export function Upgrade({ workspaceId }: UpgradeProps) {
+  const t = useTranslations('auto')
   const state = useUpgradeState()
   const router = useRouter()
   const origin = useFullscreenOriginStore((s) => s.origin)
@@ -156,7 +158,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <Chip leftIcon={ArrowLeft} onClick={handleBack}>
-          Back
+          {t('back')}
         </Chip>
       </div>
 

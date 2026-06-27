@@ -13,6 +13,7 @@ import {
 } from '@/components/emcn/components/dropdown-menu/dropdown-menu'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 /** A selectable option in a {@link ChipSelect}. */
 export interface ChipSelectOption {
@@ -122,6 +123,7 @@ export function ChipSelect({
   contentClassName,
   'aria-label': ariaLabel,
 }: ChipSelectProps) {
+  const t = useTranslations('auto')
   const [query, setQuery] = React.useState('')
 
   const selectedValues = multiSelectValues ?? []
@@ -269,7 +271,7 @@ export function ChipSelect({
           ))
         ) : (
           <div className='px-2 py-4 text-center text-[var(--text-muted)] text-small'>
-            No results
+            {t('no_results')}
           </div>
         )}
       </DropdownMenuContent>

@@ -88,6 +88,7 @@ import {
   ZoomOut,
 } from '@/components/emcn'
 import { env, isTruthy } from '@/lib/core/config/env'
+import { useTranslations } from 'next-intl'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -135,6 +136,7 @@ const getDarkModeSnapshot = () => document.documentElement.classList.contains('d
 const getServerDarkModeSnapshot = () => false
 
 export default function PlaygroundPage() {
+  const t = useTranslations('auto')
   const router = useRouter()
   const [comboboxValue, setComboboxValue] = useState('')
   const [switchValue, setSwitchValue] = useState(false)
@@ -175,7 +177,7 @@ export default function PlaygroundPage() {
                   <ArrowLeft className='size-4' />
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content>Go back</Tooltip.Content>
+              <Tooltip.Content>{t('go_back')}</Tooltip.Content>
             </Tooltip.Root>
           </div>
           <div className='absolute top-8 right-8'>
@@ -191,31 +193,31 @@ export default function PlaygroundPage() {
           <div className='mx-auto max-w-4xl space-y-12'>
             <div>
               <h1 className='font-semibold text-2xl text-[var(--text-primary)]'>
-                EMCN Component Playground
+                {t('emcn_component_playground')}
               </h1>
               <p className='mt-2 text-[var(--text-secondary)]'>
-                All emcn UI components and their variants
+                {t('all_emcn_ui_components_and_their')}
               </p>
             </div>
 
             {/* Toast */}
-            <Section title='Toast'>
-              <VariantRow label='default'>
+            <Section title={t('toast')}>
+              <VariantRow label={t('default')}>
                 <Button variant='default' onClick={() => toast({ message: 'Workflow saved' })}>
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='info'>
+              <VariantRow label={t('info')}>
                 <Button variant='default' onClick={() => toast.info('Sync in progress')}>
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='success'>
+              <VariantRow label={t('success')}>
                 <Button variant='default' onClick={() => toast.success('Imported 1,240 rows')}>
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='warning'>
+              <VariantRow label={t('warning')}>
                 <Button
                   variant='default'
                   onClick={() =>
@@ -224,10 +226,10 @@ export default function PlaygroundPage() {
                     })
                   }
                 >
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='error'>
+              <VariantRow label={t('error')}>
                 <Button
                   variant='default'
                   onClick={() =>
@@ -236,10 +238,10 @@ export default function PlaygroundPage() {
                     })
                   }
                 >
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='error + action'>
+              <VariantRow label={t('error_action')}>
                 <Button
                   variant='default'
                   onClick={() =>
@@ -250,10 +252,10 @@ export default function PlaygroundPage() {
                     })
                   }
                 >
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='success + action'>
+              <VariantRow label={t('success_action')}>
                 <Button
                   variant='default'
                   onClick={() =>
@@ -262,10 +264,10 @@ export default function PlaygroundPage() {
                     })
                   }
                 >
-                  Show
+                  {t('show')}
                 </Button>
               </VariantRow>
-              <VariantRow label='stacking'>
+              <VariantRow label={t('stacking')}>
                 <Button
                   variant='default'
                   onClick={() => {
@@ -274,170 +276,170 @@ export default function PlaygroundPage() {
                     toast.error('Third notification')
                   }}
                 >
-                  Show 3
+                  {t('show_3')}
                 </Button>
                 <Button variant='ghost' onClick={() => toast.dismissAll()}>
-                  Dismiss all
+                  {t('dismiss_all')}
                 </Button>
               </VariantRow>
             </Section>
 
             {/* Button */}
-            <Section title='Button'>
-              <VariantRow label='default'>
-                <Button variant='default'>Default</Button>
+            <Section title={t('button')}>
+              <VariantRow label={t('default')}>
+                <Button variant='default'>{t('default_2')}</Button>
               </VariantRow>
-              <VariantRow label='active'>
-                <Button variant='active'>Active</Button>
+              <VariantRow label={t('active')}>
+                <Button variant='active'>{t('active_2')}</Button>
               </VariantRow>
-              <VariantRow label='3d'>
+              <VariantRow label={t('3d')}>
                 <Button variant='3d'>3D</Button>
               </VariantRow>
-              <VariantRow label='outline'>
-                <Button variant='outline'>Outline</Button>
+              <VariantRow label={t('outline')}>
+                <Button variant='outline'>{t('outline_2')}</Button>
               </VariantRow>
-              <VariantRow label='primary'>
-                <Button variant='primary'>Primary</Button>
+              <VariantRow label={t('primary')}>
+                <Button variant='primary'>{t('primary_2')}</Button>
               </VariantRow>
-              <VariantRow label='destructive'>
-                <Button variant='destructive'>Destructive</Button>
+              <VariantRow label={t('destructive')}>
+                <Button variant='destructive'>{t('destructive_2')}</Button>
               </VariantRow>
-              <VariantRow label='secondary'>
-                <Button variant='secondary'>Secondary</Button>
+              <VariantRow label={t('secondary')}>
+                <Button variant='secondary'>{t('secondary_2')}</Button>
               </VariantRow>
-              <VariantRow label='tertiary'>
-                <Button variant='tertiary'>Tertiary</Button>
+              <VariantRow label={t('tertiary')}>
+                <Button variant='tertiary'>{t('tertiary_2')}</Button>
               </VariantRow>
-              <VariantRow label='ghost'>
-                <Button variant='ghost'>Ghost</Button>
+              <VariantRow label={t('ghost')}>
+                <Button variant='ghost'>{t('ghost_2')}</Button>
               </VariantRow>
-              <VariantRow label='ghost-secondary'>
-                <Button variant='ghost-secondary'>Ghost Secondary</Button>
+              <VariantRow label={t('ghost_secondary')}>
+                <Button variant='ghost-secondary'>{t('ghost_secondary_2')}</Button>
               </VariantRow>
-              <VariantRow label='disabled'>
-                <Button disabled>Disabled</Button>
+              <VariantRow label={t('disabled')}>
+                <Button disabled>{t('disabled_2')}</Button>
               </VariantRow>
-              <VariantRow label='size sm'>
-                <Button size='sm'>Small</Button>
+              <VariantRow label={t('size_sm')}>
+                <Button size='sm'>{t('small')}</Button>
                 <Button size='sm' variant='primary'>
-                  Small Primary
+                  {t('small_primary')}
                 </Button>
               </VariantRow>
-              <VariantRow label='size md'>
-                <Button size='md'>Medium</Button>
+              <VariantRow label={t('size_md')}>
+                <Button size='md'>{t('medium')}</Button>
                 <Button size='md' variant='primary'>
-                  Medium Primary
+                  {t('medium_primary')}
                 </Button>
               </VariantRow>
             </Section>
 
             {/* ButtonGroup */}
-            <Section title='ButtonGroup'>
-              <VariantRow label='default'>
+            <Section title={t('buttongroup')}>
+              <VariantRow label={t('default')}>
                 <ButtonGroup value={buttonGroupValue} onValueChange={setButtonGroupValue}>
-                  <ButtonGroupItem value='curl'>cURL</ButtonGroupItem>
-                  <ButtonGroupItem value='python'>Python</ButtonGroupItem>
-                  <ButtonGroupItem value='javascript'>JavaScript</ButtonGroupItem>
+                  <ButtonGroupItem value='curl'>{t('curl')}</ButtonGroupItem>
+                  <ButtonGroupItem value='python'>{t('python')}</ButtonGroupItem>
+                  <ButtonGroupItem value='javascript'>{t('javascript')}</ButtonGroupItem>
                 </ButtonGroup>
               </VariantRow>
-              <VariantRow label='gap none'>
+              <VariantRow label={t('gap_none')}>
                 <ButtonGroup value='opt1' gap='none'>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
+                  <ButtonGroupItem value='opt1'>{t('option_1')}</ButtonGroupItem>
+                  <ButtonGroupItem value='opt2'>{t('option_2')}</ButtonGroupItem>
                 </ButtonGroup>
               </VariantRow>
-              <VariantRow label='gap sm'>
+              <VariantRow label={t('gap_sm')}>
                 <ButtonGroup value='opt1' gap='sm'>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
+                  <ButtonGroupItem value='opt1'>{t('option_1')}</ButtonGroupItem>
+                  <ButtonGroupItem value='opt2'>{t('option_2')}</ButtonGroupItem>
                 </ButtonGroup>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <ButtonGroup value='opt1' disabled>
-                  <ButtonGroupItem value='opt1'>Option 1</ButtonGroupItem>
-                  <ButtonGroupItem value='opt2'>Option 2</ButtonGroupItem>
+                  <ButtonGroupItem value='opt1'>{t('option_1')}</ButtonGroupItem>
+                  <ButtonGroupItem value='opt2'>{t('option_2')}</ButtonGroupItem>
                 </ButtonGroup>
               </VariantRow>
-              <VariantRow label='single item'>
+              <VariantRow label={t('single_item')}>
                 <ButtonGroup value='only'>
-                  <ButtonGroupItem value='only'>Only Option</ButtonGroupItem>
+                  <ButtonGroupItem value='only'>{t('only_option')}</ButtonGroupItem>
                 </ButtonGroup>
               </VariantRow>
             </Section>
 
             {/* Badge */}
-            <Section title='Badge'>
-              <VariantRow label='default'>
-                <Badge variant='default'>Default</Badge>
+            <Section title={t('badge')}>
+              <VariantRow label={t('default')}>
+                <Badge variant='default'>{t('default_2')}</Badge>
               </VariantRow>
-              <VariantRow label='outline'>
-                <Badge variant='outline'>Outline</Badge>
+              <VariantRow label={t('outline')}>
+                <Badge variant='outline'>{t('outline_2')}</Badge>
               </VariantRow>
-              <VariantRow label='type'>
-                <Badge variant='type'>Type</Badge>
+              <VariantRow label={t('type')}>
+                <Badge variant='type'>{t('type_2')}</Badge>
               </VariantRow>
-              <VariantRow label='green'>
-                <Badge variant='green'>Green</Badge>
+              <VariantRow label={t('green')}>
+                <Badge variant='green'>{t('green_2')}</Badge>
                 <Badge variant='green' dot>
-                  With Dot
+                  {t('with_dot')}
                 </Badge>
               </VariantRow>
-              <VariantRow label='red'>
-                <Badge variant='red'>Red</Badge>
+              <VariantRow label={t('red')}>
+                <Badge variant='red'>{t('red_2')}</Badge>
                 <Badge variant='red' dot>
-                  With Dot
+                  {t('with_dot')}
                 </Badge>
               </VariantRow>
-              <VariantRow label='blue'>
-                <Badge variant='blue'>Blue</Badge>
+              <VariantRow label={t('blue')}>
+                <Badge variant='blue'>{t('blue_2')}</Badge>
                 <Badge variant='blue' dot>
-                  With Dot
+                  {t('with_dot')}
                 </Badge>
               </VariantRow>
-              <VariantRow label='blue-secondary'>
-                <Badge variant='blue-secondary'>Blue Secondary</Badge>
+              <VariantRow label={t('blue_secondary')}>
+                <Badge variant='blue-secondary'>{t('blue_secondary_2')}</Badge>
               </VariantRow>
-              <VariantRow label='purple'>
-                <Badge variant='purple'>Purple</Badge>
+              <VariantRow label={t('purple')}>
+                <Badge variant='purple'>{t('purple_2')}</Badge>
               </VariantRow>
-              <VariantRow label='orange'>
-                <Badge variant='orange'>Orange</Badge>
+              <VariantRow label={t('orange')}>
+                <Badge variant='orange'>{t('orange_2')}</Badge>
               </VariantRow>
-              <VariantRow label='amber'>
-                <Badge variant='amber'>Amber</Badge>
+              <VariantRow label={t('amber')}>
+                <Badge variant='amber'>{t('amber_2')}</Badge>
               </VariantRow>
-              <VariantRow label='teal'>
-                <Badge variant='teal'>Teal</Badge>
+              <VariantRow label={t('teal')}>
+                <Badge variant='teal'>{t('teal_2')}</Badge>
               </VariantRow>
-              <VariantRow label='cyan'>
-                <Badge variant='cyan'>Cyan</Badge>
+              <VariantRow label={t('cyan')}>
+                <Badge variant='cyan'>{t('cyan_2')}</Badge>
               </VariantRow>
-              <VariantRow label='gray'>
-                <Badge variant='gray'>Gray</Badge>
+              <VariantRow label={t('gray')}>
+                <Badge variant='gray'>{t('gray_2')}</Badge>
               </VariantRow>
-              <VariantRow label='gray-secondary'>
-                <Badge variant='gray-secondary'>Gray Secondary</Badge>
+              <VariantRow label={t('gray_secondary')}>
+                <Badge variant='gray-secondary'>{t('gray_secondary_2')}</Badge>
               </VariantRow>
-              <VariantRow label='sizes'>
-                <Badge size='sm'>Small</Badge>
-                <Badge size='md'>Medium</Badge>
-                <Badge size='lg'>Large</Badge>
+              <VariantRow label={t('sizes')}>
+                <Badge size='sm'>{t('small')}</Badge>
+                <Badge size='md'>{t('medium')}</Badge>
+                <Badge size='lg'>{t('large')}</Badge>
               </VariantRow>
             </Section>
 
             {/* Input */}
-            <Section title='Input'>
-              <VariantRow label='default'>
-                <Input placeholder='Enter text...' className='max-w-xs' />
+            <Section title={t('input')}>
+              <VariantRow label={t('default')}>
+                <Input placeholder={t('enter_text')} className='max-w-xs' />
               </VariantRow>
-              <VariantRow label='disabled'>
-                <Input placeholder='Disabled' disabled className='max-w-xs' />
+              <VariantRow label={t('disabled')}>
+                <Input placeholder={t('disabled_2')} disabled className='max-w-xs' />
               </VariantRow>
             </Section>
 
             {/* TagInput */}
-            <Section title='TagInput'>
-              <VariantRow label='default'>
+            <Section title={t('taginput')}>
+              <VariantRow label={t('default')}>
                 <div className='w-80'>
                   <TagInput
                     items={tagItems}
@@ -449,12 +451,12 @@ export default function PlaygroundPage() {
                     onRemove={(_, index) => {
                       setTagItems((prev) => prev.filter((_, i) => i !== index))
                     }}
-                    placeholder='Enter emails...'
+                    placeholder={t('enter_emails')}
                     placeholderWithTags='Add another'
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='secondary variant'>
+              <VariantRow label={t('secondary_variant')}>
                 <div className='w-80'>
                   <TagInput
                     items={[
@@ -463,19 +465,19 @@ export default function PlaygroundPage() {
                     ]}
                     onAdd={() => true}
                     onRemove={() => {}}
-                    placeholder='Add tags'
+                    placeholder={t('add_tags')}
                     placeholderWithTags='Add another'
                     triggerKeys={['Enter', ',']}
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <div className='w-80'>
                   <TagInput
                     items={[{ value: 'disabled@email.com', isValid: true }]}
                     onAdd={() => false}
                     onRemove={() => {}}
-                    placeholder='Disabled input'
+                    placeholder={t('disabled_input')}
                     disabled
                   />
                 </div>
@@ -483,21 +485,21 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Textarea */}
-            <Section title='Textarea'>
-              <Textarea placeholder='Enter your message...' className='max-w-md' rows={4} />
+            <Section title={t('textarea')}>
+              <Textarea placeholder={t('enter_your_message')} className='max-w-md' rows={4} />
             </Section>
 
             {/* Label */}
-            <Section title='Label'>
+            <Section title={t('label')}>
               <div className='flex flex-col gap-2'>
-                <Label htmlFor='demo-input'>Label Text</Label>
-                <Input id='demo-input' placeholder='Input with label' className='max-w-xs' />
+                <Label htmlFor='demo-input'>{t('label_text')}</Label>
+                <Input id='demo-input' placeholder={t('input_with_label')} className='max-w-xs' />
               </div>
             </Section>
 
             {/* Switch */}
-            <Section title='Switch'>
-              <VariantRow label='default'>
+            <Section title={t('switch')}>
+              <VariantRow label={t('default')}>
                 <Switch checked={switchValue} onCheckedChange={setSwitchValue} />
                 <span className='text-[var(--text-secondary)] text-sm'>
                   {switchValue ? 'On' : 'Off'}
@@ -506,40 +508,40 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Checkbox */}
-            <Section title='Checkbox'>
-              <VariantRow label='default'>
+            <Section title={t('checkbox')}>
+              <VariantRow label={t('default')}>
                 <Checkbox checked={checkboxValue} onCheckedChange={(c) => setCheckboxValue(!!c)} />
                 <span className='text-[var(--text-secondary)] text-sm'>
                   {checkboxValue ? 'Checked' : 'Unchecked'}
                 </span>
               </VariantRow>
-              <VariantRow label='size sm'>
+              <VariantRow label={t('size_sm')}>
                 <Checkbox size='sm' />
-                <span className='text-[var(--text-secondary)] text-sm'>Small (14px)</span>
+                <span className='text-[var(--text-secondary)] text-sm'>{t('small_14px')}</span>
               </VariantRow>
-              <VariantRow label='size md'>
+              <VariantRow label={t('size_md')}>
                 <Checkbox size='md' />
-                <span className='text-[var(--text-secondary)] text-sm'>Medium (16px)</span>
+                <span className='text-[var(--text-secondary)] text-sm'>{t('medium_16px')}</span>
               </VariantRow>
-              <VariantRow label='size lg'>
+              <VariantRow label={t('size_lg')}>
                 <Checkbox size='lg' />
-                <span className='text-[var(--text-secondary)] text-sm'>Large (20px)</span>
+                <span className='text-[var(--text-secondary)] text-sm'>{t('large_20px')}</span>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <Checkbox disabled />
                 <Checkbox disabled checked />
               </VariantRow>
             </Section>
 
             {/* Slider */}
-            <Section title='Slider'>
-              <VariantRow label='default'>
+            <Section title={t('slider')}>
+              <VariantRow label={t('default')}>
                 <div className='w-48'>
                   <Slider value={sliderValue} onValueChange={setSliderValue} max={100} step={1} />
                 </div>
                 <span className='text-[var(--text-secondary)] text-sm'>{sliderValue[0]}</span>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <div className='w-48'>
                   <Slider value={[30]} disabled max={100} step={1} />
                 </div>
@@ -547,8 +549,8 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Avatar */}
-            <Section title='Avatar'>
-              <VariantRow label='sizes'>
+            <Section title={t('avatar')}>
+              <VariantRow label={t('sizes')}>
                 <Avatar size='xs'>
                   <AvatarFallback>XS</AvatarFallback>
                 </Avatar>
@@ -562,33 +564,33 @@ export default function PlaygroundPage() {
                   <AvatarFallback>LG</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='with image'>
+              <VariantRow label={t('with_image')}>
                 <Avatar size='md'>
-                  <AvatarImage src='https://github.com/shadcn.png' alt='User' />
+                  <AvatarImage src='https://github.com/shadcn.png' alt={t('user')} />
                   <AvatarFallback>CN</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='status online'>
+              <VariantRow label={t('status_online')}>
                 <Avatar size='md' status='online'>
                   <AvatarFallback>JD</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='status offline'>
+              <VariantRow label={t('status_offline')}>
                 <Avatar size='md' status='offline'>
                   <AvatarFallback>JD</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='status busy'>
+              <VariantRow label={t('status_busy')}>
                 <Avatar size='md' status='busy'>
                   <AvatarFallback>JD</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='status away'>
+              <VariantRow label={t('status_away')}>
                 <Avatar size='md' status='away'>
                   <AvatarFallback>JD</AvatarFallback>
                 </Avatar>
               </VariantRow>
-              <VariantRow label='all sizes with status'>
+              <VariantRow label={t('all_sizes_with_status')}>
                 <Avatar size='xs' status='online'>
                   <AvatarFallback>XS</AvatarFallback>
                 </Avatar>
@@ -605,78 +607,78 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Table */}
-            <Section title='Table'>
-              <VariantRow label='default'>
+            <Section title={t('table')}>
+              <VariantRow label={t('default')}>
                 <Table className='max-w-md'>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Role</TableHead>
+                      <TableHead>{t('name')}</TableHead>
+                      <TableHead>{t('status')}</TableHead>
+                      <TableHead>{t('role')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Alice</TableCell>
-                      <TableCell>Active</TableCell>
-                      <TableCell>Admin</TableCell>
+                      <TableCell>{t('alice')}</TableCell>
+                      <TableCell>{t('active_2')}</TableCell>
+                      <TableCell>{t('admin')}</TableCell>
                     </TableRow>
                     <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Bob</TableCell>
-                      <TableCell>Pending</TableCell>
-                      <TableCell>User</TableCell>
+                      <TableCell>{t('bob')}</TableCell>
+                      <TableCell>{t('pending')}</TableCell>
+                      <TableCell>{t('user')}</TableCell>
                     </TableRow>
                     <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Charlie</TableCell>
-                      <TableCell>Active</TableCell>
-                      <TableCell>User</TableCell>
+                      <TableCell>{t('charlie')}</TableCell>
+                      <TableCell>{t('active_2')}</TableCell>
+                      <TableCell>{t('user')}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </VariantRow>
-              <VariantRow label='with footer'>
+              <VariantRow label={t('with_footer')}>
                 <Table className='max-w-md'>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className='text-right'>Price</TableHead>
+                      <TableHead>{t('item')}</TableHead>
+                      <TableHead className='text-right'>{t('price')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell>Product A</TableCell>
+                      <TableCell>{t('product_a')}</TableCell>
                       <TableCell className='text-right'>$10.00</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Product B</TableCell>
+                      <TableCell>{t('product_b')}</TableCell>
                       <TableCell className='text-right'>$20.00</TableCell>
                     </TableRow>
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell>Total</TableCell>
+                      <TableCell>{t('total')}</TableCell>
                       <TableCell className='text-right'>$30.00</TableCell>
                     </TableRow>
                   </TableFooter>
                 </Table>
               </VariantRow>
-              <VariantRow label='with caption'>
+              <VariantRow label={t('with_caption')}>
                 <Table className='max-w-md'>
-                  <TableCaption>A list of team members</TableCaption>
+                  <TableCaption>{t('a_list_of_team_members')}</TableCaption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Department</TableHead>
+                      <TableHead>{t('name')}</TableHead>
+                      <TableHead>{t('department')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell>Alice</TableCell>
-                      <TableCell>Engineering</TableCell>
+                      <TableCell>{t('alice')}</TableCell>
+                      <TableCell>{t('engineering')}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Bob</TableCell>
-                      <TableCell>Design</TableCell>
+                      <TableCell>{t('bob')}</TableCell>
+                      <TableCell>{t('design')}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -684,57 +686,57 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Combobox */}
-            <Section title='Combobox'>
-              <VariantRow label='default'>
+            <Section title={t('combobox')}>
+              <VariantRow label={t('default')}>
                 <div className='w-48'>
                   <Combobox
                     options={COMBOBOX_OPTIONS}
                     value={comboboxValue}
                     onChange={setComboboxValue}
-                    placeholder='Select option...'
+                    placeholder={t('select_option')}
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='size sm'>
+              <VariantRow label={t('size_sm')}>
                 <div className='w-48'>
                   <Combobox
                     options={COMBOBOX_OPTIONS}
                     value=''
                     onChange={() => {}}
-                    placeholder='Small size'
+                    placeholder={t('small_size')}
                     size='sm'
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='searchable'>
+              <VariantRow label={t('searchable')}>
                 <div className='w-48'>
                   <Combobox
                     options={COMBOBOX_OPTIONS}
                     value=''
                     onChange={() => {}}
-                    placeholder='With search'
+                    placeholder={t('with_search')}
                     searchable
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='editable'>
+              <VariantRow label={t('editable')}>
                 <div className='w-48'>
                   <Combobox
                     options={COMBOBOX_OPTIONS}
                     value=''
                     onChange={() => {}}
-                    placeholder='Type or select...'
+                    placeholder={t('type_or_select')}
                     editable
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='multiSelect'>
+              <VariantRow label={t('multiselect')}>
                 <div className='w-48'>
                   <Combobox
                     options={COMBOBOX_OPTIONS}
                     multiSelectValues={[]}
                     onMultiSelectChange={() => {}}
-                    placeholder='Select multiple...'
+                    placeholder={t('select_multiple')}
                     multiSelect
                     searchable
                   />
@@ -743,29 +745,29 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* TimePicker */}
-            <Section title='TimePicker'>
-              <VariantRow label='default'>
+            <Section title={t('timepicker')}>
+              <VariantRow label={t('default')}>
                 <div className='w-48'>
-                  <TimePicker value={timeValue} onChange={setTimeValue} placeholder='Select time' />
+                  <TimePicker value={timeValue} onChange={setTimeValue} placeholder={t('select_time')} />
                 </div>
                 <span className='text-[var(--text-secondary)] text-sm'>{timeValue}</span>
               </VariantRow>
-              <VariantRow label='size sm'>
+              <VariantRow label={t('size_sm')}>
                 <div className='w-48'>
                   <TimePicker
                     value='14:00'
                     onChange={() => {}}
-                    placeholder='Small size'
+                    placeholder={t('small_size')}
                     size='sm'
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='no value'>
+              <VariantRow label={t('no_value')}>
                 <div className='w-48'>
-                  <TimePicker placeholder='Select time...' onChange={() => {}} />
+                  <TimePicker placeholder={t('select_time_2')} onChange={() => {}} />
                 </div>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <div className='w-48'>
                   <TimePicker value='09:00' disabled />
                 </div>
@@ -773,13 +775,13 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* ChipDatePicker */}
-            <Section title='ChipDatePicker'>
-              <VariantRow label='single date'>
+            <Section title={t('chipdatepicker')}>
+              <VariantRow label={t('single_date')}>
                 <div className='w-56'>
                   <ChipDatePicker
                     value={dateValue}
                     onChange={setDateValue}
-                    placeholder='Select date'
+                    placeholder={t('select_date')}
                     fullWidth
                   />
                 </div>
@@ -787,7 +789,7 @@ export default function PlaygroundPage() {
                   {dateValue || 'No date'}
                 </span>
               </VariantRow>
-              <VariantRow label='range mode'>
+              <VariantRow label={t('range_mode')}>
                 <div className='w-72'>
                   <ChipDatePicker
                     mode='range'
@@ -797,12 +799,12 @@ export default function PlaygroundPage() {
                       setDateRangeStart(start)
                       setDateRangeEnd(end)
                     }}
-                    placeholder='Select date range'
+                    placeholder={t('select_date_range')}
                     fullWidth
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='range mode (with time)'>
+              <VariantRow label={t('range_mode_with_time')}>
                 <div className='w-72'>
                   <ChipDatePicker
                     mode='range'
@@ -813,12 +815,12 @@ export default function PlaygroundPage() {
                       setDateRangeStart(start)
                       setDateRangeEnd(end)
                     }}
-                    placeholder='Select date range'
+                    placeholder={t('select_date_range')}
                     fullWidth
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='disabled'>
+              <VariantRow label={t('disabled')}>
                 <div className='w-56'>
                   <ChipDatePicker value='2025-01-15' disabled fullWidth />
                 </div>
@@ -826,29 +828,29 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Tooltip */}
-            <Section title='Tooltip'>
-              <VariantRow label='default'>
+            <Section title={t('tooltip')}>
+              <VariantRow label={t('default')}>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button variant='default'>Hover me</Button>
+                    <Button variant='default'>{t('hover_me')}</Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content>Tooltip content</Tooltip.Content>
+                  <Tooltip.Content>{t('tooltip_content')}</Tooltip.Content>
                 </Tooltip.Root>
               </VariantRow>
-              <VariantRow label='with shortcut'>
+              <VariantRow label={t('with_shortcut')}>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button variant='default'>Clear console</Button>
+                    <Button variant='default'>{t('clear_console')}</Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                    <Tooltip.Shortcut keys='⌘D'>{t('clear_console')}</Tooltip.Shortcut>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </VariantRow>
-              <VariantRow label='shortcut only'>
+              <VariantRow label={t('shortcut_only')}>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button variant='default'>Save</Button>
+                    <Button variant='default'>{t('save')}</Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <Tooltip.Shortcut keys='⌘S' />
@@ -858,70 +860,70 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Popover */}
-            <Section title='Popover'>
-              <VariantRow label='default'>
+            <Section title={t('popover')}>
+              <VariantRow label={t('default')}>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant='default'>Open Popover</Button>
+                    <Button variant='default'>{t('open_popover')}</Button>
                   </PopoverTrigger>
                   <PopoverContent>
-                    <PopoverSection>Section Title</PopoverSection>
-                    <PopoverItem>Item 1</PopoverItem>
-                    <PopoverItem>Item 2</PopoverItem>
-                    <PopoverItem active>Active Item</PopoverItem>
+                    <PopoverSection>{t('section_title')}</PopoverSection>
+                    <PopoverItem>{t('item_1')}</PopoverItem>
+                    <PopoverItem>{t('item_2')}</PopoverItem>
+                    <PopoverItem active>{t('active_item')}</PopoverItem>
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='secondary variant'>
+              <VariantRow label={t('secondary_variant')}>
                 <Popover variant='secondary'>
                   <PopoverTrigger asChild>
-                    <Button variant='secondary'>Secondary Popover</Button>
+                    <Button variant='secondary'>{t('secondary_popover')}</Button>
                   </PopoverTrigger>
                   <PopoverContent>
-                    <PopoverItem>Item 1</PopoverItem>
-                    <PopoverItem active>Active Item</PopoverItem>
+                    <PopoverItem>{t('item_1')}</PopoverItem>
+                    <PopoverItem active>{t('active_item')}</PopoverItem>
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='with search'>
+              <VariantRow label={t('with_search_2')}>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant='default'>Searchable Popover</Button>
+                    <Button variant='default'>{t('searchable_popover')}</Button>
                   </PopoverTrigger>
                   <PopoverContent>
-                    <PopoverSearch placeholder='Search items...' />
+                    <PopoverSearch placeholder={t('search_items')} />
                     <PopoverScrollArea className='max-h-40'>
-                      <PopoverItem>Apple</PopoverItem>
-                      <PopoverItem>Banana</PopoverItem>
-                      <PopoverItem>Cherry</PopoverItem>
-                      <PopoverItem>Date</PopoverItem>
-                      <PopoverItem>Elderberry</PopoverItem>
+                      <PopoverItem>{t('apple')}</PopoverItem>
+                      <PopoverItem>{t('banana')}</PopoverItem>
+                      <PopoverItem>{t('cherry')}</PopoverItem>
+                      <PopoverItem>{t('date')}</PopoverItem>
+                      <PopoverItem>{t('elderberry')}</PopoverItem>
                     </PopoverScrollArea>
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='with folders'>
+              <VariantRow label={t('with_folders')}>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant='default'>Folder Navigation</Button>
+                    <Button variant='default'>{t('folder_navigation')}</Button>
                   </PopoverTrigger>
                   <PopoverContent>
                     <PopoverBackButton />
-                    <PopoverItem rootOnly>Root Item</PopoverItem>
+                    <PopoverItem rootOnly>{t('root_item')}</PopoverItem>
                     <PopoverFolder
                       id='folder1'
-                      title='Folder 1'
+                      title={t('folder_1')}
                       icon={<Folder className='size-3' />}
                     >
-                      <PopoverItem>Nested Item 1</PopoverItem>
-                      <PopoverItem>Nested Item 2</PopoverItem>
+                      <PopoverItem>{t('nested_item_1')}</PopoverItem>
+                      <PopoverItem>{t('nested_item_2')}</PopoverItem>
                     </PopoverFolder>
                     <PopoverFolder
                       id='folder2'
-                      title='Folder 2'
+                      title={t('folder_2')}
                       icon={<Folder className='size-3' />}
                     >
-                      <PopoverItem>Another Nested Item</PopoverItem>
+                      <PopoverItem>{t('another_nested_item')}</PopoverItem>
                     </PopoverFolder>
                   </PopoverContent>
                 </Popover>
@@ -929,54 +931,54 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Modal */}
-            <Section title='Modal'>
-              <VariantRow label='sizes'>
+            <Section title={t('modal')}>
+              <VariantRow label={t('sizes')}>
                 {(['sm', 'md', 'lg', 'xl', 'full'] as const).map((size) => (
                   <Modal key={size}>
                     <ModalTrigger asChild>
                       <Button variant='default'>{size}</Button>
                     </ModalTrigger>
                     <ModalContent size={size}>
-                      <ModalHeader>Modal {size.toUpperCase()}</ModalHeader>
+                      <ModalHeader>{t('modal')} {size.toUpperCase()}</ModalHeader>
                       <ModalBody>
                         <ModalDescription className='text-[var(--text-secondary)]'>
-                          This is a {size} sized modal.
+                          {t('this_is_a')} {size} {t('sized_modal')}
                         </ModalDescription>
                       </ModalBody>
                       <ModalFooter>
-                        <Button variant='ghost'>Cancel</Button>
-                        <Button variant='primary'>Save</Button>
+                        <Button variant='ghost'>{t('cancel')}</Button>
+                        <Button variant='primary'>{t('save')}</Button>
                       </ModalFooter>
                     </ModalContent>
                   </Modal>
                 ))}
               </VariantRow>
-              <VariantRow label='with tabs'>
+              <VariantRow label={t('with_tabs')}>
                 <Modal>
                   <ModalTrigger asChild>
-                    <Button variant='default'>Modal with Tabs</Button>
+                    <Button variant='default'>{t('modal_with_tabs')}</Button>
                   </ModalTrigger>
                   <ModalContent>
-                    <ModalHeader>Settings</ModalHeader>
+                    <ModalHeader>{t('settings')}</ModalHeader>
                     <ModalTabs defaultValue='tab1'>
                       <ModalTabsList>
-                        <ModalTabsTrigger value='tab1'>General</ModalTabsTrigger>
-                        <ModalTabsTrigger value='tab2'>Advanced</ModalTabsTrigger>
+                        <ModalTabsTrigger value='tab1'>{t('general')}</ModalTabsTrigger>
+                        <ModalTabsTrigger value='tab2'>{t('advanced')}</ModalTabsTrigger>
                       </ModalTabsList>
                       <ModalBody>
                         <ModalDescription className='sr-only'>
-                          Modal settings with general and advanced tabs
+                          {t('modal_settings_with_general_and_advanced')}
                         </ModalDescription>
                         <ModalTabsContent value='tab1'>
-                          <p className='text-[var(--text-secondary)]'>General settings content</p>
+                          <p className='text-[var(--text-secondary)]'>{t('general_settings_content')}</p>
                         </ModalTabsContent>
                         <ModalTabsContent value='tab2'>
-                          <p className='text-[var(--text-secondary)]'>Advanced settings content</p>
+                          <p className='text-[var(--text-secondary)]'>{t('advanced_settings_content')}</p>
                         </ModalTabsContent>
                       </ModalBody>
                     </ModalTabs>
                     <ModalFooter>
-                      <Button variant='primary'>Save</Button>
+                      <Button variant='primary'>{t('save')}</Button>
                     </ModalFooter>
                   </ModalContent>
                 </Modal>
@@ -984,13 +986,13 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Code */}
-            <Section title='Code'>
-              <VariantRow label='javascript'>
+            <Section title={t('code')}>
+              <VariantRow label={t('javascript_2')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer code={SAMPLE_CODE} language='javascript' showGutter />
                 </div>
               </VariantRow>
-              <VariantRow label='json'>
+              <VariantRow label={t('json')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer
                     code={JSON.stringify({ name: 'Sim', version: '1.0' }, null, 2)}
@@ -999,17 +1001,17 @@ export default function PlaygroundPage() {
                   />
                 </div>
               </VariantRow>
-              <VariantRow label='python'>
+              <VariantRow label={t('python_2')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer code={SAMPLE_PYTHON} language='python' showGutter />
                 </div>
               </VariantRow>
-              <VariantRow label='no gutter'>
+              <VariantRow label={t('no_gutter')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer code={SAMPLE_CODE} language='javascript' />
                 </div>
               </VariantRow>
-              <VariantRow label='wrap text'>
+              <VariantRow label={t('wrap_text')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer
                     code="const longLine = 'This is a very long line that should wrap when wrapText is enabled to demonstrate the text wrapping functionality';"
@@ -1022,7 +1024,7 @@ export default function PlaygroundPage() {
             </Section>
 
             {/* Icons */}
-            <Section title='Icons'>
+            <Section title={t('icons')}>
               <div className='grid grid-cols-6 gap-4 sm:grid-cols-8 md:grid-cols-10'>
                 {[
                   { Icon: BubbleChatClose, name: 'BubbleChatClose' },

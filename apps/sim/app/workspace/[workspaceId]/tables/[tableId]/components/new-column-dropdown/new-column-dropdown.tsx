@@ -15,6 +15,7 @@ import {
 } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
+import { useTranslations } from 'next-intl'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -41,13 +42,14 @@ export function NewColumnDropdown({
   onPickWorkflow,
   onPickEnrichment,
 }: NewColumnDropdownProps) {
+  const t = useTranslations('auto')
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {trigger === 'header' ? (
           <button type='button' className={chipVariants()} disabled={disabled}>
             <Plus className={chipContentIconClass} />
-            <span className={chipContentLabelClass}>New column</span>
+            <span className={chipContentLabelClass}>{t('new_column')}</span>
             <ChipChevronDown />
           </button>
         ) : (
@@ -57,7 +59,7 @@ export function NewColumnDropdown({
             disabled={disabled}
           >
             <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+            <span className='font-medium text-[var(--text-body)] text-small'>{t('new_column')}</span>
           </button>
         )}
       </DropdownMenuTrigger>
@@ -65,7 +67,7 @@ export function NewColumnDropdown({
         <>
           <DropdownMenuItem onSelect={onPickEnrichment}>
             <Sparkles className='size-[14px] text-[var(--text-icon)]' />
-            Enrichments
+            {t('enrichments')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>

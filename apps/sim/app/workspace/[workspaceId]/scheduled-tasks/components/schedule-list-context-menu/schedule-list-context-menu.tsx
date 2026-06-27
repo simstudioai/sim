@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface ScheduleListContextMenuProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ export function ScheduleListContextMenu({
   onCreateSchedule,
   disableCreate = false,
 }: ScheduleListContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -49,7 +51,7 @@ export function ScheduleListContextMenu({
         {onCreateSchedule && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateSchedule}>
             <Plus />
-            New scheduled task
+            {t('new_scheduled_task')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

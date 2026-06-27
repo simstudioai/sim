@@ -26,6 +26,7 @@ import {
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import type { ChatContext } from '@/stores/panel'
+import { useTranslations } from 'next-intl'
 
 const DEFAULT_TIME = '09:00'
 const PAST_LAUNCH_MESSAGE = "You can't schedule a one-time task in the past"
@@ -193,6 +194,7 @@ function TaskModalContent({
   submitting,
   setSubmitting,
 }: TaskModalContentProps) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const source = edit ?? prefill
   const accountTimezone = useTimezone()
@@ -325,7 +327,7 @@ function TaskModalContent({
       <ChipModalPromptBody>
         <PromptEditor
           editor={editor}
-          placeholder='Use @ and launch Sim to...'
+          placeholder={t('use_and_launch_sim_to')}
           autoFocus
           onSubmit={handleSubmit}
         />

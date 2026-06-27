@@ -36,6 +36,7 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
+import { useTranslations } from 'next-intl'
 
 interface OutputCodeContentProps {
   code: string
@@ -129,6 +130,7 @@ export const OutputPanel = React.memo(function OutputPanel({
   outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
+  const t = useTranslations('auto')
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
   const wrapText = useTerminalStore((state) => state.wrapText)
@@ -300,7 +302,7 @@ export const OutputPanel = React.memo(function OutputPanel({
           className='-ml-1 absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
           onMouseDown={handleOutputPanelResizeMouseDown}
           role='separator'
-          aria-label='Resize output panel'
+          aria-label={t('resize_output_panel')}
           aria-orientation='vertical'
         />
 
@@ -317,9 +319,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                 !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
               )}
               onClick={handleOutputButtonClick}
-              aria-label='Show output'
+              aria-label={t('show_output')}
             >
-              Output
+              {t('output')}
             </Button>
             {hasInputData && (
               <Button
@@ -329,9 +331,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
                 )}
                 onClick={handleInputButtonClick}
-                aria-label='Show input'
+                aria-label={t('show_input')}
               >
-                Input
+                {t('input')}
               </Button>
             )}
           </div>
@@ -342,14 +344,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleCloseSearchClick}
-                    aria-label='Close search'
+                    aria-label={t('close_search')}
                     className='!p-1.5 -m-1.5'
                   >
                     <X className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Close search</span>
+                  <span>{t('close_search')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             ) : (
@@ -358,14 +360,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleSearchClick}
-                    aria-label='Search in output'
+                    aria-label={t('search_in_output')}
                     className='!p-1.5 -m-1.5'
                   >
                     <Search className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Search</span>
+                  <span>{t('search')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -376,7 +378,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Link href='/playground'>
                     <Button
                       variant='ghost'
-                      aria-label='Component Playground'
+                      aria-label={t('component_playground')}
                       className='!p-1.5 -m-1.5'
                     >
                       <Palette className='h-3.5 w-3.5' />
@@ -384,7 +386,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   </Link>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Component Playground</span>
+                  <span>{t('component_playground')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -419,7 +421,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <Button
                   variant='ghost'
                   onClick={handleCopyClick}
-                  aria-label='Copy output'
+                  aria-label={t('copy_output')}
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
@@ -440,14 +442,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleExportConsole}
-                      aria-label='Export console CSV'
+                      aria-label={t('export_console_csv')}
                       className='!p-1.5 -m-1.5'
                     >
                       <Download className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>Export CSV</span>
+                    <span>{t('export_csv')}</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
@@ -455,14 +457,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleClearConsole}
-                      aria-label='Clear console'
+                      aria-label={t('clear_console')}
                       className='!p-1.5 -m-1.5'
                     >
                       <Trash2 className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                    <Tooltip.Shortcut keys='⌘D'>{t('clear_console')}</Tooltip.Shortcut>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </>
@@ -472,7 +474,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <Button
                   variant='ghost'
                   onClick={(e) => e.stopPropagation()}
-                  aria-label='Terminal options'
+                  aria-label={t('terminal_options')}
                   className='!p-1.5 -m-1.5'
                 >
                   <MoreHorizontal className='h-3.5 w-3.5' />
@@ -492,17 +494,17 @@ export const OutputPanel = React.memo(function OutputPanel({
                   showCheck={structuredView}
                   onClick={handleToggleStructuredView}
                 >
-                  <span>Structured view</span>
+                  <span>{t('structured_view')}</span>
                 </PopoverItem>
                 <PopoverItem active={wrapText} showCheck={wrapText} onClick={handleToggleWrapText}>
-                  <span>Wrap text</span>
+                  <span>{t('wrap_text')}</span>
                 </PopoverItem>
                 <PopoverItem
                   active={openOnRun}
                   showCheck={openOnRun}
                   onClick={handleToggleOpenOnRun}
                 >
-                  <span>Open on run</span>
+                  <span>{t('open_on_run')}</span>
                 </PopoverItem>
               </PopoverContent>
             </Popover>
@@ -523,7 +525,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               type='text'
               value={outputSearchQuery}
               onChange={(e) => setOutputSearchQuery(e.target.value)}
-              placeholder='Search...'
+              placeholder={t('search_2')}
               className='mr-0.5 h-[23px] w-[94px] text-caption'
             />
             <span
@@ -537,7 +539,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             <Button
               variant='ghost'
               onClick={goToPreviousMatch}
-              aria-label='Previous match'
+              aria-label={t('previous_match')}
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
@@ -546,7 +548,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             <Button
               variant='ghost'
               onClick={goToNextMatch}
-              aria-label='Next match'
+              aria-label={t('next_match')}
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
@@ -555,7 +557,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             <Button
               variant='ghost'
               onClick={closeOutputSearch}
-              aria-label='Close search'
+              aria-label={t('close_search')}
               className='!p-1.5 -m-1.5'
             >
               <X className='h-3.5 w-3.5' />

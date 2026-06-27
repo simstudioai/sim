@@ -39,6 +39,7 @@ import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Knowledge')
 
@@ -121,6 +122,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 }
 
 export function Knowledge() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -454,14 +456,14 @@ export function Knowledge() {
       <div className='flex w-[260px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Connectors</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>{t('connectors')}</span>
             {connectorFilter.length > 0 && (
               <Button
                 variant='ghost'
                 onClick={() => setConnectorFilter([])}
                 className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
               >
-                Clear
+                {t('clear')}
               </Button>
             )}
           </div>
@@ -476,14 +478,14 @@ export function Knowledge() {
         </div>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Content</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>{t('content')}</span>
             {contentFilter.length > 0 && (
               <Button
                 variant='ghost'
                 onClick={() => setContentFilter([])}
                 className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
               >
-                Clear
+                {t('clear')}
               </Button>
             )}
           </div>
@@ -499,14 +501,14 @@ export function Knowledge() {
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-2'>
             <div className='flex h-5 items-center justify-between'>
-              <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
+              <span className={FILTER_SECTION_LABEL_CLASS}>{t('owner')}</span>
               {ownerFilter.length > 0 && (
                 <Button
                   variant='ghost'
                   onClick={() => setOwnerFilter([])}
                   className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
                 >
-                  Clear
+                  {t('clear')}
                 </Button>
               )}
             </div>
@@ -558,7 +560,7 @@ export function Knowledge() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header icon={Database} title='Knowledge Base' actions={headerActions} />
+        <Resource.Header icon={Database} title={t('knowledge_base')} actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}

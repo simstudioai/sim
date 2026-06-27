@@ -19,6 +19,7 @@ import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
+import { useTranslations } from 'next-intl'
 
 type ContactField = keyof ContactRequestPayload
 type ContactErrors = Partial<Record<ContactField, string>>
@@ -61,6 +62,7 @@ async function submitContactRequest(payload: SubmitContactBody) {
 }
 
 export function ContactForm() {
+  const t = useTranslations('auto')
   const turnstileRef = useRef<TurnstileInstance>(null)
 
   const contactMutation = useMutation({
@@ -152,18 +154,17 @@ export function ContactForm() {
           <Check className='size-8' />
         </div>
         <h2 className='mt-6 font-[430] font-season text-[24px] text-[var(--landing-text)] leading-[1.2] tracking-[-0.02em]'>
-          Message received
+          {t('message_received')}
         </h2>
         <p className='mt-3 max-w-sm font-season text-[14px] text-[var(--landing-text-body)] leading-[1.6]'>
-          Thanks for reaching out. We've sent a confirmation to your inbox and will get back to you
-          shortly.
+          {t('thanks_for_reaching_out_we_ve')}
         </p>
         <button
           type='button'
           onClick={() => contactMutation.reset()}
           className='mt-6 font-season text-[13px] text-[var(--landing-text)] underline underline-offset-2 transition-opacity hover:opacity-80'
         >
-          Send another message
+          {t('send_another_message')}
         </button>
       </div>
     )
@@ -176,7 +177,7 @@ export function ContactForm() {
         aria-hidden='true'
         className='pointer-events-none absolute left-[-9999px] h-px w-px overflow-hidden opacity-0'
       >
-        <label htmlFor='contact-website'>Website</label>
+        <label htmlFor='contact-website'>{t('website')}</label>
         <input
           id='contact-website'
           name='website'
@@ -193,7 +194,7 @@ export function ContactForm() {
       <div className='grid gap-5 sm:grid-cols-2'>
         <LandingField
           htmlFor='contact-name'
-          label='Name'
+          label={t('name')}
           error={errors.name}
           labelClassName={LANDING_LABEL}
         >
@@ -201,13 +202,13 @@ export function ContactForm() {
             id='contact-name'
             value={form.name}
             onChange={(event) => updateField('name', event.target.value)}
-            placeholder='Your name'
+            placeholder={t('your_name')}
             className={LANDING_INPUT}
           />
         </LandingField>
         <LandingField
           htmlFor='contact-email'
-          label='Email'
+          label={t('email')}
           error={errors.email}
           labelClassName={LANDING_LABEL}
         >
@@ -216,7 +217,7 @@ export function ContactForm() {
             type='email'
             value={form.email}
             onChange={(event) => updateField('email', event.target.value)}
-            placeholder='you@company.com'
+            placeholder={t('you_company_com')}
             className={LANDING_INPUT}
           />
         </LandingField>
@@ -225,7 +226,7 @@ export function ContactForm() {
       <div className='grid gap-5 sm:grid-cols-2'>
         <LandingField
           htmlFor='contact-company'
-          label='Company'
+          label={t('company')}
           optional
           error={errors.company}
           labelClassName={LANDING_LABEL}
@@ -234,13 +235,13 @@ export function ContactForm() {
             id='contact-company'
             value={form.company}
             onChange={(event) => updateField('company', event.target.value)}
-            placeholder='Company name'
+            placeholder={t('company_name')}
             className={LANDING_INPUT}
           />
         </LandingField>
         <LandingField
           htmlFor='contact-topic'
-          label='Topic'
+          label={t('topic')}
           error={errors.topic}
           labelClassName={LANDING_LABEL}
         >
@@ -249,7 +250,7 @@ export function ContactForm() {
             value={form.topic}
             selectedValue={form.topic}
             onChange={(value) => updateField('topic', value as ContactRequestPayload['topic'])}
-            placeholder='Select a topic'
+            placeholder={t('select_a_topic')}
             editable={false}
             filterOptions={false}
             className={LANDING_COMBOBOX}
@@ -259,7 +260,7 @@ export function ContactForm() {
 
       <LandingField
         htmlFor='contact-subject'
-        label='Subject'
+        label={t('subject')}
         error={errors.subject}
         labelClassName={LANDING_LABEL}
       >
@@ -267,14 +268,14 @@ export function ContactForm() {
           id='contact-subject'
           value={form.subject}
           onChange={(event) => updateField('subject', event.target.value)}
-          placeholder='How can we help?'
+          placeholder={t('how_can_we_help')}
           className={LANDING_INPUT}
         />
       </LandingField>
 
       <LandingField
         htmlFor='contact-message'
-        label='Message'
+        label={t('message')}
         error={errors.message}
         labelClassName={LANDING_LABEL}
       >
@@ -282,7 +283,7 @@ export function ContactForm() {
           id='contact-message'
           value={form.message}
           onChange={(event) => updateField('message', event.target.value)}
-          placeholder='Share details so we can help as quickly as possible'
+          placeholder={t('share_details_so_we_can_help')}
           className={LANDING_TEXTAREA}
         />
       </LandingField>
@@ -310,12 +311,12 @@ export function ContactForm() {
       </button>
 
       <p className='text-center font-season text-[12px] text-[var(--landing-text-muted)] leading-[1.6]'>
-        By submitting, you agree to our{' '}
+        {t('by_submitting_you_agree_to_our')}{' '}
         <Link
           href='/privacy'
           className='text-[var(--landing-text)] underline underline-offset-2 transition-opacity hover:opacity-80'
         >
-          Privacy Policy
+          {t('privacy_policy')}
         </Link>
         .
       </p>

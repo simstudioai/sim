@@ -18,6 +18,7 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -544,6 +545,7 @@ const MD_COMPONENTS = {
 }
 
 function MockFullFiles() {
+  const t = useTranslations('auto')
   const [source, setSource] = useState(MOCK_MD_SOURCE)
 
   return (
@@ -551,9 +553,9 @@ function MockFullFiles() {
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
         <div className='flex items-center gap-1.5'>
           <File className='size-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Files</span>
+          <span className='text-[#999] text-[13px]'>{t('files')}</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>meeting-notes.md</span>
+          <span className='font-medium text-[#1C1C1C] text-[13px]'>{t('meeting_notes_md')}</span>
         </div>
       </div>
 
@@ -678,6 +680,7 @@ const MOCK_LOG_DETAILS: MockLogDetail[] = [
 const MOCK_LOG_DETAIL_MAX_MS = MOCK_LOG_DETAILS.map((d) => Math.max(...d.spans.map((s) => s.ms)))
 
 function MockFullLogs({ revealedRows }: { revealedRows: number }) {
+  const t = useTranslations('auto')
   const [showSidebar, setShowSidebar] = useState(false)
   const [selectedRow, setSelectedRow] = useState(0)
 
@@ -693,7 +696,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
         <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
           <div className='flex items-center gap-1.5'>
             <Library className='size-[14px] text-[#999]' />
-            <span className='font-medium text-[#1C1C1C] text-[13px]'>Logs</span>
+            <span className='font-medium text-[#1C1C1C] text-[13px]'>{t('logs')}</span>
           </div>
         </div>
 
@@ -789,6 +792,7 @@ interface MockLogDetailsSidebarProps {
 }
 
 function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSidebarProps) {
+  const t = useTranslations('auto')
   const row = MOCK_LOG_DATA[selectedRow]
   const detail = MOCK_LOG_DETAILS[selectedRow]
   const statusStyle = LOG_STATUS_STYLES[row[2]] ?? LOG_STATUS_STYLES.success
@@ -800,7 +804,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
   return (
     <div className='flex h-full flex-col overflow-y-auto px-3.5 pt-3'>
       <div className='flex items-center justify-between'>
-        <span className='font-medium text-[#1C1C1C] text-[14px]'>Log Details</span>
+        <span className='font-medium text-[#1C1C1C] text-[14px]'>{t('log_details')}</span>
         <div className='flex items-center gap-[1px]'>
           <button
             type='button'
@@ -830,14 +834,14 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
       <div className='mt-5 flex flex-col gap-2.5'>
         <div className='flex items-center gap-4 px-[1px]'>
           <div className='flex w-[120px] shrink-0 flex-col gap-2'>
-            <span className='font-medium text-[#999] text-[12px]'>Timestamp</span>
+            <span className='font-medium text-[#999] text-[12px]'>{t('timestamp')}</span>
             <div className='flex items-center gap-1.5'>
               <span className='font-medium text-[#666] text-[13px]'>{date}</span>
               <span className='font-medium text-[#666] text-[13px]'>{time}</span>
             </div>
           </div>
           <div className='flex min-w-0 flex-1 flex-col gap-2'>
-            <span className='font-medium text-[#999] text-[12px]'>Workflow</span>
+            <span className='font-medium text-[#999] text-[12px]'>{t('workflow')}</span>
             <div className='flex items-center gap-2'>
               <Workflow className='size-[14px] shrink-0 text-[#999]' />
               <span className='truncate font-medium text-[#666] text-[13px]'>{row[0]}</span>
@@ -847,7 +851,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
 
         <div className='flex flex-col'>
           <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-2'>
-            <span className='font-medium text-[#999] text-[12px]'>Level</span>
+            <span className='font-medium text-[#999] text-[12px]'>{t('level')}</span>
             <span
               className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
               style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
@@ -856,32 +860,32 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
             </span>
           </div>
           <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-2'>
-            <span className='font-medium text-[#999] text-[12px]'>Trigger</span>
+            <span className='font-medium text-[#999] text-[12px]'>{t('trigger')}</span>
             <span className='rounded-[4px] bg-[#F5F5F5] px-1.5 py-0.5 text-[#666] text-[11px]'>
               {row[4]}
             </span>
           </div>
           <div className='flex h-[42px] items-center justify-between px-2'>
-            <span className='font-medium text-[#999] text-[12px]'>Duration</span>
+            <span className='font-medium text-[#999] text-[12px]'>{t('duration')}</span>
             <span className='font-medium text-[#666] text-[13px]'>{row[5]}</span>
           </div>
         </div>
 
         <div className='flex flex-col gap-1.5 rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-2.5 py-2'>
-          <span className='font-medium text-[#999] text-[12px]'>Workflow Output</span>
+          <span className='font-medium text-[#999] text-[12px]'>{t('workflow_output')}</span>
           <div className='rounded-[6px] bg-[#F0F0F0] p-2.5 font-mono text-[#555] text-[11px] leading-[1.5]'>
             {detail.output}
           </div>
         </div>
 
         <div className='flex flex-col gap-1.5 rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-2.5 py-2'>
-          <span className='font-medium text-[#999] text-[12px]'>Trace Spans</span>
+          <span className='font-medium text-[#999] text-[12px]'>{t('trace_spans')}</span>
           <div className='flex flex-col gap-1.5'>
             {detail.spans.map((span, i) => (
               <div key={i} className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}>
                 <div className='flex items-center justify-between'>
                   <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
-                  <span className='font-medium text-[#999] text-[11px]'>{span.ms}ms</span>
+                  <span className='font-medium text-[#999] text-[11px]'>{span.ms}{t('ms')}</span>
                 </div>
                 <div className='h-[4px] w-full overflow-hidden rounded-full bg-[#F0F0F0]'>
                   <div
@@ -899,6 +903,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
 }
 
 function MockFullTable({ revealedRows }: { revealedRows: number }) {
+  const t = useTranslations('auto')
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
 
   return (
@@ -906,19 +911,19 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
         <div className='flex items-center gap-1.5'>
           <Table className='size-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Tables</span>
+          <span className='text-[#999] text-[13px]'>{t('tables')}</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>Leads</span>
+          <span className='font-medium text-[#1C1C1C] text-[13px]'>{t('leads')}</span>
         </div>
       </div>
 
       <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
         <div className='flex items-center gap-1.5'>
           <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
-            Sort
+            {t('sort')}
           </div>
           <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
-            Filter
+            {t('filter')}
           </div>
         </div>
       </div>
@@ -1075,6 +1080,7 @@ const EXPLODE_STAGGER = 0.04
 const EXPLODE_BASE_DELAY = 0.1
 
 function DefaultPreview() {
+  const t = useTranslations('auto')
   const containerRef = useRef<HTMLDivElement>(null)
   const inView = useInView(containerRef, { once: true, margin: '-80px' })
 
@@ -1133,7 +1139,7 @@ function DefaultPreview() {
             </svg>
           </div>
           <span className='whitespace-nowrap font-medium font-season text-[#1C1C1C] text-[13px] tracking-[0.02em]'>
-            My Workspace
+            {t('my_workspace')}
           </span>
           <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[#999]' />
         </div>

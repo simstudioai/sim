@@ -29,6 +29,7 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
+import { useTranslations } from 'next-intl'
 
 type Icon = ComponentType<{ className?: string; style?: CSSProperties }>
 
@@ -262,6 +263,7 @@ interface SuggestedActionsProps {
 }
 
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
 
@@ -367,7 +369,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
-          <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
+          <span className='text-[var(--text-muted)] text-small'>{t('suggested_actions')}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -378,7 +380,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
         <button
           type='button'
           onClick={handleShuffle}
-          aria-label='Shuffle suggested actions'
+          aria-label={t('shuffle_suggested_actions')}
           aria-hidden={!expanded}
           tabIndex={expanded ? undefined : -1}
           className={cn(
@@ -387,7 +389,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
             expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
           )}
         >
-          <span className='-mt-px text-[var(--text-muted)] text-small'>Shuffle</span>
+          <span className='-mt-px text-[var(--text-muted)] text-small'>{t('shuffle')}</span>
           <Shuffle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         </button>
       </div>

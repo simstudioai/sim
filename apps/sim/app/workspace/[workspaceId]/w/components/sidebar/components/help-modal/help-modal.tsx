@@ -16,6 +16,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('HelpModal')
 
@@ -116,6 +117,7 @@ async function submitHelpRequest({ data, images, workflowId, workspaceId }: Subm
 }
 
 export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
+  const t = useTranslations('auto')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const imagesRef = useRef<ImageWithPreview[]>([])
 
@@ -251,7 +253,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & support' size='md'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('help_amp_support')}</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
@@ -262,11 +264,11 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             render={({ field, fieldState }) => (
               <ChipModalField
                 type='dropdown'
-                title='Request'
+                title={t('request')}
                 value={field.value}
                 onChange={field.onChange}
                 options={REQUEST_TYPE_OPTIONS}
-                placeholder='Select a request type'
+                placeholder={t('select_a_request_type')}
                 error={fieldState.error?.message}
               />
             )}
@@ -277,10 +279,10 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             render={({ field, fieldState }) => (
               <ChipModalField
                 type='input'
-                title='Subject'
+                title={t('subject')}
                 value={field.value}
                 onChange={field.onChange}
-                placeholder='Brief description of your request'
+                placeholder={t('brief_description_of_your_request')}
                 error={fieldState.error?.message}
               />
             )}
@@ -291,10 +293,10 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             render={({ field, fieldState }) => (
               <ChipModalField
                 type='textarea'
-                title='Message'
+                title={t('message')}
                 value={field.value}
                 onChange={field.onChange}
-                placeholder='Please provide details about your request...'
+                placeholder={t('please_provide_details_about_your_request')}
                 rows={6}
                 error={fieldState.error?.message}
               />
@@ -302,16 +304,16 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
           />
           <ChipModalField
             type='file'
-            title='Attach images (optional)'
-            label='Drop images here or click to browse'
-            description='PNG, JPEG, WebP, GIF (max 20MB each)'
+            title={t('attach_images_optional')}
+            label={t('drop_images_here_or_click_to')}
+            description={t('png_jpeg_webp_gif_max_20mb')}
             accept={ACCEPTED_IMAGE_TYPES.join(',')}
             multiple
             onChange={processFiles}
           />
 
           {images.length > 0 && (
-            <ChipModalField type='custom' title='Uploaded images'>
+            <ChipModalField type='custom' title={t('uploaded_images')}>
               <div className='grid grid-cols-2 gap-3'>
                 {images.map((image, index) => (
                   <div

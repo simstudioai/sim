@@ -20,8 +20,10 @@ import { visibleRange } from '@/app/workspace/[workspaceId]/scheduled-tasks/util
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import { useTranslations } from 'next-intl'
 
 export function ScheduledTasks() {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const timezone = useTimezone()
   const calendar = useCalendar(timezone)
@@ -152,7 +154,7 @@ export function ScheduledTasks() {
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
-        <Resource.Header icon={Calendar} title='Scheduled Tasks' actions={headerActions} />
+        <Resource.Header icon={Calendar} title={t('scheduled_tasks')} actions={headerActions} />
         <ScheduleCalendar
           scope={calendar.scope}
           anchor={calendar.anchor}

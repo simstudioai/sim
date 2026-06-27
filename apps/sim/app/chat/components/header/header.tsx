@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
 import { useBrandConfig } from '@/ee/whitelabeling'
+import { useTranslations } from 'next-intl'
 
 interface ChatHeaderProps {
   chatConfig: {
@@ -19,13 +20,14 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
+  const t = useTranslations('auto')
   const brand = useBrandConfig()
   const primaryColor = chatConfig?.customizations?.primaryColor || 'var(--brand)'
   const customImage = chatConfig?.customizations?.imageUrl || chatConfig?.customizations?.logoUrl
 
   return (
     <nav
-      aria-label='Chat navigation'
+      aria-label={t('chat_navigation')}
       className={`flex w-full items-center justify-between px-4 pt-3 pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px] md:pt-4`}
     >
       <div className='flex items-center gap-[34px]'>
@@ -64,11 +66,11 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             href='https://sim.ai'
             target='_blank'
             rel='noopener noreferrer'
-            aria-label='Sim home'
+            aria-label={t('sim_home')}
           >
             <Image
               src='/logo/sim-landing.svg'
-              alt='Sim'
+              alt={t('sim')}
               width={71}
               height={22}
               className='h-[22px] w-auto'

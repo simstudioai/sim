@@ -33,6 +33,7 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectorsSection')
 
@@ -67,6 +68,7 @@ export function ConnectorsSection({
   canEdit,
   className,
 }: ConnectorsSectionProps) {
+  const t = useTranslations('auto')
   const { mutate: triggerSync } = useTriggerSync()
   const { mutate: updateConnector } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
@@ -199,7 +201,7 @@ export function ConnectorsSection({
         <div className='mt-2' />
       ) : connectors.length === 0 ? (
         <p className='mt-2 text-[var(--text-muted)] text-small'>
-          No connected sources yet. Connect an external source to automatically sync documents.
+          {t('no_connected_sources_yet_connect_an')}
         </p>
       ) : (
         <div className='mt-2 flex flex-col gap-0.5'>
@@ -237,7 +239,7 @@ export function ConnectorsSection({
           if (!open) closeDeleteModal()
         }}
         srTitle='Remove Connector'
-        title='Remove Connector'
+        title={t('remove_connector')}
         text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
         confirm={{
           label: 'Remove',
@@ -256,7 +258,7 @@ export function ConnectorsSection({
             htmlFor={deleteDocumentsId}
             className='cursor-pointer text-[var(--text-secondary)] text-small'
           >
-            Also delete all synced documents
+            {t('also_delete_all_synced_documents')}
           </label>
         </div>
       </ChipConfirmModal>
@@ -291,6 +293,7 @@ function ConnectorCard({
   onTogglePause,
   onDelete,
 }: ConnectorCardProps) {
+  const t = useTranslations('auto')
   const [expanded, setExpanded] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
@@ -369,19 +372,19 @@ function ConnectorCard({
             </div>
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
               {connector.lastSyncAt && (
-                <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
+                <span>{t('last_sync')} {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
               )}
               {connector.lastSyncDocCount !== null && (
                 <>
                   <span>·</span>
-                  <span>{connector.lastSyncDocCount} docs</span>
+                  <span>{connector.lastSyncDocCount} {t('docs')}</span>
                 </>
               )}
               {connector.nextSyncAt && connector.status === 'active' && (
                 <>
                   <span>·</span>
                   <span>
-                    Next sync:{' '}
+                    {t('next_sync')}{' '}
                     {isPast(new Date(connector.nextSyncAt))
                       ? 'pending'
                       : formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
@@ -436,7 +439,7 @@ function ConnectorCard({
                     <Settings className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Settings</Tooltip.Content>
+                <Tooltip.Content>{t('settings')}</Tooltip.Content>
               </Tooltip.Root>
 
               <Tooltip.Root>
@@ -473,7 +476,7 @@ function ConnectorCard({
                     <Trash className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content>Delete</Tooltip.Content>
+                <Tooltip.Content>{t('delete')}</Tooltip.Content>
               </Tooltip.Root>
             </>
           )}
@@ -500,10 +503,10 @@ function ConnectorCard({
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-caption'>
               <AlertTriangle className='size-3 flex-shrink-0 text-[var(--caution)]' />
-              Connector disabled after repeated sync failures
+              {t('connector_disabled_after_repeated_sync_failures')}
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              Syncing has been paused due to {connector.consecutiveFailures} consecutive failures.
+              {t('syncing_has_been_paused_due_to')} {connector.consecutiveFailures} {t('consecutive_failures')}
               {serviceId
                 ? ' Reconnect your account to resume syncing.'
                 : ' Use the resume button to re-enable syncing.'}
@@ -528,7 +531,7 @@ function ConnectorCard({
                 size='sm'
                 className='w-full'
               >
-                Reconnect
+                {t('reconnect')}
               </Button>
             )}
           </div>
@@ -540,7 +543,7 @@ function ConnectorCard({
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center font-medium text-[var(--text-primary)] text-caption'>
               <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
-              Additional permissions required
+              {t('additional_permissions_required')}
             </div>
             {canEdit && (
               <Button
@@ -562,7 +565,7 @@ function ConnectorCard({
                 size='sm'
                 className='w-full'
               >
-                Update access
+                {t('update_access')}
               </Button>
             )}
           </div>
@@ -621,11 +624,12 @@ interface SyncHistoryProps {
 }
 
 function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
+  const t = useTranslations('auto')
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
         <Loader className='size-3' animate />
-        Loading sync history…
+        {t('loading_sync_history')}
       </div>
     )
   }
@@ -633,7 +637,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (logs.length === 0) {
     return (
       <p className='rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
-        No sync history yet.
+        {t('no_sync_history_yet')}
       </p>
     )
   }
@@ -695,7 +699,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
+                {isRunning && <span className='text-[var(--text-muted)]'>{t('in_progress')}</span>}
               </div>
 
               {isError && log.errorMessage && (

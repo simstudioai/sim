@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -244,6 +245,7 @@ function PricingCard({ tier }: PricingCardProps) {
  * Pricing section -- tiered pricing plans with feature comparison.
  */
 export default function Pricing() {
+  const t = useTranslations('auto')
   return (
     <section
       id='pricing'
@@ -258,22 +260,17 @@ export default function Pricing() {
             dot
             className='bg-[#2ABBF8]/10 font-season text-[#2ABBF8] uppercase tracking-[0.02em]'
           >
-            Pricing
+            {t('pricing')}
           </Badge>
 
           <h2
             id='pricing-heading'
             className='text-balance font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
-            Pricing
+            {t('pricing')}
           </h2>
           <p className='sr-only'>
-            Sim pricing: Community plan is free with 1,000 credits, 5GB storage, and 1 personal
-            workspace. Pro plan is $25 per month with 6,000 credits, 50GB storage, and up to 3
-            personal workspaces. Max plan is $100 per month with 25,000 credits, 500GB storage, and
-            up to 10 personal workspaces. Enterprise pricing is custom with unlimited shared
-            workspaces, SSO, SCIM, SOC2 compliance, self-hosting, and dedicated support. All plans
-            include CLI, SDK, and MCP access.
+            {t('sim_pricing_community_plan_is_free')}
           </p>
         </div>
 

@@ -16,6 +16,7 @@ import {
   X,
 } from '@/components/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
+import { useTranslations } from 'next-intl'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
@@ -56,6 +57,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
+  const t = useTranslations('auto')
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
   const isCancellable =
@@ -97,41 +99,41 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <>
             <DropdownMenuItem onSelect={onCancelExecution}>
               <X />
-              Cancel Run
+              {t('cancel_run')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
         )}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Duplicate />
-          Copy Run ID
+          {t('copy_run_id')}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
           <Link />
-          Copy Link
+          {t('copy_link')}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasWorkflow} onSelect={onOpenWorkflow}>
           <SquareArrowUpRight />
-          Open Workflow
+          {t('open_workflow')}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onOpenPreview}>
           <Eye />
-          Open Snapshot
+          {t('open_snapshot')}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
         {!isFilteredByThisWorkflow && (
           <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
             <ListFilter />
-            Filter by Workflow
+            {t('filter_by_workflow')}
           </DropdownMenuItem>
         )}
         {hasActiveFilters && (
           <DropdownMenuItem onSelect={onClearAllFilters}>
             <X />
-            Clear Filters
+            {t('clear_filters')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

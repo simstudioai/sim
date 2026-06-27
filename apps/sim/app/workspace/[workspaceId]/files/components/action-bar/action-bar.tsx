@@ -16,6 +16,7 @@ import { Download } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
+import { useTranslations } from 'next-intl'
 
 interface FilesActionBarProps {
   selectedCount: number
@@ -36,6 +37,7 @@ export function FilesActionBar({
   isLoading = false,
   className,
 }: FilesActionBarProps) {
+  const t = useTranslations('auto')
   return (
     <LazyMotion features={domAnimation}>
       <AnimatePresence>
@@ -52,7 +54,7 @@ export function FilesActionBar({
           >
             <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
               <span className='px-1 text-[var(--text-secondary)] text-small'>
-                {selectedCount} selected
+                {selectedCount} {t('selected')}
               </span>
               <div className='flex items-center gap-[5px]'>
                 {onDownload && (
@@ -67,7 +69,7 @@ export function FilesActionBar({
                         <Download className='size-[12px]' />
                       </Button>
                     </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>Download</Tooltip.Content>
+                    <Tooltip.Content side='top'>{t('download')}</Tooltip.Content>
                   </Tooltip.Root>
                 )}
                 {onMove && moveOptions && (
@@ -84,7 +86,7 @@ export function FilesActionBar({
                           </Button>
                         </DropdownMenuTrigger>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>Move</Tooltip.Content>
+                      <Tooltip.Content side='top'>{t('move')}</Tooltip.Content>
                     </Tooltip.Root>
                     <DropdownMenuContent
                       side='top'
@@ -114,7 +116,7 @@ export function FilesActionBar({
                         <Trash className='size-[12px]' />
                       </Button>
                     </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>Delete</Tooltip.Content>
+                    <Tooltip.Content side='top'>{t('delete')}</Tooltip.Content>
                   </Tooltip.Root>
                 )}
               </div>

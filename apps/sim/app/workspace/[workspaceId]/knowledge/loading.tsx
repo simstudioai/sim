@@ -6,6 +6,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const COLUMNS = [
   { id: 'name', header: 'Name' },
@@ -20,10 +21,11 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New base', icon: Plus, variant: 'primary' }]
 
 export default function KnowledgeLoading() {
+  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={Database}
-      title='Knowledge Base'
+      title={t('knowledge_base')}
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search knowledge bases...'

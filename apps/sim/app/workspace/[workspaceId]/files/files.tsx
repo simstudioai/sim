@@ -96,6 +96,7 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
@@ -169,6 +170,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 }
 
 export function Files() {
+  const t = useTranslations('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -1755,7 +1757,7 @@ export function Files() {
     return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('file_type')}</span>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -1775,7 +1777,7 @@ export function Files() {
           />
         </div>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('size')}</span>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -1796,7 +1798,7 @@ export function Files() {
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              Uploaded By
+              {t('uploaded_by')}
             </span>
             <ChipCombobox
               options={memberOptions}
@@ -1826,7 +1828,7 @@ export function Files() {
             }}
             className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
           >
-            Clear all filters
+            {t('clear_all_filters')}
           </Button>
         )}
       </div>
@@ -1906,7 +1908,7 @@ export function Files() {
             open={showUnsavedChangesAlert}
             onOpenChange={setShowUnsavedChangesAlert}
             srTitle='Unsaved Changes'
-            title='Unsaved Changes'
+            title={t('unsaved_changes')}
             text='You have unsaved changes. Are you sure you want to discard them?'
             dismissLabel='Keep editing'
             confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
@@ -1939,7 +1941,7 @@ export function Files() {
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
           icon={FilesIcon}
-          title='Files'
+          title={t('files')}
           breadcrumbs={listBreadcrumbs}
           actions={headerActionsConfig}
         />
@@ -1971,10 +1973,10 @@ export function Files() {
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
                   <div className='flex flex-col gap-0.5 text-center'>
                     <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
-                      Drop to upload
+                      {t('drop_to_upload')}
                     </p>
                     <p className='text-[11px] text-[var(--text-tertiary)]'>
-                      Release files here to add them to this workspace
+                      {t('release_files_here_to_add_them')}
                     </p>
                   </div>
                 </div>

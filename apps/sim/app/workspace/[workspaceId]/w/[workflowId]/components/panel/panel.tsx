@@ -90,6 +90,7 @@ import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
@@ -116,6 +117,7 @@ interface PanelProps {
 }
 
 export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams()
   const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
@@ -644,7 +646,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       <aside
         ref={panelRef}
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
-        aria-label='Workflow panel'
+        aria-label={t('workflow_panel')}
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
@@ -666,11 +668,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
                     <Layout animate={isAutoLayouting} variant='clockwise' />
-                    Auto layout
+                    {t('auto_layout')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
                     <VariableIcon />
-                    Variables
+                    {t('variables')}
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
                     <DropdownMenuItem
@@ -691,14 +693,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
                     <Download />
-                    Export workflow
+                    {t('export_workflow')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
                   >
                     <Duplicate />
-                    Duplicate workflow
+                    {t('duplicate_workflow')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
@@ -707,7 +709,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
                   >
                     <Trash />
-                    Delete workflow
+                    {t('delete_workflow')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -757,7 +759,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
-                  Chat
+                  {t('chat')}
                 </Button>
               )}
               <Button
@@ -770,7 +772,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
               >
-                Toolbar
+                {t('toolbar')}
               </Button>
               <Button
                 className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
@@ -782,7 +784,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
               >
-                Editor
+                {t('editor')}
               </Button>
             </div>
           </div>
@@ -824,11 +826,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
                           <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
-                            No chats yet
+                            {t('no_chats_yet')}
                           </div>
                         ) : (
                           <PopoverScrollArea>
-                            <PopoverSection className='pt-0'>Recent</PopoverSection>
+                            <PopoverSection className='pt-0'>{t('recent')}</PopoverSection>
                             <div className='flex flex-col gap-0.5'>
                               {copilotChatList.map((chat) => (
                                 <div key={chat.id} className='group'>
@@ -851,7 +853,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                               e.stopPropagation()
                                               handleCopilotDeleteChat(chat.id)
                                             }}
-                                            aria-label='Delete chat'
+                                            aria-label={t('delete_chat')}
                                           >
                                             <Trash className='size-[10px]' />
                                           </Button>
@@ -922,7 +924,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           onMouseDown={handleMouseDown}
           role='separator'
           aria-orientation='vertical'
-          aria-label='Resize panel'
+          aria-label={t('resize_panel')}
         />
       </aside>
 
@@ -931,7 +933,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         open={isDeleteModalOpen}
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
-        title='Delete Workflow'
+        title={t('delete_workflow_2')}
         text={[
           'Are you sure you want to delete ',
           { text: currentWorkflow?.name ?? 'this workflow', bold: true },

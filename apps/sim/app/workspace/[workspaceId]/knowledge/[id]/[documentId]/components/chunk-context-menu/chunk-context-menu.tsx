@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -57,6 +58,7 @@ export function ChunkContextMenu({
   enabledCount = 0,
   disabledCount = 0,
 }: ChunkContextMenuProps) {
+  const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
   const getToggleLabel = () => {
@@ -99,7 +101,7 @@ export function ChunkContextMenu({
             {hasNavigationSection && (
               <DropdownMenuItem onSelect={onOpenInNewTab!}>
                 <SquareArrowUpRight />
-                Open in new tab
+                {t('open_in_new_tab')}
               </DropdownMenuItem>
             )}
             {hasNavigationSection &&
@@ -116,7 +118,7 @@ export function ChunkContextMenu({
             {!isMultiSelect && onCopyContent && (
               <DropdownMenuItem onSelect={onCopyContent}>
                 <Duplicate />
-                Copy content
+                {t('copy_content')}
               </DropdownMenuItem>
             )}
             {hasEditSection && (hasStateSection || hasDestructiveSection) && (
@@ -134,7 +136,7 @@ export function ChunkContextMenu({
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {t('delete')}
               </DropdownMenuItem>
             )}
           </>
@@ -142,7 +144,7 @@ export function ChunkContextMenu({
           onAddChunk && (
             <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
               <Plus />
-              Create chunk
+              {t('create_chunk')}
             </DropdownMenuItem>
           )
         )}

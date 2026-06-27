@@ -9,6 +9,7 @@ import {
   PopoverItem,
 } from '@/components/emcn'
 import type { ContextMenuPosition } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
+import { useTranslations } from 'next-intl'
 
 export interface OutputContextMenuProps {
   isOpen: boolean
@@ -49,6 +50,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
   onClearConsole,
   hasSelection,
 }: OutputContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <Popover
       open={isOpen}
@@ -75,7 +77,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Copy Selection
+          {t('copy_selection')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -83,7 +85,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Copy All
+          {t('copy_all')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -91,19 +93,19 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Search
+          {t('search')}
         </PopoverItem>
 
         {/* Display settings - toggles don't close menu */}
         <PopoverDivider />
         <PopoverItem showCheck={structuredView} onClick={onToggleStructuredView}>
-          Structured View
+          {t('structured_view')}
         </PopoverItem>
         <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-          Wrap Text
+          {t('wrap_text')}
         </PopoverItem>
         <PopoverItem showCheck={openOnRun} onClick={onToggleOpenOnRun}>
-          Open on Run
+          {t('open_on_run')}
         </PopoverItem>
 
         {/* Destructive action */}
@@ -114,7 +116,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
             onClose()
           }}
         >
-          Clear Console
+          {t('clear_console')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

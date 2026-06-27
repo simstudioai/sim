@@ -24,8 +24,10 @@ import {
   useRemoveInboxSender,
   useUpdateInboxAddress,
 } from '@/hooks/queries/inbox'
+import { useTranslations } from 'next-intl'
 
 export function InboxSettingsTab() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -100,11 +102,11 @@ export function InboxSettingsTab() {
     <>
       <div className='flex flex-col gap-7'>
         {config?.address && (
-          <SettingsSection label="Sim's email">
+          <SettingsSection label={t('sim_s_email')}>
             <div className='flex flex-col gap-1.5'>
               <div className='flex items-center justify-between'>
                 <p className='text-[12px] text-[var(--text-muted)]'>
-                  Send emails here to create tasks.
+                  {t('send_emails_here_to_create_tasks')}
                 </p>
                 <div className='flex items-center gap-1.5'>
                   <Tooltip.Root>
@@ -113,7 +115,7 @@ export function InboxSettingsTab() {
                         type='button'
                         onClick={handleCopyAddress}
                         className='-my-1 flex size-5 items-center justify-center'
-                        aria-label='Copy address'
+                        aria-label={t('copy_address')}
                       >
                         {copiedAddress ? (
                           <Check className='size-[14px] text-[var(--text-success)]' />
@@ -136,13 +138,13 @@ export function InboxSettingsTab() {
                           setIsEditAddressOpen(true)
                         }}
                         className='-my-1 flex size-5 items-center justify-center'
-                        aria-label='Edit address'
+                        aria-label={t('edit_address')}
                       >
                         <Pencil className='size-[14px] text-[var(--text-icon)]' />
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
-                      <p>Edit</p>
+                      <p>{t('edit')}</p>
                     </Tooltip.Content>
                   </Tooltip.Root>
                 </div>
@@ -156,10 +158,10 @@ export function InboxSettingsTab() {
           </SettingsSection>
         )}
 
-        <SettingsSection label='Allowed senders'>
+        <SettingsSection label={t('allowed_senders')}>
           <div className='flex flex-col gap-1.5'>
             <p className='text-[12px] text-[var(--text-muted)]'>
-              Only emails from these addresses can create tasks.
+              {t('only_emails_from_these_addresses_can')}
             </p>
 
             <div className='mt-1 flex flex-col gap-[1px] overflow-hidden rounded-lg border border-[var(--border)]'>
@@ -173,7 +175,7 @@ export function InboxSettingsTab() {
                       <div className='flex items-center gap-2'>
                         <span className='text-[14px] text-[var(--text-body)]'>{member.email}</span>
                         <Badge variant='gray' className='text-xs'>
-                          member
+                          {t('member')}
                         </Badge>
                       </div>
                     </div>
@@ -195,7 +197,7 @@ export function InboxSettingsTab() {
                       <Chip
                         flush
                         leftIcon={Trash2}
-                        aria-label='Remove sender'
+                        aria-label={t('remove_sender')}
                         onClick={() => handleRemoveSender(sender.id)}
                       />
                     </div>
@@ -204,7 +206,7 @@ export function InboxSettingsTab() {
                   {sendersData?.workspaceMembers.length === 0 &&
                     sendersData?.senders.length === 0 && (
                       <div className='px-3 py-2.5 text-[12px] text-[var(--text-muted)]'>
-                        No allowed senders configured.
+                        {t('no_allowed_senders_configured')}
                       </div>
                     )}
                 </>
@@ -227,7 +229,7 @@ export function InboxSettingsTab() {
                 setIsAddSenderOpen(true)
               }}
             >
-              Add sender
+              {t('add_sender')}
             </Chip>
           </div>
         </SettingsSection>
@@ -239,26 +241,26 @@ export function InboxSettingsTab() {
         srTitle='Add allowed sender'
       >
         <ChipModalHeader onClose={() => setIsAddSenderOpen(false)}>
-          Add allowed sender
+          {t('add_allowed_sender')}
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='email'
-            title='Email address'
+            title={t('email_address')}
             value={newSenderEmail}
             onChange={(v) => {
               setNewSenderEmail(v)
               if (addSenderError) setAddSenderError(null)
             }}
             required
-            placeholder='user@example.com'
+            placeholder={t('user_example_com')}
           />
           <ChipModalField
             type='input'
-            title='Label'
+            title={t('label')}
             value={newSenderLabel}
             onChange={setNewSenderLabel}
-            placeholder='e.g., John from Marketing'
+            placeholder={t('e_g_john_from_marketing')}
           />
           <ChipModalError>{addSenderError}</ChipModalError>
         </ChipModalBody>
@@ -278,25 +280,25 @@ export function InboxSettingsTab() {
         srTitle='Change email address'
       >
         <ChipModalHeader onClose={() => setIsEditAddressOpen(false)}>
-          Change email address
+          {t('change_email_address')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Changing your email address will create a new inbox.{' '}
+            {t('changing_your_email_address_will_create')}{' '}
             <span className='font-medium text-[var(--text-primary)]'>
-              The old address will stop receiving emails immediately.
+              {t('the_old_address_will_stop_receiving')}
             </span>
           </p>
           <ChipModalField
             type='input'
-            title='New email prefix'
+            title={t('new_email_prefix')}
             value={newUsername}
             onChange={(value) => {
               setNewUsername(value)
               if (editAddressError) setEditAddressError(null)
             }}
             onSubmit={handleEditAddress}
-            placeholder='e.g., new-acme'
+            placeholder={t('e_g_new_acme')}
             error={editAddressError}
           />
         </ChipModalBody>

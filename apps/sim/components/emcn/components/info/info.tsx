@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 /**
  * Tooltip placement side.
@@ -36,12 +37,13 @@ interface InfoProps {
  * ```
  */
 export function Info({ children, className, side = 'top', align = 'start' }: InfoProps) {
+  const t = useTranslations('auto')
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <button
           type='button'
-          aria-label='More information'
+          aria-label={t('more_information')}
           className={cn(
             'inline-flex size-[14px] items-center justify-center text-[var(--text-icon)] focus-visible:outline-none',
             className

@@ -26,6 +26,7 @@ import {
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-definitions'
 import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DocumentTagsModal')
 
@@ -92,6 +93,7 @@ export function DocumentTagsModal({
   documentData,
   onDocumentUpdate,
 }: DocumentTagsModalProps) {
+  const t = useTranslations('auto')
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const { mutateAsync: getServerNextSlot } = useNextAvailableSlotMutation()
@@ -385,12 +387,12 @@ export function DocumentTagsModal({
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Document Tags' size='sm'>
       <ChipModalHeader onClose={() => handleClose(false)}>
         <div className='flex items-center justify-between'>
-          <span>Document Tags</span>
+          <span>{t('document_tags')}</span>
         </div>
       </ChipModalHeader>
 
       <ChipModalBody>
-        <ChipModalField type='custom' title='Tags'>
+        <ChipModalField type='custom' title={t('tags')}>
           <div className='space-y-2'>
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
@@ -431,7 +433,7 @@ export function DocumentTagsModal({
                 {editingTagIndex === index && (
                   <div className='space-y-2 rounded-md border p-3'>
                     <div className='flex flex-col gap-2'>
-                      <Label htmlFor={`tagName-${index}`}>Tag Name</Label>
+                      <Label htmlFor={`tagName-${index}`}>{t('tag_name')}</Label>
                       {availableDefinitions.length > 0 ? (
                         <ChipCombobox
                           id={`tagName-${index}`}
@@ -454,7 +456,7 @@ export function DocumentTagsModal({
                               ),
                             })
                           }}
-                          placeholder='Enter or select tag name'
+                          placeholder={t('enter_or_select_tag_name')}
                           editable={true}
                         />
                       ) : (
@@ -464,7 +466,7 @@ export function DocumentTagsModal({
                           onChange={(e) =>
                             setEditTagForm({ ...editTagForm, displayName: e.target.value })
                           }
-                          placeholder='Enter tag name'
+                          placeholder={t('enter_tag_name')}
                           error={tagNameConflict}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
@@ -480,13 +482,13 @@ export function DocumentTagsModal({
                       )}
                       {tagNameConflict && (
                         <span className='text-[var(--text-error)] text-caption'>
-                          A tag with this name already exists
+                          {t('a_tag_with_this_name_already')}
                         </span>
                       )}
                     </div>
 
                     <div className='flex flex-col gap-2'>
-                      <Label htmlFor={`tagValue-${index}`}>Value</Label>
+                      <Label htmlFor={`tagValue-${index}`}>{t('value')}</Label>
                       {editTagForm.fieldType === 'boolean' ? (
                         <ChipCombobox
                           id={`tagValue-${index}`}
@@ -497,7 +499,7 @@ export function DocumentTagsModal({
                           value={editTagForm.value}
                           selectedValue={editTagForm.value}
                           onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                          placeholder='Select value'
+                          placeholder={t('select_value')}
                         />
                       ) : editTagForm.fieldType === 'number' ? (
                         <ChipInput
@@ -510,7 +512,7 @@ export function DocumentTagsModal({
                               setEditTagForm({ ...editTagForm, value: val })
                             }
                           }}
-                          placeholder='Enter number'
+                          placeholder={t('enter_number')}
                           inputMode='decimal'
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
@@ -527,7 +529,7 @@ export function DocumentTagsModal({
                         <ChipDatePicker
                           value={editTagForm.value || undefined}
                           onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                          placeholder='Select date'
+                          placeholder={t('select_date')}
                           fullWidth
                         />
                       ) : (
@@ -537,7 +539,7 @@ export function DocumentTagsModal({
                           onChange={(e) =>
                             setEditTagForm({ ...editTagForm, value: e.target.value })
                           }
-                          placeholder='Enter tag value'
+                          placeholder={t('enter_tag_value')}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
                               e.preventDefault()
@@ -554,7 +556,7 @@ export function DocumentTagsModal({
 
                     <div className='flex gap-2'>
                       <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                        Cancel
+                        {t('cancel')}
                       </Button>
                       <Button
                         variant='primary'
@@ -562,7 +564,7 @@ export function DocumentTagsModal({
                         className='flex-1'
                         disabled={!canSaveTag}
                       >
-                        Save Changes
+                        {t('save_changes')}
                       </Button>
                     </div>
                   </div>
@@ -577,14 +579,14 @@ export function DocumentTagsModal({
                 disabled={!canAddNewTag}
                 className='w-full'
               >
-                Add Tag
+                {t('add_tag')}
               </Button>
             )}
 
             {(isCreatingTag || documentTags.length === 0) && editingTagIndex === null && (
               <div className='space-y-2 rounded-md border p-3'>
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='newTagName'>Tag Name</Label>
+                  <Label htmlFor='newTagName'>{t('tag_name')}</Label>
                   {tagNameOptions.length > 0 ? (
                     <ChipCombobox
                       id='newTagName'
@@ -607,7 +609,7 @@ export function DocumentTagsModal({
                           ),
                         })
                       }}
-                      placeholder='Enter or select tag name'
+                      placeholder={t('enter_or_select_tag_name')}
                       editable={true}
                     />
                   ) : (
@@ -617,7 +619,7 @@ export function DocumentTagsModal({
                       onChange={(e) =>
                         setEditTagForm({ ...editTagForm, displayName: e.target.value })
                       }
-                      placeholder='Enter tag name'
+                      placeholder={t('enter_tag_name')}
                       error={tagNameConflict}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {
@@ -633,13 +635,13 @@ export function DocumentTagsModal({
                   )}
                   {tagNameConflict && (
                     <span className='text-[var(--text-error)] text-caption'>
-                      A tag with this name already exists
+                      {t('a_tag_with_this_name_already')}
                     </span>
                   )}
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='newTagValue'>Value</Label>
+                  <Label htmlFor='newTagValue'>{t('value')}</Label>
                   {editTagForm.fieldType === 'boolean' ? (
                     <ChipCombobox
                       id='newTagValue'
@@ -650,7 +652,7 @@ export function DocumentTagsModal({
                       value={editTagForm.value}
                       selectedValue={editTagForm.value}
                       onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                      placeholder='Select value'
+                      placeholder={t('select_value')}
                     />
                   ) : editTagForm.fieldType === 'number' ? (
                     <ChipInput
@@ -663,7 +665,7 @@ export function DocumentTagsModal({
                           setEditTagForm({ ...editTagForm, value: val })
                         }
                       }}
-                      placeholder='Enter number'
+                      placeholder={t('enter_number')}
                       inputMode='decimal'
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {
@@ -680,7 +682,7 @@ export function DocumentTagsModal({
                     <ChipDatePicker
                       value={editTagForm.value || undefined}
                       onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                      placeholder='Select date'
+                      placeholder={t('select_date')}
                       fullWidth
                     />
                   ) : (
@@ -688,7 +690,7 @@ export function DocumentTagsModal({
                       id='newTagValue'
                       value={editTagForm.value}
                       onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
-                      placeholder='Enter tag value'
+                      placeholder={t('enter_tag_value')}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {
                           e.preventDefault()
@@ -708,15 +710,14 @@ export function DocumentTagsModal({
                     (def) => def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
                   ) && (
                     <Badge variant='amber' size='lg' dot className='max-w-full'>
-                      Maximum tag definitions reached. You can still use existing tag definitions,
-                      but cannot create new ones.
+                      {t('maximum_tag_definitions_reached_you_can')}
                     </Badge>
                   )}
 
                 <div className='flex gap-2'>
                   {documentTags.length > 0 && (
                     <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                      Cancel
+                      {t('cancel')}
                     </Button>
                   )}
                   <Button

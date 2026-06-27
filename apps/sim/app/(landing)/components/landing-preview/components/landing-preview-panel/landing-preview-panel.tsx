@@ -20,6 +20,7 @@ import {
   TYPE_START_BUFFER_MS,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -81,6 +82,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
   animationKey = 0,
   onHighlightBlock,
 }: LandingPreviewPanelProps) {
+  const t = useTranslations('auto')
   const landingSubmit = useLandingSubmit()
   const [inputValue, setInputValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -202,11 +204,11 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                 }
               >
                 <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-                  <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
+                  <span className='font-medium text-[#1b1b1b] text-[12px]'>{t('deploy')}</span>
                 </div>
                 <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
                   <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
-                  <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
+                  <span className='font-medium text-[#1b1b1b] text-[12px]'>{t('run')}</span>
                 </div>
               </button>
             </AuthModal>
@@ -227,7 +229,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                     <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
                   </div>
                   <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
-                    Get started
+                    {t('get_started')}
                     <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                   </div>
                 </div>,
@@ -286,7 +288,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                 >
                   <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
                     <span className='min-w-0 flex-1 truncate font-medium text-[#e6e6e6] text-[14px]'>
-                      New Chat
+                      {t('new_chat')}
                     </span>
                   </div>
                   <div className='px-2 pt-3 pb-2'>
@@ -296,7 +298,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder='Build an AI agent...'
+                        placeholder={t('build_an_ai_agent')}
                         rows={2}
                         className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
                       />
@@ -366,10 +368,11 @@ interface EditorTabContentProps {
  * header bar, then scrollable sub-block fields.
  */
 function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) {
+  const t = useTranslations('auto')
   if (!editorPrompt) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <span className='font-medium text-[#787878] text-[13px]'>Select a block to edit</span>
+        <span className='font-medium text-[#787878] text-[13px]'>{t('select_a_block_to_edit')}</span>
       </div>
     )
   }
@@ -403,7 +406,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
           {/* System Prompt */}
           <div className='flex flex-col gap-2.5'>
             <div className='flex items-center pl-0.5'>
-              <span className='font-medium text-[#e6e6e6] text-small'>System Prompt</span>
+              <span className='font-medium text-[#e6e6e6] text-small'>{t('system_prompt')}</span>
             </div>
             <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
               <p className='min-h-[48px] whitespace-pre-wrap break-words font-medium font-sans text-[#e6e6e6] text-sm leading-[1.5]'>
@@ -427,7 +430,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
           {model && (
             <div className='flex flex-col gap-2.5'>
               <div className='flex items-center pl-0.5'>
-                <span className='font-medium text-[#e6e6e6] text-small'>Model</span>
+                <span className='font-medium text-[#e6e6e6] text-small'>{t('model')}</span>
               </div>
               <div className='flex h-[32px] items-center gap-2 rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2'>
                 {ModelIcon && <ModelIcon className='h-[14px] w-[14px] text-[#e6e6e6]' />}
@@ -441,7 +444,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
           {tools.length > 0 && (
             <div className='flex flex-col gap-2.5'>
               <div className='flex items-center pl-0.5'>
-                <span className='font-medium text-[#e6e6e6] text-small'>Tools</span>
+                <span className='font-medium text-[#e6e6e6] text-small'>{t('tools')}</span>
               </div>
               <div className='flex flex-wrap gap-[5px]'>
                 {tools.map((tool) => {
@@ -470,7 +473,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
           {/* Temperature */}
           <div className='flex flex-col gap-2.5'>
             <div className='flex items-center justify-between pl-0.5'>
-              <span className='font-medium text-[#e6e6e6] text-small'>Temperature</span>
+              <span className='font-medium text-[#e6e6e6] text-small'>{t('temperature')}</span>
               <span className='font-medium text-[#787878] text-small'>0.7</span>
             </div>
             <div className='relative h-[6px] rounded-full bg-[#3d3d3d]'>
@@ -485,10 +488,10 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
           {/* Response Format */}
           <div className='flex flex-col gap-2.5'>
             <div className='flex items-center pl-0.5'>
-              <span className='font-medium text-[#e6e6e6] text-small'>Response Format</span>
+              <span className='font-medium text-[#e6e6e6] text-small'>{t('response_format')}</span>
             </div>
             <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
-              <span className='font-mono text-[#787878] text-[12px]'>plain text</span>
+              <span className='font-mono text-[#787878] text-[12px]'>{t('plain_text')}</span>
             </div>
           </div>
         </div>

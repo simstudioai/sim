@@ -93,6 +93,7 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -131,39 +132,39 @@ const getStatusBadge = (doc: DocumentData) => {
     case 'pending':
       return (
         <Badge variant='gray' size='sm'>
-          Pending
+          {t('pending')}
         </Badge>
       )
     case 'processing':
       return (
         <Badge variant='purple' size='sm' icon={AnimatedLoader}>
-          Processing
+          {t('processing')}
         </Badge>
       )
     case 'failed':
       return doc.processingError ? (
         <Badge variant='red' size='sm' icon={AlertCircle}>
-          Failed
+          {t('failed')}
         </Badge>
       ) : (
         <Badge variant='red' size='sm'>
-          Failed
+          {t('failed')}
         </Badge>
       )
     case 'completed':
       return doc.enabled ? (
         <Badge variant='green' size='sm'>
-          Enabled
+          {t('enabled')}
         </Badge>
       ) : (
         <Badge variant='gray' size='sm'>
-          Disabled
+          {t('disabled')}
         </Badge>
       )
     default:
       return (
         <Badge variant='gray' size='sm'>
-          Unknown
+          {t('unknown')}
         </Badge>
       )
   }
@@ -216,6 +217,7 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
   workspaceId: propWorkspaceId,
 }: KnowledgeBaseProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const router = useRouter()
@@ -917,7 +919,7 @@ export function KnowledgeBase({
       <AutoWidthPanel>
         <div className='flex flex-col gap-2'>
           <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Status</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>{t('status')}</span>
             {enabledFilter !== 'all' && (
               <Button
                 variant='ghost'
@@ -928,7 +930,7 @@ export function KnowledgeBase({
                 }}
                 className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
               >
-                Clear
+                {t('clear')}
               </Button>
             )}
           </div>
@@ -1155,10 +1157,10 @@ export function KnowledgeBase({
         <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
-            Knowledge base not found
+            {t('knowledge_base_not_found')}
           </h2>
           <p className='text-[var(--text-muted)] text-small'>
-            This knowledge base may have been deleted or moved
+            {t('this_knowledge_base_may_have_been')}
           </p>
         </div>
       </div>
@@ -1170,7 +1172,7 @@ export function KnowledgeBase({
       <Resource onContextMenu={handleEmptyContextMenu}>
         <Resource.Header
           icon={Database}
-          title='Knowledge Base'
+          title={t('knowledge_base')}
           breadcrumbs={breadcrumbs}
           actions={[
             ...headerActions,
@@ -1234,7 +1236,7 @@ export function KnowledgeBase({
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
-        title='Delete Knowledge Base'
+        title={t('delete_knowledge_base')}
         text={[
           'Are you sure you want to delete ',
           { text: knowledgeBaseName, bold: true },
@@ -1260,7 +1262,7 @@ export function KnowledgeBase({
           if (!open) setDocumentToDelete(null)
         }}
         srTitle='Delete Document'
-        title='Delete Document'
+        title={t('delete_document')}
         text={(() => {
           const docToDelete = documents.find((doc) => doc.id === documentToDelete)
           const base: ChipConfirmTextSegment[] = [
@@ -1292,7 +1294,7 @@ export function KnowledgeBase({
         open={showBulkDeleteModal}
         onOpenChange={setShowBulkDeleteModal}
         srTitle='Delete Documents'
-        title='Delete Documents'
+        title={t('delete_documents')}
         text={[
           `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
           {
@@ -1342,7 +1344,7 @@ export function KnowledgeBase({
         srTitle='Connected Sources'
       >
         <ChipModalHeader onClose={() => setShowConnectorsModal(false)}>
-          Connected Sources
+          {t('connected_sources')}
         </ChipModalHeader>
         <ChipModalBody>
           <ConnectorsSection
@@ -1486,6 +1488,7 @@ interface TagFilterValueControlProps {
  * Renders the value input for a knowledge base tag filter row.
  */
 function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) {
+  const t = useTranslations('auto')
   const isBetween = entry.operator === 'between'
 
   if (entry.fieldType === 'date') {
@@ -1495,15 +1498,15 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
           <ChipDatePicker
             value={entry.value || undefined}
             onChange={(value) => onChange({ value })}
-            placeholder='From'
+            placeholder={t('from')}
             fullWidth
             flush
           />
-          <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
+          <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>{t('to')}</span>
           <ChipDatePicker
             value={entry.valueTo || undefined}
             onChange={(value) => onChange({ valueTo: value })}
-            placeholder='To'
+            placeholder={t('to_2')}
             fullWidth
             flush
           />
@@ -1515,7 +1518,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
       <ChipDatePicker
         value={entry.value || undefined}
         onChange={(value) => onChange({ value })}
-        placeholder='Select date'
+        placeholder={t('select_date')}
         fullWidth
         flush
       />
@@ -1528,13 +1531,13 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
         <ChipInput
           value={entry.value}
           onChange={(event) => onChange({ value: event.target.value })}
-          placeholder='From'
+          placeholder={t('from')}
         />
-        <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
+        <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>{t('to')}</span>
         <ChipInput
           value={entry.valueTo}
           onChange={(event) => onChange({ valueTo: event.target.value })}
-          placeholder='To'
+          placeholder={t('to_2')}
         />
       </div>
     )
@@ -1559,6 +1562,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
  * Tag filter section rendered inside the combined filter popover.
  */
 function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectionProps) {
+  const t = useTranslations('auto')
   const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length
 
   const tagOptions: ChipDropdownOption[] = tagDefinitions.map((t) => ({
@@ -1621,14 +1625,14 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
   return (
     <div className='mt-3 border-[var(--border-1)] border-t pt-3'>
       <div className='flex h-5 items-center justify-between'>
-        <span className={FILTER_SECTION_LABEL_CLASS}>Filter by tags</span>
+        <span className={FILTER_SECTION_LABEL_CLASS}>{t('filter_by_tags')}</span>
         {activeCount > 0 && (
           <Button
             variant='ghost'
             className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
             onClick={() => onChange([])}
           >
-            Clear all
+            {t('clear_all')}
           </Button>
         )}
       </div>
@@ -1649,7 +1653,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
               {index > 0 && (
                 <div className='flex items-center gap-2'>
                   <span className='shrink-0 text-[var(--text-muted)] text-caption leading-none'>
-                    and
+                    {t('and')}
                   </span>
                   <div className='h-px flex-1 bg-[var(--border-1)]' />
                 </div>
@@ -1660,7 +1664,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     options={tagOptions}
                     value={entry.tagName}
                     onChange={(value) => handleTagChange(entry.id, value)}
-                    placeholder='Select tag'
+                    placeholder={t('select_tag')}
                     align='start'
                     matchTriggerWidth={false}
                     contentClassName='max-h-[240px] overflow-y-auto'
@@ -1672,7 +1676,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                       options={operatorOptions}
                       value={entry.operator}
                       onChange={(value) => updateEntry(entry.id, { operator: value, valueTo: '' })}
-                      placeholder='Operator'
+                      placeholder={t('operator')}
                       align='start'
                       matchTriggerWidth={false}
                       flush
@@ -1683,7 +1687,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                   variant='ghost'
                   className='relative size-[30px] shrink-0 p-0 text-[var(--text-muted)] before:absolute before:inset-[-5px] before:content-[""] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
                   onClick={() => removeFilter(entry.id)}
-                  aria-label='Remove tag filter'
+                  aria-label={t('remove_tag_filter')}
                 >
                   <X className='size-[14px]' />
                 </Button>
@@ -1705,7 +1709,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         className='mt-2 h-[30px] w-full justify-start gap-2 px-2 text-[var(--text-secondary)] text-caption hover-hover:text-[var(--text-primary)]'
       >
         <Plus className='size-[14px]' />
-        Add filter
+        {t('add_filter')}
       </Button>
     </div>
   )

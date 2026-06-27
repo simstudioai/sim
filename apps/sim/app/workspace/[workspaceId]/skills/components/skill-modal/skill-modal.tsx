@@ -18,6 +18,7 @@ import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/ski
 import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
+import { useTranslations } from 'next-intl'
 
 const RichMarkdownField = dynamic(
   () =>
@@ -56,6 +57,7 @@ export function SkillModal({
   onDelete,
   initialValues,
 }: SkillModalProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -202,35 +204,35 @@ export function SkillModal({
           <>
             <ChipModalField
               type='input'
-              title='Name'
+              title={t('name')}
               value={name}
               onChange={(value) => {
                 setName(value)
                 if (errors.name || errors.general)
                   setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
               }}
-              placeholder='my-skill-name'
+              placeholder={t('my_skill_name')}
               required
               error={errors.name}
-              hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+              hint={t('lowercase_letters_numbers_and_hyphens_e')}
             />
 
             <ChipModalField
               type='input'
-              title='Description'
+              title={t('description')}
               value={description}
               onChange={(value) => {
                 setDescription(value)
                 if (errors.description || errors.general)
                   setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
               }}
-              placeholder='What this skill does and when to use it...'
+              placeholder={t('what_this_skill_does_and_when')}
               maxLength={1024}
               required
               error={errors.description}
             />
 
-            <ChipModalField type='custom' title='Content' required error={errors.content}>
+            <ChipModalField type='custom' title={t('content')} required error={errors.content}>
               <RichMarkdownField
                 key={`${initialValues?.id ?? 'new'}:${contentSeed}`}
                 value={content}
@@ -239,7 +241,7 @@ export function SkillModal({
                   if (errors.content || errors.general)
                     setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
                 }}
-                placeholder='Skill instructions in markdown...'
+                placeholder={t('skill_instructions_in_markdown')}
                 minHeight={200}
                 disabled={readOnly || saving}
                 error={!!errors.content}

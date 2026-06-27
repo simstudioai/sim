@@ -6,6 +6,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const COLUMNS = [
   { id: 'workflow', header: 'Workflow' },
@@ -24,10 +25,11 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function LogsLoading() {
+  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={Library}
-      title='Logs'
+      title={t('logs')}
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search logs...'

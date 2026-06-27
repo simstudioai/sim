@@ -11,6 +11,7 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { FilterRuleRow } from './components/filter-rule-row'
+import { useTranslations } from 'next-intl'
 
 interface FilterBuilderProps {
   blockId: string
@@ -32,6 +33,7 @@ export function FilterBuilder({
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
 }: FilterBuilderProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
   const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
@@ -90,7 +92,7 @@ export function FilterBuilder({
         className='h-7 w-full justify-start gap-1.5 border border-[var(--border-1)] border-dashed text-[var(--text-muted)] text-small'
       >
         <Plus className='size-[14px]' />
-        Add filter condition
+        {t('add_filter_condition')}
       </Button>
     )
   }

@@ -24,6 +24,7 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useTranslations } from 'next-intl'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
   const { baseProvider } = parseProvider(providerName)
@@ -79,6 +80,7 @@ export function ToolCredentialSelector({
   serviceId,
   disabled = false,
 }: ToolCredentialSelectorProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -239,7 +241,7 @@ export function ToolCredentialSelector({
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
-            Additional permissions required
+            {t('additional_permissions_required')}
           </div>
           <Button
             variant='active'
@@ -257,7 +259,7 @@ export function ToolCredentialSelector({
             }}
             className='w-full px-2 py-1 font-medium text-caption'
           >
-            Update access
+            {t('update_access')}
           </Button>
         </div>
       )}

@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { useTranslations } from 'next-intl' // i18n ready
 import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'

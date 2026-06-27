@@ -11,6 +11,7 @@ import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { DeleteKnowledgeBaseModal } from '../delete-knowledge-base-modal/delete-knowledge-base-modal'
 import { EditKnowledgeBaseModal } from '../edit-knowledge-base-modal/edit-knowledge-base-modal'
 import { KnowledgeBaseContextMenu } from '../knowledge-base-context-menu/knowledge-base-context-menu'
+import { useTranslations } from 'next-intl'
 
 interface BaseCardProps {
   id?: string
@@ -85,6 +86,7 @@ export function BaseCard({
   onUpdate,
   onDelete,
 }: BaseCardProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
@@ -208,7 +210,7 @@ export function BaseCard({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span className='text-[var(--text-tertiary)] text-caption'>
-                      last updated: {formatRelativeTime(updatedAt)}
+                      {t('last_updated')} {formatRelativeTime(updatedAt)}
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{formatAbsoluteDate(updatedAt)}</Tooltip.Content>

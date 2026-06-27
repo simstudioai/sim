@@ -32,6 +32,7 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useTranslations } from 'next-intl'
 
 interface CredentialSelectorProps {
   blockId: string
@@ -50,6 +51,7 @@ export function CredentialSelector({
   previewValue,
   previewContextValues,
 }: CredentialSelectorProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -447,7 +449,7 @@ export function CredentialSelector({
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
-            Additional permissions required
+            {t('additional_permissions_required')}
           </div>
           <Button
             variant='active'
@@ -465,7 +467,7 @@ export function CredentialSelector({
             }}
             className='w-full px-2 py-1 font-medium text-caption'
           >
-            Update access
+            {t('update_access')}
           </Button>
         </div>
       )}

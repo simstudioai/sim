@@ -11,6 +11,7 @@ import {
   resolvePreviewError,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { useDocPreviewBinary } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('PptxPreview')
 
@@ -25,6 +26,7 @@ export const PptxPreview = memo(function PptxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const t = useTranslations('auto')
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data
   const cacheKey = pptxCacheKey(file.id, preview.dataUpdatedAt, fileData?.byteLength ?? 0)
@@ -52,7 +54,7 @@ export const PptxPreview = memo(function PptxPreview({
 
   const error = resolvePreviewError(preview.error, renderError)
 
-  if (error) return <PreviewError label='presentation' error={error} />
+  if (error) return <PreviewError label={t('presentation')} error={error} />
 
   if (!fileData) {
     return <PreviewLoadingFrame className='h-full flex-1' tone='surface' />

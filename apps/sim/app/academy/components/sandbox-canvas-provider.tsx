@@ -30,6 +30,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { LessonVideo } from './lesson-video'
 import { ValidationChecklist } from './validation-checklist'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SandboxCanvasProvider')
 
@@ -163,6 +164,7 @@ export function SandboxCanvasProvider({
   description,
   className,
 }: SandboxCanvasProviderProps) {
+  const t = useTranslations('auto')
   const [isReady, setIsReady] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult>({
     passed: false,
@@ -372,7 +374,7 @@ export function SandboxCanvasProvider({
             <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
               {(videoUrl || description) && (
                 <div className='flex flex-col gap-2'>
-                  {videoUrl && <LessonVideo url={videoUrl} title='Lesson video' />}
+                  {videoUrl && <LessonVideo url={videoUrl} title={t('lesson_video')} />}
                   {description && (
                     <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
                   )}
@@ -394,7 +396,7 @@ export function SandboxCanvasProvider({
                   <div className='rounded-[6px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-[11px]'>
                     <div className='mb-1 flex items-center justify-between'>
                       <span className='font-[430] text-[#666]'>
-                        Hint {hintIndex + 1}/{hints.length}
+                        {t('hint')} {hintIndex + 1}/{hints.length}
                       </span>
                       <div className='flex gap-1'>
                         <button
@@ -402,7 +404,7 @@ export function SandboxCanvasProvider({
                           onClick={handlePrevHint}
                           disabled={hintIndex === 0}
                           className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
-                          aria-label='Previous hint'
+                          aria-label={t('previous_hint')}
                         >
                           ‹
                         </button>
@@ -411,7 +413,7 @@ export function SandboxCanvasProvider({
                           onClick={handleShowHint}
                           disabled={hintIndex === hints.length - 1}
                           className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
-                          aria-label='Next hint'
+                          aria-label={t('next_hint')}
                         >
                           ›
                         </button>
@@ -426,7 +428,7 @@ export function SandboxCanvasProvider({
                     onClick={handleShowHint}
                     className='w-full rounded-[5px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
                   >
-                    Show hint
+                    {t('show_hint')}
                   </button>
                 )}
               </div>

@@ -29,6 +29,7 @@ import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
+import { useTranslations } from 'next-intl'
 
 const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
@@ -73,6 +74,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: RichMarkdownEditorProps) {
+  const t = useTranslations('auto')
   const {
     content,
     setDraftContent,
@@ -97,7 +99,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>{t('failed_to_load_file_content')}</p>
       </div>
     )
   }

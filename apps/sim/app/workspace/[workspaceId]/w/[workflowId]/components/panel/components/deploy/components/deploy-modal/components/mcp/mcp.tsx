@@ -34,6 +34,7 @@ import {
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpToolDeploy')
 
@@ -132,6 +133,7 @@ export function McpDeploy({
   onSaveDisabledReasonChange,
   onActiveServerChange,
 }: McpDeployProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -473,7 +475,7 @@ export function McpDeploy({
   if (!isDeployed) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
-        Deploy your workflow first to add it as an MCP tool.
+        {t('deploy_your_workflow_first_to_add')}
       </div>
     )
   }
@@ -504,10 +506,10 @@ export function McpDeploy({
       <>
         <div className='flex h-full flex-col items-center justify-center gap-3'>
           <p className='text-[13px] text-[var(--text-muted)]'>
-            Create an MCP Server to expose your workflows as tools.
+            {t('create_an_mcp_server_to_expose')}
           </p>
           <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
-            Create MCP Server
+            {t('create_mcp_server')}
           </Button>
         </div>
         <CreateWorkflowMcpServerModal
@@ -542,12 +544,12 @@ export function McpDeploy({
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Tool name
+          {t('tool_name')}
         </Label>
         <ChipInput
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
-          placeholder='e.g., book_flight'
+          placeholder={t('e_g_book_flight')}
           aria-invalid={!!toolNameError}
           error={Boolean(toolNameError)}
         />
@@ -563,7 +565,7 @@ export function McpDeploy({
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Description
+          {t('description')}
         </Label>
         <Textarea
           placeholder={
@@ -580,10 +582,10 @@ export function McpDeploy({
       {inputFormat.length > 0 && (
         <div>
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Parameters ({inputFormat.length})
+            {t('parameters')}{inputFormat.length})
           </Label>
           <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
-            Descriptions default to your Start block inputs; edit to override for this tool.
+            {t('descriptions_default_to_your_start_block')}
           </p>
           <div className='flex flex-col gap-2'>
             {inputFormat.map((field) => (
@@ -603,7 +605,7 @@ export function McpDeploy({
                 </div>
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Description</Label>
+                    <Label className='text-small'>{t('description')}</Label>
                     <ChipInput
                       value={
                         parameterDescriptions[field.name] ??
@@ -628,14 +630,14 @@ export function McpDeploy({
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Servers
+          {t('servers')}
         </Label>
         <ChipCombobox
           options={serverOptions}
           multiSelect
           multiSelectValues={selectedServerIdsForForm}
           onMultiSelectChange={handleServerSelectionChange}
-          placeholder='Select servers...'
+          placeholder={t('select_servers')}
           searchable
           searchPlaceholder='Search servers...'
           disabled={!toolName.trim() || !!toolNameError || isPending}
@@ -645,11 +647,11 @@ export function McpDeploy({
         />
         {!toolName.trim() ? (
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            Enter a tool name to select servers
+            {t('enter_a_tool_name_to_select')}
           </p>
         ) : toolNameError ? (
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            Fix the tool name to select servers
+            {t('fix_the_tool_name_to_select')}
           </p>
         ) : null}
       </div>

@@ -3,14 +3,16 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { createLogger } from '@sim/logger'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FilePreview')
 
 export function PreviewError({ label, error }: { label: string; error: string }) {
+  const t = useTranslations('auto')
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Failed to preview {label}
+        {t('failed_to_preview')} {label}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>

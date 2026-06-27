@@ -19,6 +19,7 @@ import {
 } from '@/hooks/queries/credentials'
 import { ROLE_OPTIONS } from '../roles'
 import { partitionSettledFailures, resolveAddEmail } from '../sharing'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AddPeopleModal')
 
@@ -35,6 +36,7 @@ interface AddPeopleModalProps {
  * failures keep only the people that still need adding.
  */
 export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleModalProps) {
+  const t = useTranslations('auto')
   const { workspacePermissions } = useWorkspacePermissionsContext()
   const { data: members = [] } = useWorkspaceCredentialMembers(credentialId)
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -134,23 +136,23 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
       }}
       srTitle='Add people'
     >
-      <ChipModalHeader onClose={handleClose}>Add people</ChipModalHeader>
+      <ChipModalHeader onClose={handleClose}>{t('add_people')}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
-          title='Emails'
+          title={t('emails')}
           value={emailsToAdd}
           onChange={setEmailsToAdd}
           validate={validateAddEmail}
-          placeholder='Enter emails'
+          placeholder={t('enter_emails')}
           disabled={isAdding}
         />
         <ChipModalField
           type='dropdown'
-          title='Role'
+          title={t('role')}
           options={ROLE_OPTIONS}
           value={roleToAdd}
-          placeholder='Select role'
+          placeholder={t('select_role')}
           align='start'
           onChange={(role) => setRoleToAdd(role as WorkspaceCredentialRole)}
           disabled={isAdding}

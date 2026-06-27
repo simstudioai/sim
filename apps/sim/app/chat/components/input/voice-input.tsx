@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Mic } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 interface VoiceInputProps {
   onVoiceStart: () => void
@@ -19,6 +20,7 @@ export function VoiceInput({
   large = false,
   minimal = false,
 }: VoiceInputProps) {
+  const t = useTranslations('auto')
   const handleVoiceClick = useCallback(() => {
     if (disabled) return
     onVoiceStart()
@@ -33,7 +35,7 @@ export function VoiceInput({
         className={`flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors duration-200 hover:bg-gray-100 md:p-2 ${
           disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
         }`}
-        title='Start voice conversation'
+        title={t('start_voice_conversation')}
       >
         <Mic size={16} className='md:h-5 md:w-5' />
       </button>
@@ -55,7 +57,7 @@ export function VoiceInput({
             } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title='Start voice conversation'
+            title={t('start_voice_conversation')}
           >
             <Mic size={32} />
           </m.button>
@@ -78,7 +80,7 @@ export function VoiceInput({
           } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          title='Start voice conversation'
+          title={t('start_voice_conversation')}
         >
           <Mic size={16} className='md:hidden' />
           <Mic size={18} className='hidden md:block' />

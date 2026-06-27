@@ -40,6 +40,7 @@ import {
   EASE_OUT,
   type PreviewTool,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+import { useTranslations } from 'next-intl'
 
 /** Map block type strings to their icon components. */
 const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -127,6 +128,7 @@ const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none
 export const PreviewBlockNode = memo(function PreviewBlockNode({
   data,
 }: NodeProps<PreviewBlockData>) {
+  const t = useTranslations('auto')
   const {
     name,
     blockType,
@@ -154,7 +156,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         >
           <div className='w-[280px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
             <div className='border-[#3d3d3d] border-b p-2'>
-              <span className='font-medium text-[#e6e6e6] text-[16px]'>Note</span>
+              <span className='font-medium text-[#e6e6e6] text-[16px]'>{t('note')}</span>
             </div>
             <div className='p-2.5'>
               <NoteMarkdown content={markdown} />
@@ -233,7 +235,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               {tools && tools.length > 0 && (
                 <div className='flex items-center gap-2'>
                   <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>
-                    Tools
+                    {t('tools')}
                   </span>
                   <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
                     {tools.map((tool) => {

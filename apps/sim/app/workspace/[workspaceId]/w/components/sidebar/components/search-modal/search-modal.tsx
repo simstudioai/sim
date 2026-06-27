@@ -71,6 +71,7 @@ import type {
   WorkspaceItem,
 } from './utils'
 import { filterAndSort } from './utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SearchModal')
 
@@ -94,6 +95,7 @@ export function SearchModal({
   onCreateFolder,
   onImportWorkflow,
 }: SearchModalProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -657,7 +659,7 @@ export function SearchModal({
         role='dialog'
         aria-modal={open}
         aria-hidden={!open}
-        aria-label='Search'
+        aria-label={t('search')}
         className={cn(
           '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
@@ -669,14 +671,14 @@ export function SearchModal({
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-          <Command label='Search' shouldFilter={false}>
+          <Command label={t('search')} shouldFilter={false}>
             <div className='mx-2 mt-2 flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
               <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
               <Command.Input
                 ref={inputRef}
                 autoFocus
                 onValueChange={handleSearchChange}
-                placeholder='Search anything...'
+                placeholder={t('search_anything')}
                 className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             </div>
@@ -688,7 +690,7 @@ export function SearchModal({
               )}
             >
               <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
-                No results found.
+                {t('no_results_found')}
               </Command.Empty>
 
               <ActionsGroup

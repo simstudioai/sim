@@ -13,6 +13,7 @@ import {
 } from '@/hooks/queries/credentials'
 import { ROLE_OPTIONS } from '../roles'
 import { DetailSection } from './detail-section'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CredentialMembersSection')
 
@@ -27,6 +28,7 @@ interface CredentialMembersSectionProps {
  * by every credential detail surface.
  */
 export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMembersSectionProps) {
+  const t = useTranslations('auto')
   const { data: members = [], isPending: membersLoading } =
     useWorkspaceCredentialMembers(credentialId)
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -99,7 +101,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
                   <ChipDropdown
                     options={ROLE_OPTIONS}
                     value={member.role}
-                    placeholder='Role'
+                    placeholder={t('role')}
                     disabled={roleDisabled}
                     onChange={(role) =>
                       handleChangeMemberRole(member.userId, role as WorkspaceCredentialRole)
@@ -113,7 +115,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
                     flush
                     className='justify-self-end'
                   >
-                    Remove
+                    {t('remove')}
                   </Chip>
                 )}
               </div>

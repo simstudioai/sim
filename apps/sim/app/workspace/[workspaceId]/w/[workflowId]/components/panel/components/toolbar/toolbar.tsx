@@ -29,6 +29,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
 import type { ToolbarSectionKey } from '@/stores/panel/toolbar/store'
+import { useTranslations } from 'next-intl'
 
 interface BlockItem {
   name: string
@@ -687,13 +688,13 @@ export const Toolbar = memo(
           onClick={focusSearch}
           onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
         >
-          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
+          <h2 className='font-medium text-[var(--text-primary)] text-sm'>{t('toolbar')}</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
               <Button
                 variant='ghost'
                 className='p-0'
-                aria-label='Search toolbar'
+                aria-label={t('search_toolbar')}
                 onClick={focusSearch}
               >
                 <Search className='size-[14px]' />
@@ -714,8 +715,8 @@ export const Toolbar = memo(
         {/* Single scroll container with three collapsible sections */}
         <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-none pb-3'>
           <ToolbarSection
-            label='Triggers'
-            tooltip='Events that start a workflow'
+            label={t('triggers')}
+            tooltip={t('events_that_start_a_workflow')}
             sectionKey='triggers'
             items={filteredTriggers}
             isTrigger={true}
@@ -729,8 +730,8 @@ export const Toolbar = memo(
             onContextMenu={handleItemContextMenu}
           />
           <ToolbarSection
-            label='Core Blocks'
-            tooltip='Core building blocks for agent logic'
+            label={t('core_blocks')}
+            tooltip={t('core_building_blocks_for_agent_logic')}
             sectionKey='blocks'
             items={filteredBlocks}
             isTrigger={false}
@@ -744,8 +745,8 @@ export const Toolbar = memo(
             onContextMenu={handleItemContextMenu}
           />
           <ToolbarSection
-            label='Integrations'
-            tooltip='Connect agents to external services'
+            label={t('integrations')}
+            tooltip={t('connect_agents_to_external_services')}
             sectionKey='tools'
             items={filteredTools}
             isTrigger={false}

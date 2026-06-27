@@ -36,6 +36,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useTranslations } from 'next-intl'
 
 export interface AddResourceDropdownProps {
   workspaceId: string
@@ -388,6 +389,7 @@ export function AddResourceDropdown({
   onSwitch,
   excludeTypes,
 }: AddResourceDropdownProps) {
+  const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -459,14 +461,14 @@ export function AddResourceDropdown({
             <Button
               variant='subtle'
               className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label='Add resource tab'
+              aria-label={t('add_resource_tab')}
             >
               <Plus className={RESOURCE_TAB_ICON_CLASS} />
             </Button>
           </DropdownMenuTrigger>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Add resource</p>
+          <p>{t('add_resource')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <DropdownMenuContent
@@ -476,7 +478,7 @@ export function AddResourceDropdown({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuSearchInput
-          placeholder='Search resources...'
+          placeholder={t('search_resources')}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
@@ -502,7 +504,7 @@ export function AddResourceDropdown({
               })
             ) : (
               <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
-                No results
+                {t('no_results')}
               </div>
             )
           ) : (
@@ -511,7 +513,7 @@ export function AddResourceDropdown({
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Workflow className='size-[14px]' />
-                    <span>Workflows</span>
+                    <span>{t('workflows')}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     <WorkflowFolderTreeItems nodes={workflowTree} onSelect={select} />
@@ -525,7 +527,7 @@ export function AddResourceDropdown({
                       const Icon = getResourceConfig('file').icon
                       return <Icon className='size-[14px]' />
                     })()}
-                    <span>Files</span>
+                    <span>{t('files')}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     <FileFolderTreeItems nodes={fileFolderTree} onSelect={select} />

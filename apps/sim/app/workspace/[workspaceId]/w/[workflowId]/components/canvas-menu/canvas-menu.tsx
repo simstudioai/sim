@@ -8,6 +8,7 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 /**
  * Props for CanvasMenu component
@@ -75,6 +76,7 @@ export function CanvasMenu({
   allBlocksLocked = false,
   hasBlocks = false,
 }: CanvasMenuProps) {
+  const t = useTranslations('auto')
   return (
     <Popover
       open={isOpen}
@@ -102,8 +104,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Undo</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘Z</span>
+          <span>{t('undo')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('z')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -113,8 +115,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Redo</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘⇧Z</span>
+          <span>{t('redo')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('z_2')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -124,8 +126,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Paste</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
+          <span>{t('paste')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('v')}</span>
         </PopoverItem>
 
         {/* Edit and creation actions */}
@@ -138,8 +140,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Add Block</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘K</span>
+          <span>{t('add_block')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('k')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -150,8 +152,8 @@ export function CanvasMenu({
           }}
           title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
         >
-          <span>Auto-layout</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⇧L</span>
+          <span>{t('auto_layout')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('l')}</span>
         </PopoverItem>
         {canAdmin && onToggleWorkflowLock && (
           <PopoverItem
@@ -170,7 +172,7 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          Fit to View
+          {t('fit_to_view')}
         </PopoverItem>
 
         {/* Navigation actions */}
@@ -182,8 +184,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Search and replace</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘F</span>
+          <span>{t('search_and_replace')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('f')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -192,8 +194,8 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          <span>Open Logs</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘L</span>
+          <span>{t('open_logs')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('l_2')}</span>
         </PopoverItem>
         <PopoverItem
           onClick={() => {

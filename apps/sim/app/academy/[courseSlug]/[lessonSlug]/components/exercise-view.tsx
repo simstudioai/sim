@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { ExerciseBlockState, ExerciseDefinition, ExerciseEdgeState } from '@/lib/academy/types'
 import { SandboxCanvasProvider } from '@/app/academy/components/sandbox-canvas-provider'
+import { useTranslations } from 'next-intl'
 
 interface ExerciseViewProps {
   lessonId: string
@@ -25,6 +26,7 @@ export function ExerciseView({
   videoUrl,
   description,
 }: ExerciseViewProps) {
+  const t = useTranslations('auto')
   const [completed, setCompleted] = useState(false)
   // Reset completion banner when the lesson changes (component is reused across exercise navigations).
   const [prevLessonId, setPrevLessonId] = useState(lessonId)
@@ -57,7 +59,7 @@ export function ExerciseView({
         <div className='pointer-events-none absolute inset-0 flex items-start justify-center pt-5'>
           <div className='pointer-events-auto flex items-center gap-2 rounded-full border border-[#3A4A3A] bg-[#1F2A1F]/95 px-4 py-2 font-[430] text-[#4CAF50] text-[13px] shadow-lg backdrop-blur-sm'>
             <CheckCircle2 className='size-4' />
-            Exercise complete!
+            {t('exercise_complete')}
           </div>
         </div>
       )}

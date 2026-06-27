@@ -9,6 +9,7 @@ import {
 } from '@/components/emcn'
 import { Duplicate as DuplicateIcon, Pause, Pencil, Play, Trash } from '@/components/emcn/icons'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
+import { useTranslations } from 'next-intl'
 
 interface TaskContextMenuProps {
   isOpen: boolean
@@ -43,6 +44,7 @@ export function TaskContextMenu({
   onResume,
   onDelete,
 }: TaskContextMenuProps) {
+  const t = useTranslations('auto')
   const isUpcoming = task?.status === 'pending'
   /** Pause/Resume applies to recurring tasks only — one-time tasks carry no cadence. */
   const canPauseResume = isUpcoming && task?.recurring === true
@@ -74,34 +76,34 @@ export function TaskContextMenu({
           <>
             <DropdownMenuItem onSelect={onEdit}>
               <Pencil />
-              Edit
+              {t('edit')}
             </DropdownMenuItem>
             {canPauseResume &&
               (task?.disabled ? (
                 <DropdownMenuItem onSelect={onResume}>
                   <Play />
-                  Resume
+                  {t('resume')}
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem onSelect={onPause}>
                   <Pause />
-                  Pause
+                  {t('pause')}
                 </DropdownMenuItem>
               ))}
             <DropdownMenuItem onSelect={onDuplicate}>
               <DuplicateIcon />
-              Duplicate
+              {t('duplicate')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
-              Delete
+              {t('delete')}
             </DropdownMenuItem>
           </>
         ) : (
           <DropdownMenuItem onSelect={onDuplicate}>
             <DuplicateIcon />
-            Duplicate
+            {t('duplicate')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

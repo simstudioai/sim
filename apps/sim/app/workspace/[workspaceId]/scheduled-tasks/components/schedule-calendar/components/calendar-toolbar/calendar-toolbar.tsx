@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import type { CalendarScope } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
+import { useTranslations } from 'next-intl'
 
 const SCOPE_OPTIONS: { value: CalendarScope; label: string }[] = [
   { value: 'day', label: 'Day' },
@@ -47,12 +48,13 @@ export function CalendarToolbar({
   onSelectDate,
   onScopeChange,
 }: CalendarToolbarProps) {
+  const t = useTranslations('auto')
   const scopeLabel = SCOPE_OPTIONS.find((option) => option.value === scope)?.label ?? 'Week'
 
   return (
     <div className='flex items-center justify-between border-[var(--border)] border-b px-4 py-2.5'>
       <div className='flex items-center'>
-        <Chip onClick={onToday}>Today</Chip>
+        <Chip onClick={onToday}>{t('today')}</Chip>
         <ChipDatePicker
           variant='ghost'
           label={label}
@@ -61,8 +63,8 @@ export function CalendarToolbar({
         />
       </div>
       <div className='flex items-center'>
-        <Chip leftIcon={ChevronLeft} aria-label='Previous' onClick={onPrev} />
-        <Chip leftIcon={ChevronRight} aria-label='Next' onClick={onNext} />
+        <Chip leftIcon={ChevronLeft} aria-label={t('previous')} onClick={onPrev} />
+        <Chip leftIcon={ChevronRight} aria-label={t('next')} onClick={onNext} />
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Chip>{scopeLabel}</Chip>

@@ -37,6 +37,7 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -126,6 +127,7 @@ export function EditConnectorModal({
   knowledgeBaseId,
   connector,
 }: EditConnectorModalProps) {
+  const t = useTranslations('auto')
   const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
 
   const [activeTab, setActiveTab] = useState('settings')
@@ -276,7 +278,7 @@ export function EditConnectorModal({
       size='md'
     >
       <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
-        Edit {displayName}
+        {t('edit')} {displayName}
       </ChipModalHeader>
 
       <ChipModalBody>
@@ -357,6 +359,7 @@ function SettingsTab({
   isSaving,
   error,
 }: SettingsTabProps) {
+  const t = useTranslations('auto')
   return (
     <>
       {connectorConfig && (
@@ -373,7 +376,7 @@ function SettingsTab({
         />
       )}
 
-      <ChipModalField type='custom' title='Sync Frequency'>
+      <ChipModalField type='custom' title={t('sync_frequency')}>
         <ButtonGroup
           value={String(syncInterval)}
           onValueChange={(val) => setSyncInterval(Number(val))}
@@ -402,6 +405,7 @@ interface DocumentsTabProps {
 }
 
 function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
+  const t = useTranslations('auto')
   const [filter, setFilter] = useState<'active' | 'excluded'>('active')
 
   const { data, isLoading } = useConnectorDocuments(knowledgeBaseId, connectorId, {
@@ -432,8 +436,8 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   return (
     <div className='flex flex-col gap-3 px-2'>
       <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
-        <ButtonGroupItem value='active'>Active ({counts.active})</ButtonGroupItem>
-        <ButtonGroupItem value='excluded'>Excluded ({counts.excluded})</ButtonGroupItem>
+        <ButtonGroupItem value='active'>{t('active')}{counts.active})</ButtonGroupItem>
+        <ButtonGroupItem value='excluded'>{t('excluded')}{counts.excluded})</ButtonGroupItem>
       </ButtonGroup>
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
@@ -464,7 +468,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                           <ExternalLink className='size-3' />
                         </a>
                       </Tooltip.Trigger>
-                      <Tooltip.Content>Open source document</Tooltip.Content>
+                      <Tooltip.Content>{t('open_source_document')}</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </div>
@@ -482,7 +486,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                   {doc.userExcluded ? (
                     <>
                       <RotateCcw className='mr-1 size-3' />
-                      Restore
+                      {t('restore')}
                     </>
                   ) : (
                     'Exclude'

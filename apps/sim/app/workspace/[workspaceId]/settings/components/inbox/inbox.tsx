@@ -14,8 +14,10 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useTranslations } from 'next-intl'
 
 export function Inbox() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -38,11 +40,10 @@ export function Inbox() {
             <div className='flex flex-col items-center justify-center gap-4 py-20'>
               <div className='text-center'>
                 <h3 className='font-medium text-[16px] text-[var(--text-primary)]'>
-                  Sim Mailer requires an active Max plan
+                  {t('sim_mailer_requires_an_active_max')}
                 </h3>
                 <p className='mt-1.5 text-[14px] text-[var(--text-muted)]'>
-                  Upgrade to Max and ensure billing is active to receive tasks via email and let Sim
-                  work on your behalf.
+                  {t('upgrade_to_max_and_ensure_billing')}
                 </p>
               </div>
               <Chip
@@ -50,7 +51,7 @@ export function Inbox() {
                 rightIcon={ArrowRight}
                 onClick={() => router.push(`/workspace/${workspaceId}/settings/billing`)}
               >
-                Upgrade to Max
+                {t('upgrade_to_max')}
               </Chip>
             </div>
           </div>
@@ -67,9 +68,9 @@ export function Inbox() {
         <>
           <InboxSettingsTab />
 
-          <SettingsSection label='Inbox'>
+          <SettingsSection label={t('inbox')}>
             <p className='mb-3 text-[12px] text-[var(--text-muted)]'>
-              Email tasks received by this workspace.
+              {t('email_tasks_received_by_this_workspace')}
             </p>
             <InboxTaskList />
           </SettingsSection>

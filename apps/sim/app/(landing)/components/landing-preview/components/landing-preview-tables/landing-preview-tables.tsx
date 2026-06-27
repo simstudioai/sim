@@ -21,6 +21,7 @@ import {
   LandingPreviewResource,
   ownerCell,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
+import { useTranslations } from 'next-intl'
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
@@ -427,6 +428,7 @@ interface SpreadsheetViewProps {
 }
 
 function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
+  const t = useTranslations('auto')
   const data = SPREADSHEET_DATA[tableId] ?? SPREADSHEET_DATA['1']
   const [selectedCell, setSelectedCell] = useState<{ row: string; col: string } | null>(null)
 
@@ -441,7 +443,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
             className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-secondary)] text-sm transition-colors hover-hover:text-[var(--text-body)]'
           >
             <Table className='mr-3 size-[14px] text-[var(--text-icon)]' />
-            Tables
+            {t('tables')}
           </button>
           <span className='select-none text-[var(--text-icon)] text-sm'>/</span>
           <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
@@ -538,6 +540,7 @@ const tableViewTransition = {
 } as const
 
 export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesProps = {}) {
+  const t = useTranslations('auto')
   const [openTableId, setOpenTableId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -567,7 +570,7 @@ export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesPr
           <m.div key='table-list' className='flex h-full flex-1 flex-col' {...tableViewTransition}>
             <LandingPreviewResource
               icon={Table}
-              title='Tables'
+              title={t('tables')}
               createLabel='New table'
               searchPlaceholder='Search tables...'
               columns={LIST_COLUMNS}

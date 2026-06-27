@@ -5,6 +5,7 @@ import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { Button, Tooltip } from '@/components/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface TableActionBarProps {
   /** Number of (row × group) cells the run/stop buttons would target. Drives
@@ -65,6 +66,7 @@ export function TableActionBar({
   isLoading = false,
   className,
 }: TableActionBarProps) {
+  const t = useTranslations('auto')
   const visible =
     hasWorkflowColumns &&
     selectedCellCount > 0 &&
@@ -122,7 +124,7 @@ export function TableActionBar({
 
                 {onViewExecution && (
                   <ActionIconButton
-                    label='View execution'
+                    label={t('view_execution')}
                     onClick={onViewExecution}
                     disabled={isLoading}
                   >

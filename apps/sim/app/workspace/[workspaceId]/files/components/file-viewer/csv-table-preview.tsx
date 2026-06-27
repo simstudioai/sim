@@ -6,6 +6,7 @@ import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
+import { useTranslations } from 'next-intl'
 
 /**
  * Read-only preview for a CSV that is too large to load fully into the editor. Streams only the
@@ -19,6 +20,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const t = useTranslations('auto')
   const version = Number(new Date(file.updatedAt)) || file.size
   const {
     data,
@@ -36,7 +38,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   if (data.headers.length === 0) {
     return (
       <div className='flex h-full items-center justify-center p-6'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_data_to_display')}</p>
       </div>
     )
   }

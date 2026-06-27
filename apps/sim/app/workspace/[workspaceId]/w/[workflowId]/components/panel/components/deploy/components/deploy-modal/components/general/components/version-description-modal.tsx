@@ -18,6 +18,7 @@ import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
 } from '@/hooks/queries/deployments'
+import { useTranslations } from 'next-intl'
 
 const RichMarkdownField = dynamic(
   () =>
@@ -50,6 +51,7 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -126,13 +128,13 @@ export function VersionDescriptionModal({
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
         srTitle='Version Description'
       >
-        <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
+        <ChipModalHeader onClose={() => handleCloseAttempt()}>{t('version_description')}</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='custom'
             title={
               <span>
-                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
+                {currentDescription ? 'Edit the' : 'Add a'} {t('description_for')}{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
@@ -140,7 +142,7 @@ export function VersionDescriptionModal({
             <RichMarkdownField
               value={description}
               onChange={setDescription}
-              placeholder='Describe the changes in this deployment version...'
+              placeholder={t('describe_the_changes_in_this_deployment')}
               minHeight={240}
               maxHeight={420}
               disabled={isGenerating}
@@ -175,7 +177,7 @@ export function VersionDescriptionModal({
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
-        title='Unsaved Changes'
+        title={t('unsaved_changes')}
         text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{

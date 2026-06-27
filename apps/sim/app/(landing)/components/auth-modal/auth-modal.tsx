@@ -22,6 +22,7 @@ import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { getBrandConfig } from '@/ee/whitelabeling'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AuthModal')
 
@@ -64,6 +65,7 @@ function fetchProviderStatus(): Promise<ProviderStatus> {
 }
 
 export function AuthModal({ children, defaultView = 'login', source }: AuthModalProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<AuthView>(defaultView)
@@ -147,7 +149,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
         <div className='relative px-6 pt-6 pb-6'>
           <ModalClose className='absolute top-6 right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100'>
             <X className='size-5 text-[var(--landing-text-muted)]' />
-            <span className='sr-only'>Close</span>
+            <span className='sr-only'>{t('close')}</span>
           </ModalClose>
 
           {!providerStatus ? (
@@ -167,7 +169,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                 />
                 <div className='flex flex-col gap-1 text-left'>
                   <p className='text-[22px] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
-                    Start building.
+                    {t('start_building')}
                   </p>
                   <h2 className='text-[22px] text-white leading-[110%] tracking-[-0.02em]'>
                     {view === 'login' ? 'Log in to continue' : 'Create free account'}
@@ -217,7 +219,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                 )}
                 {ssoEnabled && (
                   <button type='button' onClick={handleSSOLogin} className={SOCIAL_BTN}>
-                    Sign in with SSO
+                    {t('sign_in_with_sso')}
                   </button>
                 )}
               </div>
@@ -231,7 +233,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     </div>
                     <div className='relative flex justify-center text-[13.5px]'>
                       <span className='bg-[var(--landing-bg)] px-4 text-[var(--landing-text-muted)]'>
-                        Or
+                        {t('or')}
                       </span>
                     </div>
                   </div>
@@ -241,7 +243,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     onClick={handleEmailContinue}
                     className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--auth-primary-btn-border)] bg-[var(--auth-primary-btn-bg)] text-[13.5px] text-[var(--auth-primary-btn-text)] transition-colors hover:border-[var(--auth-primary-btn-hover-border)] hover:bg-[var(--auth-primary-btn-hover-bg)]'
                   >
-                    Continue with email
+                    {t('continue_with_email')}
                   </button>
                 </>
               )}
@@ -251,7 +253,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
                 </span>
                 {view === 'login' && providerStatus.registrationDisabled ? (
-                  <span className='text-[var(--landing-text-muted)]'>Registration is disabled</span>
+                  <span className='text-[var(--landing-text-muted)]'>{t('registration_is_disabled')}</span>
                 ) : (
                   <button
                     type='button'

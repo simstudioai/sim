@@ -10,6 +10,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
+import { useTranslations } from 'next-intl'
 
 interface PublicFileSSOAuthProps {
   token: string
@@ -21,6 +22,7 @@ interface PublicFileSSOAuthProps {
  * sign-in the page gate authorizes via the Sim session.
  */
 export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +58,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
 
   return (
     <PublicFileAuthShell
-      title='SSO Authentication'
+      title={t('sso_authentication')}
       subtitle='This file requires SSO authentication'
     >
       <form
@@ -67,7 +69,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
         className='space-y-6'
       >
         <div className='space-y-2'>
-          <Label htmlFor='email'>Work Email</Label>
+          <Label htmlFor='email'>{t('work_email')}</Label>
           <Input
             id='email'
             name='email'
@@ -76,7 +78,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
             autoCapitalize='none'
             autoComplete='email'
             autoCorrect='off'
-            placeholder='Enter your work email'
+            placeholder={t('enter_your_work_email')}
             value={email}
             onChange={(e) => {
               setEmail(e.target.value)
@@ -91,7 +93,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           {isLoading ? (
             <span className='flex items-center gap-2'>
               <Loader className='size-4' animate />
-              Redirecting to SSO…
+              {t('redirecting_to_sso')}
             </span>
           ) : (
             'Continue with SSO'

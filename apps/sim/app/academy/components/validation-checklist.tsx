@@ -3,6 +3,7 @@
 import { CheckCircle2, Circle } from 'lucide-react'
 import type { ValidationRuleResult } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface ValidationChecklistProps {
   results: ValidationRuleResult[]
@@ -14,15 +15,16 @@ interface ValidationChecklistProps {
  * Rendered inside the exercise sidebar, not as a canvas overlay.
  */
 export function ValidationChecklist({ results, allPassed }: ValidationChecklistProps) {
+  const t = useTranslations('auto')
   if (results.length === 0) return null
 
   return (
     <div>
       <div className='mb-2.5 flex items-center gap-1.5'>
-        <span className='font-[430] text-[#ECECEC] text-[12px]'>Checklist</span>
+        <span className='font-[430] text-[#ECECEC] text-[12px]'>{t('checklist')}</span>
         {allPassed && (
           <span className='ml-auto rounded-full bg-[#4CAF50]/15 px-2 py-0.5 font-[430] text-[#4CAF50] text-[10px]'>
-            Complete
+            {t('complete')}
           </span>
         )}
       </div>

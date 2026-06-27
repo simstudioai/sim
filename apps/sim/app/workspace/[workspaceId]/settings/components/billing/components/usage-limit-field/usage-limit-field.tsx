@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useTranslations } from 'next-intl'
 import { ChipInput, Info, toast } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -40,6 +41,7 @@ export function UsageLimitField({
   context,
   organizationId,
 }: UsageLimitFieldProps) {
+  const t = useTranslations('auto')
   const { mutate: saveUserLimit } = useUpdateUsageLimit()
   const { mutate: saveOrgLimit } = useUpdateOrganizationUsageLimit()
 
@@ -112,7 +114,7 @@ export function UsageLimitField({
 
   return (
     <SettingsSection
-      label='Usage limit'
+      label={t('usage_limit')}
       headerAccessory={
         <Info side='top' className='text-[var(--text-muted)]'>
           {

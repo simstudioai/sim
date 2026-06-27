@@ -16,6 +16,7 @@ import { listOAuthConnectionsContract } from '@/lib/api/contracts/oauth-connecti
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CredentialAccount')
 
@@ -28,6 +29,7 @@ function getErrorMessageFromBody(body: unknown): string | undefined {
 }
 
 export default function CredentialAccountInvitePage() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const token = params.token as string
@@ -161,7 +163,7 @@ export default function CredentialAccountInvitePage() {
   if (loading || sessionLoading) {
     return (
       <InviteLayout>
-        <InviteStatusCard type='loading' title='' description='Loading invitation...' />
+        <InviteStatusCard type='loading' title='' description={t('loading_invitation')} />
       </InviteLayout>
     )
   }
@@ -171,7 +173,7 @@ export default function CredentialAccountInvitePage() {
       <InviteLayout>
         <InviteStatusCard
           type='error'
-          title='Unable to load invitation'
+          title={t('unable_to_load_invitation')}
           description={error}
           icon='error'
           actions={[
@@ -190,7 +192,7 @@ export default function CredentialAccountInvitePage() {
       <InviteLayout>
         <InviteStatusCard
           type='success'
-          title="You're all set!"
+          title={t('you_re_all_set')}
           description={`You've joined ${invitation?.credentialSetName}. Your ${providerName} account is already connected. Redirecting to workspace...`}
           icon='success'
         />
@@ -218,7 +220,7 @@ export default function CredentialAccountInvitePage() {
       <InviteLayout>
         <InviteStatusCard
           type='login'
-          title='Join Email Polling Group'
+          title={t('join_email_polling_group')}
           description={`You've been invited to join ${invitation?.credentialSetName} by ${invitation?.organizationName}. Sign in or create an account to accept this invitation.`}
           icon='mail'
           actions={[
@@ -246,13 +248,13 @@ export default function CredentialAccountInvitePage() {
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
-        title='Join Email Polling Group'
+        title={t('join_email_polling_group')}
         description={
           <>
-            You've been invited to join {invitation?.credentialSetName} by{' '}
+            {t('you_ve_been_invited_to_join')} {invitation?.credentialSetName} {t('by')}{' '}
             {invitation?.organizationName}.
             {invitation?.providerId && (
-              <> You'll be asked to connect your {providerWithIcon} account after accepting.</>
+              <> {t('you_ll_be_asked_to_connect')} {providerWithIcon} {t('account_after_accepting')}</>
             )}
           </>
         }

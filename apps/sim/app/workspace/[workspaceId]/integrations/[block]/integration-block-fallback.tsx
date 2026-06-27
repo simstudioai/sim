@@ -2,6 +2,7 @@
 
 import { ArrowLeft } from 'lucide-react'
 import { ChipLink } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 interface IntegrationBlockFallbackProps {
   workspaceId: string
@@ -14,11 +15,12 @@ interface IntegrationBlockFallbackProps {
  * a Client Component.
  */
 export function IntegrationBlockFallback({ workspaceId }: IntegrationBlockFallbackProps) {
+  const t = useTranslations('auto')
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
-          Integrations
+          {t('integrations')}
         </ChipLink>
       </div>
     </div>

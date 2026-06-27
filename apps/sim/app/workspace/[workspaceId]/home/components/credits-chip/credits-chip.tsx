@@ -13,6 +13,7 @@ import { useMyMemberCredits } from '@/hooks/queries/organization'
 import { usePlanView } from '@/hooks/queries/plan-view'
 import { prefetchUpgradeBillingData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useTranslations } from 'next-intl'
 
 export function CreditsChip() {
   if (!isBillingEnabled) return null
@@ -21,6 +22,7 @@ export function CreditsChip() {
 }
 
 function CreditsChipInner() {
+  const t = useTranslations('auto')
   const { planView, isLoading, hasData } = usePlanView()
   /**
    * `usePlanView` is built on top of `useSubscriptionData`, so the second call
@@ -48,7 +50,7 @@ function CreditsChipInner() {
 
   const renderChip = (dollars: number) => (
     <Chip
-      aria-label='Credits remaining — upgrade plan'
+      aria-label={t('credits_remaining_upgrade_plan')}
       onClick={() => router.push(upgradeHref)}
       onMouseEnter={prefetchUpgrade}
       onFocus={prefetchUpgrade}

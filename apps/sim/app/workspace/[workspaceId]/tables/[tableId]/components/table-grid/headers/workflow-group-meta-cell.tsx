@@ -31,6 +31,7 @@ import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
+import { useTranslations } from 'next-intl'
 
 /** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
  *  group-header options menu and the inline quick-run dropdown so the two
@@ -101,6 +102,7 @@ export function ColumnOptionsMenu({
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
+  const t = useTranslations('auto')
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   return (
@@ -131,7 +133,7 @@ export function ColumnOptionsMenu({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <PlayOutline />
-                Run
+                {t('run')}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 {showRunSelected && (
@@ -140,10 +142,10 @@ export function ColumnOptionsMenu({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  Run all rows
+                  {t('run_all_rows')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  Run empty rows
+                  {t('run_empty_rows')}
                 </DropdownMenuItem>
                 {onRunColumnLimited &&
                   LIMITED_RUN_PRESETS.map((max) => (
@@ -159,12 +161,12 @@ export function ColumnOptionsMenu({
         {onViewWorkflow && (
           <DropdownMenuItem onSelect={() => onViewWorkflow()}>
             <Eye />
-            View workflow
+            {t('view_workflow')}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
           <Pencil />
-          Edit column
+          {t('edit_column')}
         </DropdownMenuItem>
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
@@ -175,11 +177,11 @@ export function ColumnOptionsMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
-          Insert column left
+          {t('insert_column_left')}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onInsertRight(column.key)}>
           <ArrowRight />
-          Insert column right
+          {t('insert_column_right')}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -278,6 +280,7 @@ export function WorkflowGroupMetaCell({
   isPinned,
   onPinToggle,
 }: WorkflowGroupMetaCellProps) {
+  const t = useTranslations('auto')
   const isEnrichment = groupType === 'enrichment'
   const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
   const EnrichmentIcon = enrichment?.icon
@@ -426,8 +429,8 @@ export function WorkflowGroupMetaCell({
                 type='button'
                 className='flex size-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]'
                 onClick={(e) => e.stopPropagation()}
-                aria-label='Run group'
-                title='Run group'
+                aria-label={t('run_group')}
+                title={t('run_group')}
               >
                 <PlayOutline className='size-[10px]' />
               </button>
@@ -443,8 +446,8 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunAll}>{t('run_all_rows')}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunIncomplete}>{t('run_empty_rows')}</DropdownMenuItem>
               {LIMITED_RUN_PRESETS.map((max) => (
                 <DropdownMenuItem key={max} onSelect={() => handleRunLimited(max)}>
                   {`Run ${max.toLocaleString()} empty rows`}

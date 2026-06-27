@@ -18,6 +18,7 @@ import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persiste
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
+import { useTranslations } from 'next-intl'
 
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
 const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
@@ -55,6 +56,7 @@ export function Versions({
   onPromoteToLive,
   onLoadDeployment,
 }: VersionsProps) {
+  const t = useTranslations('auto')
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
@@ -184,7 +186,7 @@ export function Versions({
   if (versions.length === 0) {
     return (
       <div className='flex h-[120px] items-center justify-center rounded-sm border border-[var(--border)] text-[var(--text-placeholder)] text-small'>
-        No deployments yet
+        {t('no_deployments_yet')}
       </div>
     )
   }
@@ -193,13 +195,13 @@ export function Versions({
     <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
       <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
         <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>Version</span>
+          <span className={HEADER_TEXT_CLASS}>{t('version')}</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>Deployed by</span>
+          <span className={HEADER_TEXT_CLASS}>{t('deployed_by')}</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-          <span className={HEADER_TEXT_CLASS}>Timestamp</span>
+          <span className={HEADER_TEXT_CLASS}>{t('timestamp')}</span>
         </div>
         <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
       </div>
@@ -270,10 +272,10 @@ export function Versions({
                       </span>
                       {v.name && <span className='truncate'>{v.name}</span>}
                       {v.isActive && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>{t('live')}</span>
                       )}
                       {isSelected && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>{t('selected')}</span>
                       )}
                     </span>
                   )}
@@ -320,7 +322,7 @@ export function Versions({
                     {v.description ? (
                       <p className='line-clamp-3 text-caption'>{v.description}</p>
                     ) : (
-                      <p className='text-caption'>Add description</p>
+                      <p className='text-caption'>{t('add_description')}</p>
                     )}
                   </Tooltip.Content>
                 </Tooltip.Root>
@@ -341,7 +343,7 @@ export function Versions({
                   <PopoverContent align='end' sideOffset={4} minWidth={160} maxWidth={200} border>
                     <PopoverItem onClick={() => handleStartRename(v.version, v.name)}>
                       <Pencil className='size-3' />
-                      <span>Rename</span>
+                      <span>{t('rename')}</span>
                     </PopoverItem>
                     <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
                       <FileText className='size-3' />
@@ -350,12 +352,12 @@ export function Versions({
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
                         <RotateCcw className='size-3' />
-                        <span>Promote to live</span>
+                        <span>{t('promote_to_live')}</span>
                       </PopoverItem>
                     )}
                     <PopoverItem onClick={() => handleLoadDeployment(v.version)}>
                       <SendToBack className='size-3' />
-                      <span>Load deployment</span>
+                      <span>{t('load_deployment')}</span>
                     </PopoverItem>
                   </PopoverContent>
                 </Popover>

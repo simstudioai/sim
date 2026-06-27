@@ -12,6 +12,7 @@ import {
   ChipModalHeader,
 } from '@/components/emcn'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EditKnowledgeBaseModal')
 
@@ -37,6 +38,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
+  const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -105,54 +107,54 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Edit Knowledge Base</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('edit_knowledge_base')}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
-          title='Name'
+          title={t('name')}
           value={name}
           onChange={setName}
-          placeholder='Enter knowledge base name'
+          placeholder={t('enter_knowledge_base_name')}
           required
           error={nameError ?? undefined}
           autoComplete='off'
         />
         <ChipModalField
           type='textarea'
-          title='Description'
+          title={t('description')}
           value={description}
           onChange={setDescription}
-          placeholder='Describe this knowledge base (optional)'
+          placeholder={t('describe_this_knowledge_base_optional')}
           rows={4}
           error={descriptionError ?? undefined}
         />
         {chunkingConfig && (
-          <ChipModalField type='custom' title='Chunking Configuration'>
+          <ChipModalField type='custom' title={t('chunking_configuration')}>
             <div className='grid grid-cols-3 gap-2'>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Max Size</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('max_size')}</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.maxSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    tokens
+                    {t('tokens')}
                   </span>
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Min Size</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('min_size')}</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.minSize.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    chars
+                    {t('chars')}
                   </span>
                 </p>
               </div>
               <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Overlap</p>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>{t('overlap')}</p>
                 <p className='font-medium text-[var(--text-primary)] text-sm'>
                   {chunkingConfig.overlap.toLocaleString()}
                   <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                    tokens
+                    {t('tokens')}
                   </span>
                 </p>
               </div>

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Chip } from '@/components/emcn'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
+import { useTranslations } from 'next-intl'
 
 interface ShowcaseWithExploreProps {
   /**
@@ -22,6 +23,7 @@ interface ShowcaseWithExploreProps {
  * and navigates to the workspace home.
  */
 export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -37,7 +39,7 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
         }}
         className='absolute right-0 bottom-0 mx-0'
       >
-        Explore in chat
+        {t('explore_in_chat')}
       </Chip>
     </div>
   )

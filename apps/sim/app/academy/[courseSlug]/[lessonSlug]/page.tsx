@@ -10,6 +10,7 @@ import type { Lesson } from '@/lib/academy/types'
 import { LessonVideo } from '@/app/academy/components/lesson-video'
 import { ExerciseView } from './components/exercise-view'
 import { LessonQuiz } from './components/lesson-quiz'
+import { useTranslations } from 'next-intl'
 
 const navBtnClass =
   'flex items-center gap-1 rounded-[5px] border border-[#2A2A2A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
@@ -19,6 +20,7 @@ interface LessonPageProps {
 }
 
 export default function LessonPage({ params }: LessonPageProps) {
+  const t = useTranslations('auto')
   const { courseSlug, lessonSlug } = use(params)
   const course = getCourse(courseSlug)
   const [exerciseComplete, setExerciseComplete] = useState(false)
@@ -64,7 +66,7 @@ export default function LessonPage({ params }: LessonPageProps) {
   if (!course || !lesson) {
     return (
       <div className='flex h-screen items-center justify-center bg-[#1C1C1C]'>
-        <p className='text-[#666] text-[14px]'>Lesson not found.</p>
+        <p className='text-[#666] text-[14px]'>{t('lesson_not_found')}</p>
       </div>
     )
   }
@@ -77,10 +79,10 @@ export default function LessonPage({ params }: LessonPageProps) {
     <div className='fixed inset-0 flex flex-col overflow-hidden bg-[#1C1C1C]'>
       <header className='flex h-[52px] flex-shrink-0 items-center justify-between border-[#2A2A2A] border-b bg-[#1C1C1C] px-5'>
         <div className='flex items-center gap-3 text-[13px]'>
-          <Link href='/' aria-label='Sim home'>
+          <Link href='/' aria-label={t('sim_home')}>
             <Image
               src='/logo/b&w/text/b&w.svg'
-              alt='Sim'
+              alt={t('sim')}
               width={40}
               height={14}
               className='opacity-70 invert transition-opacity hover:opacity-100'
@@ -88,7 +90,7 @@ export default function LessonPage({ params }: LessonPageProps) {
           </Link>
           <span className='text-[#333]'>/</span>
           <Link href='/academy' className='text-[#666] transition-colors hover:text-[#999]'>
-            Academy
+            {t('academy')}
           </Link>
           <span className='text-[#333]'>/</span>
           <Link
@@ -105,12 +107,12 @@ export default function LessonPage({ params }: LessonPageProps) {
           {prevLesson ? (
             <Link href={`/academy/${courseSlug}/${prevLesson.slug}`} className={navBtnClass}>
               <ChevronLeft className='size-3.5' />
-              Previous
+              {t('previous')}
             </Link>
           ) : (
             <Link href={`/academy/${courseSlug}`} className={navBtnClass}>
               <ChevronLeft className='size-3.5' />
-              Course
+              {t('course')}
             </Link>
           )}
           {nextLesson && (
@@ -125,7 +127,7 @@ export default function LessonPage({ params }: LessonPageProps) {
                   : 'cursor-not-allowed border border-[#2A2A2A] text-[#444]'
               }`}
             >
-              Next
+              {t('next')}
               <ChevronRight className='size-3.5' />
             </Link>
           )}

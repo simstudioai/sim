@@ -15,6 +15,7 @@ import { DocsDropdown } from '@/app/(landing)/components/navbar/components/docs-
 import { GitHubStars } from '@/app/(landing)/components/navbar/components/github-stars'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { getBrandConfig } from '@/ee/whitelabeling'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -54,6 +55,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS }: NavbarProps) {
+  const t = useTranslations('auto')
   const brand = getBrandConfig()
   const sessionCtx = useContext(SessionContext)
   const session = sessionCtx?.data ?? null
@@ -117,7 +119,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
 
   return (
     <nav
-      aria-label='Primary navigation'
+      aria-label={t('primary_navigation')}
       className='relative flex h-[58px] border-[var(--landing-bg-elevated)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
@@ -239,7 +241,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
               <Link
                 href='/workspace'
                 className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-                aria-label='Go to app'
+                aria-label={t('go_to_app')}
                 onClick={() =>
                   trackLandingCta({
                     label: 'Go to App',
@@ -248,7 +250,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                   })
                 }
               >
-                Go to App
+                {t('go_to_app_2')}
               </Link>
             ) : (
               <>
@@ -256,7 +258,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                   <button
                     type='button'
                     className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-                    aria-label='Log in'
+                    aria-label={t('log_in')}
                     onClick={() =>
                       trackLandingCta({
                         label: 'Log in',
@@ -265,14 +267,14 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                       })
                     }
                   >
-                    Log in
+                    {t('log_in')}
                   </button>
                 </AuthModal>
                 <AuthModal defaultView='signup' source='navbar'>
                   <button
                     type='button'
                     className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-                    aria-label='Get started with Sim'
+                    aria-label={t('get_started_with_sim')}
                     onClick={() =>
                       trackLandingCta({
                         label: 'Get started',
@@ -281,7 +283,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                       })
                     }
                   >
-                    Get started
+                    {t('get_started')}
                   </button>
                 </AuthModal>
               </>
@@ -344,7 +346,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <GithubOutlineIcon className='size-[14px]' />
-                  GitHub
+                  {t('github')}
                 </a>
               </li>
             </ul>
@@ -369,9 +371,9 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                     })
                     setMobileMenuOpen(false)
                   }}
-                  aria-label='Go to app'
+                  aria-label={t('go_to_app')}
                 >
-                  Go to App
+                  {t('go_to_app_2')}
                 </Link>
               ) : (
                 <>
@@ -386,9 +388,9 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                           destination: 'auth_modal',
                         })
                       }
-                      aria-label='Log in'
+                      aria-label={t('log_in')}
                     >
-                      Log in
+                      {t('log_in')}
                     </button>
                   </AuthModal>
                   <AuthModal defaultView='signup' source='mobile_navbar'>
@@ -402,9 +404,9 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
                           destination: 'auth_modal',
                         })
                       }
-                      aria-label='Get started with Sim'
+                      aria-label={t('get_started_with_sim')}
                     >
-                      Get started
+                      {t('get_started')}
                     </button>
                   </AuthModal>
                 </>

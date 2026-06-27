@@ -1,14 +1,16 @@
 'use client'
 
 import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 export default function ChatError({ error, reset }: ErrorBoundaryProps) {
+  const t = useTranslations('auto')
   return (
     <ErrorState
       error={error}
       reset={reset}
-      title='Failed to load chat'
-      description='Something went wrong while loading this chat. Please try again.'
+      title={t('failed_to_load_chat')}
+      description={t('something_went_wrong_while_loading_this')}
       loggerName='ChatError'
     />
   )

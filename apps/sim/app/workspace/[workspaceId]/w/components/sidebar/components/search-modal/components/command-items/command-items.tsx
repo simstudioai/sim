@@ -10,6 +10,7 @@ import {
   COMMAND_ITEM_CLASSNAME,
   fuzzyMatch,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import { useTranslations } from 'next-intl'
 
 interface Segment {
   text: string
@@ -149,6 +150,7 @@ export const MemoizedWorkflowItem = memo(
     isCurrent?: boolean
     query?: string
   }) {
+  const t = useTranslations('auto')
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
@@ -158,7 +160,7 @@ export const MemoizedWorkflowItem = memo(
           <span className='truncate'>
             <HighlightedText text={name} query={query} />
           </span>
-          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> {t('current')}</span>}
         </span>
         {folderPath && folderPath.length > 0 && (
           <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
@@ -272,13 +274,14 @@ export const MemoizedWorkspaceItem = memo(
     isCurrent?: boolean
     query?: string
   }) {
+  const t = useTranslations('auto')
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <span className='flex min-w-0 text-[var(--text-body)]'>
           <span className='truncate'>
             <HighlightedText text={name} query={query} />
           </span>
-          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> {t('current')}</span>}
         </span>
       </Command.Item>
     )

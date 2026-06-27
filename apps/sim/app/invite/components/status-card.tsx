@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
+import { useTranslations } from 'next-intl'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -29,6 +30,7 @@ export function InviteStatusCard({
   actions = EMPTY_ACTIONS,
   isExpiredError = false,
 }: InviteStatusCardProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   if (type === 'loading') {
@@ -36,7 +38,7 @@ export function InviteStatusCard({
       <>
         <div className='space-y-1 text-center'>
           <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
-            Loading
+            {t('loading')}
           </h1>
           <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
@@ -59,7 +61,7 @@ export function InviteStatusCard({
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
           <button onClick={() => router.push('/')} className={`${AUTH_PRIMARY_CTA_BASE} w-full`}>
-            Request New Invitation
+            {t('request_new_invitation')}
           </button>
         )}
 

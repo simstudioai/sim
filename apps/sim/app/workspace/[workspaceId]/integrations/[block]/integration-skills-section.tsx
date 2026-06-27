@@ -8,6 +8,7 @@ import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
+import { useTranslations } from 'next-intl'
 
 interface IntegrationSkillsSectionProps {
   skills: readonly SuggestedSkill[]
@@ -24,6 +25,7 @@ interface SkillRowProps {
 }
 
 function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
+  const t = useTranslations('auto')
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2'>
       <SkillTile />
@@ -33,7 +35,7 @@ function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
       </div>
       {added ? (
         <Chip leftIcon={Check} disabled flush>
-          Added
+          {t('added')}
         </Chip>
       ) : (
         <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled} flush>
@@ -55,6 +57,7 @@ export function IntegrationSkillsSection({
   workspaceId,
   integrationType,
 }: IntegrationSkillsSectionProps) {
+  const t = useTranslations('auto')
   const posthog = usePostHog()
   const { data: existingSkills = [], isPending, isPlaceholderData } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
@@ -91,7 +94,7 @@ export function IntegrationSkillsSection({
 
   return (
     <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>Skills</span>
+      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('skills')}</span>
       <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
       <div className='-mx-2 flex flex-col gap-y-0.5'>
         {skills.map((skill, index) => (

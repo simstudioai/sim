@@ -13,6 +13,7 @@ import {
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+import { useTranslations } from 'next-intl'
 
 export type SidebarView =
   | 'home'
@@ -113,6 +114,7 @@ export function LandingPreviewSidebar({
   onSelectHome,
   onSelectNav,
 }: LandingPreviewSidebarProps) {
+  const t = useTranslations('auto')
   const isHomeActive = activeView === 'home'
 
   return (
@@ -142,7 +144,7 @@ export function LandingPreviewSidebar({
             className='min-w-0 flex-1 truncate text-left font-medium text-[13px]'
             style={{ color: C.TEXT_PRIMARY }}
           >
-            Superark
+            {t('superark')}
           </span>
           <ChevronDown className='h-[8px] w-[10px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
         </div>
@@ -160,17 +162,17 @@ export function LandingPreviewSidebar({
         >
           <Home className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
           <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
-            Home
+            {t('home')}
           </span>
         </button>
-        <NavItem icon={Search} label='Search' />
+        <NavItem icon={Search} label={t('search')} />
       </div>
 
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
           <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-            Workspace
+            {t('workspace')}
           </div>
         </div>
         <div className='flex flex-col gap-0.5 px-2'>
@@ -192,7 +194,7 @@ export function LandingPreviewSidebar({
         <div className='flex flex-col'>
           <div className='px-4'>
             <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
-              Workflows
+              {t('workflows')}
             </div>
           </div>
           <div className='mt-1.5 flex flex-col gap-0.5 px-2'>

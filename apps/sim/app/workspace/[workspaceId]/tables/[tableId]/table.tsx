@@ -67,6 +67,7 @@ import {
 } from './search-params'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Table')
 
@@ -134,6 +135,7 @@ export function Table({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
 }: TableProps = {}) {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
@@ -872,7 +874,7 @@ export function Table({
           if (!open) setDeletingAll(null)
         }}
         srTitle='Delete rows'
-        title='Delete rows'
+        title={t('delete_rows')}
         text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
         }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
@@ -942,7 +944,7 @@ export function Table({
           open={showDeleteTableConfirm}
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
-          title='Delete Table'
+          title={t('delete_table')}
           text={[
             'Are you sure you want to delete ',
             { text: tableData?.name ?? 'this table', bold: true },

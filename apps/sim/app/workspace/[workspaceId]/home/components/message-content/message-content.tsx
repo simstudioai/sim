@@ -12,6 +12,7 @@ import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
+import { useTranslations } from 'next-intl'
 
 const FILE_SUBAGENT_ID = 'file'
 
@@ -662,6 +663,7 @@ function MessageContentInner({
   onOptionSelect,
   onPhaseChange,
 }: MessageContentProps) {
+  const t = useTranslations('auto')
   const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
 
@@ -760,7 +762,7 @@ function MessageContentInner({
             return (
               <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
                 <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+                <span className='text-[14px] text-[var(--text-body)]'>{t('stopped_by_user')}</span>
               </div>
             )
         }

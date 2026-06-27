@@ -8,6 +8,7 @@ import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-impo
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
+import { useTranslations } from 'next-intl'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
 
@@ -144,6 +145,7 @@ function buildHtmlPreviewDocument(content: string): string {
 }
 
 const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
+  const t = useTranslations('auto')
   const wrappedContent = buildHtmlPreviewDocument(content)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
@@ -207,7 +209,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
           srcDoc={wrappedContent}
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
-          title='HTML Preview'
+          title={t('html_preview')}
           className='h-full w-full border-0 bg-[var(--surface-2)]'
         />
       )}
@@ -216,6 +218,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
+  const t = useTranslations('auto')
   const [blobUrl, setBlobUrl] = useState('')
 
   useEffect(() => {
@@ -229,7 +232,7 @@ function SvgPreview({ content }: { content: string }) {
       {blobUrl && (
         <img
           src={blobUrl}
-          alt='SVG preview'
+          alt={t('svg_preview')}
           className='max-h-full max-w-full select-none object-contain'
           draggable={false}
         />
@@ -262,13 +265,14 @@ const CsvPreview = memo(function CsvPreview({
   file: CsvImportFileDescriptor
   readOnly?: boolean
 }) {
+  const t = useTranslations('auto')
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
   if (headers.length === 0) {
     return (
       <div className='flex h-full items-center justify-center p-6'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_data_to_display')}</p>
       </div>
     )
   }

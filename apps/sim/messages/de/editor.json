@@ -1,18 +1,18 @@
 {
-  "undo": "Rückgängig",
+  "undo": "Wiederholen",
   "redo": "Wiederherstellen",
   "zoomIn": "Vergrößern",
   "zoomOut": "Verkleinern",
-  "fitToScreen": "An Bildschirm anpassen",
-  "miniMap": "Minikarte",
-  "snapToGrid": "Raster einrasten",
-  "autoConnect": "Automatisch verbinden",
+  "fitToScreen": "Anpassen an Bildschirmgröße",
+  "miniMap": "Kleinbildschirmansicht",
+  "snapToGrid": "Auf der Netzhaut anordnen",
+  "autoConnect": "Automatische Verbindung herstellen",
   "addNote": "Notiz hinzufügen",
-  "group": "Gruppe",
-  "ungroup": "Gruppe aufheben",
+  "group": "Gruppieren",
+  "ungroup": "Entageln",
   "alignLeft": "Links ausrichten",
   "alignCenter": "Zentrieren",
-  "alignRight": "Rechts ausrichten",
-  "distributeHorizontal": "Horizontal verteilen",
-  "distributeVertical": "Vertikal verteilen"
+  "alignRight": "Rechtsanhang",
+  "distributeHorizontal": "Vertikal verteilen",
+  "distributeVertical": "Horizontale Verteilung"
 }

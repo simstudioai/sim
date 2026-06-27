@@ -6,6 +6,7 @@ import { Handle, type NodeProps, Position } from 'reactflow'
 import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { useTranslations } from 'next-intl'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -31,6 +32,7 @@ interface WorkflowPreviewSubflowData {
  * or interactive features.
  */
 function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
+  const t = useTranslations('auto')
   const {
     name,
     width = 500,
@@ -107,7 +109,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
             {blockName}
           </span>
         </div>
-        {!enabled && <Badge variant='gray-secondary'>disabled</Badge>}
+        {!enabled && <Badge variant='gray-secondary'>{t('disabled')}</Badge>}
       </div>
 
       {/* Content area - matches workflow structure */}
@@ -117,7 +119,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
       >
         {/* Subflow Start - connects to first block in subflow */}
         <div className='absolute top-4 left-[16px] flex items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] px-3 py-1.5'>
-          <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
+          <span className='font-medium text-[var(--text-primary)] text-sm'>{t('start')}</span>
           <Handle
             type='source'
             position={Position.Right}

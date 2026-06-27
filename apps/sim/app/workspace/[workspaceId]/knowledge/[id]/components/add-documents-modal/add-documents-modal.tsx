@@ -18,6 +18,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('AddDocumentsModal')
 
@@ -38,6 +39,7 @@ export function AddDocumentsModal({
   knowledgeBaseId,
   chunkingConfig,
 }: AddDocumentsModalProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [files, setFiles] = useState<File[]>([])
@@ -147,21 +149,21 @@ export function AddDocumentsModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='New Documents' size='md'>
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>New Documents</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('new_documents')}</ChipModalHeader>
 
       <ChipModalBody>
         <ChipModalField
           type='file'
-          title='Upload Documents'
+          title={t('upload_documents')}
           accept={ACCEPT_ATTRIBUTE}
           multiple
           onChange={processFiles}
-          description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
+          description={t('pdf_doc_docx_txt_csv_xls')}
           error={fileError}
         />
 
         {files.length > 0 && (
-          <ChipModalField type='custom' title='Selected Files'>
+          <ChipModalField type='custom' title={t('selected_files')}>
             <div className='flex flex-col gap-2'>
               {files.map((file, index) => {
                 const fileStatus = uploadProgress.fileStatuses?.[index]

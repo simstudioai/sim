@@ -31,6 +31,7 @@ import {
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SecretsManager')
 
@@ -57,9 +58,10 @@ interface SecretRowMenuProps {
  * Organization member menu so the settings experience is consistent.
  */
 function SecretRowMenu({ onCopyName, onViewDetails, onDelete }: SecretRowMenuProps) {
+  const t = useTranslations('auto')
   return (
     <RowActionsMenu
-      label='Secret actions'
+      label={t('secret_actions')}
       triggerClassName='ml-2'
       actions={[
         ...(onViewDetails ? [{ label: 'View details', onSelect: onViewDetails }] : []),
@@ -259,6 +261,7 @@ function NewWorkspaceVariableRow({
   onUpdate,
   onPaste,
 }: NewWorkspaceVariableRowProps) {
+  const t = useTranslations('auto')
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
@@ -284,7 +287,7 @@ function NewWorkspaceVariableRow({
         value={envVar.value}
         onChange={(next) => onUpdate(index, 'value', next)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
-        placeholder='Enter value'
+        placeholder={t('enter_value')}
         name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
         className='ml-0'
       />
@@ -314,6 +317,7 @@ function NewWorkspaceVariableRow({
 }
 
 export function SecretsManager() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -910,8 +914,7 @@ export function SecretsManager() {
               'mt-[-4px] text-[var(--text-error)] text-caption leading-tight'
             )}
           >
-            Workspace variable with the same name overrides this. Rename your personal key to use
-            it.
+            {t('workspace_variable_with_the_same_name')}
           </div>
         )}
       </div>
@@ -957,20 +960,20 @@ export function SecretsManager() {
           <>
             {hasChanges && (
               <Chip onClick={handleCancel} disabled={isListSaving}>
-                Discard
+                {t('discard')}
               </Chip>
             )}
             {hasConflicts || hasInvalidKeys ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <div className='inline-flex'>
-                    <Chip disabled>Save</Chip>
+                    <Chip disabled>{t('save')}</Chip>
                   </div>
                 </Tooltip.Trigger>
                 {hasConflicts ? (
-                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
+                  <Tooltip.Content>{t('resolve_all_conflicts_before_saving')}</Tooltip.Content>
                 ) : (
-                  <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
+                  <Tooltip.Content>{t('fix_invalid_variable_names_before_saving')}</Tooltip.Content>
                 )}
               </Tooltip.Root>
             ) : (
@@ -987,7 +990,7 @@ export function SecretsManager() {
               filteredWorkspaceEntries.length > 0 ||
               filteredNewWorkspaceRows.length > 0) && (
               <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Workspace</span>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('workspace')}</span>
                 <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {(searchTerm.trim()
@@ -1034,7 +1037,7 @@ export function SecretsManager() {
 
             {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
               <section className='flex flex-col'>
-                <span className='pl-0.5 text-[var(--text-muted)] text-small'>Personal</span>
+                <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('personal')}</span>
                 <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
                 <div className={`${GRID_COLS} gap-y-2`}>
                   {filteredEnvVars.map(({ envVar, originalIndex }) => (
@@ -1053,7 +1056,7 @@ export function SecretsManager() {
                 Object.keys(workspaceVars).length > 0 ||
                 newWorkspaceRows.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  No secrets found matching &ldquo;{searchTerm}&rdquo;
+                  {t('no_secrets_found_matching_ldquo')}{searchTerm}{t('rdquo')}
                 </SettingsEmptyState>
               )}
           </div>

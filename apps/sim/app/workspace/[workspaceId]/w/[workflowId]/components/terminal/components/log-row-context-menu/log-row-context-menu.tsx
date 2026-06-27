@@ -13,6 +13,7 @@ import type {
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
+import { useTranslations } from 'next-intl'
 
 export interface LogRowContextMenuProps {
   isOpen: boolean
@@ -45,6 +46,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearConsole,
   onFixInCopilot,
 }: LogRowContextMenuProps) {
+  const t = useTranslations('auto')
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
@@ -78,7 +80,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Copy Run ID
+              {t('copy_run_id')}
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -93,7 +95,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Fix in Chat
+              {t('fix_in_chat')}
             </PopoverItem>
             <PopoverDivider />
           </>
@@ -109,7 +111,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Filter by Block
+              {t('filter_by_block')}
             </PopoverItem>
             <PopoverItem
               showCheck={isStatusFiltered}
@@ -118,7 +120,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
                 onClose()
               }}
             >
-              Filter by Status
+              {t('filter_by_status')}
             </PopoverItem>
           </>
         )}
@@ -131,7 +133,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             onClose()
           }}
         >
-          Clear Console
+          {t('clear_console')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

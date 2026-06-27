@@ -65,6 +65,7 @@ import {
   McpDeploy,
 } from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DeployModal')
 
@@ -122,6 +123,7 @@ export function DeployModal({
   deployReadiness,
   isDeploymentSettling,
 }: DeployModalProps) {
+  const t = useTranslations('auto')
   const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -570,7 +572,7 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Workflow Deployment</ModalHeader>
+          <ModalHeader>{t('workflow_deployment')}</ModalHeader>
 
           <ModalTabs
             value={activeTab}
@@ -578,7 +580,7 @@ export function DeployModal({
             className='flex min-h-0 flex-1 flex-col'
           >
             <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
+              <ModalTabsTrigger value='general'>{t('general')}</ModalTabsTrigger>
               {!permissionConfig.hideDeployApi && (
                 <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
               )}
@@ -589,14 +591,13 @@ export function DeployModal({
                 <ModalTabsTrigger value='a2a'>A2A</ModalTabsTrigger>
               )}
               {!permissionConfig.hideDeployChatbot && (
-                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
+                <ModalTabsTrigger value='chat'>{t('chat')}</ModalTabsTrigger>
               )}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalDescription className='sr-only'>
-                Configure and manage workflow deployment settings including API, MCP, A2A, and chat
-                options.
+                {t('configure_and_manage_workflow_deployment_setting')}
               </ModalDescription>
               {(deployError || deployWarnings.length > 0) && (
                 <div className='mb-3 flex flex-col gap-2'>
@@ -722,14 +723,14 @@ export function DeployModal({
               <div />
               <div className='flex items-center gap-2'>
                 <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
-                  Edit API Info
+                  {t('edit_api_info')}
                 </Button>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
                   disabled={createButtonDisabled}
                 >
-                  Generate API Key
+                  {t('generate_api_key')}
                 </Button>
               </div>
             </ModalFooter>
@@ -745,7 +746,7 @@ export function DeployModal({
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
-                    Delete
+                    {t('delete')}
                   </Button>
                 )}
                 <Button
@@ -783,7 +784,7 @@ export function DeployModal({
                     })
                   }
                 >
-                  Manage
+                  {t('manage')}
                 </Button>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -814,7 +815,7 @@ export function DeployModal({
                   </Badge>
                 ) : (
                   <Badge variant='red' size='lg' dot>
-                    Unpublished
+                    {t('unpublished')}
                   </Badge>
                 )
               ) : (
@@ -840,7 +841,7 @@ export function DeployModal({
                       onClick={handleA2aUnpublish}
                       disabled={a2aSubmitting}
                     >
-                      Unpublish
+                      {t('unpublish')}
                     </Button>
                     <Button
                       type='button'
@@ -861,7 +862,7 @@ export function DeployModal({
                       onClick={() => setShowA2aDeleteConfirm(true)}
                       disabled={a2aSubmitting}
                     >
-                      Delete
+                      {t('delete')}
                     </Button>
                     <Button
                       type='button'
@@ -885,7 +886,7 @@ export function DeployModal({
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
         srTitle='Undeploy API'
-        title='Undeploy API'
+        title={t('undeploy_api')}
         text={[
           'Are you sure you want to undeploy this workflow? ',
           {
@@ -905,7 +906,7 @@ export function DeployModal({
         open={showA2aDeleteConfirm}
         onOpenChange={setShowA2aDeleteConfirm}
         srTitle='Delete A2A Agent'
-        title='Delete A2A Agent'
+        title={t('delete_a2a_agent')}
         text={[
           'Are you sure you want to delete ',
           { text: existingA2aAgent?.name || 'this agent', bold: true },
@@ -979,6 +980,7 @@ function GeneralFooter({
   onRedeploy,
   onUndeploy,
 }: GeneralFooterProps) {
+  const t = useTranslations('auto')
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
   const blockedMessage =
@@ -994,7 +996,7 @@ function GeneralFooter({
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            Deploy
+            {t('deploy')}
           </Button>
         </div>
       </ModalFooter>
@@ -1016,7 +1018,7 @@ function GeneralFooter({
         {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            Update
+            {t('update')}
           </Button>
         )}
       </div>

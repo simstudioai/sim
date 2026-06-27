@@ -11,6 +11,7 @@ import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('PasswordAuth')
 
@@ -19,6 +20,7 @@ interface PasswordAuthProps {
 }
 
 export default function PasswordAuth({ identifier }: PasswordAuthProps) {
+  const t = useTranslations('auto')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showValidationError, setShowValidationError] = useState(false)
@@ -60,10 +62,10 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
                 <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-                  Password Required
+                  {t('password_required')}
                 </h1>
                 <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-                  This chat is password-protected
+                  {t('this_chat_is_password_protected')}
                 </p>
               </div>
 
@@ -76,7 +78,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
               >
                 <div className='space-y-6'>
                   <div className='flex items-center justify-between'>
-                    <Label htmlFor='password'>Password</Label>
+                    <Label htmlFor='password'>{t('password')}</Label>
                   </div>
                   <div className='relative'>
                     <div className='relative'>
@@ -88,7 +90,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                         autoCapitalize='none'
                         autoComplete='new-password'
                         autoCorrect='off'
-                        placeholder='Enter password'
+                        placeholder={t('enter_password')}
                         value={password}
                         onChange={handlePasswordChange}
                         className={cn(
@@ -135,7 +137,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                   {authenticate.isPending ? (
                     <span className='flex items-center gap-2'>
                       <Loader className='size-4' animate />
-                      Authenticating…
+                      {t('authenticating')}
                     </span>
                   ) : (
                     'Continue'

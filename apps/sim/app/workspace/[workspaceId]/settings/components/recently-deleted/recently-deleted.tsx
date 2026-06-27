@@ -32,6 +32,7 @@ import {
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import { useTranslations } from 'next-intl'
 
 type ResourceType =
   | 'all'
@@ -151,6 +152,7 @@ function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): b
 }
 
 export function RecentlyDeleted() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
@@ -412,7 +414,7 @@ export function RecentlyDeleted() {
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
-          placeholder='Search deleted items...'
+          placeholder={t('search_deleted_items')}
           value={urlSearchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           disabled={isLoading}
@@ -455,7 +457,7 @@ export function RecentlyDeleted() {
             {`No items found matching \u201c${urlSearchTerm}\u201d`}
           </SettingsEmptyState>
         ) : (
-          <SettingsEmptyState>No deleted items</SettingsEmptyState>
+          <SettingsEmptyState>{t('no_deleted_items')}</SettingsEmptyState>
         )
       ) : (
         <div className='flex flex-col gap-2'>
@@ -477,19 +479,19 @@ export function RecentlyDeleted() {
                   <span className='text-[var(--text-muted)] text-small'>
                     {TYPE_LABEL[resource.type]}
                     {' \u00b7 '}
-                    Deleted {formatDate(resource.deletedAt)}
+                    {t('deleted')} {formatDate(resource.deletedAt)}
                   </span>
                 </div>
 
                 {isRestoring ? (
                   <Button variant='primary' size='sm' disabled className='shrink-0'>
-                    Restoring...
+                    {t('restoring')}
                   </Button>
                 ) : isRestored ? (
                   <div className='flex shrink-0 items-center gap-2'>
-                    <span className='text-[var(--text-muted)] text-small'>Restored</span>
+                    <span className='text-[var(--text-muted)] text-small'>{t('restored')}</span>
                     <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
-                      View
+                      {t('view')}
                     </Button>
                   </div>
                 ) : (
@@ -499,7 +501,7 @@ export function RecentlyDeleted() {
                     onClick={() => void handleRestore(resource)}
                     className='shrink-0'
                   >
-                    Restore
+                    {t('restore')}
                   </Button>
                 )}
               </div>

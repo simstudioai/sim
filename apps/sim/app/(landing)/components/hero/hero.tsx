@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/core/utils/cn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -32,6 +33,7 @@ const CTA_BASE =
   'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
 
 export default function Hero() {
+  const t = useTranslations('auto')
   return (
     <section
       id='hero'
@@ -41,11 +43,7 @@ export default function Hero() {
       className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
     >
       <p className='sr-only'>
-        Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
-        1,000+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini,
-        Mistral, and xAI Grok, to create agents that automate real work. Build agents visually with
-        the workflow builder, conversationally through Chat, or programmatically with the API.
-        Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 compliant.
+        {t('sim_is_the_open_source_ai')}
       </p>
 
       <div className='relative z-10 flex flex-col items-center gap-3'>
@@ -54,13 +52,13 @@ export default function Hero() {
           itemProp='name'
           className='text-balance font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
         >
-          Build AI Agents
+          {t('build_ai_agents')}
         </h1>
         <p
           itemProp='description'
           className='whitespace-nowrap text-center font-[430] font-season text-[4.4vw] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em] sm:whitespace-normal sm:text-lg lg:text-xl'
         >
-          Sim is the AI Workspace for Agent Builders
+          {t('sim_is_the_ai_workspace_for')}
         </p>
 
         <div className='mt-3 flex items-center gap-2'>
@@ -71,12 +69,12 @@ export default function Hero() {
                 CTA_BASE,
                 'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               )}
-              aria-label='Get a demo'
+              aria-label={t('get_a_demo')}
               onClick={() =>
                 trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
               }
             >
-              Get a demo
+              {t('get_a_demo')}
             </button>
           </DemoRequestModal>
           <AuthModal defaultView='signup' source='hero'>
@@ -86,7 +84,7 @@ export default function Hero() {
                 CTA_BASE,
                 'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
               )}
-              aria-label='Get started with Sim'
+              aria-label={t('get_started_with_sim')}
               onClick={() =>
                 trackLandingCta({
                   label: 'Get started',
@@ -95,7 +93,7 @@ export default function Hero() {
                 })
               }
             >
-              Get started
+              {t('get_started')}
             </button>
           </AuthModal>
         </div>

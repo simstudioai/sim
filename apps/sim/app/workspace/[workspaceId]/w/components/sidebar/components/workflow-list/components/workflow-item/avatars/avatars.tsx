@@ -7,6 +7,7 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { usePresenceStore } from '@/stores/presence/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { useTranslations } from 'next-intl'
 
 /**
  * Avatar display configuration for responsive layout.
@@ -81,6 +82,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
  * @returns Avatar stack for workflow presence
  */
 export function Avatars({ workflowId }: AvatarsProps) {
+  const t = useTranslations('auto')
   const { currentWorkflowId, currentSocketId } = useSocket()
   const presenceUsers = usePresenceStore((state) => state.presenceUsers)
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
@@ -140,7 +142,7 @@ export function Avatars({ workflowId }: AvatarsProps) {
             </Avatar>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
-            {overflowCount} more user{overflowCount > 1 ? 's' : ''}
+            {overflowCount} {t('more_user')}{overflowCount > 1 ? 's' : ''}
           </Tooltip.Content>
         </Tooltip.Root>
       )}

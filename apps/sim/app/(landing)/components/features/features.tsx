@@ -14,6 +14,7 @@ import Image from 'next/image'
 import { Badge } from '@/components/emcn'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -143,6 +144,7 @@ function ScrollLetter({ scrollYProgress, charIndex, children }: ScrollLetterProp
 }
 
 export default function Features() {
+  const t = useTranslations('auto')
   const sectionRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState(0)
 
@@ -183,15 +185,10 @@ export default function Features() {
                 ),
               }}
             >
-              Workspace
+              {t('workspace')}
             </Badge>
             <p className='sr-only'>
-              Sim's workspace includes four core features: Chat, an AI command center for
-              natural-language control of your entire workspace; Tables, a built-in database for
-              filtering, sorting, and wiring data directly into workflows; Files, a shared document
-              store for uploading, creating, and sharing documents, spreadsheets, and media across
-              teams and agents; and Logs, full execution tracing with inputs, outputs, cost, and
-              duration for every run.
+              {t('sim_s_workspace_includes_four_core')}
             </p>
             <h2
               id='features-heading'
@@ -203,7 +200,7 @@ export default function Features() {
                 </ScrollLetter>
               ))}
               <span className='text-[color-mix(in_srgb,var(--landing-text-dark)_40%,transparent)]'>
-                Build agents, connect your data, and monitor every run, all in one workspace.
+                {t('build_agents_connect_your_data_and')}
               </span>
             </h2>
           </div>
@@ -224,7 +221,7 @@ export default function Features() {
                 className='h-full w-[24px] shrink-0 bg-[var(--landing-bg-section)] lg:w-16'
               />
 
-              <div role='tablist' aria-label='Feature categories' className='flex flex-1'>
+              <div role='tablist' aria-label={t('feature_categories')} className='flex flex-1'>
                 {FEATURE_TABS.map((tab, index) => (
                   <button
                     key={tab.label}

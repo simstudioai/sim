@@ -19,6 +19,7 @@ import type {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { useTranslations } from 'next-intl'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',
@@ -145,7 +146,7 @@ export const MothershipView = memo(
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "+" above to add a resource
+                {t('click_above_to_add_a_resource')}
               </div>
             )}
           </div>

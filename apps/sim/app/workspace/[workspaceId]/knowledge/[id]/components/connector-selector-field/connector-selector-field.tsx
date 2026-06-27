@@ -11,6 +11,7 @@ import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { useTranslations } from 'next-intl'
 
 interface ConnectorSelectorFieldProps {
   field: ConnectorConfigField & { selectorKey: SelectorKey }
@@ -33,6 +34,7 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const t = useTranslations('auto')
   const isMulti = Boolean(field.multi)
 
   const context = useMemo<SelectorContext>(() => {
@@ -75,7 +77,7 @@ export function ConnectorSelectorField({
     return (
       <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
         <Loader className='size-3.5' animate />
-        Loading…
+        {t('loading')}
       </div>
     )
   }

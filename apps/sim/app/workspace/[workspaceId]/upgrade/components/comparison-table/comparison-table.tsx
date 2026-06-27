@@ -10,6 +10,7 @@ import {
   PLAN_COLUMNS,
   type PlanName,
 } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
+import { useTranslations } from 'next-intl'
 
 /** Maps a cell-icon identifier to its brand icon component. */
 const CELL_ICONS = { slack: SlackIcon } as const
@@ -139,6 +140,7 @@ export function ComparisonTable({
   onIsAnnualChange,
   ctas,
 }: ComparisonTableProps) {
+  const t = useTranslations('auto')
   const runtimePrices: Partial<Record<PlanName, string>> = {
     Pro: proPrice,
     Max: maxPrice,
@@ -152,8 +154,8 @@ export function ComparisonTable({
         {/* Top-left cell: title, subtitle, and billing toggle */}
         <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-4'>
           <div className='flex flex-col gap-0.5'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Compare plans</span>
-            <span className='text-[var(--text-muted)] text-small'>Find the right plan for you</span>
+            <span className='font-medium text-[var(--text-primary)] text-base'>{t('compare_plans')}</span>
+            <span className='text-[var(--text-muted)] text-small'>{t('find_the_right_plan_for_you')}</span>
           </div>
           <BillingPeriodToggle isAnnual={isAnnual} onChange={onIsAnnualChange} />
         </div>

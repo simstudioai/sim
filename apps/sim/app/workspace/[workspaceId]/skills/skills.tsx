@@ -13,6 +13,7 @@ import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { skillIdParam, skillIdUrlKeys } from '@/app/workspace/[workspaceId]/skills/search-params'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SkillsSettings')
 
@@ -61,6 +62,7 @@ function SkillSection({ label, children }: SkillSectionProps) {
 }
 
 export function Skills() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -128,7 +130,7 @@ export function Skills() {
 
   const addButton = (
     <Chip variant='primary' onClick={handleOpenAddForm} disabled={isLoading} leftIcon={Plus}>
-      Add to Sim
+      {t('add_to_sim')}
     </Chip>
   )
 
@@ -141,7 +143,7 @@ export function Skills() {
           <div className='flex items-center gap-2'>
             <ChipInput
               icon={Search}
-              placeholder='Search skills...'
+              placeholder={t('search_skills')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
@@ -167,7 +169,7 @@ export function Skills() {
               </SkillSection>
             ) : showNoResults ? (
               <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                No skills found matching “{searchTerm}”
+                {t('no_skills_found_matching')}{searchTerm}”
               </div>
             ) : null}
           </div>
@@ -194,7 +196,7 @@ export function Skills() {
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Skill'
-        title='Delete Skill'
+        title={t('delete_skill')}
         text={[
           'Are you sure you want to delete ',
           { text: skillToDelete?.name ?? 'this skill', bold: true },

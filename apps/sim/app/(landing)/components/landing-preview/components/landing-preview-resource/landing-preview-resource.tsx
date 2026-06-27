@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { ArrowUpDown, ListFilter, Plus, Search } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 export interface PreviewColumn {
   id: string
@@ -52,6 +53,7 @@ export function LandingPreviewResource({
   rows,
   onRowClick,
 }: LandingPreviewResourceProps) {
+  const t = useTranslations('auto')
   const [search, setSearch] = useState('')
   const [sortColId, setSortColId] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -114,7 +116,7 @@ export function LandingPreviewResource({
           <div className='flex items-center gap-1.5'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-              Filter
+              {t('filter')}
             </div>
             <button
               type='button'
@@ -122,7 +124,7 @@ export function LandingPreviewResource({
               className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-              Sort
+              {t('sort')}
             </button>
           </div>
         </div>

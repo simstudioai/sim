@@ -29,6 +29,7 @@ import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/s
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+import { useTranslations } from 'next-intl'
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -39,6 +40,7 @@ export function SettingsSidebar({
   isCollapsed = false,
   showCollapsedTooltips = false,
 }: SettingsSidebarProps) {
+  const t = useTranslations('auto')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
 
@@ -256,12 +258,12 @@ export function SettingsSidebar({
           'flex flex-shrink-0 flex-col px-2 pb-1.5'
         )}
       >
-        <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
+        <SidebarTooltip label={t('back')} enabled={showCollapsedTooltips}>
           <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
             <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='size-[10px] rotate-90' />
             </div>
-            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
+            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>{t('back')}</span>
           </button>
         </SidebarTooltip>
       </div>
@@ -307,7 +309,7 @@ export function SettingsSidebar({
                         </span>
                         {isLocked && (
                           <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                            Max
+                            {t('max')}
                           </span>
                         )}
                       </>
@@ -362,7 +364,7 @@ export function SettingsSidebar({
         open={showDiscardDialog}
         onOpenChange={(open) => !open && handleCancelDiscard()}
         srTitle='Unsaved changes'
-        title='Unsaved changes'
+        title={t('unsaved_changes')}
         text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{

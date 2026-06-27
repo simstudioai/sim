@@ -11,6 +11,7 @@ import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-bu
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EmailAuth')
 
@@ -35,6 +36,7 @@ const validateEmailField = (emailValue: string): string[] => {
 }
 
 export default function EmailAuth({ identifier }: EmailAuthProps) {
+  const t = useTranslations('auto')
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
@@ -144,12 +146,12 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                   >
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between'>
-                        <Label htmlFor='email'>Email</Label>
+                        <Label htmlFor='email'>{t('email')}</Label>
                       </div>
                       <Input
                         id='email'
                         name='email'
-                        placeholder='Enter your email'
+                        placeholder={t('enter_your_email')}
                         required
                         autoCapitalize='none'
                         autoComplete='email'
@@ -179,7 +181,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                       {requestOtp.isPending ? (
                         <span className='flex items-center gap-2'>
                           <Loader className='size-4' animate />
-                          Sending Code…
+                          {t('sending_code')}
                         </span>
                       ) : (
                         'Continue'
@@ -189,8 +191,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                 ) : (
                   <div className='space-y-6'>
                     <p className='text-center text-[var(--landing-text-muted)] text-sm'>
-                      Enter the 6-digit code to verify your account. If you don't see it in your
-                      inbox, check your spam folder.
+                      {t('enter_the_6_digit_code_to')}
                     </p>
 
                     <div className='flex justify-center'>
@@ -232,7 +233,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                       {verifyOtp.isPending ? (
                         <span className='flex items-center gap-2'>
                           <Loader className='size-4' animate />
-                          Verifying…
+                          {t('verifying')}
                         </span>
                       ) : (
                         'Verify Email'
@@ -241,10 +242,10 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
 
                     <div className='text-center'>
                       <p className='text-[var(--landing-text-muted)] text-sm'>
-                        Didn't receive a code?{' '}
+                        {t('didn_t_receive_a_code')}{' '}
                         {countdown > 0 ? (
                           <span>
-                            Resend in{' '}
+                            {t('resend_in')}{' '}
                             <span className='font-medium text-[var(--landing-text)]'>
                               {countdown}s
                             </span>
@@ -255,7 +256,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                             onClick={handleResendOtp}
                             disabled={verifyOtp.isPending || requestOtp.isPending}
                           >
-                            Resend
+                            {t('resend')}
                           </button>
                         )}
                       </p>
@@ -270,7 +271,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                         }}
                         className={AUTH_TEXT_LINK}
                       >
-                        Change email
+                        {t('change_email')}
                       </button>
                     </div>
                   </div>

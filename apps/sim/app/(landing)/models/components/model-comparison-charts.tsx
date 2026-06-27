@@ -10,6 +10,7 @@ import {
   formatTokenCount,
   MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
+import { useTranslations } from 'next-intl'
 
 /** Providers that host other providers' models — deprioritized to avoid duplicates. */
 const RESELLER_PROVIDERS = new Set(
@@ -73,6 +74,7 @@ interface ChartProps {
 }
 
 function StackedCostChart({ models }: ChartProps) {
+  const t = useTranslations('auto')
   const data = useMemo(() => {
     const entries = models
       .map((model) => ({
@@ -94,10 +96,10 @@ function StackedCostChart({ models }: ChartProps) {
     <div className='flex flex-col gap-3'>
       <div className='flex flex-col gap-1'>
         <h3 className='text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          Cost
+          {t('cost')}
         </h3>
         <span className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Per 1M tokens
+          {t('per_1m_tokens')}
         </span>
       </div>
 
@@ -137,7 +139,7 @@ function StackedCostChart({ models }: ChartProps) {
                   />
                 </div>
                 <span className='shrink-0 font-mono text-[11px] text-[var(--landing-text-muted)] sm:ml-2.5 sm:text-xs'>
-                  {formatPrice(input)} input / {formatPrice(output)} output
+                  {formatPrice(input)} {t('input')} {formatPrice(output)} {t('output')}
                 </span>
               </div>
             </Link>
@@ -149,6 +151,7 @@ function StackedCostChart({ models }: ChartProps) {
 }
 
 function ContextWindowChart({ models }: ChartProps) {
+  const t = useTranslations('auto')
   const data = useMemo(() => {
     const entries = models
       .map((model) => ({
@@ -168,10 +171,10 @@ function ContextWindowChart({ models }: ChartProps) {
     <div className='flex flex-col gap-3'>
       <div className='flex flex-col gap-1'>
         <h3 className='text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'>
-          Context window
+          {t('context_window')}
         </h3>
         <span className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Max tokens
+          {t('max_tokens')}
         </span>
       </div>
 
@@ -213,6 +216,7 @@ interface ModelComparisonChartsProps {
 }
 
 export function ModelComparisonCharts({ models }: ModelComparisonChartsProps) {
+  const t = useTranslations('auto')
   const comparisonModels = useMemo(() => selectComparisonModels(models), [models])
 
   return (
@@ -222,10 +226,10 @@ export function ModelComparisonCharts({ models }: ModelComparisonChartsProps) {
           id='comparison-heading'
           className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
         >
-          Compare models
+          {t('compare_models')}
         </h2>
         <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Side-by-side comparison of top models across key metrics.
+          {t('side_by_side_comparison_of_top')}
         </p>
       </div>
 

@@ -6,6 +6,7 @@ import { Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
+import { useTranslations } from 'next-intl'
 
 const NARROW_WIDTH_PX = 320
 
@@ -28,6 +29,7 @@ export function QueuedMessages({
   onEdit,
   onCancelEdit,
 }: QueuedMessagesProps) {
+  const t = useTranslations('auto')
   const [isExpanded, setIsExpanded] = useState(true)
   const [isNarrow, setIsNarrow] = useState(false)
   const roRef = useRef<ResizeObserver | null>(null)
@@ -63,7 +65,7 @@ export function QueuedMessages({
           <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
         )}
         <span className='font-medium text-[var(--text-secondary)] text-small'>
-          {messageQueue.length} Queued
+          {messageQueue.length} {t('queued')}
         </span>
       </button>
 
@@ -130,7 +132,7 @@ export function QueuedMessages({
                         </button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top' sideOffset={4}>
-                        Cancel edit
+                        {t('cancel_edit')}
                       </Tooltip.Content>
                     </Tooltip.Root>
                   ) : (
@@ -169,7 +171,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          Send now
+                          {t('send_now')}
                         </Tooltip.Content>
                       </Tooltip.Root>
 
@@ -187,7 +189,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          Remove from queue
+                          {t('remove_from_queue')}
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>

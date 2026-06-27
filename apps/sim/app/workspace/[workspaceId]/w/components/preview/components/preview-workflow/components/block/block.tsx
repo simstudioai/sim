@@ -22,6 +22,7 @@ import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useTranslations } from 'next-intl'
 
 /** Execution status for blocks in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -171,6 +172,7 @@ const SubBlockRow = memo(function SubBlockRow({
  * Matches the visual structure of WorkflowBlock exactly.
  */
 function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
+  const t = useTranslations('auto')
   const {
     type,
     name,
@@ -404,7 +406,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
             <>
               <SubBlockRow
                 key='context'
-                title='Context'
+                title={t('context')}
                 value={lightweight ? undefined : getDisplayValue(rawValues.context)}
                 workflowMap={workflowMap}
                 workflowLabelsReady={workflowLabelsReady}
@@ -438,7 +440,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           {/* Error row for non-trigger blocks */}
           {shouldShowDefaultHandles && (
             <SubBlockRow
-              title='error'
+              title={t('error')}
               workflowMap={workflowMap}
               workflowLabelsReady={workflowLabelsReady}
             />

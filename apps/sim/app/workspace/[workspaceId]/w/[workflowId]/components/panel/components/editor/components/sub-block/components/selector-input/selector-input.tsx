@@ -8,6 +8,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useTranslations } from 'next-intl'
 
 export interface SelectorOverrides {
   transformContext?: (context: SelectorContext, deps: Record<string, unknown>) => SelectorContext
@@ -33,6 +34,7 @@ export function SelectorInput({
   previewContextValues,
   overrides,
 }: SelectorInputProps) {
+  const t = useTranslations('auto')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const defaultAppliedRef = useRef(false)
@@ -75,11 +77,11 @@ export function SelectorInput({
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <div className='w-full rounded border p-4 text-center text-muted-foreground text-sm'>
-            Selector not supported for service: {serviceId}
+            {t('selector_not_supported_for_service')} {serviceId}
           </div>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
-          <p>This selector is not implemented for {serviceId}</p>
+          <p>{t('this_selector_is_not_implemented_for')} {serviceId}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     )

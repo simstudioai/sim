@@ -61,6 +61,7 @@ import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { Loader } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { useTranslations } from 'next-intl'
 
 /**
  * The modal's hairline divider — used by the header and footer edges, and
@@ -1016,6 +1017,7 @@ function ChipModalFooter({
   primaryAction,
   secondaryActions,
 }: ChipModalFooterProps) {
+  const t = useTranslations('auto')
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
   const primaryChip = (
     <Chip
@@ -1042,7 +1044,7 @@ function ChipModalFooter({
       }
     >
       <Chip flush onClick={onCancel} disabled={cancelDisabled}>
-        Cancel
+        {t('cancel')}
       </Chip>
       {showsDisabledTooltip ? (
         <Tooltip.Root>

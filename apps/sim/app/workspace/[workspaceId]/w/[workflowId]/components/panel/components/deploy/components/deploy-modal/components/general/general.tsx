@@ -26,6 +26,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 import { formatVersionLabel } from './format-version-label'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('GeneralDeploy')
 
@@ -59,6 +60,7 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
+  const t = useTranslations('auto')
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
   const previewMode: PreviewMode =
@@ -209,7 +211,7 @@ export function GeneralDeploy({
                   setShowActiveDespiteSelection((val as PreviewMode) === 'active')
                 }
               >
-                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
+                <ButtonGroupItem value='active'>{t('live')}</ButtonGroupItem>
                 <ButtonGroupItem value='selected' className='truncate'>
                   {selectedVersionInfo
                     ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
@@ -249,12 +251,12 @@ export function GeneralDeploy({
                       <Expand className='size-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>See preview</Tooltip.Content>
+                  <Tooltip.Content side='top'>{t('see_preview')}</Tooltip.Content>
                 </Tooltip.Root>
               </>
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
-                Deploy your workflow to see a preview
+                {t('deploy_your_workflow_to_see_a')}
               </div>
             )}
           </div>
@@ -262,7 +264,7 @@ export function GeneralDeploy({
 
         <div>
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Versions
+            {t('versions')}
           </Label>
           <Versions
             workflowId={workflowId}
@@ -281,7 +283,7 @@ export function GeneralDeploy({
         open={showLoadDialog}
         onOpenChange={setShowLoadDialog}
         srTitle='Load Deployment'
-        title='Load Deployment'
+        title={t('load_deployment')}
         text={[
           'Are you sure you want to load ',
           {
@@ -307,7 +309,7 @@ export function GeneralDeploy({
         open={showPromoteDialog}
         onOpenChange={setShowPromoteDialog}
         srTitle='Promote to live'
-        title='Promote to live'
+        title={t('promote_to_live')}
         text={[
           'Are you sure you want to promote ',
           {
@@ -336,7 +338,7 @@ export function GeneralDeploy({
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
               <ModalDescription className='sr-only'>
-                Visual preview of the selected workflow version.
+                {t('visual_preview_of_the_selected_workflow')}
               </ModalDescription>
               <Preview workflowState={workflowToShow} autoSelectLeftmost />
             </ModalBody>

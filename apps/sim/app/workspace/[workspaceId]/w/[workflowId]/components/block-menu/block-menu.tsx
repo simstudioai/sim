@@ -9,6 +9,7 @@ import {
   PopoverItem,
 } from '@/components/emcn'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { useTranslations } from 'next-intl'
 
 /**
  * Block information for context menu actions
@@ -96,6 +97,7 @@ export function BlockMenu({
   onToggleLocked,
   canAdmin = false,
 }: BlockMenuProps) {
+  const t = useTranslations('auto')
   const isSingleBlock = selectedBlocks.length === 1
 
   const allEnabled = selectedBlocks.every((b) => b.enabled)
@@ -161,8 +163,8 @@ export function BlockMenu({
             onClose()
           }}
         >
-          <span>Copy</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘C</span>
+          <span>{t('copy')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('c')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -172,8 +174,8 @@ export function BlockMenu({
             onClose()
           }}
         >
-          <span>Cut</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘X</span>
+          <span>{t('cut')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('x')}</span>
         </PopoverItem>
         <PopoverItem
           className='group'
@@ -183,8 +185,8 @@ export function BlockMenu({
             onClose()
           }}
         >
-          <span>Paste</span>
-          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
+          <span>{t('paste')}</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('v')}</span>
         </PopoverItem>
         {!hasSingletonBlock && (
           <PopoverItem
@@ -194,7 +196,7 @@ export function BlockMenu({
               onClose()
             }}
           >
-            Duplicate
+            {t('duplicate')}
           </PopoverItem>
         )}
 
@@ -221,7 +223,7 @@ export function BlockMenu({
               onClose()
             }}
           >
-            Flip Handles
+            {t('flip_handles')}
           </PopoverItem>
         )}
         {canRemoveFromSubflow && (
@@ -232,7 +234,7 @@ export function BlockMenu({
               onClose()
             }}
           >
-            Remove from Subflow
+            {t('remove_from_subflow')}
           </PopoverItem>
         )}
         {canAdmin && onToggleLocked && (
@@ -259,7 +261,7 @@ export function BlockMenu({
               onClose()
             }}
           >
-            Rename
+            {t('rename')}
           </PopoverItem>
         )}
         {isSingleBlock && (
@@ -269,7 +271,7 @@ export function BlockMenu({
               onClose()
             }}
           >
-            Open Editor
+            {t('open_editor')}
           </PopoverItem>
         )}
 
@@ -286,7 +288,7 @@ export function BlockMenu({
                 }
               }}
             >
-              Run from block
+              {t('run_from_block')}
             </PopoverItem>
             {/* Hide "Run until" for triggers - they're always at the start */}
             {!hasTriggerBlock && (
@@ -299,7 +301,7 @@ export function BlockMenu({
                   }
                 }}
               >
-                Run until block
+                {t('run_until_block')}
               </PopoverItem>
             )}
           </>
@@ -315,7 +317,7 @@ export function BlockMenu({
             onClose()
           }}
         >
-          <span>Delete</span>
+          <span>{t('delete')}</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⌫</span>
         </PopoverItem>
       </PopoverContent>

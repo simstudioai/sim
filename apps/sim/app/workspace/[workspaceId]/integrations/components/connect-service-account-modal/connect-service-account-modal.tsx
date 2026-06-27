@@ -16,6 +16,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { useCreateWorkspaceCredential } from '@/hooks/queries/credentials'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectServiceAccountModal')
 
@@ -142,6 +143,7 @@ function GoogleServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
 }: ProviderModalProps) {
+  const t = useTranslations('auto')
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -234,12 +236,12 @@ function GoogleServiceAccountModal({
       srTitle={`Add ${serviceName} service account`}
     >
       <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
-        Add {serviceName} service account
+        {t('add')} {serviceName} {t('service_account')}
       </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='textarea'
-          title='JSON key'
+          title={t('json_key')}
           value={jsonInput}
           onChange={(value) => {
             setJsonInput(value)
@@ -247,14 +249,14 @@ function GoogleServiceAccountModal({
             if (error) setError(null)
             maybeFillDisplayNameFromJson(value)
           }}
-          placeholder='Paste your service account JSON key here'
+          placeholder={t('paste_your_service_account_json_key')}
           minHeight={120}
           required
         />
 
         <ChipModalField
           type='file'
-          title='Or upload a file'
+          title={t('or_upload_a_file')}
           accept='.json'
           label={
             uploadedFileName
@@ -266,19 +268,19 @@ function GoogleServiceAccountModal({
 
         <ChipModalField
           type='input'
-          title='Display name'
+          title={t('display_name')}
           value={displayName}
           onChange={setDisplayName}
-          placeholder='Auto-populated from client_email'
+          placeholder={t('auto_populated_from_client_email')}
           autoComplete='off'
         />
 
         <ChipModalField
           type='textarea'
-          title='Description'
+          title={t('description')}
           value={description}
           onChange={setDescription}
-          placeholder='Optional description'
+          placeholder={t('optional_description')}
           maxLength={500}
           minHeight={80}
         />
@@ -316,6 +318,7 @@ function AtlassianServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
 }: ProviderModalProps) {
+  const t = useTranslations('auto')
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -368,17 +371,17 @@ function AtlassianServiceAccountModal({
       srTitle={`Add ${serviceName} service account`}
     >
       <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
-        Add {serviceName} service account
+        {t('add')} {serviceName} {t('service_account')}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='API token' required>
+        <ChipModalField type='custom' title={t('api_token')} required>
           <SecretInput
             value={apiToken}
             onChange={(value) => {
               setApiToken(value)
               if (error) setError(null)
             }}
-            placeholder='Paste API token'
+            placeholder={t('paste_api_token')}
             name='atlassian_service_account_api_token'
             autoComplete='new-password'
             autoCorrect='off'
@@ -390,13 +393,13 @@ function AtlassianServiceAccountModal({
 
         <ChipModalField
           type='input'
-          title='Site domain'
+          title={t('site_domain')}
           value={domain}
           onChange={(value) => {
             setDomain(value)
             if (error) setError(null)
           }}
-          placeholder='your-team.atlassian.net'
+          placeholder={t('your_team_atlassian_net')}
           autoComplete='off'
           required
           error={
@@ -408,19 +411,19 @@ function AtlassianServiceAccountModal({
 
         <ChipModalField
           type='input'
-          title='Display name'
+          title={t('display_name')}
           value={displayName}
           onChange={setDisplayName}
-          placeholder="Defaults to the account's Atlassian display name"
+          placeholder={t('defaults_to_the_account_s_atlassian')}
           autoComplete='off'
         />
 
         <ChipModalField
           type='textarea'
-          title='Description'
+          title={t('description')}
           value={description}
           onChange={setDescription}
-          placeholder='Optional description'
+          placeholder={t('optional_description')}
           maxLength={500}
           minHeight={80}
         />

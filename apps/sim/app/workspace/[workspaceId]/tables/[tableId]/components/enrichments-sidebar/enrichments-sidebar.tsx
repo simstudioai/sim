@@ -9,6 +9,7 @@ import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import { EnrichmentConfig } from './enrichment-config'
+import { useTranslations } from 'next-intl'
 
 interface EnrichmentsSidebarProps {
   open: boolean
@@ -27,10 +28,11 @@ interface EnrichmentsSidebarProps {
  * sliding panel (input mapping + outputs), which creates an enrichment column.
  */
 export function EnrichmentsSidebar({ open, ...rest }: EnrichmentsSidebarProps) {
+  const t = useTranslations('auto')
   return (
     <aside
       role='dialog'
-      aria-label='Enrichments'
+      aria-label={t('enrichments')}
       className={cn(
         'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
@@ -48,6 +50,7 @@ function EnrichmentsSidebarBody({
   tableId,
   editGroup,
 }: Omit<EnrichmentsSidebarProps, 'open'>) {
+  const t = useTranslations('auto')
   const [selected, setSelected] = useState<EnrichmentDef | null>(null)
   const [query, setQuery] = useState('')
 
@@ -73,21 +76,20 @@ function EnrichmentsSidebarBody({
     return (
       <div className='flex h-full flex-col'>
         <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-          <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
+          <h2 className='font-medium text-[var(--text-primary)] text-small'>{t('enrichment')}</h2>
           <Button
             variant='ghost'
             size='sm'
             onClick={onClose}
             className='!p-1 size-7 flex-none'
-            aria-label='Close'
+            aria-label={t('close')}
           >
             <X className='size-[14px]' />
           </Button>
         </div>
         <div className='flex flex-1 items-center justify-center px-6 text-center'>
           <p className='text-[var(--text-tertiary)] text-small'>
-            This enrichment ("{editGroup.enrichmentId}") is no longer available. Delete the column
-            and add a current enrichment.
+            {t('this_enrichment')}{editGroup.enrichmentId}{t('is_no_longer_available_delete_the')}
           </p>
         </div>
       </div>
@@ -119,13 +121,13 @@ function EnrichmentsSidebarBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichments</h2>
+        <h2 className='font-medium text-[var(--text-primary)] text-small'>{t('enrichments')}</h2>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
           className='!p-1 size-7 flex-none'
-          aria-label='Close'
+          aria-label={t('close')}
         >
           <X className='size-[14px]' />
         </Button>
@@ -136,7 +138,7 @@ function EnrichmentsSidebarBody({
           icon={Search}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder='Search'
+          placeholder={t('search')}
           spellCheck={false}
           autoComplete='off'
         />
@@ -144,7 +146,7 @@ function EnrichmentsSidebarBody({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 [overflow-anchor:none]'>
         {filtered.length === 0 ? (
-          <p className='px-1 pt-2 text-[var(--text-tertiary)] text-small'>No enrichments found.</p>
+          <p className='px-1 pt-2 text-[var(--text-tertiary)] text-small'>{t('no_enrichments_found')}</p>
         ) : (
           <ul className='flex flex-col'>
             {filtered.map((enrichment) => {

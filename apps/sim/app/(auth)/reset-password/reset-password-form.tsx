@@ -5,6 +5,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { useTranslations } from 'next-intl'
 
 interface RequestResetFormProps {
   email: string
@@ -25,6 +26,7 @@ export function RequestResetForm({
   statusMessage,
   className,
 }: RequestResetFormProps) {
+  const t = useTranslations('auto')
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit(email)
@@ -35,19 +37,19 @@ export function RequestResetForm({
       <div className='space-y-6'>
         <div className='space-y-2'>
           <div className='flex items-center justify-between'>
-            <Label htmlFor='reset-email'>Email</Label>
+            <Label htmlFor='reset-email'>{t('email')}</Label>
           </div>
           <Input
             id='reset-email'
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
-            placeholder='Enter your email'
+            placeholder={t('enter_your_email')}
             type='email'
             disabled={isSubmitting}
             required
           />
           <p className='text-[var(--landing-text-muted)] text-sm'>
-            We'll send a password reset link to this email address.
+            {t('we_ll_send_a_password_reset')}
           </p>
         </div>
 
@@ -68,7 +70,7 @@ export function RequestResetForm({
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
             <Loader className='size-4' animate />
-            Sending…
+            {t('sending')}
           </span>
         ) : (
           'Send Reset Link'
@@ -95,6 +97,7 @@ export function SetNewPasswordForm({
   statusMessage,
   className,
 }: SetNewPasswordFormProps) {
+  const t = useTranslations('auto')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [validationMessages, setValidationMessages] = useState<string[]>([])
@@ -148,7 +151,7 @@ export function SetNewPasswordForm({
       <div className='space-y-6'>
         <div className='space-y-2'>
           <div className='flex items-center justify-between'>
-            <Label htmlFor='password'>New Password</Label>
+            <Label htmlFor='password'>{t('new_password')}</Label>
           </div>
           <div className='relative'>
             <Input
@@ -161,7 +164,7 @@ export function SetNewPasswordForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder='Enter new password'
+              placeholder={t('enter_new_password')}
               className={cn(
                 'pr-10',
                 validationMessages.length > 0 && 'border-red-500 focus:border-red-500'
@@ -179,7 +182,7 @@ export function SetNewPasswordForm({
         </div>
         <div className='space-y-2'>
           <div className='flex items-center justify-between'>
-            <Label htmlFor='confirmPassword'>Confirm Password</Label>
+            <Label htmlFor='confirmPassword'>{t('confirm_password')}</Label>
           </div>
           <div className='relative'>
             <Input
@@ -192,7 +195,7 @@ export function SetNewPasswordForm({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              placeholder='Confirm new password'
+              placeholder={t('confirm_new_password')}
               className={cn(
                 'pr-10',
                 validationMessages.length > 0 && 'border-red-500 focus:border-red-500'
@@ -233,7 +236,7 @@ export function SetNewPasswordForm({
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
             <Loader className='size-4' animate />
-            Resetting…
+            {t('resetting')}
           </span>
         ) : (
           'Reset Password'

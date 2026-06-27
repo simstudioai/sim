@@ -6,12 +6,13 @@ interface LessonVideoProps {
 }
 
 export function LessonVideo({ url, title }: LessonVideoProps) {
+  const t = useTranslations('auto')
   const embedUrl = resolveEmbedUrl(url)
 
   if (!embedUrl) {
     return (
       <div className='flex aspect-video items-center justify-center rounded-lg bg-[#1A1A1A] text-[#666] text-sm'>
-        Video unavailable
+        {t('video_unavailable')}
       </div>
     )
   }

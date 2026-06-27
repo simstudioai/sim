@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
+import { useTranslations } from 'next-intl'
 
 interface TransferOwnershipDialogProps {
   open: boolean
@@ -45,6 +46,7 @@ export function TransferOwnershipDialog({
   onConfirm,
   onOpenBillingPortal,
 }: TransferOwnershipDialogProps) {
+  const t = useTranslations('auto')
   const [search, setSearch] = useState('')
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
@@ -86,7 +88,7 @@ export function TransferOwnershipDialog({
       open={open}
       onOpenChange={handleClose}
       srTitle='Leave organization'
-      title='Leave organization'
+      title={t('leave_organization')}
       confirm={{
         label: 'Transfer & leave',
         onClick: handleConfirm,
@@ -108,15 +110,12 @@ export function TransferOwnershipDialog({
           </div>
         ) : !hasCandidates ? (
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You're the only member of this organization. Invite another admin before leaving.
+            {t('you_re_the_only_member_of')}
           </p>
         ) : (
           <div className='space-y-3'>
             <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              As the owner, you need to hand off the organization before you can leave. Pick a
-              member to become the new owner. They'll inherit billing access, seat management, and
-              all owner-only permissions. You'll lose access to every shared workspace in this
-              organization.
+              {t('as_the_owner_you_need_to')}
             </p>
 
             {hasPaidSubscription && (
@@ -130,11 +129,10 @@ export function TransferOwnershipDialog({
                 text={
                   <>
                     <span className='block font-medium'>
-                      Your payment method stays on this organization
+                      {t('your_payment_method_stays_on_this')}
                     </span>
                     <span className='block text-[var(--text-secondary)]'>
-                      Future charges will keep hitting the card you added. Open the Stripe billing
-                      portal to remove it before you leave.
+                      {t('future_charges_will_keep_hitting_the')}
                     </span>
                   </>
                 }
@@ -147,13 +145,13 @@ export function TransferOwnershipDialog({
               icon={Search}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder='Search members...'
+              placeholder={t('search_members')}
             />
 
             <div className='max-h-[280px] overflow-y-auto rounded-md border border-[var(--border-1)]'>
               {candidates.length === 0 ? (
                 <div className='px-3 py-4 text-center text-[var(--text-muted)] text-small'>
-                  No members match "{search}"
+                  {t('no_members_match')}{search}"
                 </div>
               ) : (
                 <ul className='divide-y divide-[var(--border-1)]'>
@@ -187,7 +185,7 @@ export function TransferOwnershipDialog({
                               </span>
                               {m.role === 'admin' && (
                                 <Badge variant='gray-secondary' size='sm'>
-                                  Admin
+                                  {t('admin')}
                                 </Badge>
                               )}
                             </div>

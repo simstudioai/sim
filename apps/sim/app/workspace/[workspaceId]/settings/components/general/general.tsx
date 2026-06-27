@@ -41,6 +41,7 @@ import {
   useUserProfile,
 } from '@/hooks/queries/user-profile'
 import { clearUserData } from '@/stores'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('General')
 
@@ -69,6 +70,7 @@ function getInitials(name: string | undefined | null): string {
 }
 
 export function General() {
+  const t = useTranslations('auto')
   const router = useRouter()
   const brandConfig = useBrandConfig()
   const { data: session } = useSession()
@@ -277,19 +279,19 @@ export function General() {
           <>
             {isHosted && (
               <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
+                {t('home_page')}
               </Chip>
             )}
             {!isAuthDisabled && (
               <>
-                <Chip onClick={handleSignOut}>Sign out</Chip>
-                <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
+                <Chip onClick={handleSignOut}>{t('sign_out')}</Chip>
+                <Chip onClick={() => setShowResetPasswordModal(true)}>{t('reset_password')}</Chip>
               </>
             )}
           </>
         }
       >
-        <SettingsSection label='Profile'>
+        <SettingsSection label={t('profile')}>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center gap-3'>
               <div className='relative'>
@@ -375,7 +377,7 @@ export function General() {
                         className='size-[12px] flex-shrink-0 p-0'
                         onClick={handleUpdateName}
                         disabled={updateProfile.isPending}
-                        aria-label='Save name'
+                        aria-label={t('save_name')}
                       >
                         <Check className='size-[12px]' />
                       </Button>
@@ -387,7 +389,7 @@ export function General() {
                         variant='ghost'
                         className='size-[10.5px] flex-shrink-0 p-0'
                         onClick={() => setIsEditingName(true)}
-                        aria-label='Edit name'
+                        aria-label={t('edit_name')}
                       >
                         <Pencil className='size-[10.5px]' />
                       </Button>
@@ -401,10 +403,10 @@ export function General() {
           </div>
         </SettingsSection>
 
-        <SettingsSection label='Preferences'>
+        <SettingsSection label={t('preferences')}>
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between'>
-              <Label htmlFor='theme-select'>Theme</Label>
+              <Label htmlFor='theme-select'>{t('theme')}</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
                   align='start'
@@ -412,7 +414,7 @@ export function General() {
                   dropdownWidth='trigger'
                   value={settings?.theme}
                   onChange={handleThemeChange}
-                  placeholder='Select theme'
+                  placeholder={t('select_theme')}
                   options={[
                     { label: 'System', value: 'system' },
                     { label: 'Light', value: 'light' },
@@ -423,7 +425,7 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between gap-4'>
-              <Label>Timezone</Label>
+              <Label>{t('timezone')}</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipCombobox
                   align='start'
@@ -432,7 +434,7 @@ export function General() {
                   searchPlaceholder='Search timezones'
                   value={settings?.timezone ?? getBrowserTimezone()}
                   onChange={handleTimezoneChange}
-                  placeholder='Select timezone'
+                  placeholder={t('select_timezone')}
                   options={TIMEZONE_OPTIONS}
                 />
               </div>
@@ -440,16 +442,16 @@ export function General() {
 
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-1.5'>
-                <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+                <Label htmlFor='auto-connect'>{t('auto_connect_on_drop')}</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
-                    <p>Automatically connect blocks when dropped near each other</p>
+                    <p>{t('automatically_connect_blocks_when_dropped_near')}</p>
                     <Tooltip.Preview
                       src='/tooltips/auto-connect-on-drop.mp4'
-                      alt='Auto-connect on drop example'
+                      alt={t('auto_connect_on_drop_example')}
                       loop={true}
                     />
                   </Tooltip.Content>
@@ -464,16 +466,16 @@ export function General() {
 
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-1.5'>
-                <Label htmlFor='error-notifications'>Canvas error notifications</Label>
+                <Label htmlFor='error-notifications'>{t('canvas_error_notifications')}</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
-                    <p>Show error popups on blocks when a workflow run fails</p>
+                    <p>{t('show_error_popups_on_blocks_when')}</p>
                     <Tooltip.Preview
                       src='/tooltips/canvas-error-notification.mp4'
-                      alt='Canvas error notification example'
+                      alt={t('canvas_error_notification_example')}
                     />
                   </Tooltip.Content>
                 </Tooltip.Root>
@@ -486,7 +488,7 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between'>
-              <Label htmlFor='snap-to-grid'>Snap to grid</Label>
+              <Label htmlFor='snap-to-grid'>{t('snap_to_grid')}</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
                   align='start'
@@ -494,7 +496,7 @@ export function General() {
                   dropdownWidth='trigger'
                   value={String(snapToGridValue)}
                   onChange={handleSnapToGridChange}
-                  placeholder='Select size'
+                  placeholder={t('select_size')}
                   options={[
                     { label: 'Off', value: '0' },
                     { label: '10px', value: '10' },
@@ -508,7 +510,7 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between'>
-              <Label htmlFor='show-action-bar'>Show canvas controls</Label>
+              <Label htmlFor='show-action-bar'>{t('show_canvas_controls')}</Label>
               <Switch
                 id='show-action-bar'
                 checked={settings?.showActionBar ?? true}
@@ -517,7 +519,7 @@ export function General() {
             </div>
 
             <div className='flex items-center justify-between'>
-              <Label>Language</Label>
+              <Label>{t('language')}</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <LanguageSwitcher />
               </div>
@@ -525,7 +527,7 @@ export function General() {
 
             {isTrainingEnabled && (
               <div className='flex items-center justify-between'>
-                <Label htmlFor='training-controls'>Training controls</Label>
+                <Label htmlFor='training-controls'>{t('training_controls')}</Label>
                 <Switch
                   id='training-controls'
                   checked={settings?.showTrainingControls ?? false}
@@ -536,10 +538,10 @@ export function General() {
           </div>
         </SettingsSection>
 
-        <SettingsSection label='Privacy'>
+        <SettingsSection label={t('privacy')}>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
-              <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
+              <Label htmlFor='telemetry'>{t('allow_anonymous_telemetry')}</Label>
               <Switch
                 id='telemetry'
                 checked={settings?.telemetryEnabled ?? true}
@@ -547,8 +549,7 @@ export function General() {
               />
             </div>
             <p className='text-[var(--text-muted)] text-small'>
-              We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out
-              at any time.
+              {t('we_use_opentelemetry_to_collect_anonymous')}
             </p>
           </div>
         </SettingsSection>
@@ -560,13 +561,12 @@ export function General() {
         srTitle='Reset Password'
       >
         <ChipModalHeader onClose={() => setShowResetPasswordModal(false)}>
-          Reset Password
+          {t('reset_password_2')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            A password reset link will be sent to{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>. Click
-            the link in the email to create a new password.
+            {t('a_password_reset_link_will_be')}{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>{t('click_the_link_in_the_email')}
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>

@@ -28,6 +28,7 @@ import {
 } from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useTranslations } from 'next-intl'
 
 /** Maximum number of overlapping icon tiles rendered per template row. */
 const TEMPLATE_CLUSTER_MAX = 3 as const
@@ -44,6 +45,7 @@ interface IntegrationBlockDetailProps {
 }
 
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
+  const t = useTranslations('auto')
   useOAuthReturnRouter()
   const router = useRouter()
   const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
@@ -121,7 +123,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
-          Integrations
+          {t('integrations')}
         </ChipLink>
         <div className='ml-auto flex items-center'>
           {oauthService ? (
@@ -129,7 +131,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               <ChipDropdown
                 variant='primary'
                 leftIcon={Plus}
-                placeholder='Add to Sim'
+                placeholder={t('add_to_sim')}
                 showSelectedCheck={false}
                 options={connectOptions}
                 onChange={handleSelectConnectOption}
@@ -137,12 +139,12 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               />
             ) : (
               <Chip variant='primary' leftIcon={Plus} onClick={() => setOAuthOpen(true)}>
-                Add to Sim
+                {t('add_to_sim')}
               </Chip>
             )
           ) : (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
-              Add to Sim
+              {t('add_to_sim')}
             </Chip>
           )}
         </div>
@@ -190,7 +192,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           </div>
 
           {connectedCredentials.length > 0 && (
-            <IntegrationSection label='Connected'>
+            <IntegrationSection label={t('connected')}>
               {connectedCredentials.map((credential) => (
                 <Link
                   key={credential.id}
@@ -240,6 +242,7 @@ interface TemplatesSectionProps {
 }
 
 function TemplatesSection({ integration, templates, workspaceId }: TemplatesSectionProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleSelect = (prompt: string) => {
@@ -249,7 +252,7 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
 
   return (
     <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>Templates</span>
+      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{t('templates')}</span>
       <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
       <div className='-mx-2 flex flex-col gap-y-0.5'>
         {templates.map((template) => {

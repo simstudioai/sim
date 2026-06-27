@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { Button, ChipInput, Tooltip } from '@/components/emcn'
 import { generatePassword } from '@/lib/core/security/encryption'
+import { useTranslations } from 'next-intl'
 
 interface GeneratedPasswordInputProps {
   value: string
@@ -32,6 +33,7 @@ export function GeneratedPasswordInput({
   autoComplete = 'new-password',
   error = false,
 }: GeneratedPasswordInputProps) {
+  const t = useTranslations('auto')
   const [showPassword, setShowPassword] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
 
@@ -66,14 +68,14 @@ export function GeneratedPasswordInput({
                   variant='ghost'
                   onClick={() => onChange(generatePassword(24))}
                   disabled={disabled}
-                  aria-label='Generate password'
+                  aria-label={t('generate_password')}
                   className='!p-1.5'
                 >
                   <RefreshCw className='size-3' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>Generate</span>
+                <span>{t('generate')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
           ) : null}
@@ -84,7 +86,7 @@ export function GeneratedPasswordInput({
                 variant='ghost'
                 onClick={copyToClipboard}
                 disabled={!value || disabled}
-                aria-label='Copy password'
+                aria-label={t('copy_password')}
                 className='!p-1.5'
               >
                 {copySuccess ? <Check className='size-3' /> : <Clipboard className='size-3' />}

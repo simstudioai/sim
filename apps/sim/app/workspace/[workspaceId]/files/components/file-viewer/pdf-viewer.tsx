@@ -12,6 +12,7 @@ import 'react-pdf/dist/Page/TextLayer.css'
 import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
+import { useTranslations } from 'next-intl'
 
 /**
  * The worker runs in its own context that browser-polyfills cannot reach, so
@@ -41,9 +42,10 @@ interface PdfViewerCoreProps {
 }
 
 function PdfError({ error }: { error: string }) {
+  const t = useTranslations('auto')
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-body)]'>Failed to preview PDF</p>
+      <p className='font-medium text-[14px] text-[var(--text-body)]'>{t('failed_to_preview_pdf')}</p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>
   )

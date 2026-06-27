@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Duplicate, SquareArrowUpRight } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface NavItemContextMenuProps {
   isOpen: boolean
@@ -25,6 +26,7 @@ export function NavItemContextMenu({
   onOpenInNewTab,
   onCopyLink,
 }: NavItemContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -53,7 +55,7 @@ export function NavItemContextMenu({
           }}
         >
           <SquareArrowUpRight />
-          Open in new tab
+          {t('open_in_new_tab')}
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
@@ -62,7 +64,7 @@ export function NavItemContextMenu({
           }}
         >
           <Duplicate />
-          Copy link
+          {t('copy_link')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,109 +1,109 @@
 {
   "nav": {
-    "product": "Produkt",
-    "docs": "Dokumente",
+    "product": "Sim",
+    "docs": "Dokumentation",
     "pricing": "Preise",
     "blog": "Blog",
     "contact": "Kontakt",
     "signIn": "Anmelden",
-    "startBuilding": "Kostenlos starten",
-    "integrations": "Integrationen",
+    "startBuilding": "Bauen Sie Starten",
+    "integrations": "Integrierungen",
     "templates": "Vorlagen"
   },
   "hero": {
-    "title": "Der AI-Arbeitsbereich, in dem Teams Agenten erstellen, bereitstellen und verwalten",
-    "subtitle": "Erstellen Sie konversationell, visuell oder mit Code. Verbinden Sie über 1.000 Integrationen und jedes wichtige LLM, um echte Arbeit zu automatisieren.",
-    "cta": "Kostenlos starten",
-    "watchDemo": "Demo ansehen",
-    "trustedBy": "Vertraut von Teams bei"
+    "title": "Die AI-Benachrichtigungsbibliothek, Wo Teams Agenten Bauen, Bereitstellen und Verwalten",
+    "subtitle": "Konversationstextuell oder mit Code bauen. 1000+ integrierte Lösungen und jede major LLM automatisieren Sie realen Arbeit.",
+    "cta": "Bauen Sie Starten kostenlos",
+    "watchDemo": "Zeige Demo",
+    "trustedBy": "Geliebt von Teams bei"
   },
   "features": {
-    "title": "Alles, was Sie brauchen, um AI-Agenten zu erstellen",
-    "subtitle": "Ein Arbeitsbereich. Jede Fähigkeit. Kein Werkzeugwechsel.",
+    "title": "Alles, was Sie für die Erstellung von AI-Agenten benötigen",
+    "subtitle": "Ein Arbeitsbereich für jeden Anspruch. Keine Wechsel der Werkzeuge.",
     "chat": {
-      "title": "In Chat erstellen",
-      "description": "Beschreiben Sie, was Sie in einfacher Sprache möchten. Sim kennt Ihren gesamten Arbeitsbereich und handelt."
+      "title": "Erstelle im Chat",
+      "description": "Beschreibe, was du willst, in einfachem Sprachgebrauch. Sim kennt Ihren ganzen Arbeitsbereich und nimmt Maßnahmen vor."
     },
     "workflows": {
-      "title": "Visuelle Workflows",
-      "description": "Gestalten Sie Agenten blockweise auf einer visuellen Leinwand mit vollständiger Kontrolle über jeden Schritt."
+      "title": "Bildschirmarbeiten",
+      "description": "Entwerfe Agenten blockweise auf einem visuellen Canvas mit voller Kontrolle über jede Schritt."
     },
     "knowledge": {
-      "title": "Wissensdatenbanken",
-      "description": "Verankern Sie Agenten in Ihren Dokumenten. Laden Sie PDFs, Websites und mehr für RAG hoch."
+      "title": "Wissensbasierte",
+      "description": "Gründet Agenten in Ihren Dokumenten. Uploade PDFs, Websites und mehr für RAG."
     },
     "tables": {
       "title": "Strukturierte Tabellen",
-      "description": "Eine integrierte Datenbank. Speichern, abfragen und strukturierte Daten in Agentenabläufe einfügen."
+      "description": "Ein Datenbank gebaut in. Speichere, fragst du und verbinde strukturierte Daten in Agent-Ausführungen."
     },
     "files": {
       "title": "Dateien generieren",
-      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen aus einem einzigen Prompt."
+      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen aus einer einzigen Anfrage."
     },
     "deploy": {
-      "title": "Überall bereitstellen",
-      "description": "Versenden als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
+      "title": "Woher auch immer deployen",
+      "description": "Zu API, Chat-Widget, MCP-Dienst oder vorgeschalteter Automation schicken."
     }
   },
   "pricing": {
-    "title": "Einfache, transparente Preise",
-    "subtitle": "Kostenlos starten, skalieren, während Sie wachsen. Keine versteckten Gebühren.",
+    "title": "Einfach und transparante Gebühren",
+    "subtitle": "Frei starten, mit dem Wachsen Ihrer Organisation wachsen. Keine verborgenen Gebühren.",
     "free": {
-      "name": "Kostenlos",
+      "name": "Free",
       "price": "$0",
       "period": "/Monat",
-      "description": "Für Einzelpersonen, die AI-Automatisierung erkunden",
-      "cta": "Kostenlos starten"
+      "description": "Für Individuen, die sich mit AI-Automatisierung befasst haben",
+      "cta": "Start Frei"
     },
     "pro": {
       "name": "Pro",
       "price": "$20",
-      "period": "/Monat",
-      "description": "Für Fachleute, die Produktionsagenten erstellen",
-      "cta": "Pro starten"
+      "period": "pro/mont",
+      "description": "Für Berufe, die Produktionsagenten bauen",
+      "cta": "Start Pro"
     },
     "team": {
       "name": "Team",
       "price": "$50",
-      "period": "/platz/monat",
-      "description": "Für Teams, die an KI-Workflows zusammenarbeiten",
-      "cta": "Team starten"
+      "period": "/Stuhl pro Monat",
+      "description": "Für Teams, die sich an AI-Prozesswirren zusammenarbeiten",
+      "cta": "Start Team"
     },
     "enterprise": {
-      "name": "Unternehmen",
-      "price": "Benutzerdefiniert",
+      "name": "Enterprise",
+      "price": "Anpassung",
       "period": "",
       "description": "Für Organisationen mit fortgeschrittenen Sicherheitsanforderungen",
-      "cta": "Vertrieb kontaktieren"
+      "cta": "Kontaktiere die Vertriebsstelle"
     }
   },
   "testimonials": {
-    "title": "Von Entwicklern geliebt",
-    "subtitle": "Sehen Sie, was Teams mit Sim erstellen"
+    "title": "Verliebt in Entwickler",
+    "subtitle": "Sehen Sie, wie Teams mit Sim arbeiten"
   },
   "templates": {
-    "title": "Mit einer Vorlage beginnen",
-    "subtitle": "Vordefinierte Workflows für gängige Anwendungsfälle. In Minuten bereitstellen."
+    "title": "Starten Sie mit einer Vorlage",
+    "subtitle": "Vordefinierte Workflow-Abfolgen für häufige Anwendungsfall. Bereitstellen in Minuten."
   },
   "collaboration": {
-    "title": "Für Teams gebaut",
-    "subtitle": "An Workflows zusammenarbeiten, Wissen teilen und gemeinsam bereitstellen."
+    "title": "Für Teams optimiert",
+    "subtitle": "Arbeiten Sie zusammen an Workflows, teilen Sie Wissen und bereiten Sie gemeinsam ab."
   },
   "footer": {
     "copyright": "© 2026 Sim Technologies, Inc.",
     "product": "Produkt",
     "resources": "Ressourcen",
     "company": "Unternehmen",
-    "legal": "Rechtliches",
+    "legal": "Gesetzlich",
     "status": "Status",
-    "privacy": "Datenschutzrichtlinie",
-    "terms": "Nutzungsbedingungen"
+    "privacy": "Datenschutzerklärungen",
+    "terms": "Verträge der Nutzerbedingungen"
   },
   "faq": {
-    "title": "Häufig gestellte Fragen"
+    "title": "häufig gestellte Fragen"
   },
   "contact": {
     "title": "Kontaktieren Sie uns",
-    "subtitle": "Haben Sie Fragen? Wir sind hier, um zu helfen."
+    "subtitle": "Haben Sie Fragen? Wir stehen Ihnen gerne zur Verfügung."
   }
 }

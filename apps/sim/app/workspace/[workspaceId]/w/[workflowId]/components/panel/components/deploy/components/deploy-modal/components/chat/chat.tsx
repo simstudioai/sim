@@ -39,6 +39,7 @@ import {
   hasExistingPassword,
   isPasswordRequired,
 } from './utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ChatDeploy')
 
@@ -99,6 +100,7 @@ export function ChatDeploy({
   onDeployed,
   onVersionActivated,
 }: ChatDeployProps) {
+  const t = useTranslations('auto')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
 
@@ -333,11 +335,11 @@ export function ChatDeploy({
               htmlFor='title'
               className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
-              Title
+              {t('title')}
             </Label>
             <ChipInput
               id='title'
-              placeholder='Customer Support Assistant'
+              placeholder={t('customer_support_assistant')}
               value={formData.title}
               onChange={(e) => updateField('title', e.target.value)}
               required
@@ -350,13 +352,13 @@ export function ChatDeploy({
 
           <div>
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              Output
+              {t('output')}
             </Label>
             <OutputSelect
               workflowId={workflowId}
               selectedOutputs={formData.selectedOutputBlocks}
               onOutputSelect={(values) => updateField('selectedOutputBlocks', values)}
-              placeholder='Select which block outputs to use'
+              placeholder={t('select_which_block_outputs_to_use')}
               disabled={chatSubmitting}
               className='w-full'
             />
@@ -384,11 +386,11 @@ export function ChatDeploy({
               htmlFor='welcomeMessage'
               className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
-              Welcome message
+              {t('welcome_message')}
             </Label>
             <Textarea
               id='welcomeMessage'
-              placeholder='Enter a welcome message for your chat'
+              placeholder={t('enter_a_welcome_message_for_your')}
               value={formData.welcomeMessage}
               onChange={(e) => updateField('welcomeMessage', e.target.value)}
               rows={3}
@@ -396,7 +398,7 @@ export function ChatDeploy({
               className='min-h-[80px] resize-none'
             />
             <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-              This message will be displayed when users first open the chat
+              {t('this_message_will_be_displayed_when')}
             </p>
           </div>
 
@@ -413,7 +415,7 @@ export function ChatDeploy({
         open={showDeleteConfirmation}
         onOpenChange={setShowDeleteConfirmation}
         srTitle='Delete Chat'
-        title='Delete Chat'
+        title={t('delete_chat')}
         text={[
           'Are you sure you want to delete ',
           { text: existingChat?.title || 'this chat', bold: true },
@@ -488,6 +490,7 @@ function IdentifierInput({
   onValidationChange,
   isEditingExisting = false,
 }: IdentifierInputProps) {
+  const t = useTranslations('auto')
   const { isChecking, error, isValid } = useIdentifierValidation(
     value,
     originalIdentifier,
@@ -526,7 +529,7 @@ function IdentifierInput({
         <div className='relative flex-1'>
           <Input
             id='chat-url'
-            placeholder='my-chat'
+            placeholder={t('my_chat')}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             required
@@ -551,7 +554,7 @@ function IdentifierInput({
                   </div>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>Name is available</span>
+                  <span>{t('name_is_available')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )
@@ -562,7 +565,7 @@ function IdentifierInput({
       <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
-            Live at:{' '}
+            {t('live_at')}{' '}
             <a
               href={fullUrl}
               target='_blank'
@@ -610,6 +613,7 @@ function AuthSelector({
   hasExistingPassword = false,
   error,
 }: AuthSelectorProps) {
+  const t = useTranslations('auto')
   const [emailError, setEmailError] = useState('')
   const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
 
@@ -679,7 +683,7 @@ function AuthSelector({
     <div className='space-y-4'>
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Access control
+          {t('access_control')}
         </Label>
         <ButtonGroup
           value={authType}
@@ -697,7 +701,7 @@ function AuthSelector({
       {authType === 'password' && (
         <div>
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Password
+            {t('password')}
           </Label>
           <GeneratedPasswordInput
             value={password}
@@ -721,7 +725,7 @@ function AuthSelector({
             items={emailItems}
             onAdd={(value) => addEmail(value)}
             onRemove={handleRemoveEmailItem}
-            placeholder='Enter emails or domains (@example.com)'
+            placeholder={t('enter_emails_or_domains_example_com')}
             placeholderWithTags='Add email'
             disabled={disabled}
           />

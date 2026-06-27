@@ -13,10 +13,12 @@ import {
   Switch,
 } from '@/components/emcn'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InboxEnableToggle')
 
 export function InboxEnableToggle() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -65,9 +67,9 @@ export function InboxEnableToggle() {
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <span className='text-[13px] text-[var(--text-primary)]'>Enable email inbox</span>
+          <span className='text-[13px] text-[var(--text-primary)]'>{t('enable_email_inbox')}</span>
           <span className='text-[12px] text-[var(--text-muted)]'>
-            Allow this workspace to receive tasks via email
+            {t('allow_this_workspace_to_receive_tasks')}
           </span>
         </div>
         <Switch
@@ -78,21 +80,20 @@ export function InboxEnableToggle() {
       </div>
 
       <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
-        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>Enable email inbox</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsEnableOpen(false)}>{t('enable_email_inbox')}</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            An email address will be created for this workspace. Anyone in the allowed senders list
-            can email it to create tasks.
+            {t('an_email_address_will_be_created')}
           </p>
           <ChipModalField
             type='input'
-            title='Email prefix'
+            title={t('email_prefix')}
             value={enableUsername}
             onChange={setEnableUsername}
-            placeholder='Optional — leave blank to auto-generate'
+            placeholder={t('optional_leave_blank_to_auto_generate')}
           />
           <p className='px-2 text-[var(--text-muted)] text-sm'>
-            Leave blank for an auto-generated address.
+            {t('leave_blank_for_an_auto_generated')}
           </p>
         </ChipModalBody>
         <ChipModalFooter
@@ -109,7 +110,7 @@ export function InboxEnableToggle() {
         open={isDisableOpen}
         onOpenChange={setIsDisableOpen}
         srTitle='Disable email inbox'
-        title='Disable email inbox'
+        title={t('disable_email_inbox')}
         text={[
           'Are you sure you want to disable the inbox',
           config?.address && ' ',
@@ -124,7 +125,7 @@ export function InboxEnableToggle() {
         }}
       >
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          Your existing conversations and task history will be preserved.
+          {t('your_existing_conversations_and_task_history')}
         </p>
       </ChipConfirmModal>
     </>

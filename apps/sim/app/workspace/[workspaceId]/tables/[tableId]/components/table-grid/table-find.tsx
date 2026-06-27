@@ -4,6 +4,7 @@ import type React from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, ChipInput } from '@/components/emcn'
 import { Loader, X } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 export interface TableFindProps {
   query: string
@@ -39,6 +40,7 @@ export function TableFind({
   isDirty,
   inputRef,
 }: TableFindProps) {
+  const t = useTranslations('auto')
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -66,7 +68,7 @@ export function TableFind({
       <ChipInput
         ref={inputRef}
         value={query}
-        placeholder='Search'
+        placeholder={t('search')}
         className='w-[200px]'
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -77,8 +79,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label='Previous match'
-        title='Previous match (Shift+Enter)'
+        aria-label={t('previous_match')}
+        title={t('previous_match_shift_enter')}
         disabled={!hasMatches}
         onClick={onPrev}
       >
@@ -87,8 +89,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label='Next match'
-        title='Next match (Enter)'
+        aria-label={t('next_match')}
+        title={t('next_match_enter')}
         disabled={!hasMatches}
         onClick={onNext}
       >
@@ -97,8 +99,8 @@ export function TableFind({
       <Button
         variant='ghost'
         className='size-8 shrink-0 p-0'
-        aria-label='Close find'
-        title='Close (Esc)'
+        aria-label={t('close_find')}
+        title={t('close_esc')}
         onClick={onClose}
       >
         <X className='size-[14px] text-[var(--text-icon)]' />

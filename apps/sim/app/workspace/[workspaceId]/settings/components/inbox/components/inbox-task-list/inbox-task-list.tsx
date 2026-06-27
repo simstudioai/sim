@@ -8,6 +8,7 @@ import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
+import { useTranslations } from 'next-intl'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -32,6 +33,7 @@ const STATUS_BADGES: Record<
 }
 
 export function InboxTaskList() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -70,7 +72,7 @@ export function InboxTaskList() {
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
-          placeholder='Search tasks...'
+          placeholder={t('search_tasks')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className='min-w-0 flex-1'

@@ -21,6 +21,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 interface ShareModalProps {
   open: boolean
@@ -61,6 +62,7 @@ export function ShareModal({
   fileName,
   initialShare,
 }: ShareModalProps) {
+  const t = useTranslations('auto')
   const { data: share, isFetched } = useFileShare(workspaceId, fileId, { enabled: open })
   const { config: permissionConfig } = usePermissionConfig()
   const upsertShare = useUpsertFileShare()
@@ -201,14 +203,14 @@ export function ShareModal({
   return (
     <ChipModal open={open} onOpenChange={handleClose} size='sm' srTitle={`Share ${fileName}`}>
       <ChipModalHeader icon={Send} onClose={handleClose}>
-        Share file
+        {t('share_file')}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Access' hint={accessHint}>
+        <ChipModalField type='custom' title={t('access')} hint={accessHint}>
           <ButtonGroup
             value={effectiveMode}
             onValueChange={(value) => setDraftMode(value as AccessMode)}
-            aria-label='File access'
+            aria-label={t('file_access')}
           >
             {accessModes.map((mode) => (
               <ButtonGroupItem key={mode} value={mode}>
@@ -220,7 +222,7 @@ export function ShareModal({
         {effectiveMode === 'password' ? (
           <ChipModalField
             type='custom'
-            title='Password'
+            title={t('password')}
             hint={
               saved?.hasPassword
                 ? 'Leave blank to keep the current password.'
@@ -237,20 +239,20 @@ export function ShareModal({
         {effectiveMode === 'email' || effectiveMode === 'sso' ? (
           <ChipModalField
             type='custom'
-            title='Allowed emails'
-            hint='Add specific emails or whole domains (@example.com).'
+            title={t('allowed_emails')}
+            hint={t('add_specific_emails_or_whole_domains')}
           >
             <TagInput
               items={emailItems}
               onAdd={addEmail}
               onRemove={removeEmail}
-              placeholder='Enter emails or domains'
+              placeholder={t('enter_emails_or_domains')}
               placeholderWithTags='Add email'
             />
           </ChipModalField>
         ) : null}
         {effectiveMode !== 'private' && shareUrl ? (
-          <ChipModalField type='copy' title='Link' value={shareUrl} copyLabel='Copy link' />
+          <ChipModalField type='copy' title={t('link')} value={shareUrl} copyLabel='Copy link' />
         ) : null}
       </ChipModalBody>
       <ChipModalFooter

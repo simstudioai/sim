@@ -15,6 +15,7 @@ import {
   useOrganizationMemberUsageLimit,
   useUpdateOrganizationMemberUsageLimit,
 } from '@/hooks/queries/organization'
+import { useTranslations } from 'next-intl'
 
 export interface ManageCreditsTarget {
   userId: string
@@ -41,6 +42,7 @@ export function ManageCreditsModal({
   organizationId,
   member,
 }: ManageCreditsModalProps) {
+  const t = useTranslations('auto')
   const userId = member?.userId
   const { data, isLoading } = useOrganizationMemberUsageLimit(organizationId, userId, open)
   const updateLimit = useUpdateOrganizationMemberUsageLimit()
@@ -109,7 +111,7 @@ export function ManageCreditsModal({
           inputType='number'
           title={
             <span className='inline-flex items-center gap-1.5'>
-              Credit limit
+              {t('credit_limit')}
               <Info side='top'>
                 {
                   "Set in credits — Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
@@ -122,8 +124,8 @@ export function ManageCreditsModal({
             hasEditedRef.current = true
             setDraft(value)
           }}
-          placeholder='No limit'
-          hint='Leave blank for no limit.'
+          placeholder={t('no_limit')}
+          hint={t('leave_blank_for_no_limit')}
           disabled={isLoading || isSaving}
         />
         <ChipModalError>{error}</ChipModalError>

@@ -11,6 +11,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('RenameDocumentModal')
 
@@ -33,6 +34,7 @@ export function RenameDocumentModal({
   initialName,
   onSave,
 }: RenameDocumentModalProps) {
+  const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,17 +85,17 @@ export function RenameDocumentModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Rename Document'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Rename Document</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('rename_document')}</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField
           type='input'
-          title='Name'
+          title={t('name')}
           value={name}
           onChange={(value) => {
             setName(value)
             setError(null)
           }}
-          placeholder='Enter document name'
+          placeholder={t('enter_document_name')}
           maxLength={255}
           autoComplete='off'
           disabled={isSubmitting}

@@ -10,6 +10,7 @@ import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
 import { useAutosave } from '@/hooks/use-autosave'
+import { useTranslations } from 'next-intl'
 
 const TOKEN_BG_COLORS = [
   'rgba(239, 68, 68, 0.55)',
@@ -49,6 +50,7 @@ export function ChunkEditor({
   saveRef,
   onCreated,
 }: ChunkEditorProps) {
+  const t = useTranslations('auto')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const tokenizedScrollRef = useRef<HTMLDivElement>(null)
   const preservedScrollTopRef = useRef(0)
@@ -205,7 +207,7 @@ export function ChunkEditor({
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div
         role='group'
-        aria-label='Chunk content editor'
+        aria-label={t('chunk_content_editor')}
         className='flex min-h-0 flex-1 cursor-text overflow-hidden'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
@@ -260,7 +262,7 @@ export function ChunkEditor({
         />
         <span className='text-[var(--text-secondary)] text-caption'>
           {tokenCount.toLocaleString()}
-          {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
+          {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} {t('tokens')}
         </span>
       </div>
     </div>
@@ -276,13 +278,14 @@ const TokenizerToggle = React.memo(function TokenizerToggle({
   onCheckedChange: (value: boolean) => void
   hoveredTokenIndex: number | null
 }) {
+  const t = useTranslations('auto')
   return (
     <div className='flex items-center gap-2'>
-      <Label className='text-[var(--text-secondary)] text-caption'>Tokenizer</Label>
+      <Label className='text-[var(--text-secondary)] text-caption'>{t('tokenizer')}</Label>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
       {checked && hoveredTokenIndex !== null && (
         <span className='text-[var(--text-tertiary)] text-caption'>
-          Token #{hoveredTokenIndex + 1}
+          {t('token')}{hoveredTokenIndex + 1}
         </span>
       )}
     </div>

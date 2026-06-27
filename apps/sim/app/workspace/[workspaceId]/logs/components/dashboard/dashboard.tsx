@@ -12,6 +12,7 @@ import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { LineChart, WorkflowsList } from './components'
+import { useTranslations } from 'next-intl'
 
 interface WorkflowExecution {
   workflowId: string
@@ -67,6 +68,7 @@ function toWorkflowExecution(wf: WorkflowStats): WorkflowExecution {
 }
 
 function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps) {
+  const t = useTranslations('auto')
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
@@ -377,7 +379,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
     return (
       <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-[var(--text-error)]'>
-          <p className='font-medium text-small'>Error loading data</p>
+          <p className='font-medium text-small'>{t('error_loading_data')}</p>
           <p className='text-caption'>{error.message}</p>
         </div>
       </div>
@@ -388,8 +390,8 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
     return (
       <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-center text-[var(--text-secondary)]'>
-          <p className='font-medium text-small'>No workflows</p>
-          <p className='mt-1 text-caption'>Create a workflow to see its execution history here</p>
+          <p className='font-medium text-small'>{t('no_workflows')}</p>
+          <p className='mt-1 text-caption'>{t('create_a_workflow_to_see_its')}</p>
         </div>
       </div>
     )
@@ -402,7 +404,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
-                Runs
+                {t('runs')}
               </span>
               {globalDetails && (
                 <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
@@ -429,7 +431,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
-                Errors
+                {t('errors')}
               </span>
               {globalDetails && (
                 <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
@@ -456,7 +458,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
-                Latency
+                {t('latency')}
               </span>
               {globalDetails && (
                 <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-sm'>

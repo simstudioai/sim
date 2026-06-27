@@ -5,6 +5,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
+import { useTranslations } from 'next-intl'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4
@@ -73,6 +74,7 @@ export function ZoomablePreview({
   initialScale = 'actual',
   resetKey,
 }: ZoomablePreviewProps) {
+  const t = useTranslations('auto')
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 })
@@ -260,7 +262,7 @@ export function ZoomablePreview({
       <div
         ref={viewportRef}
         role='application'
-        aria-label='Zoomable preview'
+        aria-label={t('zoomable_preview')}
         className='relative min-h-0 flex-1 cursor-grab overflow-hidden'
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

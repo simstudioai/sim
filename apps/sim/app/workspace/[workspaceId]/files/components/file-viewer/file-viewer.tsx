@@ -28,6 +28,7 @@ import {
 import { TextEditor } from './text-editor'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 import { XlsxPreview } from './xlsx-preview'
+import { useTranslations } from 'next-intl'
 
 const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
   ssr: false,
@@ -245,6 +246,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const t = useTranslations('auto')
   const {
     data: content,
     isLoading,
@@ -252,7 +254,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   } = useWorkspaceFileContent(workspaceId, file.id, file.key)
 
   const resolvedError = resolvePreviewError((error as Error | null) ?? null, null)
-  if (resolvedError) return <PreviewError label='file' error={resolvedError} />
+  if (resolvedError) return <PreviewError label={t('file')} error={resolvedError} />
   if (isLoading || content == null) return <PreviewLoadingFrame className='h-full' tone='surface' />
 
   if (resolvePreviewType(file.type, file.name)) {
@@ -399,15 +401,16 @@ const UnsupportedPreview = memo(function UnsupportedPreview({
 }: {
   file: WorkspaceFileRecord
 }) {
+  const t = useTranslations('auto')
   const ext = getFileExtension(file.name)
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
+        {t('preview_not_available')}{ext ? ` for .${ext} files` : ' for this file'}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>
-        Use the download button to view this file
+        {t('use_the_download_button_to_view')}
       </p>
     </div>
   )

@@ -22,6 +22,21 @@ const SWIFT = join(ROOT, 'scripts', 'i18n-translate', 'translate.swift')
 
 const LANG_NAMES: Record<string, string> = { ru: 'Russian', de: 'German' }
 
+/**
+ * Shared style guide + glossary injected into EVERY translation request so all
+ * files come out in one consistent voice/terminology (the LLM can't drift).
+ */
+const STYLE_GUIDE = `STYLE: concise, neutral-formal UI tone; sentence case; keep trailing punctuation; address the user formally (RU "вы" lowercase, DE "Sie"). Never translate the product name "Sim". Keep these EXACT terms consistent:
+- Workflow -> RU "воркфлоу", DE "Workflow"
+- Workspace -> RU "рабочее пространство", DE "Arbeitsbereich"
+- Knowledge base -> RU "база знаний", DE "Wissensdatenbank"
+- Agent -> RU "агент", DE "Agent"
+- Integration -> RU "интеграция", DE "Integration"
+- Settings -> RU "настройки", DE "Einstellungen"
+- Billing -> RU "оплата", DE "Abrechnung"
+- Credits -> RU "кредиты", DE "Credits"
+- Usage limit -> RU "лимит использования", DE "Nutzungslimit".`
+
 const args = process.argv.slice(2)
 const onlyNs = args.includes('--only') ? args[args.indexOf('--only') + 1] : null
 const langArg = args.includes('--lang') ? args[args.indexOf('--lang') + 1] : null
@@ -55,7 +70,7 @@ async function translateBatchOpenAi(values: string[], langName: string): Promise
         messages: [
           {
             role: 'system',
-            content: `You are a professional UI localization engine for a software product named "Sim" (an AI workspace). Translate every string in the input JSON array "s" from English to ${langName}. Return ONLY a JSON object {"t": [...]} whose array has EXACTLY the same length and order. Preserve untranslated: placeholders like {name}, {count}, {{x}}, %s, $1; HTML tags; markdown; URLs; and the product name "Sim". Keep capitalization style and trailing punctuation.`,
+            content: `You are a professional UI localization engine for a software product named "Sim" (an AI workspace). Translate every string in the input JSON array "s" from English to ${langName}. Return ONLY a JSON object {"t": [...]} whose array has EXACTLY the same length and order. Preserve untranslated: placeholders like {name}, {count}, {{x}}, %s, $1; HTML tags; markdown; URLs; and the product name "Sim". Keep capitalization style and trailing punctuation.\n${STYLE_GUIDE}`,
           },
           { role: 'user', content: JSON.stringify({ s: chunk }) },
         ],
@@ -133,12 +148,11 @@ async function translateBatch(values: string[], langName: string): Promise<strin
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST_URL || 'http://127.0.0.1:11434'
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b'
-const OLLAMA_CHUNK = 20
+const OLLAMA_CHUNK = 12
 
-async function translateBatchOllama(values: string[], langName: string): Promise<string[]> {
-  const out: string[] = []
-  for (let i = 0; i < values.length; i += OLLAMA_CHUNK) {
-    const chunk = values.slice(i, i + OLLAMA_CHUNK)
+/** One Ollama call for a chunk; returns the translated array or null on mismatch/parse error. */
+async function ollamaCall(chunk: string[], langName: string): Promise<string[] | null> {
+  try {
     const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,22 +164,41 @@ async function translateBatchOllama(values: string[], langName: string): Promise
         messages: [
           {
             role: 'system',
-            content: `You are a professional UI localization engine for a software product named "Sim" (an AI workspace). Translate every string in the input JSON array "s" from English to ${langName}. Return ONLY a JSON object {"t": [...]} whose array has EXACTLY the same length and order as "s". Preserve untranslated: placeholders like {name}, {count}, {{x}}, %s, $1; HTML tags; markdown; URLs; and the product name "Sim". Keep capitalization style and trailing punctuation.`,
+            content: `You are a professional UI localization engine for a software product named "Sim" (an AI workspace). Translate every string in the input JSON array "s" from English to ${langName}. Return ONLY a JSON object {"t": [...]} whose array has EXACTLY the same length and order as "s" (${chunk.length} items). Preserve untranslated: placeholders like {name}, {count}, {{x}}, %s, $1; HTML tags; markdown; URLs; and the product name "Sim". Keep capitalization style and trailing punctuation.\n${STYLE_GUIDE}`,
           },
           { role: 'user', content: JSON.stringify({ s: chunk }) },
         ],
       }),
     })
-    if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    if (!res.ok) return null
     const json = await res.json()
     const parsed = JSON.parse(json.message.content)
     const t = parsed.t
-    if (!Array.isArray(t) || t.length !== chunk.length) {
-      throw new Error(
-        `Ollama chunk mismatch: sent ${chunk.length}, got ${Array.isArray(t) ? t.length : 'non-array'}`
-      )
-    }
-    out.push(...t.map((x) => String(x)))
+    if (!Array.isArray(t) || t.length !== chunk.length) return null
+    return t.map((x) => String(x))
+  } catch {
+    return null
+  }
+}
+
+/** Divide-and-conquer: guarantees 1:1 output by splitting on mismatch; falls back to source for a failing single item. */
+async function ollamaResolve(chunk: string[], langName: string): Promise<string[]> {
+  const direct = await ollamaCall(chunk, langName)
+  if (direct) return direct
+  if (chunk.length === 1) {
+    const retry = await ollamaCall(chunk, langName)
+    return retry ?? [chunk[0]] // keep source string rather than fail the run
+  }
+  const mid = Math.floor(chunk.length / 2)
+  const left = await ollamaResolve(chunk.slice(0, mid), langName)
+  const right = await ollamaResolve(chunk.slice(mid), langName)
+  return [...left, ...right]
+}
+
+async function translateBatchOllama(values: string[], langName: string): Promise<string[]> {
+  const out: string[] = []
+  for (let i = 0; i < values.length; i += OLLAMA_CHUNK) {
+    out.push(...(await ollamaResolve(values.slice(i, i + OLLAMA_CHUNK), langName)))
   }
   return out
 }

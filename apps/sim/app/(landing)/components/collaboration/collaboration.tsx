@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -90,6 +91,7 @@ function CursorArrow({ fill }: { fill: string }) {
 }
 
 function VikhyathCursor() {
+  const t = useTranslations('auto')
   return (
     <div
       aria-hidden='true'
@@ -108,7 +110,7 @@ function VikhyathCursor() {
           <CursorArrow fill='#2ABBF8' />
         </div>
         <div className='-left-[4px] absolute top-4.5 flex items-center rounded bg-[#2ABBF8] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
-          Vikhyath
+          {t('vikhyath')}
         </div>
       </div>
     </div>
@@ -116,6 +118,7 @@ function VikhyathCursor() {
 }
 
 function AlexaCursor() {
+  const t = useTranslations('auto')
   return (
     <div
       aria-hidden='true'
@@ -131,7 +134,7 @@ function AlexaCursor() {
           <CursorArrow fill='#FFCC02' />
         </div>
         <div className='absolute top-4 left-[23px] flex items-center rounded bg-[#FFCC02] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
-          Alexa
+          {t('alexa')}
         </div>
       </div>
     </div>
@@ -145,6 +148,7 @@ interface YouCursorProps {
 }
 
 function YouCursor({ x, y, visible }: YouCursorProps) {
+  const t = useTranslations('auto')
   if (!visible) return null
 
   return (
@@ -161,7 +165,7 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
         <path d={CURSOR_ARROW_MIRRORED_PATH} fill='#33C482' />
       </svg>
       <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-accent)] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
-        You
+        {t('you')}
       </div>
     </div>
   )
@@ -182,6 +186,7 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
  */
 
 export default function Collaboration() {
+  const t = useTranslations('auto')
   const headingId = useId()
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
@@ -230,28 +235,25 @@ export default function Collaboration() {
               dot
               className='bg-[color-mix(in_srgb,var(--brand-accent)_10%,transparent)] font-season text-[var(--brand-accent)] uppercase tracking-[0.02em]'
             >
-              Teams
+              {t('teams')}
             </Badge>
 
             <h2
               id={headingId}
               className='text-balance font-[430] font-season text-[32px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
             >
-              Realtime
+              {t('realtime')}
               <br />
-              collaboration
+              {t('collaboration')}
             </h2>
 
             <p className='sr-only'>
-              Sim supports real-time multiplayer collaboration. Teams build AI agents together in a
-              shared workspace with live cursors, presence indicators, and concurrent editing.
-              Features include role-based access control, shared agents and workflows, and team
-              workspace management.
+              {t('sim_supports_real_time_multiplayer_collaboration')}
             </p>
 
             <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] md:text-lg'>
-              Grab your team. Build agents together <br className='hidden md:block' />
-              in real-time inside your workspace.
+              {t('grab_your_team_build_agents_together')} <br className='hidden md:block' />
+              {t('in_real_time_inside_your_workspace')}
             </p>
 
             <AuthModal defaultView='signup' source='collaboration'>
@@ -266,7 +268,7 @@ export default function Collaboration() {
                   })
                 }
               >
-                Build together
+                {t('build_together')}
                 <svg
                   className='size-[10px] shrink-0'
                   viewBox='0 0 10 10'
@@ -301,7 +303,7 @@ export default function Collaboration() {
             <div className='md:-left-[18%] -top-[10%] absolute inset-y-0 left-[7%] min-w-full md:top-0'>
               <Image
                 src='/landing/collaboration-visual.svg'
-                alt='Collaboration visual showing teams building AI agents together with real-time editing, shared cursors, and version control'
+                alt={t('collaboration_visual_showing_teams_building_ai')}
                 width={876}
                 height={480}
                 className='h-full w-auto object-left md:min-w-[100vw]'
@@ -312,8 +314,7 @@ export default function Collaboration() {
               <AlexaCursor />
             </div>
             <figcaption className='sr-only'>
-              Sim collaboration interface with real-time cursors, shared workspace, and team
-              presence indicators
+              {t('sim_collaboration_interface_with_real_time')}
             </figcaption>
           </figure>
         </div>
@@ -335,10 +336,10 @@ export default function Collaboration() {
           </div>
           <div className='flex flex-col gap-0.5'>
             <span className='font-[430] font-season text-[#F6F6F0]/50 text-caption uppercase leading-[100%] tracking-[0.08em]'>
-              Blog
+              {t('blog')}
             </span>
             <span className='font-[430] font-season text-[#F6F6F0] text-sm leading-[125%] tracking-[0.02em]'>
-              How we built realtime collaboration
+              {t('how_we_built_realtime_collaboration')}
             </span>
           </div>
         </Link>

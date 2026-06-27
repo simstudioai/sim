@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { PillsRing } from '@/components/emcn'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
+import { useTranslations } from 'next-intl'
 
 interface GenericResourceContentProps {
   data: GenericResourceData
@@ -10,6 +11,7 @@ interface GenericResourceContentProps {
 
 // TODO: Emir — replace with rich UI (status icons, collapsible result cards, copy-to-clipboard, etc.)
 export function GenericResourceContent({ data }: GenericResourceContentProps) {
+  const t = useTranslations('auto')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
   if (data.entries.length === 0) {
     return (
       <div className='flex h-full items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No results yet</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_results_yet')}</p>
       </div>
     )
   }
@@ -43,13 +45,13 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
               {entry.displayTitle}
             </span>
             {entry.status === 'error' && (
-              <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>
+              <span className='ml-auto text-[12px] text-[var(--text-error)]'>{t('error')}</span>
             )}
             {entry.status === 'skipped' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Skipped</span>
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>{t('skipped')}</span>
             )}
             {entry.status === 'rejected' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Rejected</span>
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>{t('rejected')}</span>
             )}
           </div>
           {entry.streamingArgs && (

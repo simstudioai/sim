@@ -10,6 +10,7 @@ import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
+import { useTranslations } from 'next-intl'
 
 export type CellRenderKind =
   // Workflow-output cells
@@ -233,6 +234,7 @@ interface CellRenderProps {
 }
 
 export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+  const t = useTranslations('auto')
   const valueText = kind.kind === 'value' ? kind.text : null
   const revealedValueText = useTypewriter(valueText)
 
@@ -282,7 +284,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <Wrap isEditing={isEditing}>
           <Badge variant='gray' dot size='sm'>
-            Queued
+            {t('queued')}
           </Badge>
         </Wrap>
       )
@@ -294,12 +296,12 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             <Tooltip.Trigger asChild>
               <span>
                 <Badge variant='gray' dot size='sm'>
-                  Waiting
+                  {t('waiting')}
                 </Badge>
               </span>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              Waiting on {kind.labels.map((l) => `"${l}"`).join(', ')}
+              {t('waiting_on')} {kind.labels.map((l) => `"${l}"`).join(', ')}
             </Tooltip.Content>
           </Tooltip.Root>
         </Wrap>
@@ -393,7 +395,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <Wrap isEditing={isEditing}>
           <Badge variant='gray' dot size='sm'>
-            Not found
+            {t('not_found')}
           </Badge>
         </Wrap>
       )
@@ -402,7 +404,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <Wrap isEditing={isEditing}>
           <Badge variant='gray' dot size='sm'>
-            No output
+            {t('no_output')}
           </Badge>
         </Wrap>
       )

@@ -15,6 +15,7 @@ import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InviteById')
 
@@ -161,6 +162,7 @@ function codeFromApiClientError(error: ApiClientError): string {
 }
 
 export default function Invite() {
+  const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams()
   const inviteId = params.id as string
@@ -275,7 +277,7 @@ export default function Invite() {
       <InviteLayout>
         <InviteStatusCard
           type='login'
-          title="You've been invited!"
+          title={t('you_ve_been_invited')}
           description={
             isNewUser
               ? 'Create an account to join this workspace on Sim'
@@ -321,7 +323,7 @@ export default function Invite() {
   if (isLoading || isPending) {
     return (
       <InviteLayout>
-        <InviteStatusCard type='loading' title='' description='Loading invitation...' />
+        <InviteStatusCard type='loading' title='' description={t('loading_invitation')} />
       </InviteLayout>
     )
   }
@@ -334,7 +336,7 @@ export default function Invite() {
         <InviteLayout>
           <InviteStatusCard
             type='warning'
-            title='Wrong Account'
+            title={t('wrong_account')}
             description={error.message}
             icon='userPlus'
             actions={[
@@ -357,7 +359,7 @@ export default function Invite() {
         <InviteLayout>
           <InviteStatusCard
             type='warning'
-            title='Already Part of a Team'
+            title={t('already_part_of_a_team')}
             description={error.message}
             icon='users'
             actions={[
@@ -374,7 +376,7 @@ export default function Invite() {
         <InviteLayout>
           <InviteStatusCard
             type='warning'
-            title='Authentication Required'
+            title={t('authentication_required')}
             description={error.message}
             icon='userPlus'
             actions={[
@@ -403,7 +405,7 @@ export default function Invite() {
       <InviteLayout>
         <InviteStatusCard
           type='error'
-          title='Invitation Error'
+          title={t('invitation_error')}
           description={error.message}
           icon='error'
           isExpiredError={error.code === 'expired'}
@@ -423,7 +425,7 @@ export default function Invite() {
       <InviteLayout>
         <InviteStatusCard
           type='success'
-          title='Welcome!'
+          title={t('welcome')}
           description={`You have successfully joined ${displayName}. Redirecting...`}
           icon='success'
           actions={[{ label: 'Return to Home', onClick: () => router.push('/') }]}

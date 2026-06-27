@@ -51,6 +51,7 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Document')
 
@@ -63,12 +64,13 @@ interface UnsavedChangesModalProps {
 }
 
 function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesModalProps) {
+  const t = useTranslations('auto')
   return (
     <ChipConfirmModal
       open={open}
       onOpenChange={onOpenChange}
       srTitle='Unsaved Changes'
-      title='Unsaved Changes'
+      title={t('unsaved_changes')}
       text='You have unsaved changes. Are you sure you want to discard them?'
       dismissLabel='Keep editing'
       confirm={{ label: 'Discard Changes', onClick: onDiscard }}
@@ -124,6 +126,7 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams()
   const router = useRouter()
   const [{ page: currentPageFromURL, chunk: chunkFromURL }, setDocumentParams] = useQueryStates(
@@ -601,7 +604,7 @@ export function Document({
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('status')}</span>
           <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },
@@ -632,7 +635,7 @@ export function Document({
             }}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
-            Clear all filters
+            {t('clear_all_filters')}
           </button>
         )}
       </div>
@@ -1103,7 +1106,7 @@ export function Document({
         <Resource>
           <Resource.Header icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
-            <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
+            <span className='text-[var(--text-muted)] text-sm'>{t('loading_chunk')}</span>
           </div>
         </Resource>
       )
@@ -1203,7 +1206,7 @@ export function Document({
         open={showDeleteDocumentDialog}
         onOpenChange={setShowDeleteDocumentDialog}
         srTitle='Delete Document'
-        title='Delete Document'
+        title={t('delete_document')}
         text={[
           'Are you sure you want to delete ',
           { text: effectiveDocumentName, bold: true },

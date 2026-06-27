@@ -26,6 +26,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
+import { useTranslations } from 'next-intl'
 
 interface DocumentTag {
   id: string
@@ -64,6 +65,7 @@ export function DocumentTagEntry({
   previewValue,
   previewContextValues,
 }: DocumentTagEntryProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -218,7 +220,7 @@ export function DocumentTagEntry({
     const tagCount = tags.filter((t) => t.tagName?.trim()).length
     return (
       <div className='space-y-1'>
-        <Label className='font-medium text-muted-foreground text-xs'>Document Tags</Label>
+        <Label className='font-medium text-muted-foreground text-xs'>{t('document_tags')}</Label>
         <div className='text-muted-foreground text-sm'>
           {tagCount > 0 ? `${tagCount} tag(s) configured` : 'No tags'}
         </div>
@@ -231,10 +233,10 @@ export function DocumentTagEntry({
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
           <p className='font-medium text-[var(--text-secondary)] text-sm'>
-            No tags defined for this knowledge base
+            {t('no_tags_defined_for_this_knowledge')}
           </p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
-            Define tags at the knowledge base level first
+            {t('define_tags_at_the_knowledge_base')}
           </p>
         </div>
       </div>
@@ -278,7 +280,7 @@ export function DocumentTagEntry({
           className='h-auto p-0'
         >
           <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Tag</span>
+          <span className='sr-only'>{t('add_tag')}</span>
         </Button>
         <Button
           variant='ghost'
@@ -287,7 +289,7 @@ export function DocumentTagEntry({
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Tag</span>
+          <span className='sr-only'>{t('delete_tag')}</span>
         </Button>
       </div>
     </div>
@@ -394,18 +396,18 @@ export function DocumentTagEntry({
     return (
       <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>Tag</Label>
+          <Label className='text-small'>{t('tag')}</Label>
           <Combobox
             options={tagOptions}
             value={tag.tagName}
             onChange={(value) => updateTag(tag.id, 'tagName', value)}
             disabled={isReadOnly || isLoading}
-            placeholder='Select tag'
+            placeholder={t('select_tag')}
           />
         </div>
 
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>Value</Label>
+          <Label className='text-small'>{t('value')}</Label>
           {renderValueInput(tag)}
         </div>
       </div>

@@ -23,6 +23,7 @@ import {
   Trash,
   Unlock,
 } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface ContextMenuProps {
   isOpen: boolean
@@ -119,6 +120,7 @@ export function ContextMenu({
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
+  const t = useTranslations('auto')
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasStatusSection =
     (showMarkAsRead && onMarkAsRead) ||
@@ -162,7 +164,7 @@ export function ContextMenu({
             }}
           >
             <SquareArrowUpRight />
-            Open in new tab
+            {t('open_in_new_tab')}
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
@@ -178,7 +180,7 @@ export function ContextMenu({
             }}
           >
             <Eye />
-            Mark as read
+            {t('mark_as_read')}
           </DropdownMenuItem>
         )}
         {showMarkAsUnread && onMarkAsUnread && (
@@ -190,7 +192,7 @@ export function ContextMenu({
             }}
           >
             <Mail />
-            Mark as unread
+            {t('mark_as_unread')}
           </DropdownMenuItem>
         )}
         {showPin && onTogglePin && (
@@ -215,7 +217,7 @@ export function ContextMenu({
             }}
           >
             <Pencil />
-            Rename
+            {t('rename')}
           </DropdownMenuItem>
         )}
         {showCreate && onCreate && (
@@ -227,7 +229,7 @@ export function ContextMenu({
             }}
           >
             <Plus />
-            Create workflow
+            {t('create_workflow')}
           </DropdownMenuItem>
         )}
         {showCreateFolder && onCreateFolder && (
@@ -239,7 +241,7 @@ export function ContextMenu({
             }}
           >
             <FolderPlus />
-            Create folder
+            {t('create_folder')}
           </DropdownMenuItem>
         )}
         {showUploadLogo && onUploadLogo && (
@@ -251,7 +253,7 @@ export function ContextMenu({
             }}
           >
             <ImageUp />
-            Upload logo
+            {t('upload_logo')}
           </DropdownMenuItem>
         )}
         {showLock && onToggleLock && (
@@ -277,7 +279,7 @@ export function ContextMenu({
             }}
           >
             <Duplicate />
-            Duplicate
+            {t('duplicate')}
           </DropdownMenuItem>
         )}
         {showExport && onExport && (
@@ -289,7 +291,7 @@ export function ContextMenu({
             }}
           >
             <Download />
-            Export
+            {t('export')}
           </DropdownMenuItem>
         )}
 
@@ -304,7 +306,7 @@ export function ContextMenu({
             }}
           >
             <LogOut />
-            Leave
+            {t('leave')}
           </DropdownMenuItem>
         )}
         {showDelete && (
@@ -316,7 +318,7 @@ export function ContextMenu({
             }}
           >
             <Trash />
-            Delete
+            {t('delete')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

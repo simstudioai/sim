@@ -9,6 +9,7 @@ import {
   extractSkillFromZip,
   parseSkillMarkdown,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
+import { useTranslations } from 'next-intl'
 
 interface ImportedSkill {
   name: string
@@ -30,6 +31,7 @@ function isAcceptedFile(file: File): boolean {
 }
 
 export function SkillImport({ onImport }: SkillImportProps) {
+  const t = useTranslations('auto')
   const [githubUrl, setGithubUrl] = useState('')
   const [githubState, setGithubState] = useState<ImportState>('idle')
   const [githubError, setGithubError] = useState('')
@@ -107,10 +109,10 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
   return (
     <div className='flex flex-col gap-4'>
-      <ChipModalField type='custom' title='Import from GitHub' error={githubError || undefined}>
+      <ChipModalField type='custom' title={t('import_from_github')} error={githubError || undefined}>
         <div className='flex gap-2'>
           <ChipInput
-            placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
+            placeholder={t('https_github_com_owner_repo_blob')}
             value={githubUrl}
             onChange={(e) => {
               setGithubUrl(e.target.value)
@@ -133,12 +135,12 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
       <ChipModalField
         type='file'
-        title='Upload File'
+        title={t('upload_file')}
         accept='.md,.zip'
         onChange={handleFiles}
         loading={fileState === 'loading'}
         label={fileState === 'loading' ? 'Importing…' : undefined}
-        description='.md file with YAML frontmatter, or .zip containing a SKILL.md'
+        description={t('md_file_with_yaml_frontmatter_or')}
         error={fileError || undefined}
       />
     </div>
@@ -146,10 +148,11 @@ export function SkillImport({ onImport }: SkillImportProps) {
 }
 
 function ImportDivider() {
+  const t = useTranslations('auto')
   return (
     <div className='flex items-center gap-3 px-2'>
       <div className='h-px flex-1 bg-[var(--border)]' />
-      <span className='text-[11px] text-[var(--text-muted)]'>or</span>
+      <span className='text-[11px] text-[var(--text-muted)]'>{t('or')}</span>
       <div className='h-px flex-1 bg-[var(--border)]' />
     </div>
   )

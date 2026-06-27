@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/api-keys'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from './components'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ApiKeys')
 
@@ -41,10 +42,11 @@ interface ApiKeyRowMenuProps {
  * Teammates row menu so the settings experience is consistent.
  */
 function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
+  const t = useTranslations('auto')
   return (
     <div className='flex-shrink-0'>
       <RowActionsMenu
-        label='API key actions'
+        label={t('api_key_actions')}
         actions={[
           { label: 'Copy name', onSelect: () => copyKeyName(keyName) },
           { label: 'Delete', destructive: true, disabled: !canDelete, onSelect: onDelete },
@@ -55,6 +57,7 @@ function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuPro
 }
 
 export function ApiKeys() {
+  const t = useTranslations('auto')
   const { data: session } = useSession()
   const userId = session?.user?.id
   const params = useParams()
@@ -150,18 +153,18 @@ export function ApiKeys() {
             }}
             disabled={createButtonDisabled}
           >
-            Create API Key
+            {t('create_api_key')}
           </Chip>
         }
       >
         {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>{t('click_create_api_key_above_to')}</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
             {!searchTerm.trim() ? (
-              <SettingsSection label='Workspace'>
+              <SettingsSection label={t('workspace')}>
                 {workspaceKeys.length === 0 ? (
-                  <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
+                  <div className='text-[var(--text-muted)] text-sm'>{t('no_workspace_api_keys_yet')}</div>
                 ) : (
                   <div className='flex flex-col gap-2'>
                     {workspaceKeys.map((key) => (
@@ -172,7 +175,7 @@ export function ApiKeys() {
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
-                              (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                              {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
                           <p className='truncate text-[12px] text-[var(--text-muted)]'>
@@ -193,7 +196,7 @@ export function ApiKeys() {
                 )}
               </SettingsSection>
             ) : filteredWorkspaceKeys.length > 0 ? (
-              <SettingsSection label='Workspace'>
+              <SettingsSection label={t('workspace')}>
                 <div className='flex flex-col gap-2'>
                   {filteredWorkspaceKeys.map(({ key }) => (
                     <div key={key.id} className='flex items-center justify-between gap-3'>
@@ -203,7 +206,7 @@ export function ApiKeys() {
                             {key.name}
                           </span>
                           <span className='text-[var(--text-secondary)] text-sm'>
-                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                            {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
                         <p className='truncate text-[12px] text-[var(--text-muted)]'>
@@ -225,7 +228,7 @@ export function ApiKeys() {
             ) : null}
 
             {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
-              <SettingsSection label='Personal'>
+              <SettingsSection label={t('personal')}>
                 <div className='flex flex-col gap-2'>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflicts.includes(key.name)
@@ -238,7 +241,7 @@ export function ApiKeys() {
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
-                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                                {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
                             <p className='truncate text-[12px] text-[var(--text-muted)]'>
@@ -255,8 +258,7 @@ export function ApiKeys() {
                         </div>
                         {isConflict && (
                           <div className='text-[var(--text-error)] text-small leading-tight'>
-                            Workspace API key with the same name overrides this. Rename your
-                            personal key to use it.
+                            {t('workspace_api_key_with_the_same')}
                           </div>
                         )}
                       </div>
@@ -271,7 +273,7 @@ export function ApiKeys() {
               filteredWorkspaceKeys.length === 0 &&
               (personalKeys.length > 0 || workspaceKeys.length > 0) && (
                 <SettingsEmptyState variant='inline'>
-                  No API keys found matching "{searchTerm}"
+                  {t('no_api_keys_found_matching')}{searchTerm}"
                 </SettingsEmptyState>
               )}
           </div>
@@ -279,11 +281,11 @@ export function ApiKeys() {
 
         {!isLoading && canManageWorkspaceKeys && (
           <Tooltip.Provider delayDuration={150}>
-            <SettingsSection label='Permissions'>
+            <SettingsSection label={t('permissions')}>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                   <span className='text-[14px] text-[var(--text-body)]'>
-                    Allow personal API keys
+                    {t('allow_personal_api_keys')}
                   </span>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -295,8 +297,7 @@ export function ApiKeys() {
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      Allow collaborators to create and use their own keys with billing charged to
-                      them.
+                      {t('allow_collaborators_to_create_and_use')}
                     </Tooltip.Content>
                   </Tooltip.Root>
                 </div>
@@ -341,7 +342,7 @@ export function ApiKeys() {
           }
         }}
         srTitle='Delete API key'
-        title='Delete API key'
+        title={t('delete_api_key')}
         text={[
           'Deleting ',
           { text: deleteKey?.name ?? 'this key', bold: true },

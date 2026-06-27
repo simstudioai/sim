@@ -42,6 +42,7 @@ import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useTranslations } from 'next-intl'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -57,6 +58,7 @@ interface WorkflowItemProps {
  * @returns Workflow item with drag and selection support
  */
 export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
+  const t = useTranslations('auto')
   const { isAnyDragActive, dragDisabled, onWorkflowClick, onItemDragStart, onItemDragEnd } =
     useSidebarListContext()
   const params = useParams()
@@ -446,7 +448,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
             {workflow.locked && (
               <span
                 role='img'
-                aria-label='Workflow is locked'
+                aria-label={t('workflow_is_locked')}
                 className={clsx(
                   'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
                   !isAnyDragActive && 'group-hover:opacity-0',
@@ -458,7 +460,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
             )}
             <button
               type='button'
-              aria-label='Workflow options'
+              aria-label={t('workflow_options')}
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(

@@ -29,6 +29,7 @@ import { captureClientEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LoginForm')
 
@@ -86,6 +87,7 @@ export default function LoginPage({
   microsoftAvailable: boolean
   isProduction: boolean
 }) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -347,10 +349,10 @@ export default function LoginPage({
     <>
       <div className='space-y-1 text-center'>
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          Sign in
+          {t('sign_in')}
         </h1>
         <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          Enter your details
+          {t('enter_your_details')}
         </p>
       </div>
 
@@ -367,12 +369,12 @@ export default function LoginPage({
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='email'>{t('email')}</Label>
               </div>
               <Input
                 id='email'
                 name='email'
-                placeholder='Enter your email'
+                placeholder={t('enter_your_email')}
                 required
                 autoCapitalize='none'
                 autoComplete='email'
@@ -395,13 +397,13 @@ export default function LoginPage({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>Password</Label>
+                <Label htmlFor='password'>{t('password')}</Label>
                 <button
                   type='button'
                   onClick={() => setForgotPasswordOpen(true)}
                   className='font-medium text-[var(--landing-text-muted)] text-xs transition hover:text-[var(--landing-text)]'
                 >
-                  Forgot password?
+                  {t('forgot_password')}
                 </button>
               </div>
               <div className='relative'>
@@ -413,7 +415,7 @@ export default function LoginPage({
                   autoCapitalize='none'
                   autoComplete='current-password'
                   autoCorrect='off'
-                  placeholder='Enter your password'
+                  placeholder={t('enter_your_password')}
                   value={password}
                   onChange={handlePasswordChange}
                   className={cn(
@@ -458,7 +460,7 @@ export default function LoginPage({
             {isLoading ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
-                Signing in…
+                {t('signing_in')}
               </span>
             ) : (
               'Sign in'
@@ -475,7 +477,7 @@ export default function LoginPage({
           </div>
           <div className='relative flex justify-center text-sm'>
             <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
-              Or continue with
+              {t('or_continue_with')}
             </span>
           </div>
         </div>
@@ -500,34 +502,34 @@ export default function LoginPage({
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
         <div className='pt-6 text-center font-light text-[14px]'>
-          <span className='font-normal'>Don't have an account? </span>
+          <span className='font-normal'>{t('don_t_have_an_account')} </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
             className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
           >
-            Sign up
+            {t('sign_up')}
           </Link>
         </div>
       )}
 
       <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] text-[var(--landing-text-muted)] leading-relaxed sm:px-8 md:px-11'>
-        By signing in, you agree to our{' '}
+        {t('by_signing_in_you_agree_to')}{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
           className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
-          Terms of Service
+          {t('terms_of_service')}
         </Link>{' '}
-        and{' '}
+        {t('and')}{' '}
         <Link
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
           className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
-          Privacy Policy
+          {t('privacy_policy')}
         </Link>
       </div>
 
@@ -537,23 +539,22 @@ export default function LoginPage({
         srTitle='Reset Password'
       >
         <ChipModalHeader onClose={() => setForgotPasswordOpen(false)}>
-          Reset Password
+          {t('reset_password')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Enter your email address and we'll send you a link to reset your password if your
-            account exists.
+            {t('enter_your_email_address_and_we')}
           </p>
           <ChipModalField
             type='email'
-            title='Email'
+            title={t('email')}
             value={forgotPasswordEmail}
             onChange={(value) => setForgotPasswordEmail(value)}
             onSubmit={() => {
               if (!isSubmittingReset) void handleForgotPassword()
             }}
             required
-            placeholder='you@example.com'
+            placeholder={t('you_example_com')}
           />
           {resetStatus.type === 'success' && (
             <p className='px-2 text-[var(--text-secondary)] text-sm'>{resetStatus.message}</p>

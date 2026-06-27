@@ -18,6 +18,7 @@ import {
 import { Download, Link, Trash } from '@/components/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
+import { useTranslations } from 'next-intl'
 
 interface FileRowContextMenuProps {
   isOpen: boolean
@@ -48,6 +49,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   canEdit,
   selectedCount,
 }: FileRowContextMenuProps) {
+  const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
   return (
@@ -69,7 +71,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         {!isMultiSelect && (
           <DropdownMenuItem onSelect={onOpen}>
             <Eye />
-            Open
+            {t('open')}
           </DropdownMenuItem>
         )}
         {onDownload && (
@@ -84,13 +86,13 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             {!isMultiSelect && (
               <DropdownMenuItem onSelect={onRename}>
                 <Pencil />
-                Rename
+                {t('rename')}
               </DropdownMenuItem>
             )}
             {!isMultiSelect && onShare && (
               <DropdownMenuItem onSelect={onShare}>
                 <Link />
-                Share
+                {t('share')}
               </DropdownMenuItem>
             )}
             {onMove && moveOptions && moveOptions.length > 0 && (

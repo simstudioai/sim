@@ -6,25 +6,27 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button, buttonVariants } from '@/components/emcn'
 import { ArrowLeft, Home } from '@/components/emcn/icons'
 import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 export default function WorkspaceNotFound() {
+  const t = useTranslations('auto')
   const router = useRouter()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
   const homeHref = workspaceId ? `/workspace/${workspaceId}/home` : '/'
 
   return (
     <ErrorShell
-      title='Page not found'
-      description="The page you're looking for doesn't exist or has been moved. Head back to your workspace to keep building."
+      title={t('page_not_found')}
+      description={t('the_page_you_re_looking_for')}
       icon={<Compass className='size-[22px]' strokeWidth={1.55} />}
     >
       <Button variant='default' size='md' onClick={() => router.back()}>
         <ArrowLeft className='mr-1.5 size-[14px]' />
-        Go back
+        {t('go_back')}
       </Button>
       <Link href={homeHref} className={buttonVariants({ variant: 'primary', size: 'md' })}>
         <Home className='mr-1.5 size-[14px]' />
-        Return home
+        {t('return_home')}
       </Link>
     </ErrorShell>
   )

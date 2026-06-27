@@ -5,6 +5,7 @@ import type {
   BYOKManagerKey,
   BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
+import { useTranslations } from 'next-intl'
 
 interface BYOKProviderKeysModalProps {
   open: boolean
@@ -35,6 +36,7 @@ export function BYOKProviderKeysModal({
   onUpdateKey,
   onDeleteKey,
 }: BYOKProviderKeysModalProps) {
+  const t = useTranslations('auto')
   const close = () => onOpenChange(false)
   const atCapacity = keys.length >= maxKeys
 
@@ -43,8 +45,7 @@ export function BYOKProviderKeysModal({
       <ChipModalHeader onClose={close}>{provider && `${provider.name} API Keys`}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          Requests are distributed evenly across these keys. Your keys are encrypted and stored
-          securely.
+          {t('requests_are_distributed_evenly_across_these')}
         </p>
         <div className='flex flex-col gap-2 px-2'>
           {keys.map((key) => (
@@ -58,15 +59,15 @@ export function BYOKProviderKeysModal({
                 </span>
               </div>
               <div className='flex flex-shrink-0 items-center gap-2'>
-                <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
-                <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
+                <Chip onClick={() => onUpdateKey(key)}>{t('update')}</Chip>
+                <Chip onClick={() => onDeleteKey(key)}>{t('delete')}</Chip>
               </div>
             </div>
           ))}
         </div>
         {atCapacity && (
           <p className='px-2 text-[12px] text-[var(--text-muted)]'>
-            Key limit reached ({maxKeys} keys per provider).
+            {t('key_limit_reached')}{maxKeys} {t('keys_per_provider')}
           </p>
         )}
       </ChipModalBody>

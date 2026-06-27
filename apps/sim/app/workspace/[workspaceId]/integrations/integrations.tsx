@@ -34,6 +34,7 @@ import {
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
+import { useTranslations } from 'next-intl'
 
 /** Debounce window for `search` URL writes; the input itself stays instant. */
 const SEARCH_DEBOUNCE_MS = 300 as const
@@ -135,6 +136,7 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -296,7 +298,7 @@ export function Integrations() {
             <ChipInput
               icon={Search}
               className='min-w-0 flex-1'
-              placeholder='Search integrations...'
+              placeholder={t('search_integrations')}
               value={urlSearchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={credentialsLoading}

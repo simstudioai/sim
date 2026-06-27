@@ -21,6 +21,7 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useTranslations } from 'next-intl'
 
 export interface OptionsItemData {
   title: string
@@ -400,6 +401,7 @@ export function SpecialTags({
  * Renders a "Thinking" shimmer while a special tag is still streaming in.
  */
 export function PendingTagIndicator() {
+  const t = useTranslations('auto')
   return (
     <div className='flex animate-stream-fade-in items-center gap-2 py-2'>
       <div className='grid size-[16px] grid-cols-2 gap-[1.5px]'>
@@ -411,7 +413,7 @@ export function PendingTagIndicator() {
           />
         ))}
       </div>
-      <span className='text-[var(--text-body)] text-sm'>Thinking…</span>
+      <span className='text-[var(--text-body)] text-sm'>{t('thinking')}</span>
     </div>
   )
 }
@@ -422,6 +424,7 @@ interface OptionsDisplayProps {
 }
 
 function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
+  const t = useTranslations('auto')
   const disabled = !onSelect
   const [collapsedByUser, setCollapsedByUser] = useState(false)
   // When interactive (not disabled), always expanded. When disabled, the user can toggle.
@@ -439,7 +442,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
-          <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+          <span className='text-[var(--text-body)] text-sm'>{t('suggested_follow_ups')}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -448,7 +451,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           />
         </button>
       ) : (
-        <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+        <span className='text-[var(--text-body)] text-sm'>{t('suggested_follow_ups')}</span>
       )}
       <Expandable expanded={expanded}>
         <ExpandableContent className='mt-1.5'>
@@ -620,6 +623,7 @@ const LockIcon = (props: { className?: string }) => (
 )
 
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
+  const t = useTranslations('auto')
   if (data.type === 'link') {
     if (!data.provider) return null
     const Icon = getCredentialIcon(data.provider) ?? LockIcon
@@ -631,7 +635,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
         className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
       >
         {createElement(Icon, { className: 'size-[16px] shrink-0' })}
-        <span className='flex-1 text-[var(--text-body)] text-sm'>Connect {data.provider}</span>
+        <span className='flex-1 text-[var(--text-body)] text-sm'>{t('connect')} {data.provider}</span>
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       </a>
     )
@@ -651,6 +655,7 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const settingsPath = `/workspace/${workspaceId}/settings/billing`
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
@@ -674,7 +679,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
         <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
-          Usage Limit Reached
+          {t('usage_limit_reached')}
         </span>
       </div>
       <p className='mt-1.5 text-amber-700/90 text-small leading-[20px] dark:text-amber-400/80'>

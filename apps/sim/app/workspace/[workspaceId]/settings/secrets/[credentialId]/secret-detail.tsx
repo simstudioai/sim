@@ -16,6 +16,7 @@ import {
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import { useTranslations } from 'next-intl'
 
 interface SecretDetailProps {
   workspaceId: string
@@ -23,6 +24,7 @@ interface SecretDetailProps {
 }
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
+  const t = useTranslations('auto')
   const secretsHref = `/workspace/${workspaceId}/settings/secrets`
 
   const { data: credential = null, isPending } = useWorkspaceCredential(credentialId)
@@ -36,7 +38,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
 
   const back = (
     <ChipLink href={secretsHref} onClick={guard.handleBackClick} leftIcon={ArrowLeft}>
-      Secrets
+      {t('secrets')}
     </ChipLink>
   )
 
@@ -47,7 +49,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
       <>
         {isAdmin && !isPersonal && (
           <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-            Share
+            {t('share')}
           </Chip>
         )}
         {canEditValue && (
@@ -61,7 +63,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (isPending && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('loading')}</p>
       </CredentialDetailLayout>
     )
   }
@@ -69,7 +71,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Secret not found.</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('secret_not_found')}</p>
       </CredentialDetailLayout>
     )
   }
@@ -89,18 +91,18 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           }
         />
 
-        <DetailSection title='Key'>
+        <DetailSection title={t('key')}>
           <ChipCopyInput value={credential.envKey || ''} copyLabel='Copy key' />
         </DetailSection>
 
-        <DetailSection title='Value'>
+        <DetailSection title={t('value')}>
           <SecretValueField
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}
             unmasked={valueField.isConflicted}
             readOnly={valueField.isConflicted}
-            placeholder='Enter value'
+            placeholder={t('enter_value')}
           />
         </DetailSection>
 

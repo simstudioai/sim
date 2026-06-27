@@ -50,6 +50,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('Tables')
 
@@ -66,6 +67,7 @@ const COLUMNS: ResourceColumn[] = [
 ]
 
 export function Tables() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -339,7 +341,7 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('row_count')}</span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -359,7 +361,7 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>{t('owner')}</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -385,7 +387,7 @@ export function Tables() {
             }}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
-            Clear all filters
+            {t('clear_all_filters')}
           </button>
         )}
       </div>
@@ -632,7 +634,7 @@ export function Tables() {
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
           icon={TableIcon}
-          title='Tables'
+          title={t('tables')}
           actions={headerActions}
           aside={headerAside}
         />
@@ -715,7 +717,7 @@ export function Tables() {
           if (!open) setActiveTable(null)
         }}
         srTitle='Delete Table'
-        title='Delete Table'
+        title={t('delete_table')}
         text={[
           'Are you sure you want to delete ',
           { text: activeTable?.name ?? 'this table', bold: true },

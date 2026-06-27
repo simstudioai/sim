@@ -52,6 +52,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -65,6 +66,7 @@ function creditLabel(credits: number, dollars: number): string {
 
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
+  const t = useTranslations('auto')
     const contentRef = useRef<HTMLDivElement>(null)
     const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
@@ -153,7 +155,7 @@ export const WorkflowOutputSection = memo(
                     <Search className='size-[10px]' />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Search</Tooltip.Content>
+                <Tooltip.Content side='top'>{t('search')}</Tooltip.Content>
               </Tooltip.Root>
             </div>
           )}
@@ -171,7 +173,7 @@ export const WorkflowOutputSection = memo(
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Search...'
+              placeholder={t('search_2')}
               className='mr-0.5 w-[94px]'
             />
             <span
@@ -187,7 +189,7 @@ export const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToPreviousMatch}
               disabled={matchCount === 0}
-              aria-label='Previous match'
+              aria-label={t('previous_match')}
             >
               <ArrowUp className='size-[12px]' />
             </Button>
@@ -196,7 +198,7 @@ export const WorkflowOutputSection = memo(
               className='!p-1'
               onClick={goToNextMatch}
               disabled={matchCount === 0}
-              aria-label='Next match'
+              aria-label={t('next_match')}
             >
               <ArrowDown className='size-[12px]' />
             </Button>
@@ -204,7 +206,7 @@ export const WorkflowOutputSection = memo(
               variant='ghost'
               className='!p-1'
               onClick={closeSearch}
-              aria-label='Close search'
+              aria-label={t('close_search')}
             >
               <X className='size-[12px]' />
             </Button>
@@ -241,12 +243,12 @@ export const WorkflowOutputSection = memo(
               >
                 <DropdownMenuItem onSelect={handleCopy}>
                   <Duplicate />
-                  Copy
+                  {t('copy')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleSearch}>
                   <SearchIcon />
-                  Search
+                  {t('search')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>,
@@ -266,6 +268,7 @@ interface LogDetailsContentProps {
 }
 
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
+  const t = useTranslations('auto')
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
     ...logDetailsTabParam.parser,
@@ -402,7 +405,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
                 <div className='flex min-w-0 flex-col gap-0.5'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Timestamp
+                    {t('timestamp')}
                   </span>
                   <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
                     {formattedTimestamp
@@ -433,7 +436,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   <div
                     role='button'
                     tabIndex={0}
-                    aria-label='Copy run ID'
+                    aria-label={t('copy_run_id')}
                     className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
                     onClick={() => copyRunId(log.executionId!)}
                     onKeyDown={(event) =>
@@ -441,7 +444,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     }
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                      Run ID
+                      {t('run_id')}
                     </span>
                     <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                       {copiedRunId ? 'Copied!' : log.executionId}
@@ -452,7 +455,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Level */}
                 <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Level
+                    {t('level')}
                   </span>
                   <StatusBadge status={logStatus} />
                 </div>
@@ -460,13 +463,13 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Trigger */}
                 <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Trigger
+                    {t('trigger')}
                   </span>
                   {log.trigger ? (
                     <TriggerBadge trigger={log.trigger} />
                   ) : (
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      None
+                      {t('none')}
                     </span>
                   )}
                 </div>
@@ -474,7 +477,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Duration */}
                 <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Duration
+                    {t('duration')}
                   </span>
                   <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                     {formatDuration(log.duration, { precision: 2 }) || '—'}
@@ -485,7 +488,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {log.deploymentVersion && (
                   <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                      Version
+                      {t('version')}
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
                       <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
@@ -499,7 +502,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {showWorkflowState && (
                   <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Snapshot
+                      {t('snapshot')}
                     </span>
                     <Button
                       variant='default'
@@ -508,7 +511,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       onClick={() => setIsExecutionSnapshotOpen(true)}
                     >
                       <Eye className='size-3' />
-                      View Snapshot
+                      {t('view_snapshot')}
                     </Button>
                   </div>
                 )}
@@ -518,7 +521,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Workflow Input
+                    {t('workflow_input')}
                   </span>
                   <WorkflowOutputSection output={workflowInput} />
                 </div>
@@ -535,7 +538,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                         : 'text-[var(--text-tertiary)]'
                     )}
                   >
-                    Workflow Output
+                    {t('workflow_output')}
                   </span>
                   <WorkflowOutputSection output={workflowOutput} />
                 </div>
@@ -562,7 +565,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   ))}
                   <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                     <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      Total
+                      {t('total')}
                     </span>
                     <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
                       {creditLabel(costBreakdown.totalCredits, costBreakdown.totalDollars)}
@@ -571,17 +574,16 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
                     <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Tokens
+                        {t('tokens')}
                       </span>
                       <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                        {costBreakdown.tokens.input} in · {costBreakdown.tokens.output} out
+                        {costBreakdown.tokens.input} {t('in')} {costBreakdown.tokens.output} {t('out')}
                       </span>
                     </div>
                   )}
                   <div className='px-3 py-2'>
                     <p className='font-medium text-[var(--text-tertiary)] text-xs'>
-                      Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model
-                      and tool usage.
+                      {t('total_includes_a')} {formatCost(BASE_EXECUTION_CHARGE)} {t('base_charge_plus_model_and_tool')}
                     </p>
                   </div>
                 </div>
@@ -598,13 +600,13 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
             ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  No trace data available for this run
+                  {t('no_trace_data_available_for_this')}
                 </span>
               </div>
             ) : (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  Loading trace…
+                  {t('loading_trace')}
                 </span>
               </div>
             )}
@@ -651,6 +653,7 @@ export const LogDetails = memo(function LogDetails({
   isRetryPending = false,
   onActiveTabChange,
 }: LogDetailsProps) {
+  const t = useTranslations('auto')
   const activeTabRef = useRef<LogDetailsTab>('overview')
 
   const handleActiveTabChange = useCallback(
@@ -702,7 +705,7 @@ export const LogDetails = memo(function LogDetails({
           style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
-          aria-label='Resize log details panel'
+          aria-label={t('resize_log_details_panel')}
           aria-orientation='vertical'
         />
       )}
@@ -713,13 +716,13 @@ export const LogDetails = memo(function LogDetails({
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
         style={{ width: effectiveWidth }}
-        aria-label='Log details sidebar'
+        aria-label={t('log_details_sidebar')}
       >
         {log && (
           <div className='flex h-full flex-col px-3.5 pt-3'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
+              <h2 className='font-medium text-[var(--text-primary)] text-sm'>{t('log_details')}</h2>
               <div className='flex items-center gap-[1px]'>
                 {log.status === 'failed' &&
                   (log.workflow?.id || log.workflowId) &&
@@ -731,12 +734,12 @@ export const LogDetails = memo(function LogDetails({
                           className='!p-1'
                           onClick={() => onRetryExecution?.()}
                           disabled={isRetryPending}
-                          aria-label='Retry execution'
+                          aria-label={t('retry_execution')}
                         >
                           <Redo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
+                      <Tooltip.Content side='bottom'>{t('retry')}</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 <Button
@@ -744,7 +747,7 @@ export const LogDetails = memo(function LogDetails({
                   className='!p-1'
                   onClick={() => hasPrev && onNavigatePrev?.()}
                   disabled={!hasPrev}
-                  aria-label='Previous log'
+                  aria-label={t('previous_log')}
                 >
                   <ChevronUp className='size-[14px]' />
                 </Button>
@@ -753,11 +756,11 @@ export const LogDetails = memo(function LogDetails({
                   className='!p-1'
                   onClick={() => hasNext && onNavigateNext?.()}
                   disabled={!hasNext}
-                  aria-label='Next log'
+                  aria-label={t('next_log')}
                 >
                   <ChevronUp className='size-[14px] rotate-180' />
                 </Button>
-                <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
+                <Button variant='ghost' className='!p-1' onClick={onClose} aria-label={t('close')}>
                   <X className='size-[14px]' />
                 </Button>
               </div>

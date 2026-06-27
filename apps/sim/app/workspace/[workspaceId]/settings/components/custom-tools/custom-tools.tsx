@@ -11,10 +11,12 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CustomToolsSettings')
 
 export function CustomTools() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -102,7 +104,7 @@ export function CustomTools() {
             onClick={() => setShowAddForm(true)}
             disabled={isLoading}
           >
-            Add Tool
+            {t('add_tool')}
           </Chip>
         }
       >
@@ -113,7 +115,7 @@ export function CustomTools() {
             </p>
           </div>
         ) : isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Add Tool" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>{t('click_add_tool_above_to_get')}</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredTools.map((tool) => (
@@ -130,7 +132,7 @@ export function CustomTools() {
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-1'>
                   <RowActionsMenu
-                    label='Tool actions'
+                    label={t('tool_actions')}
                     actions={[
                       { label: 'Edit', onSelect: () => setEditingTool(tool.id) },
                       {
@@ -146,7 +148,7 @@ export function CustomTools() {
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                No tools found matching "{searchTerm}"
+                {t('no_tools_found_matching')}{searchTerm}"
               </SettingsEmptyState>
             )}
           </div>
@@ -182,7 +184,7 @@ export function CustomTools() {
           if (!open) setShowDeleteDialog(false)
         }}
         srTitle='Delete Custom Tool'
-        title='Delete Custom Tool'
+        title={t('delete_custom_tool')}
         text={[
           'Are you sure you want to delete ',
           { text: toolToDelete?.name ?? 'this tool', bold: true },

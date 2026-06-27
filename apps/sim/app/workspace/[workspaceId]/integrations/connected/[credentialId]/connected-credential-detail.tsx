@@ -40,6 +40,7 @@ import {
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectedCredentialDetail')
 
@@ -52,6 +53,7 @@ export function ConnectedCredentialDetail({
   workspaceId,
   credentialId,
 }: ConnectedCredentialDetailProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const integrationsHref = `/workspace/${workspaceId}/integrations`
 
@@ -186,7 +188,7 @@ export function ConnectedCredentialDetail({
 
   const back = (
     <ChipLink href={integrationsHref} onClick={form.handleBackClick} leftIcon={ArrowLeft}>
-      Integrations
+      {t('integrations')}
     </ChipLink>
   )
 
@@ -199,17 +201,17 @@ export function ConnectedCredentialDetail({
             disabled={connectOAuthService.isPending}
             leftIcon={serviceConfig?.icon}
           >
-            Reconnect
+            {t('reconnect')}
           </Chip>
         )}
         <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-          Share
+          {t('share')}
         </Chip>
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
           disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
         >
-          Disconnect
+          {t('disconnect')}
         </Chip>
         <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
           {form.isSaving ? 'Saving...' : 'Save'}
@@ -220,7 +222,7 @@ export function ConnectedCredentialDetail({
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('loading')}</p>
       </CredentialDetailLayout>
     )
   }
@@ -228,7 +230,7 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
+        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>{t('credential_not_found')}</p>
       </CredentialDetailLayout>
     )
   }
@@ -258,11 +260,11 @@ export function ConnectedCredentialDetail({
           subtitle={serviceConfig?.description || 'Connected service'}
         />
 
-        <DetailSection title='Credential ID'>
+        <DetailSection title={t('credential_id')}>
           <ChipCopyInput id='credential-id' value={credential.id} copyLabel='Copy credential ID' />
         </DetailSection>
 
-        <DetailSection title='Display Name'>
+        <DetailSection title={t('display_name')}>
           <ChipInput
             id='credential-display-name'
             value={form.displayNameDraft}
@@ -273,13 +275,13 @@ export function ConnectedCredentialDetail({
           />
         </DetailSection>
 
-        <DetailSection title='Description'>
+        <DetailSection title={t('description')}>
           <ChipTextarea
             id='credential-description'
             rows={4}
             value={form.descriptionDraft}
             onChange={(event) => form.setDescriptionDraft(event.target.value)}
-            placeholder='Add a description...'
+            placeholder={t('add_a_description')}
             maxLength={500}
             autoComplete='off'
             data-lpignore='true'
@@ -294,7 +296,7 @@ export function ConnectedCredentialDetail({
         open={showDeleteConfirmDialog}
         onOpenChange={setShowDeleteConfirmDialog}
         srTitle='Disconnect Integration'
-        title='Disconnect Integration'
+        title={t('disconnect_integration')}
         text={[
           'Are you sure you want to disconnect ',
           { text: credential.displayName, bold: true },

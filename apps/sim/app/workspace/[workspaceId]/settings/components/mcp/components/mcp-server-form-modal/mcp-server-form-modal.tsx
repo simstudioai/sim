@@ -24,6 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { useMcpServerTest } from '@/hooks/queries/mcp'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpServerFormModal')
 
@@ -215,6 +216,7 @@ function HeaderRow({
   onEnvVarSelect,
   onEnvVarClose,
 }: HeaderRowProps) {
+  const t = useTranslations('auto')
   const isKeyActive =
     showEnvVars && activeInputField === 'header-key' && activeHeaderIndex === index
   const isValueActive =
@@ -231,7 +233,7 @@ function HeaderRow({
   return (
     <div className='relative flex items-center gap-2'>
       <FormattedInput
-        placeholder='Name'
+        placeholder={t('name')}
         value={header.key || ''}
         scrollLeft={headerScrollLeft[`key-${index}`] || 0}
         showEnvVars={isKeyActive}
@@ -243,7 +245,7 @@ function HeaderRow({
       />
 
       <FormattedInput
-        placeholder='Value'
+        placeholder={t('value')}
         value={header.value || ''}
         scrollLeft={headerScrollLeft[`value-${index}`] || 0}
         showEnvVars={isValueActive}
@@ -310,6 +312,7 @@ export function McpServerFormModal({
   availableEnvVars,
   allowedMcpDomains,
 }: McpServerFormModalProps) {
+  const t = useTranslations('auto')
   const urlInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
@@ -653,7 +656,7 @@ export function McpServerFormModal({
         {formMode === 'json' ? (
           <ChipModalField
             type='textarea'
-            title='Configuration'
+            title={t('configuration')}
             value={jsonInput}
             onChange={(value) => {
               setJsonInput(value)
@@ -686,24 +689,24 @@ export function McpServerFormModal({
             />
             <ChipModalField
               type='input'
-              title='Server Name'
+              title={t('server_name')}
               value={formData.name}
               onChange={(value) => {
                 if (testResult) clearTestResult()
                 if (submitError) setSubmitError(null)
                 setFormData((prev) => ({ ...prev, name: value }))
               }}
-              placeholder='e.g., My MCP Server'
+              placeholder={t('e_g_my_mcp_server')}
             />
 
             <ChipModalField
               type='custom'
-              title='Server URL'
+              title={t('server_url')}
               error={isDomainBlocked ? 'Domain not permitted by server policy' : undefined}
             >
               <FormattedInput
                 ref={urlInputRef}
-                placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
+                placeholder={t('https_mcp_server_dev_sse')}
                 value={formData.url || ''}
                 scrollLeft={urlScrollLeft}
                 showEnvVars={showEnvVars && activeInputField === 'url'}
@@ -720,7 +723,7 @@ export function McpServerFormModal({
               />
             </ChipModalField>
 
-            <ChipModalField type='custom' title='Headers'>
+            <ChipModalField type='custom' title={t('headers')}>
               <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                 {(formData.headers || []).map((header, index) => (
                   <HeaderRow
@@ -755,13 +758,13 @@ export function McpServerFormModal({
               ) : (
                 <ChevronRight className='size-[14px]' />
               )}
-              Advanced settings
+              {t('advanced_settings')}
             </Button>
             {showAdvanced && (
               <>
-                <ChipModalField type='custom' title='Client ID'>
+                <ChipModalField type='custom' title={t('client_id')}>
                   <ChipInput
-                    placeholder='OAuth Client ID (optional)'
+                    placeholder={t('oauth_client_id_optional')}
                     value={formData.oauthClientId || ''}
                     name='mcp_oauth_client_id'
                     autoComplete='off'
@@ -778,11 +781,11 @@ export function McpServerFormModal({
                 </ChipModalField>
                 <ChipModalField
                   type='custom'
-                  title='Client Secret'
-                  hint="Only needed for servers that don't support automatic client registration."
+                  title={t('client_secret')}
+                  hint={t('only_needed_for_servers_that_don')}
                 >
                   <SecretInput
-                    placeholder='OAuth Client Secret (optional)'
+                    placeholder={t('oauth_client_secret_optional')}
                     value={formData.oauthClientSecret || ''}
                     name='mcp_oauth_client_secret'
                     autoComplete='new-password'

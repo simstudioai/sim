@@ -12,8 +12,10 @@ import {
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
 } from '@/app/(landing)/models/utils'
+import { useTranslations } from 'next-intl'
 
 export function ModelDirectory() {
+  const t = useTranslations('auto')
   const [query, setQuery] = useState('')
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null)
 
@@ -96,11 +98,11 @@ export function ModelDirectory() {
           </svg>
           <Input
             type='search'
-            placeholder='Search models, providers, or capabilities…'
+            placeholder={t('search_models_providers_or_capabilities')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className='pl-9'
-            aria-label='Search AI models'
+            aria-label={t('search_ai_models')}
           />
         </div>
       </div>
@@ -115,7 +117,7 @@ export function ModelDirectory() {
               : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
           }`}
         >
-          All
+          {t('all')}
         </button>
         {providerOptions.map((provider) => (
           <button
@@ -139,10 +141,9 @@ export function ModelDirectory() {
 
       {!hasResults ? (
         <div className='px-6 py-12 text-center'>
-          <h3 className='text-[18px] text-white'>No matches found</h3>
+          <h3 className='text-[18px] text-white'>{t('no_matches_found')}</h3>
           <p className='mt-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
-            Try a provider name like OpenAI or Anthropic, or search for capabilities like
-            &nbsp;structured outputs, reasoning, or deep research.
+            {t('try_a_provider_name_like_openai')}
           </p>
         </div>
       ) : (
@@ -168,7 +169,7 @@ export function ModelDirectory() {
                     {provider.name}
                   </h2>
                   <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
-                    {provider.modelCount} models &middot; {provider.description}
+                    {provider.modelCount} {t('models_middot')} {provider.description}
                   </p>
                 </div>
                 <ChevronArrow />
@@ -189,16 +190,16 @@ export function ModelDirectory() {
                   id='dynamic-catalogs-heading'
                   className='text-[18px] text-white leading-[100%] tracking-[-0.02em] lg:text-[20px]'
                 >
-                  Dynamic model catalogs
+                  {t('dynamic_model_catalogs')}
                 </h2>
                 <p className='mt-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
-                  These providers load their model lists dynamically at runtime.
+                  {t('these_providers_load_their_model_lists')}
                 </p>
               </div>
 
               <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-              <nav aria-label='Dynamic catalog providers' className='flex flex-col lg:flex-row'>
+              <nav aria-label={t('dynamic_catalog_providers')} className='flex flex-col lg:flex-row'>
                 {filteredDynamicProviders.map((provider) => (
                   <div
                     key={provider.id}
@@ -227,6 +228,7 @@ export function ModelDirectory() {
 }
 
 function ModelRow({ provider, model }: { provider: CatalogProvider; model: CatalogModel }) {
+  const t = useTranslations('auto')
   return (
     <>
       <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
@@ -245,8 +247,8 @@ function ModelRow({ provider, model }: { provider: CatalogProvider; model: Catal
             {model.displayName}
           </h3>
           <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
-            {model.id} &middot; Input {formatPrice(model.pricing.input)}/1M &middot; Output{' '}
-            {formatPrice(model.pricing.output)}/1M
+            {model.id} {t('middot_input')} {formatPrice(model.pricing.input)}{t('1m_middot_output')}{' '}
+            {formatPrice(model.pricing.output)}{t('1m')}
             {model.contextWindow ? ` · ${formatTokenCount(model.contextWindow)} context` : ''}
           </p>
         </div>

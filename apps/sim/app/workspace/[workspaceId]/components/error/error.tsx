@@ -4,6 +4,7 @@ import { type ReactNode, useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 /** Props shape required by Next.js error boundary files (`error.tsx`). */
 export interface ErrorBoundaryProps {
@@ -35,6 +36,7 @@ interface ErrorShellProps {
  * digest pill, and a row of action buttons.
  */
 export function ErrorShell({ title, description, icon, digest, children }: ErrorShellProps) {
+  const t = useTranslations('auto')
   return (
     <div className='flex h-full flex-1 items-center justify-center bg-[var(--bg)] px-6 py-12'>
       <div className='flex w-full max-w-[420px] flex-col items-center gap-5 text-center'>
@@ -53,7 +55,7 @@ export function ErrorShell({ title, description, icon, digest, children }: Error
         </div>
         {digest && (
           <span className='inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-1 font-mono text-[11px]'>
-            <span className='text-[var(--text-muted)]'>digest</span>
+            <span className='text-[var(--text-muted)]'>{t('digest')}</span>
             <span className='truncate text-[var(--text-body)]'>{digest}</span>
           </span>
         )}
@@ -77,6 +79,7 @@ export function ErrorState({
   icon,
   children,
 }: ErrorStateProps) {
+  const t = useTranslations('auto')
   useEffect(() => {
     createLogger(loggerName).error(`${loggerName} error:`, {
       error: error.message,
@@ -88,7 +91,7 @@ export function ErrorState({
     <ErrorShell title={title} description={description} icon={icon} digest={error.digest}>
       {children}
       <Button variant='primary' size='md' onClick={reset}>
-        Refresh
+        {t('refresh')}
       </Button>
     </ErrorShell>
   )

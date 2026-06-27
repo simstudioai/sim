@@ -58,6 +58,7 @@ import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useTranslations } from 'next-intl'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
@@ -81,6 +82,7 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
+  const t = useTranslations('auto')
   const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
     usePanelEditorStore(
       useShallow((state) => ({
@@ -422,7 +424,7 @@ export function Editor() {
                       variant='ghost'
                       className='p-0'
                       onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
-                      aria-label='Unlock block'
+                      aria-label={t('unlock_block')}
                     >
                       <Unlock className='size-[14px] text-[var(--text-secondary)]' />
                     </Button>
@@ -490,13 +492,13 @@ export function Editor() {
                   variant='ghost'
                   className='p-0'
                   onClick={handleOpenDocs}
-                  aria-label='Open documentation'
+                  aria-label={t('open_documentation')}
                 >
                   <BookOpen className='size-[14px]' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
-                <p>Open docs</p>
+                <p>{t('open_docs')}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
@@ -504,7 +506,7 @@ export function Editor() {
 
         {!currentBlockId || !currentBlock ? (
           <div className='flex flex-1 items-center justify-center text-[var(--text-placeholder)] text-small'>
-            Select a block to edit
+            {t('select_a_block_to_edit')}
           </div>
         ) : isSubflow ? (
           <SubflowEditor
@@ -533,7 +535,7 @@ export function Editor() {
                   <>
                     <div className='subblock-content flex flex-col gap-[9.5px]'>
                       <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
-                        Workflow Preview
+                        {t('workflow_preview')}
                       </div>
                       <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                         {isLoadingChildWorkflow ? (
@@ -565,13 +567,13 @@ export function Editor() {
                                   <ExternalLink className='size-[12px]' />
                                 </Button>
                               </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                              <Tooltip.Content side='top'>{t('open_workflow')}</Tooltip.Content>
                             </Tooltip.Root>
                           </>
                         ) : (
                           <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                             <span className='text-[var(--text-tertiary)] text-small'>
-                              Unable to load preview
+                              {t('unable_to_load_preview')}
                             </span>
                           </div>
                         )}
@@ -582,7 +584,7 @@ export function Editor() {
                 )}
                 {subBlocks.length === 0 && !isWorkflowBlock ? (
                   <div className='flex h-full items-center justify-center text-center text-[var(--text-placeholder)] text-small'>
-                    This block has no subblocks
+                    {t('this_block_has_no_subblocks')}
                   </div>
                 ) : (
                   <div className='flex flex-col'>
@@ -671,7 +673,7 @@ export function Editor() {
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
-                          Additional fields
+                          {t('additional_fields')}
                         </span>
                         <DashedDividerLine className='flex-1' />
                       </div>
@@ -753,7 +755,7 @@ export function Editor() {
                     }
                   />
                   <div className='font-medium text-[var(--text-primary)] text-small'>
-                    Connections
+                    {t('connections')}
                   </div>
                 </div>
 

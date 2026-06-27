@@ -6,6 +6,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot, Loader } from '@/components/emcn
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
+import { useTranslations } from 'next-intl'
 
 interface VerifyContentProps {
   hasEmailService: boolean
@@ -22,6 +23,7 @@ function VerificationForm({
   isProduction: boolean
   isEmailVerificationEnabled: boolean
 }) {
+  const t = useTranslations('auto')
   const {
     otp,
     email,
@@ -82,7 +84,7 @@ function VerificationForm({
         <div className='mt-8 space-y-8'>
           <div className='space-y-6'>
             <p className='text-center text-[var(--landing-text-muted)] text-sm'>
-              Enter the 6-digit code to verify your account.
+              {t('enter_the_6_digit_code_to')}
               {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
 
@@ -121,7 +123,7 @@ function VerificationForm({
             {isBusy ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
-                Verifying…
+                {t('verifying')}
               </span>
             ) : (
               'Verify Email'
@@ -131,10 +133,10 @@ function VerificationForm({
           {hasEmailService && (
             <div className='text-center'>
               <p className='text-[var(--landing-text-muted)] text-sm'>
-                Didn't receive a code?{' '}
+                {t('didn_t_receive_a_code')}{' '}
                 {countdown > 0 ? (
                   <span>
-                    Resend in{' '}
+                    {t('resend_in')}{' '}
                     <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
                   </span>
                 ) : (
@@ -143,7 +145,7 @@ function VerificationForm({
                     onClick={handleResend}
                     disabled={isBusy || isResendDisabled}
                   >
-                    Resend
+                    {t('resend')}
                   </button>
                 )}
               </p>
@@ -162,7 +164,7 @@ function VerificationForm({
               }}
               className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
             >
-              Back to signup
+              {t('back_to_signup')}
             </button>
           </div>
         </div>

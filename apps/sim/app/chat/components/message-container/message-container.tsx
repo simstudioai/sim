@@ -4,6 +4,7 @@ import { memo, type RefObject } from 'react'
 import { ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { type ChatMessage, ClientChatMessage } from '@/app/chat/components/message/message'
+import { useTranslations } from 'next-intl'
 
 interface ChatMessageContainerProps {
   messages: ChatMessage[]
@@ -28,6 +29,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
   scrollToMessage,
   chatConfig,
 }: ChatMessageContainerProps) {
+  const t = useTranslations('auto')
   return (
     <div className='relative flex flex-1 flex-col overflow-hidden'>
       {/* Scrollable Messages Area */}
@@ -40,7 +42,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
             <div className='flex flex-col items-center justify-center py-10'>
               <div className='space-y-2 text-center'>
                 <h3 className='font-medium text-[var(--landing-text)] text-lg'>
-                  How can I help you today?
+                  {t('how_can_i_help_you_today')}
                 </h3>
                 <p className='text-[var(--landing-text-muted)] text-sm'>
                   {chatConfig?.description || 'Ask me anything.'}
@@ -81,7 +83,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
             className='flex items-center gap-1 rounded-full border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-3 py-1 shadow-lg transition-all hover:opacity-80'
           >
             <ArrowDown className='size-3.5' />
-            <span className='sr-only'>Scroll to bottom</span>
+            <span className='sr-only'>{t('scroll_to_bottom')}</span>
           </Button>
         </div>
       )}

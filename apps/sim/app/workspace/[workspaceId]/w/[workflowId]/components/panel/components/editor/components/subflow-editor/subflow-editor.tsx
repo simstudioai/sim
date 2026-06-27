@@ -23,6 +23,7 @@ import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
+import { useTranslations } from 'next-intl'
 
 const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
 
@@ -67,6 +68,7 @@ export function SubflowEditor({
   userCanEdit,
   isConnectionsAtMinHeight,
 }: SubflowEditorProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const {
     subflowConfig,
@@ -139,7 +141,7 @@ export function SubflowEditor({
               value={currentType || ''}
               onChange={handleSubflowTypeChange}
               disabled={!userCanEdit}
-              placeholder='Select type...'
+              placeholder={t('select_type')}
             />
           </div>
 
@@ -174,7 +176,7 @@ export function SubflowEditor({
                   })}
                 </div>
                 <div className='text-[var(--text-muted)] text-micro'>
-                  Enter a whole number greater than 0.
+                  {t('enter_a_whole_number_greater_than')}
                 </div>
               </div>
             ) : (
@@ -224,7 +226,7 @@ export function SubflowEditor({
               className='relative mt-4 rounded-md'
             >
               <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                Parallel Batch Size
+                {t('parallel_batch_size')}
               </Label>
               <Input
                 type='text'
@@ -240,7 +242,7 @@ export function SubflowEditor({
                 })}
               </div>
               <div className='text-[var(--text-muted)] text-micro'>
-                Run 1 to 20 parallel branches at a time.
+                {t('run_1_to_20_parallel_branches')}
               </div>
             </div>
           )}
@@ -283,7 +285,7 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
+            <div className='font-medium text-[var(--text-primary)] text-small'>{t('connections')}</div>
           </div>
 
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>

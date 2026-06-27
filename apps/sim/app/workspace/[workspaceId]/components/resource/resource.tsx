@@ -27,6 +27,7 @@ import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inli
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { useTranslations } from 'next-intl'
 
 export interface ResourceColumn {
   id: string
@@ -233,6 +234,7 @@ const ResourceTable = memo(function ResourceTable({
   pagination,
   overlay,
 }: ResourceTableProps) {
+  const t = useTranslations('auto')
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
@@ -341,7 +343,7 @@ const ResourceTable = memo(function ResourceTable({
                     checked={selectable.isAllSelected}
                     onCheckedChange={handleSelectAll}
                     disabled={selectable.disabled}
-                    aria-label='Select all'
+                    aria-label={t('select_all')}
                   />
                 </div>
               )}
@@ -555,6 +557,7 @@ const DataRow = memo(function DataRow({
   dataIndex,
   ref,
 }: DataRowProps) {
+  const t = useTranslations('auto')
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
   const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
   const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
@@ -667,7 +670,7 @@ const DataRow = memo(function DataRow({
             checked={isSelected}
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
-            aria-label='Select row'
+            aria-label={t('select_row')}
             onClick={handleSelectRowClick}
           />
         </div>

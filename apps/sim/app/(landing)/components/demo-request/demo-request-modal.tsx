@@ -26,6 +26,7 @@ import {
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
+import { useTranslations } from 'next-intl'
 
 interface DemoRequestModalProps {
   children: React.ReactNode
@@ -66,6 +67,7 @@ async function submitDemoRequest(payload: DemoRequestPayload) {
 }
 
 export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalProps) {
+  const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<DemoRequestFormState>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<DemoRequestErrors>({})
@@ -154,26 +156,26 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
           >
             <ModalBody>
               <ModalDescription className='sr-only'>
-                Fill out this form to request a demo and talk to the sales team
+                {t('fill_out_this_form_to_request')}
               </ModalDescription>
               <div className='space-y-3'>
                 <div className='grid gap-3 sm:grid-cols-2'>
-                  <LandingField htmlFor='firstName' label='First name' error={errors.firstName}>
+                  <LandingField htmlFor='firstName' label={t('first_name')} error={errors.firstName}>
                     <ChipInput
                       id='firstName'
                       value={form.firstName}
                       onChange={(event) => updateField('firstName', event.target.value)}
-                      placeholder='First'
+                      placeholder={t('first')}
                       className={LANDING_INPUT_CONTAINER}
                       inputClassName={LANDING_INPUT_INNER}
                     />
                   </LandingField>
-                  <LandingField htmlFor='lastName' label='Last name' error={errors.lastName}>
+                  <LandingField htmlFor='lastName' label={t('last_name')} error={errors.lastName}>
                     <ChipInput
                       id='lastName'
                       value={form.lastName}
                       onChange={(event) => updateField('lastName', event.target.value)}
-                      placeholder='Last'
+                      placeholder={t('last')}
                       className={LANDING_INPUT_CONTAINER}
                       inputClassName={LANDING_INPUT_INNER}
                     />
@@ -182,7 +184,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
 
                 <LandingField
                   htmlFor='companyEmail'
-                  label='Company email'
+                  label={t('company_email')}
                   error={errors.companyEmail}
                 >
                   <ChipInput
@@ -190,7 +192,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     type='email'
                     value={form.companyEmail}
                     onChange={(event) => updateField('companyEmail', event.target.value)}
-                    placeholder='Your work email'
+                    placeholder={t('your_work_email')}
                     className={LANDING_INPUT_CONTAINER}
                     inputClassName={LANDING_INPUT_INNER}
                   />
@@ -198,7 +200,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
 
                 <LandingField
                   htmlFor='phoneNumber'
-                  label='Phone number'
+                  label={t('phone_number')}
                   optional
                   error={errors.phoneNumber}
                 >
@@ -207,13 +209,13 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     type='tel'
                     value={form.phoneNumber}
                     onChange={(event) => updateField('phoneNumber', event.target.value)}
-                    placeholder='Your phone number'
+                    placeholder={t('your_phone_number')}
                     className={LANDING_INPUT_CONTAINER}
                     inputClassName={LANDING_INPUT_INNER}
                   />
                 </LandingField>
 
-                <LandingField htmlFor='companySize' label='Company size' error={errors.companySize}>
+                <LandingField htmlFor='companySize' label={t('company_size')} error={errors.companySize}>
                   <ChipCombobox
                     options={COMBOBOX_COMPANY_SIZES}
                     value={form.companySize}
@@ -221,19 +223,19 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     onChange={(value) =>
                       updateField('companySize', value as DemoRequestPayload['companySize'])
                     }
-                    placeholder='Select'
+                    placeholder={t('select')}
                     editable={false}
                     filterOptions={false}
                     className='rounded-[5px] px-2.5 font-[430] font-season'
                   />
                 </LandingField>
 
-                <LandingField htmlFor='details' label='Details' error={errors.details}>
+                <LandingField htmlFor='details' label={t('details')} error={errors.details}>
                   <ChipTextarea
                     id='details'
                     value={form.details}
                     onChange={(event) => updateField('details', event.target.value)}
-                    placeholder='Tell us about your needs and questions'
+                    placeholder={t('tell_us_about_your_needs_and')}
                     className='min-h-[80px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-2 font-[430] font-season text-[13.5px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)]'
                   />
                 </LandingField>
@@ -266,12 +268,12 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   {SUBMIT_SUCCESS_MESSAGE}
                 </h2>
                 <p className='mt-4 font-season text-[15px] text-[var(--text-secondary)] leading-7'>
-                  Our team will be in touch soon. If you have any questions, please email us at{' '}
+                  {t('our_team_will_be_in_touch')}{' '}
                   <a
                     href='mailto:enterprise@sim.ai'
                     className='text-[var(--text-primary)] underline underline-offset-2'
                   >
-                    enterprise@sim.ai
+                    {t('enterprise_sim_ai')}
                   </a>
                   .
                 </p>

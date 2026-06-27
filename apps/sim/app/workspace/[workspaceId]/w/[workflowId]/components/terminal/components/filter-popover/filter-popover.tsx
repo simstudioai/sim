@@ -18,6 +18,7 @@ import type {
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import { getBlockIcon } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
+import { useTranslations } from 'next-intl'
 
 /**
  * Props for the FilterPopover component
@@ -44,6 +45,7 @@ export const FilterPopover = memo(function FilterPopover({
   uniqueBlocks,
   hasActiveFilters,
 }: FilterPopoverProps) {
+  const t = useTranslations('auto')
   return (
     <Popover open={open} onOpenChange={onOpenChange} size='sm'>
       <PopoverTrigger asChild>
@@ -51,7 +53,7 @@ export const FilterPopover = memo(function FilterPopover({
           variant='ghost'
           className='!p-1.5 -m-1.5'
           onClick={(e) => e.stopPropagation()}
-          aria-label='Filters'
+          aria-label={t('filters')}
         >
           <Filter className={clsx('size-3', hasActiveFilters && 'text-[var(--brand-secondary)]')} />
         </Button>
@@ -65,14 +67,14 @@ export const FilterPopover = memo(function FilterPopover({
         maxWidth={220}
         maxHeight={300}
       >
-        <PopoverSection>Status</PopoverSection>
+        <PopoverSection>{t('status')}</PopoverSection>
         <PopoverItem
           active={filters.statuses.has('error')}
           showCheck={filters.statuses.has('error')}
           onClick={() => toggleStatus('error')}
         >
           <div className='size-[6px] rounded-xs' style={{ backgroundColor: 'var(--text-error)' }} />
-          <span className='flex-1'>Error</span>
+          <span className='flex-1'>{t('error')}</span>
         </PopoverItem>
         <PopoverItem
           active={filters.statuses.has('info')}
@@ -83,13 +85,13 @@ export const FilterPopover = memo(function FilterPopover({
             className='size-[6px] rounded-xs'
             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
           />
-          <span className='flex-1'>Info</span>
+          <span className='flex-1'>{t('info')}</span>
         </PopoverItem>
 
         {uniqueBlocks.length > 0 && (
           <>
             <PopoverDivider className='my-1' />
-            <PopoverSection className='!mt-0'>Blocks</PopoverSection>
+            <PopoverSection className='!mt-0'>{t('blocks')}</PopoverSection>
             <PopoverScrollArea className='max-h-[100px]'>
               {uniqueBlocks.map((block) => {
                 const BlockIcon = getBlockIcon(block.blockType)

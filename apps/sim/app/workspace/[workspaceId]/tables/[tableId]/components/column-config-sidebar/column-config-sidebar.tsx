@@ -21,6 +21,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
+import { useTranslations } from 'next-intl'
 
 /**
  * Discriminates the two flows the column-config sidebar handles. Workflow
@@ -56,13 +57,14 @@ interface ColumnConfigSidebarProps {
  * sidebar relied on.
  */
 export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
+  const t = useTranslations('auto')
   // Mount the form body with `key` keyed on the config identity so opening a
   // different column / mode remounts and re-seeds state from props.
   const open = props.config !== null
   return (
     <aside
       role='dialog'
-      aria-label='Configure column'
+      aria-label={t('configure_column')}
       className={cn(
         'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
@@ -91,6 +93,7 @@ function ColumnConfigBody({
   tableId,
   onColumnRename,
 }: ColumnConfigBodyProps) {
+  const t = useTranslations('auto')
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
 
@@ -165,13 +168,13 @@ function ColumnConfigBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
+        <h2 className='font-medium text-[var(--text-primary)] text-small'>{t('configure_column')}</h2>
         <Button
           variant='ghost'
           size='sm'
           onClick={onClose}
           className='!p-1 size-7'
-          aria-label='Close'
+          aria-label={t('close')}
         >
           <X className='size-[14px]' />
         </Button>
@@ -179,7 +182,7 @@ function ColumnConfigBody({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
+          <RequiredLabel htmlFor='column-sidebar-name'>{t('column_name')}</RequiredLabel>
           <ChipInput
             id='column-sidebar-name'
             value={nameInput}
@@ -200,7 +203,7 @@ function ColumnConfigBody({
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel>Type</RequiredLabel>
+              <RequiredLabel>{t('type')}</RequiredLabel>
               <ChipCombobox
                 options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
                   label: o.label,
@@ -209,7 +212,7 @@ function ColumnConfigBody({
                 }))}
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
-                placeholder='Select type'
+                placeholder={t('select_type')}
                 maxHeight={260}
               />
             </div>
@@ -219,7 +222,7 @@ function ColumnConfigBody({
         <FieldDivider />
         <div className='flex flex-col gap-[9.5px]'>
           <div className='flex items-center justify-between pl-0.5'>
-            <Label htmlFor='column-sidebar-unique'>Unique</Label>
+            <Label htmlFor='column-sidebar-unique'>{t('unique')}</Label>
             <Switch
               id='column-sidebar-unique'
               checked={uniqueInput}
@@ -231,7 +234,7 @@ function ColumnConfigBody({
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
           {saveDisabled ? 'Saving…' : 'Save'}

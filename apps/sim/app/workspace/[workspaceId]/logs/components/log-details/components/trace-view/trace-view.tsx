@@ -47,6 +47,7 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useTranslations } from 'next-intl'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -261,6 +262,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   runStartMs: number
   runTotalMs: number
 }) {
+  const t = useTranslations('auto')
   const { span, depth, parentDuration } = entry
   const id = getSpanId(span)
   const startMs = parseTime(span.startTime)
@@ -358,7 +360,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
               </span>
               {pctOfTotal !== null && pctOfTotal >= 0.1 && (
                 <span className='text-[var(--text-tertiary)] text-caption'>
-                  {pctOfTotal.toFixed(pctOfTotal >= 10 ? 0 : 1)}% of total
+                  {pctOfTotal.toFixed(pctOfTotal >= 10 ? 0 : 1)}{t('of_total')}
                   {pctOfParent !== null &&
                     pctOfParent >= 0.1 &&
                     ` · ${pctOfParent.toFixed(pctOfParent >= 10 ? 0 : 1)}% of parent`}
@@ -402,6 +404,7 @@ function DetailCodeSection({
   isError?: boolean
   defaultOpen?: boolean
 }) {
+  const t = useTranslations('auto')
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
@@ -525,7 +528,7 @@ function DetailCodeSection({
                       <Search className='size-[10px]' />
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>Search</Tooltip.Content>
+                  <Tooltip.Content side='top'>{t('search')}</Tooltip.Content>
                 </Tooltip.Root>
               </div>
             )}
@@ -541,7 +544,7 @@ function DetailCodeSection({
                 type='text'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Search...'
+                placeholder={t('search_2')}
                 className='mr-0.5 w-[94px]'
               />
               <span
@@ -557,7 +560,7 @@ function DetailCodeSection({
                 className='!p-1'
                 onClick={goToPreviousMatch}
                 disabled={matchCount === 0}
-                aria-label='Previous match'
+                aria-label={t('previous_match')}
               >
                 <ArrowUp className='size-[12px]' />
               </Button>
@@ -566,7 +569,7 @@ function DetailCodeSection({
                 className='!p-1'
                 onClick={goToNextMatch}
                 disabled={matchCount === 0}
-                aria-label='Next match'
+                aria-label={t('next_match')}
               >
                 <ArrowDown className='size-[12px]' />
               </Button>
@@ -574,7 +577,7 @@ function DetailCodeSection({
                 variant='ghost'
                 className='!p-1'
                 onClick={closeSearch}
-                aria-label='Close search'
+                aria-label={t('close_search')}
               >
                 <X className='size-[12px]' />
               </Button>
@@ -609,12 +612,12 @@ function DetailCodeSection({
                 >
                   <DropdownMenuItem onSelect={handleCopy}>
                     <Duplicate />
-                    Copy
+                    {t('copy')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={handleSearch}>
                     <SearchIcon />
-                    Search
+                    {t('search')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>,
@@ -643,10 +646,11 @@ function MetaRow({ label, value }: { label: string; value: string }) {
  * the selected span: metadata, input, output, thinking, tool calls, error.
  */
 const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpan | null }) {
+  const t = useTranslations('auto')
   if (!span) {
     return (
       <div className='flex h-full items-center justify-center p-6 text-[var(--text-tertiary)] text-caption'>
-        Select a span to see details.
+        {t('select_a_span_to_see_details')}
       </div>
     )
   }
@@ -749,7 +753,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
           labels — a collapsed Output on one span appeared as a collapsed Input
           on the next. */}
       {span.input !== undefined && span.input !== null && (
-        <DetailCodeSection key='input' label='Input' data={span.input} />
+        <DetailCodeSection key='input' label={t('input')} data={span.input} />
       )}
       {span.output !== undefined && span.output !== null && (
         <DetailCodeSection
@@ -759,14 +763,14 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
           isError={isDirectError}
         />
       )}
-      {span.thinking && <DetailCodeSection key='thinking' label='Thinking' data={span.thinking} />}
+      {span.thinking && <DetailCodeSection key='thinking' label={t('thinking')} data={span.thinking} />}
       {span.modelToolCalls && span.modelToolCalls.length > 0 && (
-        <DetailCodeSection key='tool-calls' label='Tool calls' data={span.modelToolCalls} />
+        <DetailCodeSection key='tool-calls' label={t('tool_calls')} data={span.modelToolCalls} />
       )}
       {span.errorMessage && (
         <DetailCodeSection
           key='error-message'
-          label='Error message'
+          label={t('error_message')}
           data={span.errorMessage}
           isError
         />
@@ -775,10 +779,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
           <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
-            Started {new Date(startedAt).toLocaleTimeString()}
+            {t('started')} {new Date(startedAt).toLocaleTimeString()}
           </span>
           <span title={new Date(endedAt).toISOString()} suppressHydrationWarning>
-            Ended {new Date(endedAt).toLocaleTimeString()}
+            {t('ended')} {new Date(endedAt).toLocaleTimeString()}
           </span>
         </div>
       )}
@@ -793,6 +797,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * follow block-by-block and segment-by-segment what happened and why.
  */
 export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
+  const t = useTranslations('auto')
   const treeRef = useRef<HTMLDivElement>(null)
   const { copied: traceCopied, copy: copyTrace } = useCopyToClipboard()
   const [searchQuery, setSearchQuery] = useState('')
@@ -969,7 +974,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
   if (!traceSpans || traceSpans.length === 0) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-tertiary)] text-caption'>
-        No trace data available
+        {t('no_trace_data_available')}
       </div>
     )
   }
@@ -992,7 +997,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
             size='sm'
             onClick={() => setSelectedId(firstErrorId)}
           >
-            Jump to error
+            {t('jump_to_error')}
           </Button>
         )}
         <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
@@ -1015,7 +1020,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
             type='text'
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Filter spans'
+            placeholder={t('filter_spans')}
             className='w-[140px]'
           />
           <Tooltip.Root>
@@ -1025,7 +1030,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
                 variant='ghost'
                 className='!p-1'
                 onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
-                aria-label='Copy raw trace'
+                aria-label={t('copy_raw_trace')}
               >
                 {traceCopied ? (
                   <Check className='size-[12px] text-[var(--text-success)]' />
@@ -1045,12 +1050,12 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
                 variant='ghost'
                 className='!p-1'
                 onClick={() => setExpandedNodes(new Set(allIds))}
-                aria-label='Expand all'
+                aria-label={t('expand_all')}
               >
                 <ChevronsUpDown className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Expand all</Tooltip.Content>
+            <Tooltip.Content side='top'>{t('expand_all')}</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -1059,12 +1064,12 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
                 variant='ghost'
                 className='!p-1'
                 onClick={() => setExpandedNodes(new Set())}
-                aria-label='Collapse all'
+                aria-label={t('collapse_all')}
               >
                 <ChevronsDownUp className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Collapse all</Tooltip.Content>
+            <Tooltip.Content side='top'>{t('collapse_all')}</Tooltip.Content>
           </Tooltip.Root>
         </div>
       </div>
@@ -1078,7 +1083,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           role='tree'
         >
           {flatList.length === 0 && (
-            <div className='p-3 text-[var(--text-tertiary)] text-caption'>No matching spans</div>
+            <div className='p-3 text-[var(--text-tertiary)] text-caption'>{t('no_matching_spans')}</div>
           )}
           {flatList.map((entry) => {
             const id = getSpanId(entry.span)

@@ -45,6 +45,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { McpServerFormModal } from './components'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('McpSettings')
 
@@ -88,6 +89,7 @@ function ServerListItem({
   onRemove,
   onViewDetails,
 }: ServerListItemProps) {
+  const t = useTranslations('auto')
   const transportLabel = formatTransportLabel(server.transport || 'http')
   const toolsLabel = formatToolsLabel(tools, server.connectionStatus)
   const isError = server.connectionStatus === 'error'
@@ -116,7 +118,7 @@ function ServerListItem({
       </div>
       <div className='flex flex-shrink-0 items-center gap-1'>
         <RowActionsMenu
-          label='Server actions'
+          label={t('server_actions')}
           actions={[
             { label: 'Details', onSelect: onViewDetails },
             { label: 'Delete', destructive: true, disabled: isDeleting, onSelect: onRemove },
@@ -147,6 +149,7 @@ function buildEditInitialData(server: McpServer) {
 }
 
 export function MCP() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -388,7 +391,7 @@ export function MCP() {
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
-            MCP Tools
+            {t('mcp_tools')}
           </Chip>
           <div className='flex items-center'>
             <Chip
@@ -397,23 +400,23 @@ export function MCP() {
             >
               {refreshLabel}
             </Chip>
-            <Chip onClick={() => setEditingServerId(server.id)}>Edit</Chip>
+            <Chip onClick={() => setEditingServerId(server.id)}>{t('edit')}</Chip>
           </div>
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
-            <SettingsSection label='Server'>
+            <SettingsSection label={t('server')}>
               <div className='flex flex-col gap-4.5'>
                 <div className='flex flex-col gap-2'>
-                  <span className='text-[12px] text-[var(--text-muted)]'>Server Name</span>
+                  <span className='text-[12px] text-[var(--text-muted)]'>{t('server_name')}</span>
                   <p className='text-[14px] text-[var(--text-body)]'>
                     {server.name || 'Unnamed Server'}
                   </p>
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <span className='text-[12px] text-[var(--text-muted)]'>Transport</span>
+                  <span className='text-[12px] text-[var(--text-muted)]'>{t('transport')}</span>
                   <p className='text-[14px] text-[var(--text-body)]'>{transportLabel}</p>
                 </div>
 
@@ -426,7 +429,7 @@ export function MCP() {
 
                 {server.connectionStatus === 'error' && (
                   <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
+                    <span className='text-[12px] text-[var(--text-muted)]'>{t('status')}</span>
                     <p className='text-[14px] text-[var(--text-error)]'>
                       {server.lastError || 'Unable to connect'}
                     </p>
@@ -435,7 +438,7 @@ export function MCP() {
 
                 {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
                   <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>Authentication</span>
+                    <span className='text-[12px] text-[var(--text-muted)]'>{t('authentication')}</span>
                     <div>
                       <Chip
                         variant='primary'
@@ -456,7 +459,7 @@ export function MCP() {
 
             <SettingsSection label={`Tools (${tools.length})`}>
               {tools.length === 0 ? (
-                <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
+                <p className='text-[var(--text-muted)] text-sm'>{t('no_tools_available')}</p>
               ) : (
                 <div className='flex flex-col gap-2'>
                   {tools.map((tool) => {
@@ -501,7 +504,7 @@ export function MCP() {
                                     </div>
                                   </Tooltip.Trigger>
                                   <Tooltip.Content>
-                                    Update in: {affectedWorkflows.join(', ')}
+                                    {t('update_in')} {affectedWorkflows.join(', ')}
                                   </Tooltip.Content>
                                 </Tooltip.Root>
                               )}
@@ -525,7 +528,7 @@ export function MCP() {
                         {isExpanded && hasParams && (
                           <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
                             <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
-                              Parameters
+                              {t('parameters')}
                             </p>
                             <div className='flex flex-col gap-1.5'>
                               {Object.entries(tool.inputSchema!.properties!).map(
@@ -554,7 +557,7 @@ export function MCP() {
                                         </Badge>
                                         {isRequired && (
                                           <Badge variant='default' size='sm'>
-                                            required
+                                            {t('required')}
                                           </Badge>
                                         )}
                                       </div>
@@ -620,7 +623,7 @@ export function MCP() {
             onClick={() => setShowAddModal(true)}
             disabled={serversLoading}
           >
-            Add Server
+            {t('add_server')}
           </Chip>
         }
       >
@@ -631,7 +634,7 @@ export function MCP() {
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
-          <SettingsEmptyState>Click &quot;Add Server&quot; above to get started</SettingsEmptyState>
+          <SettingsEmptyState>{t('click_quot_add_server_quot_above')}</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredServers.map((server) => {
@@ -654,7 +657,7 @@ export function MCP() {
             })}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                No servers found matching &quot;{searchTerm}&quot;
+                {t('no_servers_found_matching_quot')}{searchTerm}{t('quot')}
               </SettingsEmptyState>
             )}
           </div>
@@ -685,7 +688,7 @@ export function MCP() {
           if (!open) setServerToDeleteId(null)
         }}
         srTitle='Delete MCP Server'
-        title='Delete MCP Server'
+        title={t('delete_mcp_server')}
         text={[
           'Are you sure you want to delete ',
           {

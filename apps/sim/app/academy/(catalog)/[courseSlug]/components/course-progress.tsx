@@ -13,6 +13,7 @@ import {
 import type { Course } from '@/lib/academy/types'
 import { useSession } from '@/lib/auth/auth-client'
 import { useCourseCertificate, useIssueCertificate } from '@/hooks/queries/academy'
+import { useTranslations } from 'next-intl'
 
 interface CourseProgressProps {
   course: Course
@@ -20,6 +21,7 @@ interface CourseProgressProps {
 }
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
+  const t = useTranslations('auto')
   const completedIdsSnapshot = useSyncExternalStore(
     subscribeToCompletedLessons,
     getCompletedLessonsSnapshot,
@@ -45,9 +47,9 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
         <div className='px-4 pt-8 sm:px-8 md:px-[80px]'>
           <div className='mx-auto max-w-3xl rounded-[8px] border border-[#2A2A2A] bg-[#222] p-4'>
             <div className='mb-2 flex items-center justify-between text-[13px]'>
-              <span className='text-[#999]'>Your progress</span>
+              <span className='text-[#999]'>{t('your_progress')}</span>
               <span className='text-[#ECECEC]'>
-                {completedCount}/{totalLessons} lessons
+                {completedCount}/{totalLessons} {t('lessons')}
               </span>
             </div>
             <div className='h-1.5 w-full overflow-hidden rounded-full bg-[#2A2A2A]'>
@@ -65,7 +67,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
           {course.modules.map((mod, modIndex) => (
             <div key={mod.id}>
               <div className='mb-4 flex items-center gap-3'>
-                <span className='text-[#555] text-[12px]'>Module {modIndex + 1}</span>
+                <span className='text-[#555] text-[12px]'>{t('module')} {modIndex + 1}</span>
                 <div className='h-px flex-1 bg-[#2A2A2A]' />
               </div>
               <h2 className='mb-4 font-[430] text-[#ECECEC] text-[18px]'>{mod.title}</h2>
@@ -85,7 +87,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     <span className='text-[#555] text-[12px] capitalize'>{lesson.lessonType}</span>
                     {lesson.videoDurationSeconds && (
                       <span className='text-[#555] text-[12px]'>
-                        {Math.round(lesson.videoDurationSeconds / 60)} min
+                        {Math.round(lesson.videoDurationSeconds / 60)} {t('min')}
                       </span>
                     )}
                   </Link>
@@ -104,7 +106,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                 <div className='flex items-center gap-3'>
                   <GraduationCap className='size-6 text-[#4CAF50]' />
                   <div>
-                    <p className='font-[430] text-[#ECECEC] text-[15px]'>Certificate issued!</p>
+                    <p className='font-[430] text-[#ECECEC] text-[15px]'>{t('certificate_issued')}</p>
                     <p className='font-mono text-[#666] text-[13px]'>
                       {certificate.certificateNumber}
                     </p>
@@ -114,7 +116,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                   href={`/academy/certificate/${certificate.certificateNumber}`}
                   className='flex items-center gap-1.5 rounded-[5px] bg-[#4CAF50] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-[#5DBF61]'
                 >
-                  View certificate
+                  {t('view_certificate')}
                   <ExternalLink className='size-3.5' />
                 </Link>
               </div>
@@ -123,7 +125,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                 <div className='flex items-center gap-3'>
                   <GraduationCap className='size-6 text-[#4CAF50]' />
                   <div>
-                    <p className='font-[430] text-[#ECECEC] text-[15px]'>Course Complete!</p>
+                    <p className='font-[430] text-[#ECECEC] text-[15px]'>{t('course_complete')}</p>
                     <p className='text-[#666] text-[13px]'>
                       {session
                         ? error
@@ -153,7 +155,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     href='/login'
                     className='rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white'
                   >
-                    Sign in
+                    {t('sign_in')}
                   </Link>
                 )}
               </div>

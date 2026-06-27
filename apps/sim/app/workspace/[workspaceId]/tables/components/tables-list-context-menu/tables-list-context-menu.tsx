@@ -8,6 +8,7 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface TablesListContextMenuProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ export function TablesListContextMenu({
   disableCreate = false,
   disableUpload = false,
 }: TablesListContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -53,13 +55,13 @@ export function TablesListContextMenu({
         {onCreateTable && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
             <Plus />
-            Create table
+            {t('create_table')}
           </DropdownMenuItem>
         )}
         {onUploadCsv && (
           <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
             <Upload />
-            Import CSV
+            {t('import_csv')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

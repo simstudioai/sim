@@ -40,6 +40,7 @@ import {
   useUpdateInvitation,
   useUpdateOrganizationMemberRole,
 } from '@/hooks/queries/organization'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('OrganizationMemberLists')
 
@@ -91,6 +92,7 @@ export function OrganizationMemberLists({
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
+  const t = useTranslations('auto')
   const [query, setQuery] = useState('')
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
@@ -112,7 +114,7 @@ export function OrganizationMemberLists({
   const isActiveSearch = q.length > 0
 
   const buildActionsMenu = (actions: RowAction[]) => (
-    <RowActionsMenu label='Member actions' actions={actions} />
+    <RowActionsMenu label={t('member_actions')} actions={actions} />
   )
 
   const renderOrgMemberRow = (member: RosterMember) => {
@@ -381,7 +383,7 @@ export function OrganizationMemberLists({
       <div className='flex items-center gap-2'>
         <ChipInput
           icon={Search}
-          placeholder='Search members...'
+          placeholder={t('search_members')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className='flex-1'

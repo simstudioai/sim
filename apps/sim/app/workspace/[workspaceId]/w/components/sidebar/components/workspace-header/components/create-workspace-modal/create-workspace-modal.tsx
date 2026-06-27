@@ -9,6 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 interface CreateWorkspaceModalProps {
   open: boolean
@@ -26,6 +27,7 @@ export function CreateWorkspaceModal({
   onConfirm,
   isCreating,
 }: CreateWorkspaceModalProps) {
+  const t = useTranslations('auto')
   const [name, setName] = useState('')
 
   useEffect(() => {
@@ -49,14 +51,14 @@ export function CreateWorkspaceModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create workspace'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Create workspace</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('create_workspace')}</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField
           type='input'
-          title='Name'
+          title={t('name')}
           value={name}
           onChange={setName}
-          placeholder='Workspace name'
+          placeholder={t('workspace_name')}
           maxLength={100}
           autoComplete='off'
           disabled={isCreating}

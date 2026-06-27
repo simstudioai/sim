@@ -8,6 +8,7 @@ import {
   SEND_BUTTON_BASE,
   SEND_BUTTON_DISABLED,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { useTranslations } from 'next-intl'
 
 interface SendButtonProps {
   isSending: boolean
@@ -22,13 +23,14 @@ export const SendButton = React.memo(function SendButton({
   onSubmit,
   onStopGeneration,
 }: SendButtonProps) {
+  const t = useTranslations('auto')
   if (isSending) {
     return (
       <Button
         onClick={onStopGeneration}
         variant='ghost'
         className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-        title='Stop generation'
+        title={t('stop_generation')}
       >
         <svg
           className='block h-[14px] w-[14px] fill-white dark:fill-black'

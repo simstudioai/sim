@@ -23,6 +23,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useTranslations } from 'next-intl'
 
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
@@ -74,6 +75,7 @@ export const WorkflowList = memo(function WorkflowList({
   onCreateFolder,
   disableCreate = false,
 }: WorkflowListProps) {
+  const t = useTranslations('auto')
   const { isLoading: foldersLoading } = useFolders(workspaceId)
   const { data: folderMap = {} } = useFolderMap(workspaceId)
   const { expandedFolders, setExpanded } = useFolderStore(
@@ -546,7 +548,7 @@ export const WorkflowList = memo(function WorkflowList({
     <SidebarListContext.Provider value={listContextValue}>
       <div
         role='tree'
-        aria-label='Workflows'
+        aria-label={t('workflows')}
         className='flex min-h-full flex-col pb-2'
         onClick={handleContainerClick}
         onContextMenu={handleContainerContextMenu}

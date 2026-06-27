@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 
 export function BackLink() {
+  const t = useTranslations('auto')
   return (
     <Link
       href='/blog'
@@ -34,7 +36,7 @@ export function BackLink() {
           className='group-hover/link:-translate-x-[30%] transition-transform duration-200 ease-out'
         />
       </svg>
-      Back to Blog
+      {t('back_to_blog')}
     </Link>
   )
 }

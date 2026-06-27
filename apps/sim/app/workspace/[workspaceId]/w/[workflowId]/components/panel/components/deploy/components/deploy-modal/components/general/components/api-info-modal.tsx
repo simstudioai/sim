@@ -26,6 +26,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useTranslations } from 'next-intl'
 
 type NormalizedField = InputFormatField & { name: string }
 
@@ -36,6 +37,7 @@ interface ApiInfoModalProps {
 }
 
 export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
@@ -209,25 +211,25 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
         srTitle='Edit API Info'
       >
-        <ChipModalHeader onClose={() => onOpenChange(false)}>Edit API Info</ChipModalHeader>
+        <ChipModalHeader onClose={() => onOpenChange(false)}>{t('edit_api_info')}</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='textarea'
-            title='Description'
+            title={t('description')}
             value={description}
             onChange={setDescription}
-            placeholder='Describe what this workflow API does...'
+            placeholder={t('describe_what_this_workflow_api_does')}
             minHeight={80}
           />
 
           {!isPublicApiDisabled && (
-            <ChipModalField type='custom' title='Access'>
+            <ChipModalField type='custom' title={t('access')}>
               <ButtonGroup
                 value={accessMode}
                 onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
               >
-                <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                <ButtonGroupItem value='api_key'>{t('api_key')}</ButtonGroupItem>
+                <ButtonGroupItem value='public'>{t('public')}</ButtonGroupItem>
               </ButtonGroup>
               <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                 {accessMode === 'public'
@@ -257,7 +259,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                     </div>
                     <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                       <div className='flex flex-col gap-1.5'>
-                        <Label className='text-small'>Description</Label>
+                        <Label className='text-small'>{t('description')}</Label>
                         <Input
                           value={paramDescriptions[field.name] || ''}
                           onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
@@ -288,7 +290,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
-        title='Unsaved Changes'
+        title={t('unsaved_changes')}
         text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{

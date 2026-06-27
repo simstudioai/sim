@@ -15,6 +15,7 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useInviteMember } from '@/hooks/queries/organization'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('OrganizationInviteModal')
 
@@ -56,6 +57,7 @@ export function OrganizationInviteModal({
   externalEmails = [],
   pendingEmails = [],
 }: OrganizationInviteModalProps) {
+  const t = useTranslations('auto')
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<PermissionType>('write')
@@ -185,19 +187,19 @@ export function OrganizationInviteModal({
       onOpenChange={handleOpenChange}
       srTitle='Invite teammates to organization'
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>Invite teammates</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('invite_teammates')}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
-          title='Emails'
+          title={t('emails')}
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
           error={errorMessage}
-          placeholder='Enter emails'
+          placeholder={t('enter_emails')}
           disabled={isSubmitting}
         />
-        <ChipModalField type='custom' title='Workspaces'>
+        <ChipModalField type='custom' title={t('workspaces')}>
           <ChipDropdown
             multiple
             value={selectedWorkspaceIds}
@@ -214,10 +216,10 @@ export function OrganizationInviteModal({
         </ChipModalField>
         <ChipModalField
           type='dropdown'
-          title='Invite as'
+          title={t('invite_as')}
           options={ROLE_OPTIONS}
           value={inviteRole}
-          placeholder='Select role'
+          placeholder={t('select_role')}
           align='start'
           onChange={(role) => setInviteRole(role as PermissionType)}
         />

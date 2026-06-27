@@ -30,6 +30,7 @@ import { CircleInfo } from '@/components/emcn/icons/circle-info'
 import { TriangleAlert } from '@/components/emcn/icons/triangle-alert'
 import { X } from '@/components/emcn/icons/x'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 const AUTO_DISMISS_MS = 5000
 
@@ -272,6 +273,7 @@ function RevealText({
 }
 
 function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: ToastItemProps) {
+  const tI18n = useTranslations('auto')
   const contentRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const Icon = VARIANT_ICON[t.variant]
@@ -340,8 +342,8 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
             <Button
               variant='quiet'
               onClick={dismiss}
-              aria-label='Dismiss notification'
-              title='Dismiss'
+              aria-label={tI18n('dismiss_notification')}
+              title={tI18n('dismiss')}
               className='size-[18px] rounded-sm p-0'
             >
               <X className='size-[16px]' />
@@ -388,6 +390,7 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
  * ```
  */
 export function ToastProvider({ children }: { children?: ReactNode }) {
+  const tI18n = useTranslations('auto')
   const pathname = usePathname()
   const reduceMotion = useReducedMotion() ?? false
   /** On the workflow editor (`/w/[id]` and the `/w` index) the stack insets by `--panel-width` / `--terminal-height` to clear the panel and terminal. */
@@ -595,7 +598,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                 <motion.ol
                   key='toast-stack'
                   aria-live='polite'
-                  aria-label='Notifications'
+                  aria-label={tI18n('notifications')}
                   className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,

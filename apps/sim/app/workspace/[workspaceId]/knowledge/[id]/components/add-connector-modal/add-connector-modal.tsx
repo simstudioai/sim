@@ -42,6 +42,7 @@ import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useTranslations } from 'next-intl'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
@@ -62,6 +63,7 @@ export function AddConnectorModal({
   knowledgeBaseId,
   initialConnectorType,
 }: AddConnectorModalProps) {
+  const t = useTranslations('auto')
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [syncInterval, setSyncInterval] = useState(1440)
@@ -253,7 +255,7 @@ export function AddConnectorModal({
             <div className='flex min-h-0 flex-col px-2'>
               <ChipInput
                 icon={Search}
-                placeholder='Search sources...'
+                placeholder={t('search_sources')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -303,7 +305,7 @@ export function AddConnectorModal({
                   />
                 </ChipModalField>
               ) : (
-                <ChipModalField type='custom' title='Account'>
+                <ChipModalField type='custom' title={t('account')}>
                   <ChipCombobox
                     options={[
                       ...credentials.map(
@@ -347,7 +349,7 @@ export function AddConnectorModal({
               />
 
               {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                <ChipModalField type='custom' title='Metadata Tags'>
+                <ChipModalField type='custom' title={t('metadata_tags')}>
                   <div className='flex flex-col gap-2'>
                     {connectorConfig.tagDefinitions.map((tagDef) => (
                       <div
@@ -389,7 +391,7 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
-              <ChipModalField type='custom' title='Sync Frequency'>
+              <ChipModalField type='custom' title={t('sync_frequency')}>
                 <ButtonGroup
                   value={String(syncInterval)}
                   onValueChange={(val) => setSyncInterval(Number(val))}

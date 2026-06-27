@@ -26,6 +26,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useTranslations } from 'next-intl'
 
 export type AvailableResourceGroup = ReturnType<typeof useAvailableResources>[number]
 
@@ -278,7 +279,7 @@ export const PlusMenuDropdown = React.memo(
           {!isMention && (
             <DropdownMenuSearchInput
               ref={searchRef}
-              placeholder='Search resources...'
+              placeholder={t('search_resources')}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -295,7 +296,7 @@ export const PlusMenuDropdown = React.memo(
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Workflow className='size-[14px]' />
-                    <span>Workflows</span>
+                    <span>{t('workflows')}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
                     <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
@@ -309,7 +310,7 @@ export const PlusMenuDropdown = React.memo(
                       const Icon = getResourceConfig('file').icon
                       return <Icon className='size-[14px]' />
                     })()}
-                    <span>Files</span>
+                    <span>{t('files')}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
                     <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
@@ -378,7 +379,7 @@ export const PlusMenuDropdown = React.memo(
                 })
               ) : (
                 <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
-                  No results
+                  {t('no_results')}
                 </div>
               ))}
           </div>

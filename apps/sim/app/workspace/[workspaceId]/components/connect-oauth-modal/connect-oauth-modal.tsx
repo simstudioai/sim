@@ -27,6 +27,7 @@ import {
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ConnectOAuthModal')
 
@@ -175,6 +176,7 @@ export type ConnectOAuthModalProps =
  * context written here.
  */
 export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
+  const t = useTranslations('auto')
   const { open, onOpenChange, mode } = props
   const isConnect = mode === 'connect'
 
@@ -386,20 +388,20 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalBody onKeyDown={handleBodyKeyDown}>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
-            The "{props.toolName}" tool requires access to your account.
+            {t('the')}{props.toolName}{t('tool_requires_access_to_your_account')}
           </p>
         )}
 
         {isConnect && (
           <ChipModalField
             type='input'
-            title='Display name'
+            title={t('display_name')}
             value={displayName}
             onChange={(value) => {
               setDisplayName(value)
               if (validationError) setValidationError(null)
             }}
-            placeholder='Integration name'
+            placeholder={t('integration_name')}
             autoComplete='off'
             required
             error={displayNameError}
@@ -409,17 +411,17 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         {isConnect && (
           <ChipModalField
             type='textarea'
-            title='Description'
+            title={t('description')}
             value={description}
             onChange={setDescription}
-            placeholder='Optional description'
+            placeholder={t('optional_description')}
             maxLength={500}
             minHeight={80}
           />
         )}
 
         {displayScopes.length > 0 && (
-          <ChipModalField type='custom' title='Permissions requested'>
+          <ChipModalField type='custom' title={t('permissions_requested')}>
             <InfoCard>
               <InfoCardList>
                 {displayScopes.map((scope) => (
@@ -428,7 +430,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
                       {getScopeDescription(scope)}
                       {!isConnect && newScopesSet.has(scope) && (
                         <Badge variant='amber' size='sm'>
-                          New
+                          {t('new')}
                         </Badge>
                       )}
                     </span>

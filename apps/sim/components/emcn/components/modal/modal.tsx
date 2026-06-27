@@ -44,6 +44,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
+import { useTranslations } from 'next-intl'
 
 /**
  * Shared animation classes for modal transitions.
@@ -316,7 +317,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
           className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
         >
           <X className='size-[16px]' />
-          <span className='sr-only'>Close</span>
+          <span className='sr-only'>{t('close')}</span>
         </Button>
       </DialogPrimitive.Close>
     </div>

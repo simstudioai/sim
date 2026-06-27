@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { ChipConfirmModal } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 interface DeleteKnowledgeBaseModalProps {
   /**
@@ -37,12 +38,13 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isDeleting,
   knowledgeBaseName,
 }: DeleteKnowledgeBaseModalProps) {
+  const t = useTranslations('auto')
   return (
     <ChipConfirmModal
       open={isOpen}
       onOpenChange={onClose}
       srTitle='Delete Knowledge Base'
-      title='Delete Knowledge Base'
+      title={t('delete_knowledge_base')}
       text={
         knowledgeBaseName
           ? [

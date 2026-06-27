@@ -7,6 +7,7 @@ import type { TableRow as TableRowType } from '@/lib/table'
 import type { EditingCell, SaveReason } from '../../../types'
 import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'
 import type { DisplayColumn } from '../types'
+import { useTranslations } from 'next-intl'
 
 interface ExpandedCellPopoverProps {
   expandedCell: EditingCell | null
@@ -37,6 +38,7 @@ export function ExpandedCellPopover({
   canEdit,
   scrollContainer,
 }: ExpandedCellPopoverProps) {
+  const t = useTranslations('auto')
   const rootRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -160,12 +162,12 @@ export function ExpandedCellPopover({
                 {displayText}
               </pre>
             ) : (
-              <span className='text-[var(--text-tertiary)] text-small'>(empty)</span>
+              <span className='text-[var(--text-tertiary)] text-small'>{t('empty')}</span>
             )}
           </div>
           <div className='flex items-center justify-end border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
             <Button variant='ghost' size='sm' onClick={onClose}>
-              Close
+              {t('close')}
             </Button>
           </div>
         </>
@@ -196,6 +198,7 @@ function ExpandedCellEditor({
   onClose,
   textareaRef,
 }: ExpandedCellEditorProps) {
+  const t = useTranslations('auto')
   const [draftValue, setDraftValue] = useState(initialValue)
 
   const handleSave = () => {
@@ -227,14 +230,14 @@ function ExpandedCellEditor({
       />
       <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
         <span className='text-[var(--text-tertiary)] text-caption'>
-          <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
+          <kbd className='font-mono'>↵</kbd> {t('save')} <kbd className='font-mono'>{t('esc')}</kbd> {t('cancel')}
         </span>
         <div className='flex items-center gap-1.5'>
           <Button variant='ghost' size='sm' onClick={onClose}>
-            Cancel
+            {t('cancel_2')}
           </Button>
           <Button size='sm' variant='primary' onClick={handleSave}>
-            Save
+            {t('save_2')}
           </Button>
         </div>
       </div>

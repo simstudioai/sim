@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface KnowledgeListContextMenuProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
   onAddKnowledgeBase,
   disableAdd = false,
 }: KnowledgeListContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -53,7 +55,7 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
         {onAddKnowledgeBase && (
           <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
             <Plus />
-            Add knowledge base
+            {t('add_knowledge_base')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

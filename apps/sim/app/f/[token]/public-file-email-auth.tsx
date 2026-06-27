@@ -9,6 +9,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AUTH_SUBMIT_BTN, AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries/public-shares'
+import { useTranslations } from 'next-intl'
 
 interface PublicFileEmailAuthProps {
   token: string
@@ -20,6 +21,7 @@ interface PublicFileEmailAuthProps {
  * `file_auth_{shareId}` cookie and the page re-renders the viewer.
  */
 export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const requestOtp = usePublicFileOtpRequest(token)
   const verifyOtp = usePublicFileOtpVerify(token)
@@ -77,7 +79,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   if (!sent) {
     return (
       <PublicFileAuthShell
-        title='Email Verification'
+        title={t('email_verification')}
         subtitle='This file requires email verification'
       >
         <form
@@ -88,7 +90,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           className='space-y-6'
         >
           <div className='space-y-2'>
-            <Label htmlFor='email'>Email</Label>
+            <Label htmlFor='email'>{t('email')}</Label>
             <Input
               id='email'
               name='email'
@@ -97,7 +99,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
               autoCapitalize='none'
               autoComplete='email'
               autoCorrect='off'
-              placeholder='Enter your email'
+              placeholder={t('enter_your_email')}
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
@@ -116,7 +118,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             {requestOtp.isPending ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
-                Sending Code…
+                {t('sending_code')}
               </span>
             ) : (
               'Continue'
@@ -129,13 +131,12 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
   return (
     <PublicFileAuthShell
-      title='Verify Your Email'
+      title={t('verify_your_email')}
       subtitle={`A verification code has been sent to ${email}`}
     >
       <div className='space-y-6'>
         <p className='text-center text-[var(--landing-text-muted)] text-sm'>
-          Enter the 6-digit code to verify your access. If you don't see it in your inbox, check
-          your spam folder.
+          {t('enter_the_6_digit_code_to')}
         </p>
 
         <div className='flex justify-center'>
@@ -172,7 +173,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           {verifyOtp.isPending ? (
             <span className='flex items-center gap-2'>
               <Loader className='size-4' animate />
-              Verifying…
+              {t('verifying')}
             </span>
           ) : (
             'Verify Email'
@@ -181,10 +182,10 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
         <div className='text-center'>
           <p className='text-[var(--landing-text-muted)] text-sm'>
-            Didn't receive a code?{' '}
+            {t('didn_t_receive_a_code')}{' '}
             {countdown > 0 ? (
               <span>
-                Resend in{' '}
+                {t('resend_in')}{' '}
                 <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
               </span>
             ) : (
@@ -193,7 +194,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 onClick={resend}
                 disabled={requestOtp.isPending || verifyOtp.isPending}
               >
-                Resend
+                {t('resend')}
               </button>
             )}
           </p>
@@ -208,7 +209,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             }}
             className={AUTH_TEXT_LINK}
           >
-            Change email
+            {t('change_email')}
           </button>
         </div>
       </div>

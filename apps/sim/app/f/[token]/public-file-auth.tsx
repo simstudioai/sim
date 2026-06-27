@@ -9,6 +9,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileAuth } from '@/hooks/queries/public-shares'
+import { useTranslations } from 'next-intl'
 
 interface PublicFileAuthProps {
   token: string
@@ -19,6 +20,7 @@ interface PublicFileAuthProps {
  * `file_auth_{shareId}` cookie is set and the page re-renders the viewer.
  */
 export function PublicFileAuth({ token }: PublicFileAuthProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const authenticate = usePublicFileAuth(token)
   const [password, setPassword] = useState('')
@@ -40,7 +42,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   }
 
   return (
-    <PublicFileAuthShell title='Password Required' subtitle='This file is password-protected'>
+    <PublicFileAuthShell title={t('password_required')} subtitle='This file is password-protected'>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -49,7 +51,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
         className='space-y-6'
       >
         <div className='space-y-2'>
-          <Label htmlFor='password'>Password</Label>
+          <Label htmlFor='password'>{t('password')}</Label>
           <div className='relative'>
             <Input
               id='password'
@@ -59,7 +61,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
               autoCapitalize='none'
               autoComplete='current-password'
               autoCorrect='off'
-              placeholder='Enter password'
+              placeholder={t('enter_password')}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value)
@@ -90,7 +92,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
           {authenticate.isPending ? (
             <span className='flex items-center gap-2'>
               <Loader className='size-4' animate />
-              Authenticating…
+              {t('authenticating')}
             </span>
           ) : (
             'Continue'

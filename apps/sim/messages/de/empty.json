@@ -1,14 +1,14 @@
 {
   "noResults": "Keine Ergebnisse gefunden",
-  "noData": "Noch keine Daten",
-  "noItems": "Keine Elemente",
-  "emptyState": "Hier ist noch nichts",
-  "createFirst": "Erstellen Sie Ihr erstes",
-  "checkBack": "Kommen Sie später wieder",
-  "startBuilding": "Beginnen Sie mit dem Aufbau",
-  "allCaughtUp": "Sie sind auf dem neuesten Stand",
+  "noData": "Noch keine Daten vorhanden",
+  "noItems": "Keine Inhalte verfügbar",
+  "emptyState": "Hier gibt es nichts zu sehen",
+  "createFirst": "Erstelle dein erstes Projekt",
+  "checkBack": "Mach später noch einmal auf",
+  "startBuilding": "Beginne mit dem Bauen",
+  "allCaughtUp": "Du hast alles im Griff",
   "nothingToShow": "Nichts zu zeigen",
-  "tryDifferentSearch": "Versuchen Sie eine andere Suche",
-  "tryDifferentFilter": "Versuchen Sie andere Filter",
-  "clearFilters": "Filter zurücksetzen"
+  "tryDifferentSearch": "Versuche eine andere Suche",
+  "tryDifferentFilter": "Verwende unterschiedliche Filter",
+  "clearFilters": "Lösche die Filter"
 }

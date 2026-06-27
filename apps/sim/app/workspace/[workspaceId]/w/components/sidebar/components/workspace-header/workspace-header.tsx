@@ -26,6 +26,7 @@ import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -94,6 +95,7 @@ function WorkspaceHeaderImpl({
   isCollapsed = false,
   onExpandSidebar,
 }: WorkspaceHeaderProps) {
+  const t = useTranslations('auto')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -272,7 +274,7 @@ function WorkspaceHeaderImpl({
       {isMounted && isCollapsed ? (
         <button
           type='button'
-          aria-label='Expand sidebar'
+          aria-label={t('expand_sidebar')}
           onClick={onExpandSidebar}
           className={chipVariants({ fullWidth: true })}
         >
@@ -321,7 +323,7 @@ function WorkspaceHeaderImpl({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              aria-label='Switch workspace'
+              aria-label={t('switch_workspace')}
               className={cn(chipVariants(), 'min-w-0 max-w-full')}
               title={activeWorkspace?.name}
               onContextMenu={(e) => {
@@ -373,7 +375,7 @@ function WorkspaceHeaderImpl({
           >
             {isWorkspacesLoading ? (
               <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
-                Loading workspaces...
+                {t('loading_workspaces')}
               </div>
             ) : (
               <>
@@ -503,7 +505,7 @@ function WorkspaceHeaderImpl({
                             </span>
                             <button
                               type='button'
-                              aria-label='Workspace options'
+                              aria-label={t('workspace_options')}
                               onMouseDown={() => {
                                 isContextMenuOpeningRef.current = true
                               }}
@@ -547,7 +549,7 @@ function WorkspaceHeaderImpl({
                     flush
                     className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
                   >
-                    New workspace
+                    {t('new_workspace')}
                   </Chip>
                 </div>
 
@@ -567,7 +569,7 @@ function WorkspaceHeaderImpl({
                   flush
                   className='w-full select-none'
                 >
-                  Invite teammates
+                  {t('invite_teammates')}
                 </Chip>
                 <Chip
                   leftIcon={ManageWorkspace}
@@ -584,7 +586,7 @@ function WorkspaceHeaderImpl({
                   flush
                   className='w-full select-none'
                 >
-                  Manage workspace
+                  {t('manage_workspace')}
                 </Chip>
               </>
             )}
@@ -593,7 +595,7 @@ function WorkspaceHeaderImpl({
       ) : (
         <button
           type='button'
-          aria-label='Switch workspace'
+          aria-label={t('switch_workspace')}
           className={cn(
             'mx-0.5 h-[30px] items-center gap-2 rounded-lg px-2',
             isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full'
@@ -685,7 +687,7 @@ function WorkspaceHeaderImpl({
         open={isLeaveModalOpen}
         onOpenChange={() => setIsLeaveModalOpen(false)}
         srTitle='Leave workspace'
-        title='Leave workspace'
+        title={t('leave_workspace')}
         text={[
           'Are you sure you want to leave ',
           { text: leaveTarget?.name ?? 'this workspace', bold: true },

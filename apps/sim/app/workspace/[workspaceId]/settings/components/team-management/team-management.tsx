@@ -27,10 +27,12 @@ import {
 } from '@/hooks/queries/organization'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('TeamManagement')
 
 export function TeamManagement() {
+  const t = useTranslations('auto')
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
 
@@ -321,7 +323,7 @@ export function TeamManagement() {
             disabled={isInvitationsDisabled}
             title={isInvitationsDisabled ? 'Invitations are disabled' : undefined}
           >
-            Invite
+            {t('invite')}
           </Chip>
         }
       >

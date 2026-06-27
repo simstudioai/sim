@@ -5,6 +5,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import {
   ArrowRight,
   Badge,
@@ -93,6 +94,7 @@ function formatInvoiceAmount(amountMinor: number, currency: string): string {
 }
 
 export function Billing() {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -413,7 +415,9 @@ export function Billing() {
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{planName} plan</span>
+            <span className='truncate text-[14px] text-[var(--text-body)]'>
+              {planName} {t('plan')}
+            </span>
             <span className='truncate text-[12px] text-[var(--text-muted)]'>{priceText}</span>
           </div>
         </div>
@@ -426,11 +430,11 @@ export function Billing() {
               onMouseEnter={prefetchUpgrade}
               onFocus={prefetchUpgrade}
             >
-              Explore plans
+              {t('explore_plans')}
             </ChipLink>
           ) : (
             <Chip variant='border-shadow' flush disabled>
-              Explore plans
+              {t('explore_plans')}
             </Chip>
           ))}
       </div>
@@ -448,10 +452,10 @@ export function Billing() {
       )}
 
       {showOnDemand && (
-        <SettingsSection label='Enable on-demand usage'>
+        <SettingsSection label={t('enable_on_demand_usage')}>
           <div className='flex items-center justify-between'>
             <span className='text-[var(--text-body)] text-small'>
-              Allow usage to go past included usage
+              {t('allow_usage_to_go_past_included')}
             </span>
             <Switch
               checked={isOnDemandActive}
@@ -463,10 +467,10 @@ export function Billing() {
       )}
 
       {!subscription.isFree && !subscription.isEnterprise && (
-        <SettingsSection label='Usage notifications'>
+        <SettingsSection label={t('usage_notifications')}>
           <div className='flex items-center justify-between'>
             <span className='text-[var(--text-body)] text-small'>
-              Email me when I reach 80% usage
+              {t('email_me_when_i_reach_80')}
             </span>
             <Switch
               checked={!!billingUsageNotificationsEnabled}
@@ -485,7 +489,7 @@ export function Billing() {
       )}
 
       {(subscription.isPaid || subscription.isEnterprise) && (
-        <SettingsSection label='Subscription'>
+        <SettingsSection label={t('subscription')}>
           <div className='flex flex-col gap-4'>
             {periodEnd && (
               <div className='flex items-center justify-between'>
@@ -499,13 +503,13 @@ export function Billing() {
             )}
 
             <div className='flex items-center justify-between'>
-              <span className='text-[var(--text-body)] text-small'>Payment method</span>
+              <span className='text-[var(--text-body)] text-small'>{t('payment_method')}</span>
               <Chip
                 flush
                 disabled={!canManageBilling || openBillingPortal.isPending}
                 onClick={handleOpenBillingPortal}
               >
-                Manage in Stripe
+                {t('manage_in_stripe')}
               </Chip>
             </div>
 
@@ -521,7 +525,7 @@ export function Billing() {
                     disabled={!canManageBilling}
                     onClick={handleRestoreSubscription}
                   >
-                    Restore
+                    {t('restore')}
                   </Chip>
                 ) : (
                   <Chip
@@ -530,7 +534,7 @@ export function Billing() {
                     disabled={!canManageBilling}
                     onClick={handleCancelSubscription}
                   >
-                    Cancel
+                    {t('cancel')}
                   </Chip>
                 )}
               </div>
@@ -540,7 +544,7 @@ export function Billing() {
       )}
 
       {!subscription.isFree && invoices.length > 0 && (
-        <SettingsSection label='Invoices'>
+        <SettingsSection label={t('invoices')}>
           <div className='-mx-2 flex flex-col gap-y-0.5'>
             {invoices.map((invoice) => {
               const rowClassName =
@@ -582,13 +586,13 @@ export function Billing() {
                 type='button'
                 onClick={handleOpenBillingPortal}
                 disabled={openBillingPortal.isPending || !canManageBilling}
-                aria-label='View all invoices'
+                aria-label={t('view_all_invoices')}
                 className={cn(
                   chipVariants({ fullWidth: true }),
                   'text-[var(--text-muted)] text-small'
                 )}
               >
-                View all
+                {t('view_all')}
               </button>
             )}
           </div>

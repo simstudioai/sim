@@ -49,6 +49,7 @@ import {
 } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from '../api-keys/components'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -61,6 +62,7 @@ interface ServerDetailViewProps {
 type McpClientType = 'sim' | 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
 
 function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
+  const t = useTranslations('auto')
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -358,7 +360,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <Chip onClick={onBack} leftIcon={ArrowLeft}>
-            MCP Servers
+            {t('mcp_servers')}
           </Chip>
         </div>
       </div>
@@ -370,12 +372,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <Chip onClick={onBack} leftIcon={ArrowLeft}>
-            MCP Servers
+            {t('mcp_servers')}
           </Chip>
         </div>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
           <p className='text-[var(--text-error)] text-xs leading-tight'>
-            Failed to load server details
+            {t('failed_to_load_server_details')}
           </p>
         </div>
       </div>
@@ -387,21 +389,21 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   const detailHeaderJsx = (
     <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
       <Chip onClick={onBack} leftIcon={ArrowLeft}>
-        MCP Servers
+        {t('mcp_servers')}
       </Chip>
       <div className='flex items-center'>
-        <Chip onClick={handleOpenEditServer}>Edit Server</Chip>
+        <Chip onClick={handleOpenEditServer}>{t('edit_server')}</Chip>
         {showAddDisabledTooltip ? (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <div className='inline-flex'>
                 <Chip leftIcon={Plus} variant='primary' disabled>
-                  Add Workflows
+                  {t('add_workflows')}
                 </Chip>
               </div>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              All deployed workflows have been added to this server.
+              {t('all_deployed_workflows_have_been_added')}
             </Tooltip.Content>
           </Tooltip.Root>
         ) : (
@@ -411,7 +413,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             onClick={() => setShowAddWorkflow(true)}
             disabled={!canAddWorkflow}
           >
-            Add Workflows
+            {t('add_workflows')}
           </Chip>
         )}
       </div>
@@ -438,13 +440,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 {activeServerTab === 'workflows' && (
                   <div className='flex flex-col gap-4.5'>
                     <span className='font-medium text-[var(--text-primary)] text-sm'>
-                      Workflows
+                      {t('workflows')}
                     </span>
 
                     {tools.length === 0 ? (
                       <p className='text-[var(--text-muted)] text-sm'>
-                        No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
-                        workflow.
+                        {t('no_workflows_added_yet_click_quot')}
                       </p>
                     ) : (
                       <div className='flex flex-col gap-2'>
@@ -460,7 +461,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             </div>
                             <div className='flex flex-shrink-0 items-center gap-1'>
                               <RowActionsMenu
-                                label='Tool actions'
+                                label={t('tool_actions')}
                                 actions={[
                                   { label: 'Edit', onSelect: () => setToolToView(tool) },
                                   {
@@ -479,7 +480,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
                     {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
                       <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                        Deploy a workflow first to add it to this server.
+                        {t('deploy_a_workflow_first_to_add')}
                       </p>
                     )}
                   </div>
@@ -490,19 +491,19 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
                       <div className='flex flex-col gap-1'>
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Server Name
+                          {t('server_name')}
                         </span>
                         <p className='text-[var(--text-secondary)] text-base'>{server.name}</p>
                       </div>
                       <div className='flex flex-col gap-1'>
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Transport
+                          {t('transport')}
                         </span>
-                        <p className='text-[var(--text-secondary)] text-base'>Streamable-HTTP</p>
+                        <p className='text-[var(--text-secondary)] text-base'>{t('streamable_http')}</p>
                       </div>
                       <div className='flex flex-col gap-1'>
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Access
+                          {t('access')}
                         </span>
                         <p className='text-[var(--text-secondary)] text-base'>
                           {server.isPublic ? 'Public' : 'API Key'}
@@ -513,7 +514,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     {server.description?.trim() && (
                       <div className='flex flex-col gap-1'>
                         <span className='font-medium text-[var(--text-primary)] text-sm'>
-                          Description
+                          {t('description')}
                         </span>
                         <p className='text-[var(--text-secondary)] text-base'>
                           {server.description}
@@ -531,18 +532,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     <div>
                       <div className='mb-[6.5px] flex items-center justify-between'>
                         <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
-                          MCP Client
+                          {t('mcp_client')}
                         </span>
                       </div>
                       <ButtonGroup
                         value={activeConfigTab}
                         onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
                       >
-                        <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
-                        <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
-                        <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
-                        <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
-                        <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
+                        <ButtonGroupItem value='cursor'>{t('cursor')}</ButtonGroupItem>
+                        <ButtonGroupItem value='claude-code'>{t('claude_code')}</ButtonGroupItem>
+                        <ButtonGroupItem value='claude-desktop'>{t('claude_desktop')}</ButtonGroupItem>
+                        <ButtonGroupItem value='vscode'>{t('vs_code')}</ButtonGroupItem>
+                        <ButtonGroupItem value='sim'>{t('sim')}</ButtonGroupItem>
                       </ButtonGroup>
                     </div>
 
@@ -550,8 +551,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       <div className='rounded-lg border border-[var(--border-1)] p-4'>
                         <div className='flex flex-col gap-3'>
                           <p className='text-[var(--text-secondary)] text-small'>
-                            Add this MCP server to your workspace so you can use its tools in other
-                            workflows via the MCP block.
+                            {t('add_this_mcp_server_to_your')}
                           </p>
                           <Button
                             variant='primary'
@@ -588,12 +588,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             ) : addedToWorkspace ? (
                               <>
                                 <Check className='mr-1.5 size-[14px]' />
-                                Added to Workspace
+                                {t('added_to_workspace')}
                               </>
                             ) : (
                               <>
                                 <Server className='mr-1.5 size-[14px]' />
-                                Add to Workspace
+                                {t('add_to_workspace')}
                               </>
                             )}
                           </Button>
@@ -608,7 +608,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       <div>
                         <div className='mb-[6.5px] flex items-center justify-between'>
                           <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
-                            Configuration
+                            {t('configuration')}
                           </span>
                           <Button
                             variant='ghost'
@@ -636,7 +636,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             >
                               <img
                                 src='https://cursor.com/deeplink/mcp-install-dark.svg'
-                                alt='Add to Cursor'
+                                alt={t('add_to_cursor')}
                                 className='h-[26px] rounded-md align-middle'
                               />
                             </a>
@@ -644,13 +644,13 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         </div>
                         {!server.isPublic && (
                           <p className='mt-2 text-[var(--text-muted)] text-xs'>
-                            Replace $SIM_API_KEY with your API key, or{' '}
+                            {t('replace_sim_api_key_with_your')}{' '}
                             <button
                               type='button'
                               onClick={() => setShowCreateApiKeyModal(true)}
                               className='underline hover-hover:text-[var(--text-secondary)]'
                             >
-                              create one now
+                              {t('create_one_now')}
                             </button>
                           </p>
                         )}
@@ -668,7 +668,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         open={!!toolToDelete}
         onOpenChange={(open) => !open && setToolToDelete(null)}
         srTitle='Remove Workflow'
-        title='Remove Workflow'
+        title={t('remove_workflow')}
         text={[
           'Are you sure you want to remove ',
           { text: toolToDelete?.toolName ?? 'this workflow', bold: true },
@@ -699,14 +699,14 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         <ChipModalBody>
           <ChipModalField
             type='textarea'
-            title='Description'
+            title={t('description')}
             value={editingDescription}
             onChange={setEditingDescription}
-            placeholder='Describe what this tool does...'
+            placeholder={t('describe_what_this_tool_does')}
             minHeight={80}
           />
 
-          <ChipModalField type='custom' title='Parameters'>
+          <ChipModalField type='custom' title={t('parameters')}>
             {(() => {
               const schema = toolToView?.parameterSchema as
                 | { properties?: Record<string, { type?: string; description?: string }> }
@@ -732,7 +732,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       </div>
                       <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                         <div className='flex flex-col gap-1.5'>
-                          <Label className='text-sm'>Description</Label>
+                          <Label className='text-sm'>{t('description')}</Label>
                           <ChipInput
                             value={editingParameterDescriptions[name] || ''}
                             onChange={(e) =>
@@ -750,7 +750,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 </div>
               ) : (
                 <p className='text-[var(--text-muted)] text-sm'>
-                  No inputs configured for this workflow.
+                  {t('no_inputs_configured_for_this_workflow')}
                 </p>
               )
             })()}
@@ -782,19 +782,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             setSelectedWorkflowId(null)
           }}
         >
-          Add Workflow
+          {t('add_workflow')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Select a deployed workflow to add to this MCP server. The workflow will be available as
-            a tool.
+            {t('select_a_deployed_workflow_to_add')}
           </p>
-          <ChipModalField type='custom' title='Select Workflow'>
+          <ChipModalField type='custom' title={t('select_workflow')}>
             <ChipSelect
               options={workflowOptions}
               value={selectedWorkflowId || undefined}
               onChange={(value: string) => setSelectedWorkflowId(value)}
-              placeholder='Select a workflow...'
+              placeholder={t('select_a_workflow')}
               searchable
               searchPlaceholder='Search workflows...'
               disabled={addToolMutation.isPending}
@@ -832,32 +831,32 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         }}
         srTitle='Edit Server'
       >
-        <ChipModalHeader onClose={() => setShowEditServer(false)}>Edit Server</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowEditServer(false)}>{t('edit_server')}</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='input'
-            title='Server name'
+            title={t('server_name_2')}
             required
             value={editServerName}
             onChange={setEditServerName}
-            placeholder='e.g., My MCP Server'
+            placeholder={t('e_g_my_mcp_server')}
           />
           <ChipModalField
             type='textarea'
-            title='Description'
+            title={t('description')}
             value={editServerDescription}
             onChange={setEditServerDescription}
-            placeholder='Describe what this MCP server does (optional)'
+            placeholder={t('describe_what_this_mcp_server_does')}
             minHeight={60}
           />
-          <ChipModalField type='custom' title='Access'>
+          <ChipModalField type='custom' title={t('access')}>
             <div className='flex flex-col gap-1.5'>
               <ButtonGroup
                 value={editServerIsPublic ? 'public' : 'private'}
                 onValueChange={(value) => setEditServerIsPublic(value === 'public')}
               >
-                <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                <ButtonGroupItem value='private'>{t('api_key')}</ButtonGroupItem>
+                <ButtonGroupItem value='public'>{t('public')}</ButtonGroupItem>
               </ButtonGroup>
               <p className='text-[var(--text-muted)] text-xs'>
                 {editServerIsPublic
@@ -900,6 +899,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
  * Allows users to create and manage MCP servers that expose workflows as tools.
  */
 export function WorkflowMcpServers() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const searchParams = useSearchParams()
@@ -980,7 +980,7 @@ export function WorkflowMcpServers() {
             onClick={() => setShowAddModal(true)}
             disabled={isLoading}
           >
-            Add Server
+            {t('add_server')}
           </Chip>
         }
       >
@@ -993,7 +993,7 @@ export function WorkflowMcpServers() {
             </div>
           ) : isLoading ? null : !hasServers ? (
             <SettingsEmptyState>
-              Click &quot;Add Server&quot; above to get started
+              {t('click_quot_add_server_quot_above')}
             </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-2'>
@@ -1010,7 +1010,7 @@ export function WorkflowMcpServers() {
                         </span>
                         {server.isPublic && (
                           <Badge variant='outline' size='sm'>
-                            Public
+                            {t('public')}
                           </Badge>
                         )}
                       </div>
@@ -1018,7 +1018,7 @@ export function WorkflowMcpServers() {
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <RowActionsMenu
-                        label='Server actions'
+                        label={t('server_actions')}
                         actions={[
                           { label: 'Details', onSelect: () => setSelectedServerId(server.id) },
                           {
@@ -1035,7 +1035,7 @@ export function WorkflowMcpServers() {
               })}
               {showNoResults && (
                 <SettingsEmptyState variant='inline'>
-                  No servers found matching "{searchTerm}"
+                  {t('no_servers_found_matching')}{searchTerm}"
                 </SettingsEmptyState>
               )}
             </div>
@@ -1055,7 +1055,7 @@ export function WorkflowMcpServers() {
         open={!!serverToDelete}
         onOpenChange={(open) => !open && setServerToDelete(null)}
         srTitle='Delete MCP Server'
-        title='Delete MCP Server'
+        title={t('delete_mcp_server')}
         text={[
           'Are you sure you want to delete ',
           { text: serverToDelete?.name ?? 'this server', bold: true },

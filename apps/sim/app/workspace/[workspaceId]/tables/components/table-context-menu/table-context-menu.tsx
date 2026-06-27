@@ -9,6 +9,7 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Database, Download, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -42,6 +43,7 @@ export function TableContextMenu({
   disableImport = false,
   disableExport = false,
 }: TableContextMenuProps) {
+  const t = useTranslations('auto')
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -67,25 +69,25 @@ export function TableContextMenu({
         {onViewSchema && (
           <DropdownMenuItem onSelect={onViewSchema}>
             <Database />
-            View Schema
+            {t('view_schema')}
           </DropdownMenuItem>
         )}
         {onRename && (
           <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
             <Pencil />
-            Rename
+            {t('rename')}
           </DropdownMenuItem>
         )}
         {onImportCsv && (
           <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
             <Upload />
-            Import CSV…
+            {t('import_csv')}
           </DropdownMenuItem>
         )}
         {onExportCsv && (
           <DropdownMenuItem disabled={disableExport} onSelect={onExportCsv}>
             <Download />
-            Export CSV
+            {t('export_csv')}
           </DropdownMenuItem>
         )}
         {(onViewSchema || onRename || onImportCsv || onExportCsv) && (onCopyId || onDelete) && (
@@ -94,14 +96,14 @@ export function TableContextMenu({
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />
-            Copy ID
+            {t('copy_id')}
           </DropdownMenuItem>
         )}
         {onCopyId && onDelete && <DropdownMenuSeparator />}
         {onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />
-            Delete
+            {t('delete')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -9,6 +9,7 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
+import { useTranslations } from 'next-intl'
 
 interface PreviewContextMenuProps {
   isOpen: boolean
@@ -39,6 +40,7 @@ export function PreviewContextMenu({
   onToggleWrap,
   copyOnly = false,
 }: PreviewContextMenuProps) {
+  const t = useTranslations('auto')
   if (typeof document === 'undefined') return null
 
   return createPortal(
@@ -65,7 +67,7 @@ export function PreviewContextMenu({
             onClose()
           }}
         >
-          Copy
+          {t('copy')}
         </PopoverItem>
 
         {!copyOnly && onSearch && (
@@ -77,7 +79,7 @@ export function PreviewContextMenu({
                 onClose()
               }}
             >
-              Search
+              {t('search')}
             </PopoverItem>
           </>
         )}
@@ -86,7 +88,7 @@ export function PreviewContextMenu({
           <>
             <PopoverDivider />
             <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
-              Wrap Text
+              {t('wrap_text')}
             </PopoverItem>
           </>
         )}

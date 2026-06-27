@@ -10,6 +10,7 @@ import {
 } from '@/components/emcn'
 import { Duplicate } from '@/components/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
+import { useTranslations } from 'next-intl'
 
 interface ShareButtonProps {
   url: string
@@ -17,6 +18,7 @@ interface ShareButtonProps {
 }
 
 export function ShareButton({ url, title }: ShareButtonProps) {
+  const t = useTranslations('auto')
   const [copied, setCopied] = useState(false)
 
   const handleCopyLink = async () => {
@@ -44,10 +46,10 @@ export function ShareButton({ url, title }: ShareButtonProps) {
       <DropdownMenuTrigger asChild>
         <button
           className='flex items-center gap-1.5 text-[var(--landing-text-muted)] text-sm hover:text-[var(--landing-text)]'
-          aria-label='Share this post'
+          aria-label={t('share_this_post')}
         >
           <Share2 className='h-4 w-4' />
-          <span>Share</span>
+          <span>{t('share')}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
@@ -57,11 +59,11 @@ export function ShareButton({ url, title }: ShareButtonProps) {
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareTwitter}>
           <XIcon className='h-4 w-4' />
-          Share on X
+          {t('share_on_x')}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareLinkedIn}>
           <LinkedInIcon className='h-4 w-4' />
-          Share on LinkedIn
+          {t('share_on_linkedin')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -34,6 +34,7 @@ import {
   useWorkspacesQuery,
 } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },
@@ -68,6 +69,7 @@ function buildInviteLink(invitationId: string, token: string) {
 }
 
 export function Teammates() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -179,7 +181,7 @@ export function Teammates() {
             onFocus={isInvitationsDisabled ? prefetchUpgrade : undefined}
             title={inviteDisabledReason ?? undefined}
           >
-            Invite
+            {t('invite')}
           </Chip>
         }
       >
@@ -220,7 +222,7 @@ export function Teammates() {
               })()}
               menu={
                 <RowActionsMenu
-                  label='Teammate actions'
+                  label={t('teammate_actions')}
                   actions={[
                     {
                       label: 'Copy email',

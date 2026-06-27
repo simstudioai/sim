@@ -15,6 +15,7 @@ import {
   MAX_CHAT_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
+import { useTranslations } from 'next-intl'
 
 const ParticlesVisualization = dynamic(
   () =>
@@ -55,6 +56,7 @@ export function VoiceInterface({
   className,
   chatId,
 }: VoiceInterfaceProps) {
+  const t = useTranslations('auto')
   const [state, setState] = useState<'idle' | 'listening' | 'agent_speaking'>('idle')
   const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -554,7 +556,7 @@ export function VoiceInterface({
         <p className='mb-8 text-center text-[var(--landing-text-muted)] text-lg'>
           {getStatusText()}
           {isMuted && (
-            <span className='ml-2 text-[var(--landing-text-muted)] text-sm'>(Muted)</span>
+            <span className='ml-2 text-[var(--landing-text-muted)] text-sm'>{t('muted')}</span>
           )}
         </p>
       </div>

@@ -14,6 +14,7 @@ import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { type ImportRow, useWorkspaceImports } from './use-workspace-imports'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ImportProgressMenu')
 
@@ -30,6 +31,7 @@ interface ImportProgressMenuProps {
  * both the tables list and the in-table view.
  */
 export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuProps) {
+  const t = useTranslations('auto')
   const imports = useWorkspaceImports(workspaceId, tableId)
   const dismiss = useImportTrayStore((state) => state.dismiss)
   const dismissJob = useImportTrayStore((state) => state.dismissJob)
@@ -96,7 +98,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
                     className='text-[var(--brand-primary)] hover-hover:underline'
                     onClick={() => download(row)}
                   >
-                    Download
+                    {t('download')}
                   </button>
                 ) : (
                   stage.detail

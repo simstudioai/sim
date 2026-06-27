@@ -12,6 +12,7 @@ import {
   WorkflowX,
 } from '@/components/emcn/icons'
 import type { BlockIconInfo } from '../types'
+import { useTranslations } from 'next-intl'
 
 export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
   string: TypeText,
@@ -52,6 +53,7 @@ export function ColumnTypeIcon({
   blockIconInfo,
   blockMissing,
 }: ColumnTypeIconProps) {
+  const t = useTranslations('auto')
   if (isWorkflowColumn) {
     if (blockMissing) {
       return (
@@ -62,7 +64,7 @@ export function ColumnTypeIcon({
             </span>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            This column's source block no longer exists in the workflow.
+            {t('this_column_s_source_block_no')}
           </Tooltip.Content>
         </Tooltip.Root>
       )

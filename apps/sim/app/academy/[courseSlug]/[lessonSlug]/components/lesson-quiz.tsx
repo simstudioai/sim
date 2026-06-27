@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle } from 'lucide-react'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { QuizDefinition, QuizQuestion } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface LessonQuizProps {
   lessonId: string
@@ -49,6 +50,7 @@ const optionBase =
  * Scoring is performed entirely client-side.
  */
 export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
+  const t = useTranslations('auto')
   const [answers, setAnswers] = useState<Answers>({})
   const [result, setResult] = useState<QuizResult | null>(null)
   // Reset quiz state when the lesson changes (component is reused across quiz-lesson navigations).
@@ -90,9 +92,9 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   return (
     <div className='space-y-6'>
       <div>
-        <h2 className='font-[430] text-[#ECECEC] text-[20px]'>Quiz</h2>
+        <h2 className='font-[430] text-[#ECECEC] text-[20px]'>{t('quiz')}</h2>
         <p className='mt-1 text-[#666] text-[14px]'>
-          Score {quizConfig.passingScore}% or higher to pass.
+          {t('score')} {quizConfig.passingScore}{t('or_higher_to_pass')}
         </p>
       </div>
 
@@ -224,7 +226,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
         >
           <p className='font-[430] text-[15px]'>{result.passed ? 'Passed!' : 'Keep trying!'}</p>
           <p className='mt-1 text-[13px] opacity-80'>
-            Score: {result.score}% (passing: {quizConfig.passingScore}%)
+            {t('score_2')} {result.score}{t('passing')} {quizConfig.passingScore}%)
           </p>
           {!result.passed && (
             <button
@@ -235,7 +237,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
               }}
               className='mt-3 rounded-[5px] border border-[#3A2A2A] bg-[#2A1F1F] px-3 py-1.5 text-[#999] text-[13px] transition-colors hover:border-[#4A3A3A] hover:text-[#ECECEC]'
             >
-              Retry
+              {t('retry')}
             </button>
           )}
         </div>
@@ -248,7 +250,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
           disabled={!allAnswered}
           className='rounded-[5px] bg-[#ECECEC] px-5 py-2.5 font-[430] text-[#1C1C1C] text-[14px] transition-colors hover:bg-white disabled:opacity-40'
         >
-          Submit answers
+          {t('submit_answers')}
         </button>
       )}
     </div>

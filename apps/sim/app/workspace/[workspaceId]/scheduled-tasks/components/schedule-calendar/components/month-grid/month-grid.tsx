@@ -14,6 +14,7 @@ import {
   dayKey,
   type ScheduledTask,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
+import { useTranslations } from 'next-intl'
 
 /**
  * Lines of task content a month day cell shows before collapsing the rest
@@ -63,6 +64,7 @@ function DayCell({
   onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
   onShowDay: (date: Date) => void
 }) {
+  const t = useTranslations('auto')
   const visible =
     events.length > MAX_DAY_EVENT_LINES ? events.slice(0, MAX_DAY_EVENT_LINES - 1) : events
   const hiddenCount = events.length - visible.length
@@ -106,7 +108,7 @@ function DayCell({
             }}
             className='cursor-pointer px-1.5 py-0.5 text-left text-[var(--text-muted)] text-micro outline-none transition-colors hover-hover:text-[var(--text-body)]'
           >
-            {hiddenCount} more
+            {hiddenCount} {t('more')}
           </button>
         )}
       </div>

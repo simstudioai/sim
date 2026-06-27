@@ -15,6 +15,7 @@ import {
   type ComboboxOption,
 } from '@/components/emcn'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateWorkflowMcpServerModal')
 
@@ -39,6 +40,7 @@ export function CreateWorkflowMcpServerModal({
   workflowOptions,
   isLoadingWorkflows = false,
 }: CreateWorkflowMcpServerModalProps) {
+  const t = useTranslations('auto')
   const createServerMutation = useCreateWorkflowMcpServer()
 
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA })
@@ -74,31 +76,31 @@ export function CreateWorkflowMcpServerModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Add New MCP Server'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Add New MCP Server</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{t('add_new_mcp_server')}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='input'
-          title='Server Name'
+          title={t('server_name')}
           value={formData.name}
           onChange={(value) => setFormData({ ...formData, name: value })}
           required
-          placeholder='e.g., My MCP Server'
+          placeholder={t('e_g_my_mcp_server')}
         />
         <ChipModalField
           type='textarea'
-          title='Description'
+          title={t('description')}
           value={formData.description}
           onChange={(value) => setFormData({ ...formData, description: value })}
-          placeholder='Describe what this MCP server does (optional)'
+          placeholder={t('describe_what_this_mcp_server_does')}
         />
         {showWorkflows && (
-          <ChipModalField type='custom' title='Workflows'>
+          <ChipModalField type='custom' title={t('workflows')}>
             <ChipSelect
               options={workflowOptions ?? []}
               multiSelect
               multiSelectValues={selectedWorkflowIds}
               onMultiSelectChange={setSelectedWorkflowIds}
-              placeholder='Select workflows...'
+              placeholder={t('select_workflows')}
               searchable
               searchPlaceholder='Search workflows...'
               disabled={createServerMutation.isPending}
@@ -113,17 +115,17 @@ export function CreateWorkflowMcpServerModal({
             />
           </ChipModalField>
         )}
-        <ChipModalField type='custom' title='Access'>
+        <ChipModalField type='custom' title={t('access')}>
           <div className='flex items-center gap-3'>
             <ButtonGroup
               value={formData.isPublic ? 'public' : 'private'}
               onValueChange={(value) => setFormData({ ...formData, isPublic: value === 'public' })}
             >
-              <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-              <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+              <ButtonGroupItem value='private'>{t('api_key')}</ButtonGroupItem>
+              <ButtonGroupItem value='public'>{t('public')}</ButtonGroupItem>
             </ButtonGroup>
             {formData.isPublic && (
-              <span className='text-[var(--text-muted)] text-xs'>No authentication required</span>
+              <span className='text-[var(--text-muted)] text-xs'>{t('no_authentication_required')}</span>
             )}
           </div>
         </ChipModalField>

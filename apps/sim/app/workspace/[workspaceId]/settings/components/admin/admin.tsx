@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { useTranslations } from 'next-intl'
 
 const PAGE_SIZE = 20 as const
 
@@ -34,6 +35,7 @@ const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] 
 ]
 
 export function Admin() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const { data: session } = useSession()
@@ -160,7 +162,7 @@ export function Admin() {
     <SettingsPanel>
       <div className='flex flex-col gap-4'>
         <div className='flex items-center justify-between'>
-          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Label htmlFor='super-user-mode'>{t('super_admin_mode')}</Label>
           <Switch
             id='super-user-mode'
             checked={settings?.superUserModeEnabled ?? false}
@@ -173,9 +175,9 @@ export function Admin() {
           <>
             <div className='flex items-center justify-between gap-3'>
               <div className='flex flex-col gap-1'>
-                <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
+                <Label className='text-[var(--text-primary)] text-sm'>{t('mothership_environment')}</Label>
                 <p className='text-[var(--text-secondary)] text-xs'>
-                  Default uses the configured Sim agent URL.
+                  {t('default_uses_the_configured_sim_agent')}
                 </p>
               </div>
               <ChipSelect
@@ -185,7 +187,7 @@ export function Admin() {
                 onChange={(value) =>
                   handleMothershipEnvironmentChange(value as MothershipEnvironment)
                 }
-                placeholder='Select environment'
+                placeholder={t('select_environment')}
                 disabled={updateSetting.isPending}
                 options={MOTHERSHIP_ENV_OPTIONS}
               />
@@ -198,7 +200,7 @@ export function Admin() {
 
       <div className='flex flex-col gap-2'>
         <p className='text-[var(--text-secondary)] text-sm'>
-          Import a workflow by ID along with its associated copilot chats.
+          {t('import_a_workflow_by_id_along')}
         </p>
         <div className='flex gap-2'>
           <ChipInput
@@ -207,7 +209,7 @@ export function Admin() {
               setWorkflowId(e.target.value)
               importWorkflow.reset()
             }}
-            placeholder='Enter workflow ID'
+            placeholder={t('enter_workflow_id')}
             disabled={importWorkflow.isPending}
           />
           <Button
@@ -223,8 +225,8 @@ export function Admin() {
         )}
         {importWorkflow.isSuccess && (
           <p className='text-[var(--text-secondary)] text-small'>
-            Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
-            {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
+            {t('workflow_imported_successfully_new_id')} {importWorkflow.data.newWorkflowId},{' '}
+            {importWorkflow.data.copilotChatsImported ?? 0} {t('copilot_chats_imported')}
           </p>
         )}
       </div>
@@ -232,14 +234,14 @@ export function Admin() {
       <div className='h-px bg-[var(--border)]' />
 
       <div className='flex flex-col gap-3'>
-        <p className='font-medium text-[var(--text-muted)] text-small'>User Management</p>
+        <p className='font-medium text-[var(--text-muted)] text-small'>{t('user_management')}</p>
         <div className='flex gap-2'>
           <ChipInput
             icon={Search}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder='Search by email or paste a user ID...'
+            placeholder={t('search_by_email_or_paste_a')}
             className='min-w-0 flex-1'
           />
           <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
@@ -270,15 +272,15 @@ export function Admin() {
           <>
             <div className='flex flex-col gap-0.5'>
               <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-                <span className='w-[200px]'>Name</span>
-                <span className='flex-1'>Email</span>
-                <span className='w-[80px]'>Role</span>
-                <span className='w-[80px]'>Status</span>
-                <span className='w-[250px] text-right'>Actions</span>
+                <span className='w-[200px]'>{t('name')}</span>
+                <span className='flex-1'>{t('email')}</span>
+                <span className='w-[80px]'>{t('role')}</span>
+                <span className='w-[80px]'>{t('status')}</span>
+                <span className='w-[250px] text-right'>{t('actions')}</span>
               </div>
 
               {usersData.users.length === 0 && (
-                <SettingsEmptyState variant='inline'>No users found.</SettingsEmptyState>
+                <SettingsEmptyState variant='inline'>{t('no_users_found')}</SettingsEmptyState>
               )}
 
               {usersData.users.map((u) => (
@@ -301,9 +303,9 @@ export function Admin() {
                     </span>
                     <span className='w-[80px]'>
                       {u.banned ? (
-                        <Badge variant='red'>Banned</Badge>
+                        <Badge variant='red'>{t('banned')}</Badge>
                       ) : (
-                        <Badge variant='green'>Active</Badge>
+                        <Badge variant='green'>{t('active')}</Badge>
                       )}
                     </span>
                     <span className='flex w-[250px] justify-end gap-1'>
@@ -346,7 +348,7 @@ export function Admin() {
                               }}
                               disabled={pendingUserIds.has(u.id)}
                             >
-                              Unban
+                              {t('unban')}
                             </Button>
                           ) : (
                             <Button
@@ -380,7 +382,7 @@ export function Admin() {
                       <ChipInput
                         value={banReason}
                         onChange={(e) => setBanReason(e.target.value)}
-                        placeholder='Reason (optional)'
+                        placeholder={t('reason_optional')}
                         className='flex-1'
                       />
                       <Button
@@ -403,7 +405,7 @@ export function Admin() {
                         }}
                         disabled={pendingUserIds.has(u.id)}
                       >
-                        Confirm Ban
+                        {t('confirm_ban')}
                       </Button>
                     </div>
                   )}
@@ -414,7 +416,7 @@ export function Admin() {
             {totalPages > 1 && (
               <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
                 <span>
-                  Page {currentPage} of {totalPages} ({usersData.total} users)
+                  {t('page')} {currentPage} {t('of')} {totalPages} ({usersData.total} {t('users')}
                 </span>
                 <div className='flex gap-1'>
                   <Button
@@ -427,7 +429,7 @@ export function Admin() {
                     }
                     disabled={usersOffset === 0 || usersLoading}
                   >
-                    Previous
+                    {t('previous')}
                   </Button>
                   <Button
                     variant='active'
@@ -435,7 +437,7 @@ export function Admin() {
                     onClick={() => setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))}
                     disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
                   >
-                    Next
+                    {t('next')}
                   </Button>
                 </div>
               </div>

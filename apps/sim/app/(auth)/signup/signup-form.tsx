@@ -17,6 +17,7 @@ import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('SignupForm')
 
@@ -87,6 +88,7 @@ function SignupFormContent({
   isProduction,
   emailSignupEnabled,
 }: SignupFormProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -366,10 +368,10 @@ function SignupFormContent({
     <>
       <div className='space-y-1 text-center'>
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          Create an account
+          {t('create_an_account')}
         </h1>
         <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          Create an account or log in
+          {t('create_an_account_or_log_in')}
         </p>
       </div>
 
@@ -384,17 +386,17 @@ function SignupFormContent({
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='name'>Full name</Label>
+                <Label htmlFor='name'>{t('full_name')}</Label>
               </div>
               <div className='relative'>
                 <Input
                   id='name'
                   name='name'
-                  placeholder='Enter your name'
+                  placeholder={t('enter_your_name')}
                   type='text'
                   autoCapitalize='words'
                   autoComplete='name'
-                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                  title={t('name_can_only_contain_letters_spaces')}
                   value={name}
                   onChange={handleNameChange}
                   className={cn(
@@ -424,13 +426,13 @@ function SignupFormContent({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='email'>{t('email')}</Label>
               </div>
               <div className='relative'>
                 <Input
                   id='email'
                   name='email'
-                  placeholder='Enter your email'
+                  placeholder={t('enter_your_email')}
                   autoCapitalize='none'
                   autoComplete='email'
                   autoCorrect='off'
@@ -470,7 +472,7 @@ function SignupFormContent({
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <Label htmlFor='password'>Password</Label>
+                <Label htmlFor='password'>{t('password')}</Label>
               </div>
               <div className='relative'>
                 <div className='relative'>
@@ -480,7 +482,7 @@ function SignupFormContent({
                     type={showPassword ? 'text' : 'password'}
                     autoCapitalize='none'
                     autoComplete='new-password'
-                    placeholder='Enter your password'
+                    placeholder={t('enter_your_password')}
                     autoCorrect='off'
                     value={password}
                     onChange={handlePasswordChange}
@@ -539,7 +541,7 @@ function SignupFormContent({
             {isLoading ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
-                Creating account…
+                {t('creating_account')}
               </span>
             ) : (
               'Create account'
@@ -555,7 +557,7 @@ function SignupFormContent({
           </div>
           <div className='relative flex justify-center text-sm'>
             <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
-              Or continue with
+              {t('or_continue_with')}
             </span>
           </div>
         </div>
@@ -578,33 +580,33 @@ function SignupFormContent({
       )}
 
       <div className='pt-6 text-center font-light text-sm'>
-        <span className='font-normal'>Already have an account? </span>
+        <span className='font-normal'>{t('already_have_an_account')} </span>
         <Link
           href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
           className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
         >
-          Sign in
+          {t('sign_in')}
         </Link>
       </div>
 
       <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-11'>
-        By creating an account, you agree to our{' '}
+        {t('by_creating_an_account_you_agree')}{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
           className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
-          Terms of Service
+          {t('terms_of_service')}
         </Link>{' '}
-        and{' '}
+        {t('and')}{' '}
         <Link
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
           className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
-          Privacy Policy
+          {t('privacy_policy')}
         </Link>
       </div>
     </>
@@ -618,8 +620,9 @@ export default function SignupPage({
   isProduction,
   emailSignupEnabled,
 }: SignupFormProps) {
+  const t = useTranslations('auto')
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

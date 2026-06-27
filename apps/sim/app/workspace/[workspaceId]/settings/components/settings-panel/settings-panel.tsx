@@ -81,6 +81,7 @@ export function SettingsPanel({
   scrollContainerRef,
   search,
 }: SettingsPanelProps) {
+  const t = useTranslations('auto')
   const section = useSettingsSection()
   const meta = section ? getSettingsSectionMeta(section) : null
   const resolvedTitle = title ?? meta?.label
@@ -94,7 +95,7 @@ export function SettingsPanel({
         <div className='flex h-[30px] items-center gap-1'>
           {resolvedDocsLink && (
             <ChipLink href={resolvedDocsLink} target='_blank' rel='noopener noreferrer'>
-              Docs
+              {t('docs')}
             </ChipLink>
           )}
           {actions}

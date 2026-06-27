@@ -5,6 +5,7 @@ import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/em
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
 import { Download, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface LogRow {
   id: string
@@ -125,6 +126,7 @@ const COL_HEADERS: { key: SortKey; label: string }[] = [
 ]
 
 export function LandingPreviewLogs() {
+  const t = useTranslations('auto')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -166,12 +168,12 @@ export function LandingPreviewLogs() {
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
             <Library className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-            <h1 className='font-medium text-[var(--text-body)] text-sm'>Logs</h1>
+            <h1 className='font-medium text-[var(--text-body)] text-sm'>{t('logs')}</h1>
           </div>
           <div className='flex items-center gap-1'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <Download className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              Export
+              {t('export')}
             </div>
             <button
               type='button'
@@ -182,7 +184,7 @@ export function LandingPreviewLogs() {
                 color: activeTab === 'logs' ? 'var(--text-body)' : 'var(--text-secondary)',
               }}
             >
-              Logs
+              {t('logs')}
             </button>
             <button
               type='button'
@@ -194,7 +196,7 @@ export function LandingPreviewLogs() {
                 color: activeTab === 'dashboard' ? 'var(--text-body)' : 'var(--text-secondary)',
               }}
             >
-              Dashboard
+              {t('dashboard')}
             </button>
           </div>
         </div>
@@ -209,14 +211,14 @@ export function LandingPreviewLogs() {
               type='text'
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder='Search logs...'
+              placeholder={t('search_logs')}
               className='flex-1 bg-transparent text-[var(--text-body)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
             />
           </div>
           <div className='flex items-center gap-1.5'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              Filter
+              {t('filter')}
             </div>
             <button
               type='button'
@@ -224,7 +226,7 @@ export function LandingPreviewLogs() {
               className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-              Sort
+              {t('sort')}
             </button>
           </div>
         </div>

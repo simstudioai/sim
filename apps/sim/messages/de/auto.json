@@ -1,0 +1,17 @@
+{
+  "usage_limit": "Benutzerbegrenzung",
+  "plan": "Plan",
+  "explore_plans": "Erkunde die Pläne",
+  "enable_on_demand_usage": "Aktiviere auf-Demand-Benutzung",
+  "allow_usage_to_go_past_included": "Erlaube Benutzung zu über den inkludierten Benutzungsgrenzwert hinauszugehen",
+  "usage_notifications": "Benutzungsbenachrichtigungen",
+  "email_me_when_i_reach_80": "Melden Sie sich per E-Mail, wenn Sie 80% der Benutzung erreichen",
+  "subscription": "Abonnement",
+  "payment_method": "Zahlungsart",
+  "manage_in_stripe": "In Stripe verwalten",
+  "restore": "Wiederherstellen",
+  "cancel": "Kündigen",
+  "invoices": "Rechnungen",
+  "view_all_invoices": "Alle Rechnungen ansehen",
+  "view_all": "Alle Rechnungen ansehen"
+}

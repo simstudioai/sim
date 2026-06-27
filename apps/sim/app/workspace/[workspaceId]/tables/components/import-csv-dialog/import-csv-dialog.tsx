@@ -33,6 +33,7 @@ import {
   useImportCsvIntoTableAsync,
 } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ImportCsvDialog')
 
@@ -125,6 +126,7 @@ export function ImportCsvDialog({
   table,
   onImported,
 }: ImportCsvDialogProps) {
+  const t = useTranslations('auto')
   const [parsed, setParsed] = useState<ParsedCsv | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -373,50 +375,50 @@ export function ImportCsvDialog({
       size='lg'
     >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
-        Import CSV into {table.name}
+        {t('import_csv_into')} {table.name}
       </ChipModalHeader>
       <ChipModalBody>
         {!parsed ? (
           <ChipModalField
             type='file'
-            title='Import CSV'
+            title={t('import_csv')}
             accept='.csv,.tsv'
             disabled={parsing}
             onChange={handleFilesSelected}
             label={parsing ? 'Parsing...' : 'Drop CSV or TSV here or click to browse'}
-            description='Map columns to append or replace rows in this table'
+            description={t('map_columns_to_append_or_replace')}
             error={parseError ?? undefined}
           />
         ) : (
           <>
-            <ChipModalField type='custom' title='File'>
+            <ChipModalField type='custom' title={t('file')}>
               <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
                 <div className='flex min-w-0 flex-col'>
                   <span className='truncate text-[var(--text-primary)] text-caption'>
                     {parsed.file.name}
                   </span>
                   <span className='text-[var(--text-tertiary)] text-xs'>
-                    {parsed.headers.length} columns
+                    {parsed.headers.length} {t('columns')}
                   </span>
                 </div>
                 <Button variant='ghost' size='sm' onClick={resetState}>
-                  Change file
+                  {t('change_file')}
                 </Button>
               </div>
             </ChipModalField>
 
-            <ChipModalField type='custom' title='Mode'>
+            <ChipModalField type='custom' title={t('mode')}>
               <ButtonGroup value={mode} onValueChange={handleModeChange}>
-                <ButtonGroupItem value='append'>Append</ButtonGroupItem>
-                <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
+                <ButtonGroupItem value='append'>{t('append')}</ButtonGroupItem>
+                <ButtonGroupItem value='replace'>{t('replace_all_rows')}</ButtonGroupItem>
               </ButtonGroup>
             </ChipModalField>
 
-            <ChipModalField type='custom' title='Column mapping'>
+            <ChipModalField type='custom' title={t('column_mapping')}>
               {skipCount > 0 && (
                 <div className='flex justify-end'>
                   <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
-                    Create columns for {skipCount} unmapped
+                    {t('create_columns_for')} {skipCount} {t('unmapped')}
                   </Button>
                 </div>
               )}
@@ -425,8 +427,8 @@ export function ImportCsvDialog({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>CSV column</TableHead>
-                        <TableHead>Target column</TableHead>
+                        <TableHead>{t('csv_column')}</TableHead>
+                        <TableHead>{t('target_column')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -472,30 +474,29 @@ export function ImportCsvDialog({
                 </div>
               </div>
               <span className='text-[var(--text-tertiary)] text-xs'>
-                {mappedCount} mapped
+                {mappedCount} {t('mapped')}
                 {createCount > 0
                   ? ` · ${createCount} new column${createCount === 1 ? '' : 's'}`
                   : ''}
                 {' · '}
-                {skipCount} skipped
+                {skipCount} {t('skipped')}
               </span>
             </ChipModalField>
 
             {missingRequired.length > 0 && (
               <ChipModalError>
-                Missing required column(s): {missingRequired.join(', ')}
+                {t('missing_required_column_s')} {missingRequired.join(', ')}
               </ChipModalError>
             )}
             {duplicateTargets.length > 0 && (
               <ChipModalError>
-                Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
+                {t('multiple_csv_columns_target')} {duplicateTargets.join(', ')} {t('pick_one')}
               </ChipModalError>
             )}
 
             {mode === 'replace' && !hasWarning && (
               <ChipModalError>
-                Replace will permanently delete the {table.rowCount.toLocaleString()} existing
-                row(s) before inserting the new rows.
+                {t('replace_will_permanently_delete_the')} {table.rowCount.toLocaleString()} {t('existing_row_s_before_inserting_the')}
               </ChipModalError>
             )}
 

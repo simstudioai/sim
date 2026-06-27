@@ -60,6 +60,7 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useTranslations } from 'next-intl'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
@@ -324,6 +325,7 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const t = useTranslations('auto')
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
@@ -371,13 +373,13 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             variant='subtle'
             onClick={handleOpenWorkflow}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open workflow'
+            aria-label={t('open_workflow')}
           >
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Open workflow</p>
+          <p>{t('open_workflow')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <Tooltip.Root>
@@ -413,6 +415,7 @@ export function EmbeddedKnowledgeBaseActions({
   workspaceId,
   knowledgeBaseId,
 }: EmbeddedKnowledgeBaseActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleOpenKnowledgeBase = () => {
@@ -426,13 +429,13 @@ export function EmbeddedKnowledgeBaseActions({
           variant='subtle'
           onClick={handleOpenKnowledgeBase}
           className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open knowledge base'
+          aria-label={t('open_knowledge_base')}
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
-        <p>Open knowledge base</p>
+        <p>{t('open_knowledge_base')}</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -447,6 +450,7 @@ interface EmbeddedTableActionsProps {
 }
 
 function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleOpenTable = () => {
@@ -469,13 +473,13 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
             variant='subtle'
             onClick={handleOpenTable}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open table'
+            aria-label={t('open_table')}
           >
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Open table</p>
+          <p>{t('open_table')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <Tooltip.Root>
@@ -484,13 +488,13 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
             variant='subtle'
             onClick={() => void handleExport()}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Export table as CSV'
+            aria-label={t('export_table_as_csv')}
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Export CSV</p>
+          <p>{t('export_csv')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     </>
@@ -506,6 +510,7 @@ interface EmbeddedFileActionsProps {
 }
 
 function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const file = useMemo(
@@ -540,13 +545,13 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
             variant='subtle'
             onClick={handleOpenInFiles}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
+            aria-label={t('open_in_files')}
           >
             <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
+          <p>{t('open_in_files')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
       <Tooltip.Root>
@@ -556,13 +561,13 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
             onClick={() => void handleDownload()}
             disabled={!file}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Download file'
+            aria-label={t('download_file')}
           >
             <Download className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>Download</p>
+          <p>{t('download')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     </>
@@ -575,6 +580,7 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  const t = useTranslations('auto')
   const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
   const workflowExists = (workflowList ?? []).some((w) => w.id === workflowId)
   const hasLoadError = useWorkflowRegistry(
@@ -588,9 +594,9 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('workflow_not_found')}</h2>
           <p className='text-[var(--text-body)] text-small'>
-            This workflow may have been deleted or moved
+            {t('this_workflow_may_have_been_deleted')}
           </p>
         </div>
       </div>
@@ -627,6 +633,7 @@ function EmbeddedFile({
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
+  const t = useTranslations('auto')
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(
@@ -647,9 +654,9 @@ function EmbeddedFile({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('file_not_found')}</h2>
           <p className='text-[var(--text-body)] text-small'>
-            This file may have been deleted or moved
+            {t('this_file_may_have_been_deleted')}
           </p>
         </div>
       </div>
@@ -680,6 +687,7 @@ interface EmbeddedFolderProps {
 }
 
 function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
+  const t = useTranslations('auto')
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
@@ -693,9 +701,9 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('folder_not_found')}</h2>
           <p className='text-[var(--text-body)] text-small'>
-            This folder may have been deleted or moved
+            {t('this_folder_may_have_been_deleted')}
           </p>
         </div>
       </div>
@@ -706,7 +714,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
     <div className='flex h-full flex-col overflow-y-auto p-6'>
       <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
       {folderWorkflows.length === 0 ? (
-        <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{t('no_workflows_in_this_folder')}</p>
       ) : (
         <div className='flex flex-col gap-1'>
           {folderWorkflows.map((w) => (
@@ -758,6 +766,7 @@ interface EmbeddedScheduledTaskProps {
 }
 
 function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
+  const t = useTranslations('auto')
   const { data: schedule, isLoading, isError } = useScheduleById(scheduleId)
 
   if (isLoading && !schedule) return LOADING_SKELETON
@@ -792,14 +801,14 @@ function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
       </div>
 
       <div className='grid grid-cols-2 gap-4'>
-        <ScheduledTaskField title='Status' value={status} />
-        <ScheduledTaskField title='Schedule' value={timing} />
-        <ScheduledTaskField title='Next run' value={formatScheduleInstant(schedule.nextRunAt)} />
-        <ScheduledTaskField title='Last run' value={formatScheduleInstant(schedule.lastRanAt)} />
+        <ScheduledTaskField title={t('status')} value={status} />
+        <ScheduledTaskField title={t('schedule')} value={timing} />
+        <ScheduledTaskField title={t('next_run')} value={formatScheduleInstant(schedule.nextRunAt)} />
+        <ScheduledTaskField title={t('last_run')} value={formatScheduleInstant(schedule.lastRanAt)} />
       </div>
 
       <div className='flex flex-col gap-1'>
-        <span className='text-[var(--text-muted)] text-caption'>Prompt</span>
+        <span className='text-[var(--text-muted)] text-caption'>{t('prompt')}</span>
         <p className='whitespace-pre-wrap text-[var(--text-body)] text-small'>
           {schedule.prompt || '—'}
         </p>
@@ -807,7 +816,7 @@ function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
 
       {schedule.jobHistory && schedule.jobHistory.length > 0 && (
         <div className='flex flex-col gap-2'>
-          <span className='text-[var(--text-muted)] text-caption'>Recent runs</span>
+          <span className='text-[var(--text-muted)] text-caption'>{t('recent_runs')}</span>
           <div className='flex flex-col gap-2'>
             {schedule.jobHistory.slice(0, 5).map((run, index) => (
               <div
@@ -832,6 +841,7 @@ interface EmbeddedScheduledTaskActionsProps {
 }
 
 function EmbeddedScheduledTaskActions({ workspaceId }: EmbeddedScheduledTaskActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   const handleOpenScheduledTasks = () => {
@@ -845,13 +855,13 @@ function EmbeddedScheduledTaskActions({ workspaceId }: EmbeddedScheduledTaskActi
           variant='subtle'
           onClick={handleOpenScheduledTasks}
           className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in scheduled tasks'
+          aria-label={t('open_in_scheduled_tasks')}
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
-        <p>Open in scheduled tasks</p>
+        <p>{t('open_in_scheduled_tasks')}</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -864,6 +874,7 @@ interface EmbeddedLogProps {
 }
 
 function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
+  const t = useTranslations('auto')
   const { data: log, isLoading, error } = useLogDetail(logId, workspaceId)
 
   const onNotFoundRef = useRef(onNotFound)
@@ -882,9 +893,9 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{t('log_not_found')}</h2>
           <p className='text-[var(--text-body)] text-small'>
-            This log may have been deleted or is no longer available
+            {t('this_log_may_have_been_deleted')}
           </p>
         </div>
       </div>
@@ -904,6 +915,7 @@ interface EmbeddedLogActionsProps {
 }
 
 export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const { data: log } = useLogDetail(logId, workspaceId)
 
@@ -919,13 +931,13 @@ export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsPro
           variant='subtle'
           onClick={handleOpenInLogs}
           className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in logs'
+          aria-label={t('open_in_logs')}
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
-        <p>Open in logs</p>
+        <p>{t('open_in_logs')}</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )

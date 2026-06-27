@@ -11,6 +11,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('WorkflowCommandList')
 
@@ -52,6 +53,7 @@ const commands: CommandItem[] = [
  * Centered on the screen for empty workflows
  */
 export function CommandList() {
+  const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
   const openSearchModal = useSearchModalStore((s) => s.open)
@@ -174,7 +176,7 @@ export function CommandList() {
         <div className='mb-5 flex justify-center'>
           <Image
             src='/logo/b&w/text/b&w.svg'
-            alt='Sim'
+            alt={t('sim')}
             width={99.56}
             height={48.56}
             className='opacity-70'

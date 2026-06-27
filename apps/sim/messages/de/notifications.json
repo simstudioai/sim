@@ -2,7 +2,7 @@
   "workflowCreated": "Workflow erstellt",
   "workflowDeleted": "Workflow gelöscht",
   "workflowUpdated": "Workflow aktualisiert",
-  "workflowDuplicated": "Workflow dupliziert",
+  "workflowDuplicated": "Workflow kopiert",
   "executionStarted": "Ausführung gestartet",
   "executionCompleted": "Ausführung abgeschlossen",
   "executionFailed": "Ausführung fehlgeschlagen",
@@ -14,5 +14,5 @@
   "fileDeleted": "Datei gelöscht",
   "integrationConnected": "Integration verbunden",
   "integrationDisconnected": "Integration getrennt",
-  "knowledgeSynced": "Wissensdatenbank synchronisiert"
+  "knowledgeSynced": "Wissensbasis gesynchronisiert"
 }

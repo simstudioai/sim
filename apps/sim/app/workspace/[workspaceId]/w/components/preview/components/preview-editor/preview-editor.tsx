@@ -51,6 +51,7 @@ import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import { useTranslations } from 'next-intl'
 
 /**
  * CSS override to show full opacity and prevent interaction in readonly preview mode.
@@ -277,6 +278,7 @@ function ConnectionsSection({
   onResizeMouseDown,
   onToggleCollapsed,
 }: ConnectionsSectionProps) {
+  const t = useTranslations('auto')
   /** Stable string of connection IDs to prevent guard from running on every render */
   const connectionIds = useMemo(() => connections.map((c) => c.blockId).join(','), [connections])
 
@@ -349,7 +351,7 @@ function ConnectionsSection({
         <ChevronUp
           className={cn('size-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
-        <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
+        <div className='font-medium text-[var(--text-primary)] text-small'>{t('connections')}</div>
       </div>
 
       {/* Content - styled like ConnectionBlocks */}
@@ -462,7 +464,7 @@ function ConnectionsSection({
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                 )}
               >
-                Variables
+                {t('variables')}
               </span>
               <ChevronDownIcon
                 className={cn(
@@ -514,7 +516,7 @@ function ConnectionsSection({
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                 )}
               >
-                Secrets
+                {t('secrets')}
               </span>
               <ChevronDownIcon
                 className={cn(
@@ -592,6 +594,7 @@ interface SubflowConfigDisplayProps {
  * Matches the exact UI structure of SubflowEditor.
  */
 function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayProps) {
+  const t = useTranslations('auto')
   const isLoop = block.type === 'loop'
   const config = isLoop ? SUBFLOW_CONFIG.loop : SUBFLOW_CONFIG.parallel
 
@@ -652,7 +655,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
           value={currentType}
           onChange={() => {}}
           disabled
-          placeholder='Select type...'
+          placeholder={t('select_type')}
         />
       </div>
 
@@ -675,7 +678,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
               className='mb-1'
             />
             <div className='text-[var(--text-tertiary)] text-micro'>
-              Enter a whole number greater than 0.
+              {t('enter_a_whole_number_greater_than')}
             </div>
           </div>
         ) : (
@@ -765,6 +768,7 @@ function PreviewEditorContent({
   onClose,
   onDrillDown,
 }: PreviewEditorProps) {
+  const t = useTranslations('auto')
   const normalizedWorkflowVariables = useMemo(() => {
     if (!workflowVariables) return []
     return Object.values(workflowVariables)
@@ -1144,7 +1148,7 @@ function PreviewEditorContent({
           </span>
         </div>
         <div className='p-3'>
-          <p className='text-[var(--text-secondary)] text-small'>Block configuration not found.</p>
+          <p className='text-[var(--text-secondary)] text-small'>{t('block_configuration_not_found')}</p>
         </div>
       </div>
     )
@@ -1222,7 +1226,7 @@ function PreviewEditorContent({
               <div className='flex min-w-0 flex-col gap-2 overflow-hidden border-[var(--border)] border-b px-3 py-2.5'>
                 <div className='flex items-center justify-between'>
                   <Badge variant='gray-secondary' size='sm' dot>
-                    Not Executed
+                    {t('not_executed')}
                   </Badge>
                 </div>
               </div>
@@ -1247,13 +1251,13 @@ function PreviewEditorContent({
             {/* Input Section - Collapsible */}
             {executionData?.input !== undefined && (
               <CollapsibleSection
-                title='Input'
+                title={t('input')}
                 defaultExpanded={false}
                 isEmpty={
                   formatValueAsJson(executionData.input) === '—' ||
                   formatValueAsJson(executionData.input) === ''
                 }
-                emptyMessage='No input data'
+                emptyMessage={t('no_input_data')}
               >
                 <div
                   onContextMenu={handleExecutionContextMenu}
@@ -1308,7 +1312,7 @@ function PreviewEditorContent({
                             <Search className='size-[10px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                        <Tooltip.Content side='top'>{t('search')}</Tooltip.Content>
                       </Tooltip.Root>
                     </div>
                   )}
@@ -1325,7 +1329,7 @@ function PreviewEditorContent({
                   formatValueAsJson(executionData.output) === '—' ||
                   formatValueAsJson(executionData.output) === ''
                 }
-                emptyMessage='No output data'
+                emptyMessage={t('no_output_data')}
                 isError={executionData.status === 'error'}
               >
                 <div onContextMenu={handleExecutionContextMenu} className='relative'>
@@ -1380,7 +1384,7 @@ function PreviewEditorContent({
                             <Search className='size-[10px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                        <Tooltip.Content side='top'>{t('search')}</Tooltip.Content>
                       </Tooltip.Root>
                     </div>
                   )}
@@ -1393,7 +1397,7 @@ function PreviewEditorContent({
               <div className='px-2 pt-3'>
                 <div className='subblock-content flex flex-col gap-[9.5px]'>
                   <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
-                    Workflow Preview
+                    {t('workflow_preview')}
                   </div>
                   <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                     {resolvedIsLoadingChildWorkflow ? (
@@ -1484,7 +1488,7 @@ function PreviewEditorContent({
               ) : (
                 <div className='py-4 text-center'>
                   <p className='text-[var(--text-secondary)] text-small'>
-                    No configurable fields for this block.
+                    {t('no_configurable_fields_for_this_block')}
                   </p>
                 </div>
               )}
@@ -1522,7 +1526,7 @@ function PreviewEditorContent({
             type='text'
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search...'
+            placeholder={t('search_2')}
             className='mr-0.5 h-[23px] w-[94px] text-caption'
           />
           <span
@@ -1538,7 +1542,7 @@ function PreviewEditorContent({
             className='!p-1'
             onClick={goToPreviousMatch}
             disabled={matchCount === 0}
-            aria-label='Previous match'
+            aria-label={t('previous_match')}
           >
             <ArrowUp className='size-[12px]' />
           </Button>
@@ -1547,11 +1551,11 @@ function PreviewEditorContent({
             className='!p-1'
             onClick={goToNextMatch}
             disabled={matchCount === 0}
-            aria-label='Next match'
+            aria-label={t('next_match')}
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
+          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label={t('close_search')}>
             <X className='size-[12px]' />
           </Button>
         </div>

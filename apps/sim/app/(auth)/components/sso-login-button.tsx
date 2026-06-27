@@ -5,6 +5,7 @@ import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
+import { useTranslations } from 'next-intl'
 
 interface SSOLoginButtonProps {
   callbackURL?: string
@@ -17,6 +18,7 @@ export function SSOLoginButton({
   className,
   variant = 'outline',
 }: SSOLoginButtonProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
 
   if (!isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))) {
@@ -39,7 +41,7 @@ export function SSOLoginButton({
       variant={variant === 'outline' ? 'outline' : undefined}
       className={cn(variant === 'outline' ? outlineBtnClasses : AUTH_SUBMIT_BTN, className)}
     >
-      Sign in with SSO
+      {t('sign_in_with_sso')}
     </Button>
   )
 }

@@ -53,10 +53,12 @@ import {
 } from '@/hooks/queries/credential-sets'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('EmailPolling')
 
 export function CredentialSets() {
+  const t = useTranslations('auto')
   const { data: session } = useSession()
   const { data: organizationsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData()
@@ -423,22 +425,22 @@ export function CredentialSets() {
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
-            Sim Mailer
+            {t('sim_mailer')}
           </Chip>
           <div />
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
-            <SettingsSection label='Details'>
+            <SettingsSection label={t('details')}>
               <div className='flex items-center gap-4.5'>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>Group Name</span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>{t('group_name')}</span>
                   <span className='text-[var(--text-secondary)] text-sm'>{viewingSet.name}</span>
                 </div>
                 <div className='h-4 w-px bg-[var(--border)]' />
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>Provider</span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>{t('provider')}</span>
                   <div className='flex items-center gap-1.5'>
                     {getProviderIcon(viewingSet.providerId)}
                     <span className='text-[var(--text-secondary)] text-sm'>
@@ -449,14 +451,14 @@ export function CredentialSets() {
               </div>
             </SettingsSection>
 
-            <SettingsSection label='Invite'>
+            <SettingsSection label={t('invite')}>
               <div className='flex flex-col gap-1'>
                 <div className='flex items-center gap-2'>
                   <TagInput
                     items={emailItems}
                     onAdd={(value) => addEmail(value)}
                     onRemove={removeEmailItem}
-                    placeholder='Enter email addresses'
+                    placeholder={t('enter_email_addresses')}
                     placeholderWithTags='Add another email'
                     disabled={createInvitation.isPending}
                     fileInputOptions={fileInputOptions}
@@ -473,10 +475,10 @@ export function CredentialSets() {
               </div>
             </SettingsSection>
 
-            <SettingsSection label='Members'>
+            <SettingsSection label={t('members')}>
               {membersLoading || pendingInvitationsLoading ? null : totalCount === 0 ? (
                 <p className='text-[var(--text-muted)] text-sm'>
-                  No members yet. Send invitations above.
+                  {t('no_members_yet_send_invitations_above')}
                 </p>
               ) : (
                 <div className='flex flex-col gap-4.5'>
@@ -506,7 +508,7 @@ export function CredentialSets() {
                               </span>
                               {member.credentials.length === 0 && (
                                 <Badge variant='red' size='sm'>
-                                  Disconnected
+                                  {t('disconnected')}
                                 </Badge>
                               )}
                             </div>
@@ -518,7 +520,7 @@ export function CredentialSets() {
 
                         <div className='ml-4 flex items-center gap-1'>
                           <RowActionsMenu
-                            label='Member actions'
+                            label={t('member_actions')}
                             actions={[
                               {
                                 label: 'Remove',
@@ -556,7 +558,7 @@ export function CredentialSets() {
                                 {emailPrefix}
                               </span>
                               <Badge variant='gray-secondary' size='sm'>
-                                Pending
+                                {t('pending')}
                               </Badge>
                             </div>
                             <div className='truncate text-[var(--text-muted)] text-small'>
@@ -567,7 +569,7 @@ export function CredentialSets() {
 
                         <div className='ml-4 flex items-center gap-1'>
                           <RowActionsMenu
-                            label='Invitation actions'
+                            label={t('invitation_actions')}
                             actions={[
                               {
                                 label: resendingInvitations.has(invitation.id)
@@ -614,7 +616,7 @@ export function CredentialSets() {
         actions={
           canManageCredentialSets && (
             <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
-              Create Group
+              {t('create_group')}
             </Chip>
           )
         }
@@ -622,17 +624,16 @@ export function CredentialSets() {
         <div className='relative'>
           {hasNoContent && !canManageCredentialSets ? (
             <SettingsEmptyState>
-              You're not a member of any polling groups yet. When someone invites you, it will
-              appear here.
+              {t('you_re_not_a_member_of')}
             </SettingsEmptyState>
           ) : hasNoResults ? (
             <SettingsEmptyState variant='inline'>
-              No results found matching "{searchTerm}"
+              {t('no_results_found_matching')}{searchTerm}"
             </SettingsEmptyState>
           ) : (
             <div className='flex flex-col gap-4.5'>
               {filteredInvitations.length > 0 && (
-                <SettingsSection label='Pending Invitations'>
+                <SettingsSection label={t('pending_invitations')}>
                   <div className='flex flex-col gap-3'>
                     {filteredInvitations.map((invitation) => (
                       <div
@@ -666,7 +667,7 @@ export function CredentialSets() {
               )}
 
               {filteredMemberships.length > 0 && (
-                <SettingsSection label='My Memberships'>
+                <SettingsSection label={t('my_memberships')}>
                   <div className='flex flex-col gap-3'>
                     {filteredMemberships.map((membership) => (
                       <div
@@ -692,7 +693,7 @@ export function CredentialSets() {
                           }
                           disabled={leaveCredentialSet.isPending}
                         >
-                          Leave
+                          {t('leave')}
                         </Chip>
                       </div>
                     ))}
@@ -704,10 +705,10 @@ export function CredentialSets() {
                 (filteredOwnedSets.length > 0 ||
                   ownedSetsLoading ||
                   (!searchTerm.trim() && ownedSets.length === 0)) && (
-                  <SettingsSection label='Manage'>
+                  <SettingsSection label={t('manage')}>
                     {ownedSetsLoading ? null : !searchTerm.trim() && ownedSets.length === 0 ? (
                       <div className='text-[var(--text-muted)] text-sm'>
-                        No polling groups created yet
+                        {t('no_polling_groups_created_yet')}
                       </div>
                     ) : (
                       <div className='flex flex-col gap-3'>
@@ -725,13 +726,13 @@ export function CredentialSets() {
                                   {set.name}
                                 </span>
                                 <span className='text-[12px] text-[var(--text-muted)]'>
-                                  {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                                  {set.memberCount} {t('member')}{set.memberCount !== 1 ? 's' : ''}
                                 </span>
                               </div>
                             </div>
                             <div className='flex items-center gap-1'>
                               <RowActionsMenu
-                                label='Group actions'
+                                label={t('group_actions')}
                                 actions={[
                                   { label: 'Details', onSelect: () => setViewingSet(set) },
                                   {
@@ -759,36 +760,36 @@ export function CredentialSets() {
         onOpenChange={handleCloseCreateModal}
         srTitle='Create Polling Group'
       >
-        <ChipModalHeader onClose={handleCloseCreateModal}>Create Polling Group</ChipModalHeader>
+        <ChipModalHeader onClose={handleCloseCreateModal}>{t('create_polling_group')}</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
             type='input'
-            title='Name'
+            title={t('name')}
             value={newSetName}
             onChange={(value) => {
               setNewSetName(value)
               if (createError) setCreateError(null)
             }}
             required
-            placeholder='e.g., Marketing Team'
+            placeholder={t('e_g_marketing_team')}
           />
           <ChipModalField
             type='input'
-            title='Description'
+            title={t('description')}
             value={newSetDescription}
             onChange={setNewSetDescription}
-            placeholder='e.g., Poll emails for marketing automations'
+            placeholder={t('e_g_poll_emails_for_marketing')}
           />
-          <ChipModalField type='custom' title='Email Provider'>
+          <ChipModalField type='custom' title={t('email_provider')}>
             <ButtonGroup
               value={newSetProvider}
               onValueChange={(v) => setNewSetProvider(v as PollingProvider)}
             >
-              <ButtonGroupItem value='google-email'>Gmail</ButtonGroupItem>
-              <ButtonGroupItem value='outlook'>Outlook</ButtonGroupItem>
+              <ButtonGroupItem value='google-email'>{t('gmail')}</ButtonGroupItem>
+              <ButtonGroupItem value='outlook'>{t('outlook')}</ButtonGroupItem>
             </ButtonGroup>
             <p className='mt-1 text-[var(--text-muted)] text-small'>
-              Members will connect their {getProviderDisplayName(newSetProvider)} account
+              {t('members_will_connect_their')} {getProviderDisplayName(newSetProvider)} {t('account')}
             </p>
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
@@ -809,7 +810,7 @@ export function CredentialSets() {
           if (!open) setLeavingMembership(null)
         }}
         srTitle='Leave Polling Group'
-        title='Leave Polling Group'
+        title={t('leave_polling_group')}
         text={[
           'Are you sure you want to leave ',
           { text: leavingMembership?.name ?? 'this group', bold: true },
@@ -829,7 +830,7 @@ export function CredentialSets() {
           if (!open) setDeletingSet(null)
         }}
         srTitle='Delete Polling Group'
-        title='Delete Polling Group'
+        title={t('delete_polling_group')}
         text={[
           'Are you sure you want to delete ',
           { text: deletingSet?.name ?? 'this group', bold: true },

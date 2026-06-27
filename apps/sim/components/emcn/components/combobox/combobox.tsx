@@ -20,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { Loader } from '../../icons'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
+import { useTranslations } from 'next-intl'
 
 const comboboxVariants = cva(
   'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
@@ -708,7 +709,7 @@ const Combobox = memo(
                     <div className='flex items-center justify-center py-3.5'>
                       <Loader className='size-[16px] text-[var(--text-muted)]' animate />
                       <span className='ml-2 text-[var(--text-muted)] text-caption'>
-                        Loading options...
+                        {t('loading_options')}
                       </span>
                     </div>
                   ) : error ? (

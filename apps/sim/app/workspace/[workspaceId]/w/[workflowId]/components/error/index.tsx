@@ -9,6 +9,7 @@ import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { readCollapsedCookie } from '@/stores/sidebar/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ErrorBoundary')
 
@@ -28,6 +29,7 @@ export function ErrorUI({
   onReset,
   fullScreen = false,
 }: ErrorUIProps) {
+  const t = useTranslations('auto')
   const preventZoomRef = usePreventZoom()
 
   if (!fullScreen) {
@@ -40,7 +42,7 @@ export function ErrorUI({
           </div>
           <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
             <RefreshCw className='mr-1.5 size-[14px]' />
-            Try again
+            {t('try_again')}
           </Button>
         </div>
       </div>
@@ -129,6 +131,7 @@ export function NextGlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const t = useTranslations('auto')
   useEffect(() => {
     logger.error('Global workspace error:', { error })
   }, [error])
@@ -137,7 +140,7 @@ export function NextGlobalError({
     <html lang='en'>
       <body>
         <ErrorUI
-          title='Application Error'
+          title={t('application_error')}
           message='Something went wrong with the application. Please try again later.'
           onReset={reset}
           fullScreen={true}

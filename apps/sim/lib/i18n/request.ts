@@ -22,6 +22,7 @@ const TRANSLATION_MODULES = [
   'integrations',
   'empty',
   'landing',
+  'auto',
 ] as const
 
 export default getRequestConfig(async () => {

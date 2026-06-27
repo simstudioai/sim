@@ -9,6 +9,7 @@ import {
   ChipModalHeader,
 } from '@/components/emcn'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
+import { useTranslations } from 'next-intl'
 
 interface TaskDeleteDialogProps {
   /** The task targeted for deletion, or `null` to keep the dialog closed. */
@@ -31,6 +32,7 @@ export function TaskDeleteDialog({
   onDeleteOccurrence,
   onDeleteSeries,
 }: TaskDeleteDialogProps) {
+  const t = useTranslations('auto')
   if (task && !task.recurring) {
     return (
       <ChipConfirmModal
@@ -38,7 +40,7 @@ export function TaskDeleteDialog({
         onOpenChange={(open) => {
           if (!open) onClose()
         }}
-        title='Delete scheduled task'
+        title={t('delete_scheduled_task')}
         text='This task will be removed from the calendar and will not run.'
         confirm={{
           label: 'Delete',
@@ -63,11 +65,11 @@ export function TaskDeleteDialog({
       {task && (
         <>
           <ChipModalHeader icon={Calendar} onClose={onClose}>
-            Delete recurring task
+            {t('delete_recurring_task')}
           </ChipModalHeader>
           <ChipModalBody>
             <p className='px-2 text-[var(--text-body)] text-sm'>
-              This is a recurring task. Delete only this occurrence, or the entire series?
+              {t('this_is_a_recurring_task_delete')}
             </p>
           </ChipModalBody>
           <ChipModalFooter

@@ -67,6 +67,7 @@ import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { InputMappingSection } from './input-mapping-section'
 import { RunSettingsSection } from './run-settings-section'
+import { useTranslations } from 'next-intl'
 
 /**
  * Distinguishes a user-built workflow column (`manual`) from one spawned off a
@@ -197,11 +198,12 @@ const TagIcon: React.FC<{
  * remounts and re-seeds state from props (no `useEffect` mirror).
  */
 export function WorkflowSidebar(props: WorkflowSidebarProps) {
+  const t = useTranslations('auto')
   const open = props.config !== null
   return (
     <aside
       role='dialog'
-      aria-label='Configure workflow'
+      aria-label={t('configure_workflow')}
       className={cn(
         'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
         open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
@@ -246,6 +248,7 @@ export function WorkflowSidebarBody({
   onColumnRename,
   onBack,
 }: WorkflowSidebarBodyProps) {
+  const t = useTranslations('auto')
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
@@ -796,7 +799,7 @@ export function WorkflowSidebarBody({
               size='sm'
               onClick={onBack}
               className='!p-1 size-7 flex-none'
-              aria-label='Back to enrichments'
+              aria-label={t('back_to_enrichments')}
             >
               <ArrowLeft className='size-[14px]' />
             </Button>
@@ -808,7 +811,7 @@ export function WorkflowSidebarBody({
           size='sm'
           onClick={onClose}
           className='!p-1 size-7 flex-none'
-          aria-label='Close'
+          aria-label={t('close')}
         >
           <X className='size-[14px]' />
         </Button>
@@ -819,7 +822,7 @@ export function WorkflowSidebarBody({
         {isEditOutputMode && (
           <>
             <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel htmlFor='workflow-sidebar-column-name'>Column name</RequiredLabel>
+              <RequiredLabel htmlFor='workflow-sidebar-column-name'>{t('column_name')}</RequiredLabel>
               <ChipInput
                 id='workflow-sidebar-column-name'
                 value={columnNameInput}
@@ -849,7 +852,7 @@ export function WorkflowSidebarBody({
           <>
             <div className='flex flex-col gap-[9.5px]'>
               <div className='flex min-w-0 items-center justify-between gap-2 pl-0.5'>
-                <Label>Workflow preview</Label>
+                <Label>{t('workflow_preview')}</Label>
                 {!isEnrichment &&
                   startBlockInputs.blockId &&
                   missingInputColumnNames.length > 0 && (
@@ -869,7 +872,7 @@ export function WorkflowSidebarBody({
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top'>
-                        Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
+                        {t('adds')} {missingInputColumnNames.join(', ')} {t('to_the_workflow_s_start_block')}
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -911,14 +914,14 @@ export function WorkflowSidebarBody({
                             <ExternalLink className='size-[12px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                        <Tooltip.Content side='top'>{t('open_workflow')}</Tooltip.Content>
                       </Tooltip.Root>
                     )}
                   </>
                 ) : (
                   <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                     <span className='text-[var(--text-tertiary)] text-small'>
-                      Unable to load preview
+                      {t('unable_to_load_preview')}
                     </span>
                   </div>
                 )}
@@ -929,14 +932,14 @@ export function WorkflowSidebarBody({
         )}
 
         <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel>Workflow</RequiredLabel>
+          <RequiredLabel>{t('workflow')}</RequiredLabel>
           <ChipCombobox
             options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
             value={selectedWorkflowId}
             onChange={(v) => setSelectedWorkflowId(v)}
-            placeholder='Select a workflow'
+            placeholder={t('select_a_workflow')}
             disabled={!workflows || workflows.length === 0 || isEditOutputMode || isEnrichment}
-            emptyMessage='No manual triggers configured'
+            emptyMessage={t('no_manual_triggers_configured')}
             maxHeight={260}
             searchable
             searchPlaceholder='Search workflows...'
@@ -989,7 +992,7 @@ export function WorkflowSidebarBody({
           <>
             <FieldDivider />
             <div className='flex items-center justify-between pl-0.5'>
-              <Label htmlFor='workflow-sidebar-auto-run'>Auto-run workflow</Label>
+              <Label htmlFor='workflow-sidebar-auto-run'>{t('auto_run_workflow')}</Label>
               <Switch
                 id='workflow-sidebar-auto-run'
                 checked={autoRun}
@@ -1031,15 +1034,15 @@ export function WorkflowSidebarBody({
                     {!isEnrichment && (
                       <>
                         <div className='flex items-center justify-between pl-0.5'>
-                          <Label>Workflow version</Label>
+                          <Label>{t('workflow_version')}</Label>
                           <ButtonGroup
                             value={deploymentMode}
                             onValueChange={(v) =>
                               setDeploymentMode(v === 'deployed' ? 'deployed' : 'live')
                             }
                           >
-                            <ButtonGroupItem value='live'>Live</ButtonGroupItem>
-                            <ButtonGroupItem value='deployed'>Deployed</ButtonGroupItem>
+                            <ButtonGroupItem value='live'>{t('live')}</ButtonGroupItem>
+                            <ButtonGroupItem value='deployed'>{t('deployed')}</ButtonGroupItem>
                           </ButtonGroup>
                         </div>
                         <FieldDivider />
@@ -1061,7 +1064,7 @@ export function WorkflowSidebarBody({
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
           {saveDisabled ? 'Saving…' : 'Save'}

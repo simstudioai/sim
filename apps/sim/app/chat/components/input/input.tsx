@@ -10,6 +10,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ChatInput')
 
@@ -39,6 +40,7 @@ export const ChatInput: React.FC<{
   voiceOnly = false,
   sttAvailable = false,
 }) => {
+  const t = useTranslations('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -159,7 +161,7 @@ export const ChatInput: React.FC<{
                 </div>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
-                <p>Start voice conversation</p>
+                <p>{t('start_voice_conversation')}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
@@ -186,7 +188,7 @@ export const ChatInput: React.FC<{
           {/* Input container */}
           <div
             role='group'
-            aria-label='Chat message input'
+            aria-label={t('chat_message_input')}
             onClick={handleContainerClick}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget) return
@@ -286,7 +288,7 @@ export const ChatInput: React.FC<{
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>
-                    <p>Attach files</p>
+                    <p>{t('attach_files')}</p>
                   </Tooltip.Content>
                 </Tooltip.Root>
 
@@ -319,7 +321,7 @@ export const ChatInput: React.FC<{
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
-                      <p>Start voice conversation</p>
+                      <p>{t('start_voice_conversation')}</p>
                     </Tooltip.Content>
                   </Tooltip.Root>
                 )}
@@ -329,7 +331,7 @@ export const ChatInput: React.FC<{
                     type='button'
                     onClick={onStopStreaming}
                     className='flex size-[28px] items-center justify-center rounded-full border-0 bg-[#383838] p-0 transition-colors hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-                    title='Stop generation'
+                    title={t('stop_generation')}
                   >
                     <svg
                       className='block size-[14px] fill-white dark:fill-black'

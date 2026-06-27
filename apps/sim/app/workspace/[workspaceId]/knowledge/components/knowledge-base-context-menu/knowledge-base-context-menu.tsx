@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -47,6 +48,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   disableEdit = false,
   disableDelete = false,
 }: KnowledgeBaseContextMenuProps) {
+  const t = useTranslations('auto')
   const hasNavigationSection = showOpenInNewTab && !!onOpenInNewTab
   const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId
   const hasEditSection = showEdit && !!onEdit
@@ -77,7 +79,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
         {hasNavigationSection && (
           <DropdownMenuItem onSelect={onOpenInNewTab!}>
             <SquareArrowUpRight />
-            Open in new tab
+            {t('open_in_new_tab')}
           </DropdownMenuItem>
         )}
         {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
@@ -87,13 +89,13 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
         {showViewTags && onViewTags && (
           <DropdownMenuItem onSelect={onViewTags}>
             <TagIcon />
-            View tags
+            {t('view_tags')}
           </DropdownMenuItem>
         )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />
-            Copy ID
+            {t('copy_id')}
           </DropdownMenuItem>
         )}
         {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
@@ -101,7 +103,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
         {showEdit && onEdit && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
             <Pencil />
-            Edit
+            {t('edit')}
           </DropdownMenuItem>
         )}
 
@@ -109,7 +111,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
         {showDelete && onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />
-            Delete
+            {t('delete')}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

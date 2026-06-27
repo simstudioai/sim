@@ -99,6 +99,7 @@ export function A2aDeploy({
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -512,6 +513,7 @@ export function A2aDeploy({
         return requiresAuth
           ? `import os
 import requests
+import { useTranslations } from 'next-intl'
 
 response = requests.post(
     "${endpoint}",
@@ -637,7 +639,7 @@ console.log(data);`
                     setUrlCopied(true)
                     setTimeout(() => setUrlCopied(false), 2000)
                   }}
-                  aria-label='Copy URL'
+                  aria-label={t('copy_url')}
                   className='!p-1.5 -my-1.5'
                 >
                   {urlCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
@@ -650,7 +652,7 @@ console.log(data);`
           </div>
           <div className='relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]'>
             <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
-              {baseUrl.replace(/^https?:\/\//, '')}/api/a2a/serve/
+              {baseUrl.replace(/^https?:\/\//, '')}{t('api_a2a_serve')}
             </div>
             <div className='relative flex-1'>
               <Input
@@ -661,7 +663,7 @@ console.log(data);`
             </div>
           </div>
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            The A2A endpoint URL where clients can discover and call your agent
+            {t('the_a2a_endpoint_url_where_clients')}
           </p>
         </div>
       )}
@@ -671,17 +673,17 @@ console.log(data);`
           htmlFor='a2a-name'
           className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
-          Agent name <span className='text-[var(--text-error)]'>*</span>
+          {t('agent_name')} <span className='text-[var(--text-error)]'>*</span>
         </Label>
         <ChipInput
           id='a2a-name'
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder='Enter agent name'
+          placeholder={t('enter_agent_name')}
           required
         />
         <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-          Human-readable name shown in the Agent Card
+          {t('human_readable_name_shown_in_the')}
         </p>
       </div>
 
@@ -690,13 +692,13 @@ console.log(data);`
           htmlFor='a2a-description'
           className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
-          Description <span className='text-[var(--text-error)]'>*</span>
+          {t('description')} <span className='text-[var(--text-error)]'>*</span>
         </Label>
         <Textarea
           id='a2a-description'
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder='Describe what this agent does...'
+          placeholder={t('describe_what_this_agent_does')}
           className='min-h-[80px] resize-none'
           required
         />
@@ -704,14 +706,14 @@ console.log(data);`
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Access
+          {t('access')}
         </Label>
         <ButtonGroup
           value={authScheme}
           onValueChange={(value) => setAuthScheme(value as AuthScheme)}
         >
-          <ButtonGroupItem value='apiKey'>API Key</ButtonGroupItem>
-          <ButtonGroupItem value='none'>Public</ButtonGroupItem>
+          <ButtonGroupItem value='apiKey'>{t('api_key')}</ButtonGroupItem>
+          <ButtonGroupItem value='none'>{t('public')}</ButtonGroupItem>
         </ButtonGroup>
         <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           {authScheme === 'none'
@@ -722,7 +724,7 @@ console.log(data);`
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Capabilities
+          {t('capabilities')}
         </Label>
         <div className='space-y-2'>
           <div className='flex items-center gap-2'>
@@ -732,7 +734,7 @@ console.log(data);`
               onCheckedChange={(checked) => setPushNotificationsEnabled(checked === true)}
             />
             <label htmlFor='a2a-push' className='text-[var(--text-primary)] text-small'>
-              Push notifications (webhooks)
+              {t('push_notifications_webhooks')}
             </label>
           </div>
         </div>
@@ -740,7 +742,7 @@ console.log(data);`
 
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          Tags
+          {t('tags')}
         </Label>
         <TagInput
           items={skillTags.map((tag) => ({ value: tag, isValid: true }))}
@@ -754,7 +756,7 @@ console.log(data);`
           onRemove={(_value, index) => {
             setSkillTags((prev) => prev.filter((_, i) => i !== index))
           }}
-          placeholder='Add tags'
+          placeholder={t('add_tags')}
           placeholderWithTags='Add another'
           triggerKeys={['Enter', ',']}
         />
@@ -765,7 +767,7 @@ console.log(data);`
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
               <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                Language
+                {t('language')}
               </Label>
             </div>
             <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
@@ -780,7 +782,7 @@ console.log(data);`
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
               <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                Send message
+                {t('send_message')}
               </Label>
               <div className='flex items-center gap-2'>
                 <div className='flex items-center gap-1.5'>
@@ -793,7 +795,7 @@ console.log(data);`
                     htmlFor='a2a-stream-example'
                     className='text-[var(--text-secondary)] text-caption'
                   >
-                    Stream
+                    {t('stream')}
                   </label>
                 </div>
                 <Tooltip.Root>
@@ -802,7 +804,7 @@ console.log(data);`
                       type='button'
                       variant='ghost'
                       onClick={handleCopyCommand}
-                      aria-label='Copy command'
+                      aria-label={t('copy_command')}
                       className='!p-1.5 -my-1.5'
                     >
                       {codeCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
@@ -822,20 +824,20 @@ console.log(data);`
             />
             <div className='mt-[6.5px] flex items-start justify-between gap-2'>
               <p className='text-[var(--text-secondary)] text-xs'>
-                External A2A clients can discover and call your agent. TextPart →{' '}
-                <code className='text-micro'>&lt;start.input&gt;</code>, DataPart →{' '}
-                <code className='text-micro'>&lt;start.data&gt;</code>, FilePart →{' '}
-                <code className='text-micro'>&lt;start.files&gt;</code>.
+                {t('external_a2a_clients_can_discover_and')}{' '}
+                <code className='text-micro'>{t('lt_start_input_gt')}</code>{t('datapart')}{' '}
+                <code className='text-micro'>{t('lt_start_data_gt')}</code>{t('filepart')}{' '}
+                <code className='text-micro'>{t('lt_start_files_gt')}</code>.
               </p>
               {missingFields.any && (
                 <Button
                   type='button'
                   variant='default'
                   className='flex-none whitespace-nowrap px-[9px] py-0.5 text-caption'
-                  title='Add required A2A input fields to Start block'
+                  title={t('add_required_a2a_input_fields_to')}
                   onClick={handleAddA2AInputs}
                 >
-                  <span className='whitespace-nowrap'>Add inputs</span>
+                  <span className='whitespace-nowrap'>{t('add_inputs')}</span>
                 </Button>
               )}
             </div>

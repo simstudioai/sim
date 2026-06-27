@@ -9,6 +9,7 @@ import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
 import { ColumnTypeIcon } from './column-type-icon'
 import { ColumnOptionsMenu } from './workflow-group-meta-cell'
+import { useTranslations } from 'next-intl'
 
 interface ColumnHeaderMenuProps {
   column: DisplayColumn
@@ -88,6 +89,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   stickyLeft,
   isLastPinned,
 }: ColumnHeaderMenuProps) {
+  const t = useTranslations('auto')
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -322,7 +324,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
             onClick={handleChevronClick}
             draggable={false}
-            aria-label='Column options'
+            aria-label={t('column_options')}
           >
             <ChevronDown className='size-[10px] shrink-0' />
           </button>

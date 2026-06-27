@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useEffectEvent, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 
 interface LightboxProps {
   isOpen: boolean
@@ -10,6 +11,7 @@ interface LightboxProps {
 }
 
 export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
+  const t = useTranslations('auto')
   const overlayRef = useRef<HTMLDivElement>(null)
 
   const onCloseEvent = useEffectEvent(onClose)
@@ -48,7 +50,7 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
       className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-12 backdrop-blur-sm'
       role='dialog'
       aria-modal='true'
-      aria-label='Image viewer'
+      aria-label={t('image_viewer')}
     >
       <div className='relative max-h-full max-w-full overflow-hidden rounded-xl shadow-2xl'>
         <button type='button' className='block cursor-pointer rounded-xl' onClick={onClose}>

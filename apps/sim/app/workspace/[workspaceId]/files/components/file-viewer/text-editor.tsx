@@ -12,6 +12,7 @@ import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
 import { useEditableFileContent } from './use-editable-file-content'
+import { useTranslations } from 'next-intl'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -350,6 +351,7 @@ export const TextEditor = memo(function TextEditor({
   disableStreamingAutoScroll,
   previewContextKey,
 }: TextEditorProps) {
+  const t = useTranslations('auto')
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const lastSyncedContentRef = useRef('')
@@ -539,7 +541,7 @@ export const TextEditor = memo(function TextEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{t('failed_to_load_file_content')}</p>
       </div>
     )
   }
@@ -615,7 +617,7 @@ export const TextEditor = memo(function TextEditor({
                 onMouseDown={() => setIsResizing(true)}
                 role='separator'
                 aria-orientation='vertical'
-                aria-label='Resize split'
+                aria-label={t('resize_split')}
               />
               {isResizing && (
                 <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />

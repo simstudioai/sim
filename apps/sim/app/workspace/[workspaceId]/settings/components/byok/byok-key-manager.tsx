@@ -24,6 +24,7 @@ import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/co
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('BYOKKeyManager')
 
@@ -125,6 +126,7 @@ const NO_KEYS: BYOKManagerKey[] = []
  * the page chrome (background, scroll container, and `max-w` centering).
  */
 export function BYOKKeyManager(props: BYOKKeyManagerProps) {
+  const t = useTranslations('auto')
   const {
     providers,
     isLoading,
@@ -249,7 +251,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     if (!hasStoredKey(provider.id)) {
       return (
         <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-          Add Key
+          {t('add_key')}
         </Chip>
       )
     }
@@ -261,15 +263,15 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           <span className='text-[12px] text-[var(--text-muted)]'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
-          <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>{t('manage')}</Chip>
         </div>
       )
     }
 
     return (
       <div className='flex flex-shrink-0 items-center gap-2'>
-        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
-        <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
+        <Chip onClick={() => openEditModal(provider.id)}>{t('update')}</Chip>
+        <Chip onClick={() => openDeleteConfirm(provider.id)}>{t('delete')}</Chip>
       </div>
     )
   }
@@ -306,7 +308,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               strokeWidth={2}
             />
             <input
-              placeholder='Search providers...'
+              placeholder={t('search_providers')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
@@ -325,7 +327,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           </div>
         ) : showNoResults ? (
           <SettingsEmptyState variant='inline'>
-            No providers found matching "{searchTerm}"
+            {t('no_providers_found_matching')}{searchTerm}"
           </SettingsEmptyState>
         ) : sections ? (
           <div className='flex flex-col gap-7'>
@@ -372,7 +374,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         <ChipModalHeader onClose={closeEditModal}>
           {editingMeta && (
             <>
-              {isUpdatingExistingKey ? 'Update' : 'Add'} {editingMeta.name} API Key
+              {isUpdatingExistingKey ? 'Update' : 'Add'} {editingMeta.name} {t('api_key')}
             </>
           )}
         </ChipModalHeader>
@@ -382,7 +384,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               ? `Requests are distributed evenly across all ${editingMeta?.name} keys in this workspace. Your key is encrypted and stored securely.`
               : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
-          <ChipModalField type='custom' title='API Key' required>
+          <ChipModalField type='custom' title={t('api_key')} required>
             <input
               type='text'
               name='fakeusernameremembered'
@@ -429,10 +431,10 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           {props.multiKey && (
             <ChipModalField
               type='input'
-              title='Name'
+              title={t('name')}
               value={nameInput}
               onChange={setNameInput}
-              placeholder='e.g. Production key'
+              placeholder={t('e_g_production_key')}
               maxLength={120}
               onSubmit={handleSave}
             />
@@ -456,7 +458,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           if (!open) setDeleteConfirm(null)
         }}
         srTitle='Delete API Key'
-        title='Delete API Key'
+        title={t('delete_api_key')}
         text={[
           'Are you sure you want to delete the ',
           { text: deleteMeta?.name ?? 'selected', bold: true },

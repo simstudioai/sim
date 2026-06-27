@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+import { useTranslations } from 'next-intl'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -59,6 +60,7 @@ export function DocumentContextMenu({
   enabledCount = 0,
   disabledCount = 0,
 }: DocumentContextMenuProps) {
+  const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
   const getToggleLabel = () => {
@@ -101,13 +103,13 @@ export function DocumentContextMenu({
             {!isMultiSelect && onOpenInNewTab && (
               <DropdownMenuItem onSelect={onOpenInNewTab}>
                 <SquareArrowUpRight />
-                Open in new tab
+                {t('open_in_new_tab')}
               </DropdownMenuItem>
             )}
             {!isMultiSelect && onOpenSource && (
               <DropdownMenuItem onSelect={onOpenSource}>
                 <SquareArrowUpRight />
-                Open source
+                {t('open_source')}
               </DropdownMenuItem>
             )}
             {hasNavigationSection &&
@@ -118,13 +120,13 @@ export function DocumentContextMenu({
             {!isMultiSelect && onRename && (
               <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
                 <Pencil />
-                Rename
+                {t('rename')}
               </DropdownMenuItem>
             )}
             {!isMultiSelect && hasTags && onViewTags && (
               <DropdownMenuItem onSelect={onViewTags}>
                 <TagIcon />
-                View tags
+                {t('view_tags')}
               </DropdownMenuItem>
             )}
             {hasEditSection && (hasStateSection || hasDestructiveSection) && (
@@ -142,7 +144,7 @@ export function DocumentContextMenu({
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {t('delete')}
               </DropdownMenuItem>
             )}
           </>
@@ -150,7 +152,7 @@ export function DocumentContextMenu({
           onAddDocument && (
             <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
               <Plus />
-              Add document
+              {t('add_document')}
             </DropdownMenuItem>
           )
         )}

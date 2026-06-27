@@ -6,6 +6,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const COLUMNS = [
   { id: 'name', header: 'Name' },
@@ -22,10 +23,11 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function TablesLoading() {
+  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={TableIcon}
-      title='Tables'
+      title={t('tables')}
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search tables...'

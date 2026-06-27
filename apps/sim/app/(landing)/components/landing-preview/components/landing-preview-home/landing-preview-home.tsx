@@ -9,6 +9,7 @@ import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
+import { useTranslations } from 'next-intl'
 
 const C = {
   SURFACE: '#292929',
@@ -69,6 +70,7 @@ type ChatPhase = 'input' | 'sent' | 'tool-call' | 'responding' | 'done'
 export const LandingPreviewHome = memo(function LandingPreviewHome({
   autoType = false,
 }: LandingPreviewHomeProps) {
+  const t = useTranslations('auto')
   const landingSubmit = useLandingSubmit()
   const [inputValue, setInputValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -218,7 +220,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <Blimp className='h-[16px] w-[16px]' style={{ color: C.TEXT_ICON }} />
                       </div>
                       <span className='text-sm' style={{ color: C.TEXT_BODY }}>
-                        Sim
+                        {t('sim')}
                       </span>
                       <ChevronDown
                         className='h-[7px] w-[9px] transition-transform duration-150'
@@ -245,7 +247,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                                 style={{ color: C.TEXT_TERTIARY }}
                               />
                             }
-                            title='Read Customer Leads'
+                            title={t('read_customer_leads')}
                           />
                         </div>
                       </div>
@@ -300,7 +302,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: EASE_OUT }}
         >
-          What should we get done?
+          {t('what_should_we_get_done')}
         </m.p>
 
         <m.div
@@ -337,7 +339,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                 type='button'
                 onClick={handleSubmit}
                 disabled={isEmpty}
-                aria-label='Submit message'
+                aria-label={t('submit_message')}
                 className='flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors'
                 style={{
                   background: isEmpty ? '#808080' : '#e0e0e0',
@@ -407,12 +409,13 @@ function ChatMarkdown({
  * Mini Customer Leads table panel matching the resource panel pattern.
  */
 function MiniTablePanel() {
+  const t = useTranslations('auto')
   return (
     <div className='flex h-full w-full flex-col bg-[var(--landing-bg)]'>
       <div className='flex items-center gap-2 border-[#2c2c2c] border-b px-3 py-2'>
         <Table className='h-[14px] w-[14px]' style={{ color: C.TEXT_ICON }} />
         <span className='font-medium text-sm' style={{ color: C.TEXT_PRIMARY }}>
-          Customer Leads
+          {t('customer_leads')}
         </span>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>

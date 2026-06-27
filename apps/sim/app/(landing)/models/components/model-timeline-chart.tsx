@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import Link from 'next/link'
 import { getProviderColor } from '@/app/(landing)/models/components/consts'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
+import { useTranslations } from 'next-intl'
 
 function formatShortDate(date: string): string {
   try {
@@ -26,6 +27,7 @@ interface ModelTimelineChartProps {
 const ITEM_WIDTH = 150
 
 export function ModelTimelineChart({ models, providerId }: ModelTimelineChartProps) {
+  const t = useTranslations('auto')
   const entries = useMemo(() => {
     return models
       .filter((m) => m.releaseDate !== null)
@@ -48,10 +50,10 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
           id='timeline-heading'
           className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
         >
-          Release timeline
+          {t('release_timeline')}
         </h2>
         <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          When each model was first publicly available.
+          {t('when_each_model_was_first_publicly')}
         </p>
       </div>
 

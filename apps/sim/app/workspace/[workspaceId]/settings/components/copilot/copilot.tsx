@@ -23,6 +23,7 @@ import {
   useDeleteCopilotKey,
   useGenerateCopilotKey,
 } from '@/hooks/queries/copilot-keys'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CopilotSettings')
 
@@ -31,6 +32,7 @@ const logger = createLogger('CopilotSettings')
  * Provides functionality to create, view, and delete copilot API keys.
  */
 export function Copilot() {
+  const t = useTranslations('auto')
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
   const deleteKeyMutation = useDeleteCopilotKey()
@@ -121,12 +123,12 @@ export function Copilot() {
             }}
             disabled={isLoading}
           >
-            Create API Key
+            {t('create_api_key')}
           </Chip>
         }
       >
         {isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>{t('click_create_api_key_above_to')}</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredKeys.map((key) => (
@@ -137,7 +139,7 @@ export function Copilot() {
                       {key.name || 'Unnamed Key'}
                     </span>
                     <span className='text-[var(--text-secondary)] text-sm'>
-                      (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
+                      {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
                     </span>
                   </div>
                   <p className='truncate text-[12px] text-[var(--text-muted)]'>{key.displayKey}</p>
@@ -149,13 +151,13 @@ export function Copilot() {
                     setShowDeleteDialog(true)
                   }}
                 >
-                  Delete
+                  {t('delete')}
                 </Chip>
               </div>
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
-                No API keys found matching "{searchTerm}"
+                {t('no_api_keys_found_matching')}{searchTerm}"
               </SettingsEmptyState>
             )}
           </div>
@@ -168,22 +170,21 @@ export function Copilot() {
         srTitle='Create new API key'
       >
         <ChipModalHeader onClose={() => setIsCreateDialogOpen(false)}>
-          Create new API key
+          {t('create_new_api_key')}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This key will allow access to Chat features. Make sure to copy it after creation as you
-            won't be able to see it again.
+            {t('this_key_will_allow_access_to')}
           </p>
           <ChipModalField
             type='input'
-            title='Key name'
+            title={t('key_name')}
             value={newKeyName}
             onChange={(value) => {
               setNewKeyName(value)
               if (createError) setCreateError(null)
             }}
-            placeholder='e.g., Development, Production'
+            placeholder={t('e_g_development_production')}
             required
           />
           <ChipModalError>{createError}</ChipModalError>
@@ -218,10 +219,10 @@ export function Copilot() {
             setNewKey(null)
           }}
         >
-          Your API key has been created
+          {t('your_api_key_has_been_created')}
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
+          <ChipModalField type='custom' title={t('copy_it_now_it_won_t')}>
             {newKey && <SecretReveal value={newKey} />}
           </ChipModalField>
         </ChipModalBody>
@@ -249,7 +250,7 @@ export function Copilot() {
           }
         }}
         srTitle='Delete API key'
-        title='Delete API key'
+        title={t('delete_api_key')}
         text={[
           'Deleting ',
           { text: deleteKey?.name || 'Unnamed Key', bold: true },

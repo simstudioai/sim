@@ -9,6 +9,7 @@ import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './pr
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('DocxPreview')
 
@@ -69,6 +70,7 @@ export const DocxPreview = memo(function DocxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const t = useTranslations('auto')
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const zoomPercentRef = useRef(100)
@@ -233,7 +235,7 @@ export const DocxPreview = memo(function DocxPreview({
   }, [fileData, applyPostRenderStyling])
 
   const error = resolvePreviewError(preview.error, renderError)
-  if (error) return <PreviewError label='document' error={error} />
+  if (error) return <PreviewError label={t('document')} error={error} />
 
   const showLoadingFrame = !hasRenderedPreview && (!fileData || rendering)
 

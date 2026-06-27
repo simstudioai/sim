@@ -5,6 +5,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New scheduled task', icon: Plus, variant: 'primary' }]
 
@@ -14,5 +15,6 @@ const ACTIONS: ChromeActionSpec[] = [{ text: 'New scheduled task', icon: Plus, v
  * The empty calendar then mounts and its tasks load in.
  */
 export default function ScheduledTasksLoading() {
-  return <ResourceChromeFallback icon={Calendar} title='Scheduled Tasks' actions={ACTIONS} />
+  const t = useTranslations('auto')
+  return <ResourceChromeFallback icon={Calendar} title={t('scheduled_tasks')} actions={ACTIONS} />
 }

@@ -21,6 +21,7 @@ import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/ch
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
+import { useTranslations } from 'next-intl'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
 
@@ -61,6 +62,7 @@ export const MessageActions = memo(function MessageActions({
   requestId,
   messageId,
 }: MessageActionsProps) {
+  const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
@@ -173,7 +175,7 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label='Copy message'
+                aria-label={t('copy_message')}
                 onClick={copyToClipboard}
                 className={BUTTON_CLASS}
               >
@@ -191,27 +193,27 @@ export const MessageActions = memo(function MessageActions({
               <Tooltip.Trigger asChild>
                 <button
                   type='button'
-                  aria-label='Like'
+                  aria-label={t('like')}
                   onClick={() => handleFeedbackClick('up')}
                   className={BUTTON_CLASS}
                 >
                   <ThumbsUp className={ICON_CLASS} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Good response</Tooltip.Content>
+              <Tooltip.Content side='top'>{t('good_response')}</Tooltip.Content>
             </Tooltip.Root>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <button
                   type='button'
-                  aria-label='Dislike'
+                  aria-label={t('dislike')}
                   onClick={() => handleFeedbackClick('down')}
                   className={BUTTON_CLASS}
                 >
                   <ThumbsDown className={ICON_CLASS} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Bad response</Tooltip.Content>
+              <Tooltip.Content side='top'>{t('bad_response')}</Tooltip.Content>
             </Tooltip.Root>
           </>
         )}
@@ -220,7 +222,7 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label='Fork from here'
+                aria-label={t('fork_from_here')}
                 onClick={handleFork}
                 disabled={forkChat.isPending}
                 className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
@@ -228,7 +230,7 @@ export const MessageActions = memo(function MessageActions({
                 <GitBranch className={ICON_CLASS} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Fork from here</Tooltip.Content>
+            <Tooltip.Content side='top'>{t('fork_from_here')}</Tooltip.Content>
           </Tooltip.Root>
         )}
       </div>
@@ -238,7 +240,7 @@ export const MessageActions = memo(function MessageActions({
         onOpenChange={handleModalClose}
         srTitle='Give feedback'
       >
-        <ChipModalHeader onClose={() => handleModalClose(false)}>Give feedback</ChipModalHeader>
+        <ChipModalHeader onClose={() => handleModalClose(false)}>{t('give_feedback')}</ChipModalHeader>
         <ChipModalBody>
           <div className='flex items-start justify-between gap-2 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>
@@ -249,7 +251,7 @@ export const MessageActions = memo(function MessageActions({
                 <Tooltip.Trigger asChild>
                   <button
                     type='button'
-                    aria-label='Copy request ID'
+                    aria-label={t('copy_request_id')}
                     onClick={copyRequestId}
                     className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
                   >
@@ -268,7 +270,7 @@ export const MessageActions = memo(function MessageActions({
           </div>
           <ChipModalField
             type='textarea'
-            title='Feedback'
+            title={t('feedback')}
             value={feedbackText}
             onChange={setFeedbackText}
             rows={6}

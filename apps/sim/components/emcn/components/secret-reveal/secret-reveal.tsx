@@ -21,6 +21,7 @@
 import { Button, Check, Duplicate } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useTranslations } from 'next-intl'
 
 const REDACTED_DOTS = '••••••••••••••••••••••••••••••••'
 
@@ -33,6 +34,7 @@ export interface SecretRevealProps {
 }
 
 export function SecretReveal({ value, className, redacted = false }: SecretRevealProps) {
+  const t = useTranslations('auto')
   const { copied, copy } = useCopyToClipboard()
   const isHidden = redacted || !value
 
@@ -65,7 +67,7 @@ export function SecretReveal({ value, className, redacted = false }: SecretRevea
           onClick={handleCopy}
         >
           {copied ? <Check className='size-[14px]' /> : <Duplicate className='size-[14px]' />}
-          <span className='sr-only'>Copy to clipboard</span>
+          <span className='sr-only'>{t('copy_to_clipboard')}</span>
         </Button>
       )}
     </div>

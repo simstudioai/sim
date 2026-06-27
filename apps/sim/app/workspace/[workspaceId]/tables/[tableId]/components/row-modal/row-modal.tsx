@@ -19,6 +19,7 @@ import {
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { cleanCellValue, formatValueForInput } from '../../utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('RowModal')
 
@@ -59,6 +60,7 @@ function cleanRowData(
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
 export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const tableId = table.id
@@ -150,10 +152,10 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
 
   return (
     <ChipModal open={isOpen} onOpenChange={handleClose} srTitle='Edit Row' size='lg'>
-      <ChipModalHeader onClose={handleClose}>Edit Row</ChipModalHeader>
+      <ChipModalHeader onClose={handleClose}>{t('edit_row')}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-tertiary)] text-small'>
-          Update values for {table?.name ?? 'table'}
+          {t('update_values_for')} {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
           <button type='submit' hidden disabled={isSubmitting} />
@@ -188,12 +190,13 @@ interface ColumnFieldProps {
 }
 
 function ColumnField({ column, value, onChange }: ColumnFieldProps) {
+  const t = useTranslations('auto')
   const checkboxId = useId()
   const title = (
     <>
       {column.name}
       {column.unique && (
-        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>(unique)</span>
+        <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>{t('unique')}</span>
       )}
     </>
   )
@@ -229,7 +232,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         mono
         value={formatValueForInput(value, column.type)}
         onChange={onChange}
-        placeholder='{"key": "value"}'
+        placeholder={t('label')}
         rows={4}
       />
     )
@@ -241,7 +244,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         <ChipDatePicker
           value={formatValueForInput(value, column.type) || undefined}
           onChange={onChange}
-          placeholder='Select date'
+          placeholder={t('select_date')}
           fullWidth
         />
       </ChipModalField>

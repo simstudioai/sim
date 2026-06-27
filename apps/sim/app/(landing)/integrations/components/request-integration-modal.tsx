@@ -11,10 +11,12 @@ import {
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { integrationRequestContract } from '@/lib/api/contracts/common'
+import { useTranslations } from 'next-intl'
 
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 export function RequestIntegrationModal() {
+  const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<SubmitStatus>('idle')
 
@@ -67,12 +69,12 @@ export function RequestIntegrationModal() {
         onClick={() => setOpen(true)}
         className='inline-flex h-[32px] shrink-0 items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
       >
-        Request an integration
+        {t('request_an_integration')}
       </button>
 
       <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='Request an Integration'>
         <ChipModalHeader onClose={() => handleOpenChange(false)}>
-          Request an Integration
+          {t('request_an_integration_2')}
         </ChipModalHeader>
 
         <ChipModalBody>
@@ -92,7 +94,7 @@ export function RequestIntegrationModal() {
                 </svg>
               </div>
               <p className='text-[14px] text-[var(--landing-text)]'>
-                Request submitted. We&apos;ll follow up at{' '}
+                {t('request_submitted_we_apos_ll_follow')}{' '}
                 <span className='font-medium'>{email}</span>.
               </p>
             </div>
@@ -100,20 +102,20 @@ export function RequestIntegrationModal() {
             <>
               <ChipModalField
                 type='input'
-                title='Integration name'
+                title={t('integration_name')}
                 value={integrationName}
                 onChange={(value) => setIntegrationName(value)}
-                placeholder='e.g. Stripe, HubSpot, Snowflake'
+                placeholder={t('e_g_stripe_hubspot_snowflake')}
                 maxLength={200}
                 autoComplete='off'
                 required
               />
               <ChipModalField
                 type='email'
-                title='Your email'
+                title={t('your_email')}
                 value={email}
                 onChange={(value) => setEmail(value)}
-                placeholder='you@company.com'
+                placeholder={t('you_company_com')}
                 autoComplete='email'
                 required
               />
@@ -121,17 +123,17 @@ export function RequestIntegrationModal() {
                 type='textarea'
                 title={
                   <>
-                    Use case <span className='text-[var(--text-tertiary)]'>(optional)</span>
+                    {t('use_case')} <span className='text-[var(--text-tertiary)]'>{t('optional')}</span>
                   </>
                 }
                 value={useCase}
                 onChange={(value) => setUseCase(value)}
-                placeholder='What would you automate with this integration?'
+                placeholder={t('what_would_you_automate_with_this')}
                 rows={3}
                 maxLength={2000}
               />
               {status === 'error' && (
-                <ChipModalError>Something went wrong. Please try again.</ChipModalError>
+                <ChipModalError>{t('something_went_wrong_please_try_again')}</ChipModalError>
               )}
             </>
           )}

@@ -8,6 +8,7 @@ import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
+import { useTranslations } from 'next-intl'
 
 interface TableFilterProps {
   columns: ColumnDefinition[]
@@ -17,6 +18,7 @@ interface TableFilterProps {
 }
 
 export function TableFilter({ columns, filter, onApply, onClose }: TableFilterProps) {
+  const t = useTranslations('auto')
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = filterToRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
@@ -97,7 +99,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
             className='px-2 py-1 text-[var(--text-secondary)] text-xs'
           >
             <Plus className='mr-1 size-[10px]' />
-            Add filter
+            {t('add_filter')}
           </Button>
           <div className='flex items-center gap-1.5'>
             {filter !== null && (
@@ -107,11 +109,11 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
                 onClick={handleClear}
                 className='px-2 py-1 text-[var(--text-secondary)] text-xs'
               >
-                Clear filters
+                {t('clear_filters')}
               </Button>
             )}
             <Button variant='default' size='sm' onClick={handleApply} className='text-xs'>
-              Apply filter
+              {t('apply_filter')}
             </Button>
           </div>
         </div>
@@ -139,6 +141,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onApply,
   onToggleLogical,
 }: FilterRuleRowProps) {
+  const t = useTranslations('auto')
   // Keep a stale column id selectable/visible (e.g. after the column was
   // removed) instead of falling back to the placeholder while the rule still
   // filters on it.
@@ -150,7 +153,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
   return (
     <div className='flex items-center gap-1.5'>
       {isFirst ? (
-        <span className='w-[42px] shrink-0 text-right text-[var(--text-muted)] text-xs'>Where</span>
+        <span className='w-[42px] shrink-0 text-right text-[var(--text-muted)] text-xs'>{t('where')}</span>
       ) : (
         <button
           onClick={() => onToggleLogical(rule.id)}
@@ -164,7 +167,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         options={columnOptions}
         value={rule.column}
         onChange={(value) => onUpdate(rule.id, 'column', value)}
-        placeholder='Column'
+        placeholder={t('column')}
         align='start'
         matchTriggerWidth={false}
         className='min-w-[100px]'
@@ -174,7 +177,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         options={COMPARISON_OPERATORS}
         value={rule.operator}
         onChange={(value) => onUpdate(rule.id, 'operator', value)}
-        placeholder='Operator'
+        placeholder={t('operator')}
         align='start'
         matchTriggerWidth={false}
         className='min-w-[90px]'
@@ -189,7 +192,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
           onKeyDown={(e) => {
             if (e.key === 'Enter') onApply()
           }}
-          placeholder='Enter a value'
+          placeholder={t('enter_a_value')}
           className='flex-1'
         />
       )}
@@ -199,7 +202,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         size='sm'
         onClick={() => onRemove(rule.id)}
         className='!p-1 size-7 shrink-0'
-        aria-label='Remove filter'
+        aria-label={t('remove_filter')}
       >
         <X className='size-[12px]' />
       </Button>

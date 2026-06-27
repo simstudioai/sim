@@ -8,10 +8,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { resetPasswordContract } from '@/lib/api/contracts'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('ResetPasswordPage')
 
 function ResetPasswordContent() {
+  const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -65,10 +67,10 @@ function ResetPasswordContent() {
     <>
       <div className='space-y-1 text-center'>
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          Reset your password
+          {t('reset_your_password')}
         </h1>
         <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-          Enter a new password for your account
+          {t('enter_a_new_password_for_your')}
         </p>
       </div>
 
@@ -87,7 +89,7 @@ function ResetPasswordContent() {
           href='/login'
           className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
         >
-          Back to login
+          {t('back_to_login')}
         </Link>
       </div>
     </>
@@ -95,8 +97,9 @@ function ResetPasswordContent() {
 }
 
 export default function ResetPasswordPage() {
+  const t = useTranslations('auto')
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>{t('loading')}</div>}>
       <ResetPasswordContent />
     </Suspense>
   )

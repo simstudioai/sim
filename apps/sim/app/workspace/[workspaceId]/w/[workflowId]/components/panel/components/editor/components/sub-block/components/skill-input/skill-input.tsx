@@ -13,6 +13,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useTranslations } from 'next-intl'
 
 interface StoredSkill {
   skillId: string
@@ -34,6 +35,7 @@ export function SkillInput({
   previewValue,
   disabled,
 }: SkillInputProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -122,12 +124,12 @@ export function SkillInput({
         <Combobox
           options={[]}
           groups={skillGroups}
-          placeholder='Add skill...'
+          placeholder={t('add_skill')}
           disabled={disabled}
           searchable
           searchPlaceholder='Search skills...'
           maxHeight={240}
-          emptyMessage='No skills found'
+          emptyMessage={t('no_skills_found')}
         />
 
         {selectedSkills.length > 0 &&
@@ -171,7 +173,7 @@ export function SkillInput({
                           handleRemove(stored.skillId)
                         }}
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
-                        aria-label='Remove skill'
+                        aria-label={t('remove_skill')}
                       >
                         <XIcon className='size-[13px]' />
                       </button>

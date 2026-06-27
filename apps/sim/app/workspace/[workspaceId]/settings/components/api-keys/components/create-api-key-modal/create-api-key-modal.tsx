@@ -15,6 +15,7 @@ import {
   SecretReveal,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('CreateApiKeyModal')
 
@@ -47,6 +48,7 @@ export function CreateApiKeyModal({
   source = 'settings',
   onKeyCreated,
 }: CreateApiKeyModalProps) {
+  const t = useTranslations('auto')
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -108,10 +110,10 @@ export function CreateApiKeyModal({
     <>
       {/* Create API Key Dialog */}
       <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
-        <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
+        <ChipModalHeader onClose={handleClose}>{t('create_new_api_key')}</ChipModalHeader>
         <ChipModalBody>
           {canManageWorkspaceKeys && (
-            <ChipModalField type='custom' title='API Key Type'>
+            <ChipModalField type='custom' title={t('api_key_type')}>
               <ButtonGroup
                 value={keyType}
                 onValueChange={(value) => {
@@ -120,21 +122,21 @@ export function CreateApiKeyModal({
                 }}
               >
                 <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
-                  Personal
+                  {t('personal')}
                 </ButtonGroupItem>
-                <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
+                <ButtonGroupItem value='workspace'>{t('workspace')}</ButtonGroupItem>
               </ButtonGroup>
             </ChipModalField>
           )}
           <ChipModalField
             type='input'
-            title='Enter a name for your API key to help you identify it later.'
+            title={t('enter_a_name_for_your_api')}
             value={keyName}
             onChange={(value) => {
               setKeyName(value)
               if (createError) setCreateError(null)
             }}
-            placeholder='e.g., Development, Production'
+            placeholder={t('e_g_development_production')}
             autoComplete='off'
             required
           />
@@ -179,10 +181,10 @@ export function CreateApiKeyModal({
         srTitle='Your API key has been created'
       >
         <ChipModalHeader onClose={() => setShowNewKeyDialog(false)}>
-          Your API key has been created
+          {t('your_api_key_has_been_created')}
         </ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
+          <ChipModalField type='custom' title={t('copy_it_now_it_won_t')}>
             {newKey && <SecretReveal value={newKey.key} />}
           </ChipModalField>
         </ChipModalBody>

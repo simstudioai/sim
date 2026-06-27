@@ -10,6 +10,7 @@ import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
+import { useTranslations } from 'next-intl'
 
 interface PublicFileViewProps {
   token: string
@@ -31,6 +32,7 @@ export function PublicFileView({
   workspaceName,
   ownerName,
 }: PublicFileViewProps) {
+  const t = useTranslations('auto')
   const contentUrl = `/api/files/public/${token}/content`
   const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
@@ -74,12 +76,12 @@ export function PublicFileView({
                 href='https://sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                aria-label='Sim home'
+                aria-label={t('sim_home')}
                 className='shrink-0'
               >
                 <Image
                   src='/logo/wordmark-dark.svg'
-                  alt='Sim'
+                  alt={t('sim')}
                   width={71}
                   height={22}
                   className='h-[22px] w-auto dark:hidden'
@@ -87,7 +89,7 @@ export function PublicFileView({
                 />
                 <Image
                   src='/logo/sim-landing.svg'
-                  alt='Sim'
+                  alt={t('sim')}
                   width={71}
                   height={22}
                   className='hidden h-[22px] w-auto dark:block'
@@ -116,7 +118,7 @@ export function PublicFileView({
             anchor.remove()
           }}
         >
-          Download
+          {t('download')}
         </Chip>
       </header>
 

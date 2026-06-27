@@ -12,6 +12,7 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../../utils'
+import { useTranslations } from 'next-intl'
 
 interface InlineEditorProps {
   value: unknown
@@ -29,6 +30,7 @@ function InlineDateEditor({
   onSave,
   onCancel,
 }: InlineEditorProps) {
+  const t = useTranslations('auto')
   const inputRef = useRef<HTMLInputElement>(null)
   const doneRef = useRef(false)
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -112,7 +114,7 @@ function InlineDateEditor({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
-        placeholder='mm/dd/yyyy'
+        placeholder={t('mm_dd_yyyy')}
         className={cn(
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}

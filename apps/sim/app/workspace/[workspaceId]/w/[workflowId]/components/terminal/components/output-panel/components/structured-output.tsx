@@ -20,6 +20,7 @@ import {
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { useTranslations } from 'next-intl'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
 type BadgeVariant = 'green' | 'blue' | 'orange' | 'purple' | 'gray' | 'red'
@@ -745,6 +746,7 @@ export const StructuredOutput = memo(function StructuredOutput({
   onMatchCountChange,
   contentRef,
 }: StructuredOutputProps) {
+  const t = useTranslations('auto')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
     computeInitialPaths(data, isError)
   )
@@ -924,9 +926,9 @@ export const StructuredOutput = memo(function StructuredOutput({
     return (
       <div ref={setContainerRef} className={containerClass}>
         <div className={STYLES.row}>
-          <span className={STYLES.keyName}>running</span>
+          <span className={STYLES.keyName}>{t('running')}</span>
           <Badge variant='green' className={STYLES.badge}>
-            Running
+            {t('running_2')}
           </Badge>
         </div>
       </div>
@@ -937,7 +939,7 @@ export const StructuredOutput = memo(function StructuredOutput({
   if (rootEntries.length === 0 && !isError) {
     return (
       <div ref={setContainerRef} className={containerClass}>
-        <span className={STYLES.emptyValue}>null</span>
+        <span className={STYLES.emptyValue}>{t('null')}</span>
       </div>
     )
   }

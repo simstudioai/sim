@@ -7,6 +7,7 @@ import { Chip, chipVariants } from '@/components/emcn/components/chip/chip'
 import { chipContentLabelClass } from '@/components/emcn/components/chip/chip-chrome'
 import { ChipTimePicker } from '@/components/emcn/components/chip-time-picker/chip-time-picker'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 const MONTHS = [
   'January',
@@ -263,13 +264,14 @@ function CalendarHeader({
   onPrev: () => void
   onNext: () => void
 }) {
+  const t = useTranslations('auto')
   return (
     <div className='flex items-center justify-between pb-1'>
-      <Chip leftIcon={ChevronLeft} aria-label='Previous month' onClick={onPrev} />
+      <Chip leftIcon={ChevronLeft} aria-label={t('previous_month')} onClick={onPrev} />
       <span className={chipContentLabelClass}>
         {MONTHS[month]} {year}
       </span>
-      <Chip rightIcon={ChevronRight} aria-label='Next month' onClick={onNext} />
+      <Chip rightIcon={ChevronRight} aria-label={t('next_month')} onClick={onNext} />
     </div>
   )
 }
@@ -290,6 +292,7 @@ function WeekdayRow() {
 }
 
 function SingleCalendarView({ value, onChange, className }: CalendarSingleProps) {
+  const t = useTranslations('auto')
   const selected = useMemo(() => parseDateValue(value), [value])
   const { today, view, setView, goToPrevMonth, goToNextMonth, cells } = useCalendarView(selected)
 
@@ -340,7 +343,7 @@ function SingleCalendarView({ value, onChange, className }: CalendarSingleProps)
           'mt-1 justify-center'
         )}
       >
-        <span className={chipContentLabelClass}>Today</span>
+        <span className={chipContentLabelClass}>{t('today')}</span>
       </button>
     </div>
   )
@@ -355,6 +358,7 @@ function RangeCalendarView({
   onClear,
   className,
 }: CalendarRangeProps) {
+  const t = useTranslations('auto')
   const seededStart = useMemo(() => parseDateValue(startDate), [startDate])
   const { today, view, goToPrevMonth, goToNextMonth, cells } = useCalendarView(seededStart)
 
@@ -446,21 +450,21 @@ function RangeCalendarView({
       {showTime && (
         <div className='mt-1 flex items-center gap-2'>
           <ChipTimePicker value={startTime} onChange={setStartTime} fullWidth flush />
-          <span className='shrink-0 text-[var(--text-muted)] text-caption'>to</span>
+          <span className='shrink-0 text-[var(--text-muted)] text-caption'>{t('to')}</span>
           <ChipTimePicker value={endTime} onChange={setEndTime} fullWidth flush />
         </div>
       )}
 
       <div className='mt-1 flex items-center justify-between gap-2'>
         <Chip onClick={clear} disabled={!rangeStart && !rangeEnd}>
-          Clear
+          {t('clear')}
         </Chip>
         <div className='flex items-center gap-2'>
           <Chip variant='border' onClick={() => onCancel?.()}>
-            Cancel
+            {t('cancel')}
           </Chip>
           <Chip variant='primary' onClick={apply} disabled={!rangeStart}>
-            Apply
+            {t('apply')}
           </Chip>
         </div>
       </div>

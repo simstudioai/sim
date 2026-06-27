@@ -46,6 +46,7 @@ import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FolderItem')
 
@@ -54,6 +55,7 @@ interface FolderItemProps {
 }
 
 export function FolderItem({ folder }: FolderItemProps) {
+  const t = useTranslations('auto')
   const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
     useSidebarListContext()
   const params = useParams()
@@ -534,7 +536,7 @@ export function FolderItem({ folder }: FolderItemProps) {
               {folder.locked && (
                 <span
                   role='img'
-                  aria-label='Folder is locked'
+                  aria-label={t('folder_is_locked')}
                   className={clsx(
                     'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
                     !isAnyDragActive && 'group-hover:opacity-0',
@@ -546,7 +548,7 @@ export function FolderItem({ folder }: FolderItemProps) {
               )}
               <button
                 type='button'
-                aria-label='Folder options'
+                aria-label={t('folder_options')}
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
                 className={clsx(

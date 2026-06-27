@@ -2,6 +2,7 @@
 
 import { Button, Combobox, Input } from '@/components/emcn'
 import type { WorkflowSearchReplacementOption } from '@/lib/workflows/search-replace/types'
+import { useTranslations } from 'next-intl'
 
 interface ReplacementControlsProps {
   replacement: string
@@ -30,6 +31,7 @@ export function ReplacementControls({
   onReplaceActive,
   onReplaceAll,
 }: ReplacementControlsProps) {
+  const t = useTranslations('auto')
   return (
     <div className='space-y-2'>
       {usesResourceReplacement ? (
@@ -40,16 +42,16 @@ export function ReplacementControls({
           }))}
           value={replacement}
           onChange={onReplacementChange}
-          placeholder='Choose replacement...'
+          placeholder={t('choose_replacement')}
           searchable
           searchPlaceholder='Search resources...'
-          emptyMessage='No valid replacements available'
+          emptyMessage={t('no_valid_replacements_available')}
           disabled={disabled || compatibleResourceOptions.length === 0}
         />
       ) : (
         <Input
           value={replacement}
-          placeholder='Replace'
+          placeholder={t('replace')}
           disabled={disabled}
           onChange={(event) => onReplacementChange(event.target.value)}
         />
@@ -57,7 +59,7 @@ export function ReplacementControls({
 
       <div className='flex items-center justify-between gap-2'>
         <span className='text-[var(--text-muted)] text-xs'>
-          {eligibleCount} replaceable match{eligibleCount === 1 ? '' : 'es'}
+          {eligibleCount} {t('replaceable_match')}{eligibleCount === 1 ? '' : 'es'}
         </span>
         <div className='flex gap-1.5'>
           <Button
@@ -66,7 +68,7 @@ export function ReplacementControls({
             disabled={disabled || isApplying || !canReplaceActive}
             onClick={onReplaceActive}
           >
-            Replace
+            {t('replace')}
           </Button>
           <Button
             className='h-8 px-2 text-xs'

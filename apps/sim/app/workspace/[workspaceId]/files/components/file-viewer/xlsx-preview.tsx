@@ -9,6 +9,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('XlsxPreview')
 
@@ -28,6 +29,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const t = useTranslations('auto')
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data
 
@@ -107,7 +109,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   }, [sheetNames, activeSheet])
 
   const error = resolvePreviewError(preview.error, renderError)
-  if (error) return <PreviewError label='spreadsheet' error={error} />
+  if (error) return <PreviewError label={t('spreadsheet')} error={error} />
   if (!fileData || currentSheet === null) {
     return <PreviewLoadingFrame className='flex flex-1 flex-col overflow-hidden' />
   }
@@ -132,7 +134,7 @@ export const XlsxPreview = memo(function XlsxPreview({
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
-            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
+            {t('showing_first')} {XLSX_MAX_ROWS.toLocaleString()} {t('rows_download_the_file_to_view')}
           </p>
         )}
       </div>

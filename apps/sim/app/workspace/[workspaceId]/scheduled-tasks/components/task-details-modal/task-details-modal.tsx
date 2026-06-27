@@ -20,6 +20,7 @@ import type {
   ScheduledTask,
   ScheduledTaskStatus,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
+import { useTranslations } from 'next-intl'
 
 /**
  * Plaintext copy per task state: the status label and the verb that titles the
@@ -68,6 +69,7 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
  * queries from firing on page load and re-seeds from the task on each open.
  */
 function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   /**
    * Seed the stored resource mentions (files, tables, knowledge) as the editor's
@@ -86,18 +88,18 @@ function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: (
   return (
     <>
       <ChipModalHeader icon={Calendar} onClose={onClose}>
-        Scheduled task
+        {t('scheduled_task')}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='copy' title='Status' value={STATUS_COPY[task.status].label} />
+        <ChipModalField type='copy' title={t('status')} value={STATUS_COPY[task.status].label} />
         <ChipModalField
           type='copy'
           title={STATUS_COPY[task.status].timeTitle}
           value={format(task.runAt, "EEEE, MMMM d, yyyy 'at' h:mm a")}
         />
-        <ChipModalField type='custom' title='Prompt'>
+        <ChipModalField type='custom' title={t('prompt')}>
           <div className={cn(chipFieldSurfaceClass, 'max-h-[200px] overflow-y-auto px-1 py-0.5')}>
-            <PromptEditor editor={editor} readOnly aria-label='Prompt' />
+            <PromptEditor editor={editor} readOnly aria-label={t('prompt')} />
           </div>
         </ChipModalField>
       </ChipModalBody>

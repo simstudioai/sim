@@ -15,6 +15,7 @@ import {
   type SlackCapability,
   type SlackCapabilityGroup,
 } from '@/triggers/slack/capabilities'
+import { useTranslations } from 'next-intl'
 
 const DEFAULT_APP_NAME = 'Sim Workflow Bot'
 
@@ -48,6 +49,7 @@ export function SlackSetupWizard({
   isPreview = false,
   disabled = false,
 }: SlackSetupWizardProps) {
+  const t = useTranslations('auto')
   const [open, setOpen] = useState<boolean>(false)
   const launcherDisabled = isPreview || disabled
 
@@ -65,7 +67,7 @@ export function SlackSetupWizard({
         )}
       >
         <span className='font-medium font-sans text-[var(--text-primary)] text-sm'>
-          Setup Slack App
+          {t('setup_slack_app')}
         </span>
         <ChevronRight className='size-[14px] text-[var(--text-muted)]' />
       </button>
@@ -90,6 +92,7 @@ interface WizardModalProps {
 }
 
 function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: WizardModalProps) {
+  const t = useTranslations('auto')
   const [step, setStep] = useState<number>(0)
 
   const { webhookUrl, isLoading } = useWebhookManagement({
@@ -134,7 +137,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       size='lg'
       height={MODAL_HEIGHT_CLASS}
     >
-      <Wizard.Step title='Configure your bot'>
+      <Wizard.Step title={t('configure_your_bot')}>
         <StepConfigure
           blockId={blockId}
           appName={displayAppName}
@@ -145,10 +148,10 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
           disabled={controlsDisabled}
         />
       </Wizard.Step>
-      <Wizard.Step title='Create the app in Slack'>
+      <Wizard.Step title={t('create_the_app_in_slack')}>
         <StepCreate manifestJson={manifestJson} canCopy={canCopy} />
       </Wizard.Step>
-      <Wizard.Step title='Paste your Signing Secret'>
+      <Wizard.Step title={t('paste_your_signing_secret')}>
         <StepSecret
           blockId={blockId}
           value={signingSecret ?? ''}
@@ -158,7 +161,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
           disabled={controlsDisabled}
         />
       </Wizard.Step>
-      <Wizard.Step title='Install and paste your Bot Token'>
+      <Wizard.Step title={t('install_and_paste_your_bot_token')}>
         <StepToken
           blockId={blockId}
           value={botToken ?? ''}
@@ -168,7 +171,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
           disabled={controlsDisabled}
         />
       </Wizard.Step>
-      <Wizard.Step title='All set'>
+      <Wizard.Step title={t('all_set')}>
         <StepDone hasSigningSecret={Boolean(signingSecret)} hasBotToken={Boolean(botToken)} />
       </Wizard.Step>
     </Wizard>
@@ -214,18 +217,18 @@ function StepConfigure({
   selected,
   disabled,
 }: StepConfigureProps) {
+  const t = useTranslations('auto')
   return (
     <div className='space-y-4'>
       <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Pick a name and choose what events should trigger your workflow and what actions your bot
-        can take.
+        {t('pick_a_name_and_choose_what')}
       </p>
       <div className='space-y-1.5'>
         <Label
           htmlFor={`${blockId}-wizard-bot-name`}
           className='font-medium text-[var(--text-secondary)] text-xs'
         >
-          Bot name
+          {t('bot_name')}
         </Label>
         <Input
           id={`${blockId}-wizard-bot-name`}
@@ -262,6 +265,7 @@ interface StepCreateProps {
 }
 
 function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
+  const t = useTranslations('auto')
   const [copied, setCopied] = useState<boolean>(false)
   const [copyFailed, setCopyFailed] = useState<boolean>(false)
 
@@ -281,7 +285,7 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <div>Copy your manifest:</div>
+          <div>{t('copy_your_manifest')}</div>
           <button
             type='button'
             onClick={handleCopy}
@@ -305,28 +309,27 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
           </button>
           {copyFailed ? (
             <p className='mt-1.5 text-[var(--text-error)] text-xs'>
-              Couldn't copy manifest — copy it manually from the developer console.
+              {t('couldn_t_copy_manifest_copy_it')}
             </p>
           ) : null}
         </SubStep>
         <SubStep n={2}>
-          Open the{' '}
+          {t('open_the')}{' '}
           <a
             href='https://api.slack.com/apps'
             target='_blank'
             rel='noopener noreferrer'
             className='text-[var(--brand-secondary)] underline underline-offset-2'
           >
-            Slack Apps page
+            {t('slack_apps_page')}
           </a>
           .
         </SubStep>
         <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
+          {t('click')} <strong>{t('create_new_app')}</strong> → <strong>{t('from_a_manifest')}</strong> {t('and_pick_your_workspace')}
         </SubStep>
         <SubStep n={4}>
-          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+          {t('paste_your_manifest_then_click')} <strong>{t('next')}</strong> → <strong>{t('create')}</strong>.
         </SubStep>
       </SubStepList>
     </div>
@@ -341,24 +344,25 @@ interface StepSecretProps {
 }
 
 function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
+  const t = useTranslations('auto')
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In your new Slack app, open <strong>Basic Information</strong>.
+          {t('in_your_new_slack_app_open')} <strong>{t('basic_information')}</strong>.
         </SubStep>
         <SubStep n={2}>
-          Find <strong>Signing Secret</strong> and click <strong>Show</strong>, then copy it.
+          {t('find')} <strong>{t('signing_secret')}</strong> {t('and_click')} <strong>{t('show')}</strong>{t('then_copy_it')}
         </SubStep>
-        <SubStep n={3}>Paste it into the field below.</SubStep>
+        <SubStep n={3}>{t('paste_it_into_the_field_below')}</SubStep>
       </SubStepList>
       <SecretField
         id={`${blockId}-wizard-signing-secret`}
-        label='Signing Secret'
+        label={t('signing_secret')}
         value={value}
         onChange={onChange}
         disabled={disabled}
-        placeholder='Paste your signing secret'
+        placeholder={t('paste_your_signing_secret_2')}
       />
     </div>
   )
@@ -372,25 +376,25 @@ interface StepTokenProps {
 }
 
 function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
+  const t = useTranslations('auto')
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In Slack, open <strong>Install App</strong> → <strong>Install to Workspace</strong> and
-          authorize.
+          {t('in_slack_open')} <strong>{t('install_app')}</strong> → <strong>{t('install_to_workspace')}</strong> {t('and_authorize')}
         </SubStep>
         <SubStep n={2}>
-          Copy the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>).
+          {t('copy_the')} <strong>{t('bot_user_oauth_token')}</strong> {t('starts_with')} <code>{t('xoxb')}</code>).
         </SubStep>
-        <SubStep n={3}>Paste it into the field below.</SubStep>
+        <SubStep n={3}>{t('paste_it_into_the_field_below')}</SubStep>
       </SubStepList>
       <SecretField
         id={`${blockId}-wizard-bot-token`}
-        label='Bot Token'
+        label={t('bot_token')}
         value={value}
         onChange={onChange}
         disabled={disabled}
-        placeholder='xoxb-...'
+        placeholder={t('xoxb_2')}
       />
     </div>
   )
@@ -435,17 +439,17 @@ interface StepDoneProps {
 }
 
 function StepDone({ hasSigningSecret, hasBotToken }: StepDoneProps) {
+  const t = useTranslations('auto')
   return (
     <div className='space-y-4'>
       <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Your Slack app is set up. Save the workflow and Slack will verify the webhook URL
-        automatically.
+        {t('your_slack_app_is_set_up')}
       </p>
       <div className='flex flex-col gap-2'>
-        <StatusRow label='Signing Secret' ok={hasSigningSecret} />
-        <StatusRow label='Bot Token' ok={hasBotToken} />
+        <StatusRow label={t('signing_secret')} ok={hasSigningSecret} />
+        <StatusRow label={t('bot_token')} ok={hasBotToken} />
       </div>
-      <p className='text-[var(--text-secondary)] text-sm'>Click Done and save this workflow.</p>
+      <p className='text-[var(--text-secondary)] text-sm'>{t('click_done_and_save_this_workflow')}</p>
     </div>
   )
 }
@@ -456,6 +460,7 @@ interface StatusRowProps {
 }
 
 function StatusRow({ label, ok }: StatusRowProps) {
+  const t = useTranslations('auto')
   return (
     <span className='flex items-center gap-2'>
       <Check
@@ -466,7 +471,7 @@ function StatusRow({ label, ok }: StatusRowProps) {
       />
       <span>
         {label}
-        {!ok && <span className='ml-1 text-[var(--text-muted)]'>(not saved yet)</span>}
+        {!ok && <span className='ml-1 text-[var(--text-muted)]'>{t('not_saved_yet')}</span>}
       </span>
     </span>
   )

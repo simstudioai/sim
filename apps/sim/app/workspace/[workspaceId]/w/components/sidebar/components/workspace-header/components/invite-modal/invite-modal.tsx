@@ -18,6 +18,7 @@ import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/pr
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useBatchSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('InviteModal')
 
@@ -42,6 +43,7 @@ export function InviteModal({
   inviteDisabledReason = null,
   organizationId = null,
 }: InviteModalProps) {
+  const t = useTranslations('auto')
   const [emails, setEmails] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<PermissionType>('admin')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -169,11 +171,11 @@ export function InviteModal({
       onOpenChange={handleOpenChange}
       srTitle={`Invite teammates to ${workspaceName || 'workspace'}`}
     >
-      <ChipModalHeader onClose={() => handleOpenChange(false)}>Invite teammates</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>{t('invite_teammates')}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='emails'
-          title='Emails'
+          title={t('emails')}
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
@@ -188,10 +190,10 @@ export function InviteModal({
         />
         <ChipModalField
           type='dropdown'
-          title='Invite as'
+          title={t('invite_as')}
           options={ROLE_OPTIONS}
           value={inviteRole}
-          placeholder='Select role'
+          placeholder={t('select_role')}
           align='start'
           onChange={(role) => setInviteRole(role as PermissionType)}
         />

@@ -10,6 +10,7 @@ import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(landing)/components/templates/template-workflows'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('LandingTemplates')
 
@@ -254,6 +255,7 @@ function buildBottomWallStyle(config: DepthConfig) {
 const TEMPLATES_PANEL_ID = 'templates-panel'
 
 export default function Templates() {
+  const t = useTranslations('auto')
   const [activeIndex, setActiveIndex] = useState(0)
   const [isPreparingTemplate, setIsPreparingTemplate] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -314,11 +316,7 @@ export default function Templates() {
         className='pt-[60px] lg:pt-[100px]'
       >
         <p className='sr-only'>
-          Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
-          processing, release management, meeting follow-ups, resume scanning, email triage,
-          competitor monitoring, social listening, data enrichment, feedback analysis, code review,
-          and knowledge base Q&amp;A. Each template connects real integrations and LLMs; pick one,
-          customise it, and deploy in minutes.
+          {t('sim_includes')} {TEMPLATE_WORKFLOWS.length} {t('pre_built_workflow_templates_covering_ocr')}
         </p>
         <ul className='sr-only'>
           {TEMPLATE_WORKFLOWS.map((workflow) => (
@@ -340,20 +338,20 @@ export default function Templates() {
                     backgroundColor: hexToRgba(activeDepth.color, 0.1),
                   }}
                 >
-                  Templates
+                  {t('templates')}
                 </Badge>
 
                 <h2
                   id='templates-heading'
                   className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
                 >
-                  Ship your agent in minutes
+                  {t('ship_your_agent_in_minutes')}
                 </h2>
 
                 <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] lg:text-lg'>
-                  Pre-built templates for every use case: pick one, swap{' '}
+                  {t('pre_built_templates_for_every_use')}{' '}
                   <br className='hidden lg:inline' />
-                  models and tools to fit your stack, and deploy.
+                  {t('models_and_tools_to_fit_your')}
                 </p>
               </div>
             </div>
@@ -367,7 +365,7 @@ export default function Templates() {
               <div className='flex min-w-0 flex-1 flex-col lg:flex-row'>
                 <div
                   role='tablist'
-                  aria-label='Workflow templates'
+                  aria-label={t('workflow_templates')}
                   className='flex w-full shrink-0 flex-col border-[var(--landing-bg-elevated)] lg:w-[300px] lg:border-r'
                 >
                   {TEMPLATE_WORKFLOWS.map((workflow, index) => {

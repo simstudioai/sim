@@ -9,6 +9,7 @@ import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
+import { useTranslations } from 'next-intl'
 
 const AuthModal = dynamic(
   () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
@@ -21,6 +22,7 @@ const CTA_BUTTON =
   'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
 
 export function FooterCTA() {
+  const t = useTranslations('auto')
   const landingSubmit = useLandingSubmit()
   const [inputValue, setInputValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -60,13 +62,13 @@ export function FooterCTA() {
         id='cta-heading'
         className='text-balance text-center font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'
       >
-        What should we get done?
+        {t('what_should_we_get_done')}
       </h2>
 
       <div className='mt-8 w-full max-w-[42rem]'>
         <div
           role='group'
-          aria-label='Landing prompt input'
+          aria-label={t('landing_prompt_input')}
           className='cursor-text rounded-[20px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] px-2.5 py-2'
           onClick={() => textareaRef.current?.focus()}
           onKeyDown={(event) => {
@@ -80,7 +82,7 @@ export function FooterCTA() {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
-            aria-label='Describe what you want to build'
+            aria-label={t('describe_what_you_want_to_build')}
             placeholder={animatedPlaceholder}
             rows={2}
             className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent p-1 font-body text-[var(--landing-text)] text-base leading-[24px] tracking-[-0.015em] caret-white outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
@@ -91,7 +93,7 @@ export function FooterCTA() {
               type='button'
               onClick={handleSubmit}
               disabled={isEmpty}
-              aria-label='Submit message'
+              aria-label={t('submit_message')}
               className={cn(
                 'flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors',
                 isEmpty ? 'cursor-not-allowed bg-[#555555]' : 'cursor-pointer bg-white'
@@ -120,7 +122,7 @@ export function FooterCTA() {
             })
           }
         >
-          Docs
+          {t('docs')}
         </a>
         <AuthModal defaultView='signup' source='footer_cta'>
           <button
@@ -137,7 +139,7 @@ export function FooterCTA() {
               })
             }
           >
-            Get started
+            {t('get_started')}
           </button>
         </AuthModal>
       </div>

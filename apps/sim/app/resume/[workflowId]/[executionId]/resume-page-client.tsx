@@ -37,6 +37,7 @@ import {
   useResumeContext,
   useResumeExecutionDetail,
 } from '@/hooks/queries/resume-execution'
+import { useTranslations } from 'next-intl'
 
 interface NormalizedInputField {
   id: string
@@ -141,6 +142,7 @@ export default function ResumeExecutionPage({
   initialExecutionDetail,
   initialContextId,
 }: ResumeExecutionPageProps) {
+  const t = useTranslations('auto')
   const { workflowId, executionId } = params
   const router = useRouter()
   const brandConfig = useBrandConfig()
@@ -341,9 +343,9 @@ export default function ResumeExecutionPage({
                 <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
               </SelectTrigger>
               <SelectContent>
-                {!field.required && <SelectItem value='__unset__'>Not set</SelectItem>}
-                <SelectItem value='true'>True</SelectItem>
-                <SelectItem value='false'>False</SelectItem>
+                {!field.required && <SelectItem value='__unset__'>{t('not_set')}</SelectItem>}
+                <SelectItem value='true'>{t('true')}</SelectItem>
+                <SelectItem value='false'>{t('false')}</SelectItem>
               </SelectContent>
             </Select>
           )
@@ -698,13 +700,13 @@ export default function ResumeExecutionPage({
                   marginBottom: '8px',
                 }}
               >
-                Execution Not Found
+                {t('execution_not_found')}
               </h1>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                This execution could not be located or has already completed.
+                {t('this_execution_could_not_be_located')}
               </p>
               <Button variant='outline' onClick={() => router.push('/')}>
-                Return Home
+                {t('return_home')}
               </Button>
             </div>
           </div>
@@ -731,10 +733,10 @@ export default function ResumeExecutionPage({
           >
             <div>
               <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                Paused Execution
+                {t('paused_execution')}
               </h1>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Select a pause point to review and resume
+                {t('select_a_pause_point_to_review')}
               </p>
             </div>
             <Tooltip.Root>
@@ -745,7 +747,7 @@ export default function ResumeExecutionPage({
                   onClick={handleRefreshExecution}
                   disabled={refreshingExecution}
                   className='gap-1.5 px-2.5'
-                  aria-label='Refresh execution details'
+                  aria-label={t('refresh_execution_details')}
                 >
                   <RefreshCw
                     style={{
@@ -754,10 +756,10 @@ export default function ResumeExecutionPage({
                       animation: refreshingExecution ? 'spin 1s linear infinite' : undefined,
                     }}
                   />
-                  Refresh
+                  {t('refresh')}
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content>Refresh</Tooltip.Content>
+              <Tooltip.Content>{t('refresh')}</Tooltip.Content>
             </Tooltip.Root>
           </div>
 
@@ -773,7 +775,7 @@ export default function ResumeExecutionPage({
               }}
             >
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <Label>Pause Points</Label>
+                <Label>{t('pause_points')}</Label>
               </div>
               <div>
                 {pausePoints.length === 0 ? (
@@ -785,7 +787,7 @@ export default function ResumeExecutionPage({
                       fontSize: '13px',
                     }}
                   >
-                    No pause points
+                    {t('no_pause_points')}
                   </div>
                 ) : (
                   pausePoints.map((pause) => (
@@ -826,7 +828,7 @@ export default function ResumeExecutionPage({
                     borderRadius: '8px',
                   }}
                 >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Loading…</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{t('loading')}</span>
                 </div>
               ) : !selectedContextId ? (
                 <div
@@ -841,7 +843,7 @@ export default function ResumeExecutionPage({
                   }}
                 >
                   <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Select a pause point
+                    {t('select_a_pause_point')}
                   </span>
                 </div>
               ) : !selectedDetail ? (
@@ -857,7 +859,7 @@ export default function ResumeExecutionPage({
                   }}
                 >
                   <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Could not load details
+                    {t('could_not_load_details')}
                   </span>
                 </div>
               ) : (
@@ -877,14 +879,14 @@ export default function ResumeExecutionPage({
                     <div>
                       <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
                       <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
+                        {t('paused_at')} {formatDate(selectedDetail.pausePoint.registeredAt)}
                       </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <StatusBadge status={selectedStatus} />
                       {queuePosition && queuePosition > 0 && (
                         <Badge variant='gray' size='sm'>
-                          Queue #{queuePosition}
+                          {t('queue')}{queuePosition}
                         </Badge>
                       )}
                     </div>
@@ -903,7 +905,7 @@ export default function ResumeExecutionPage({
                       <div
                         style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}
                       >
-                        <Label>Resume Form</Label>
+                        <Label>{t('resume_form')}</Label>
                       </div>
                       <div
                         style={{
@@ -953,7 +955,7 @@ export default function ResumeExecutionPage({
                           />
                         ) : (
                           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            No input data provided
+                            {t('no_input_data_provided')}
                           </p>
                         )}
                       </div>
@@ -976,15 +978,15 @@ export default function ResumeExecutionPage({
                               borderBottom: '1px solid var(--border)',
                             }}
                           >
-                            <Label>Display Data</Label>
+                            <Label>{t('display_data')}</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>Field</TableHead>
-                                  <TableHead>Type</TableHead>
-                                  <TableHead>Value</TableHead>
+                                  <TableHead>{t('field')}</TableHead>
+                                  <TableHead>{t('type')}</TableHead>
+                                  <TableHead>{t('value')}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -1014,11 +1016,11 @@ export default function ResumeExecutionPage({
                               borderBottom: '1px solid var(--border)',
                             }}
                           >
-                            <Label>Display Data</Label>
+                            <Label>{t('display_data')}</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
                             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                              No display data configured
+                              {t('no_display_data_configured')}
                             </p>
                           </div>
                         </div>
@@ -1040,7 +1042,7 @@ export default function ResumeExecutionPage({
                               borderBottom: '1px solid var(--border)',
                             }}
                           >
-                            <Label>Resume Form</Label>
+                            <Label>{t('resume_form')}</Label>
                           </div>
                           <div
                             style={{
@@ -1093,7 +1095,7 @@ export default function ResumeExecutionPage({
                               borderBottom: '1px solid var(--border)',
                             }}
                           >
-                            <Label>Resume Input (JSON)</Label>
+                            <Label>{t('resume_input_json')}</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
                             <Textarea
@@ -1107,7 +1109,7 @@ export default function ResumeExecutionPage({
                                   }
                                 }
                               }}
-                              placeholder='{"example": "value"}'
+                              placeholder={t('label')}
                               rows={6}
                               spellCheck={false}
                               className='min-h-[180px] border-[var(--border-1)] bg-[var(--surface-3)] font-mono text-[12px] leading-5'
@@ -1143,9 +1145,9 @@ export default function ResumeExecutionPage({
             color: 'var(--text-muted)',
           }}
         >
-          Need help?{' '}
+          {t('need_help')}{' '}
           <a href={`mailto:${brandConfig.supportEmail}`} style={{ color: 'var(--text-secondary)' }}>
-            Contact support
+            {t('contact_support')}
           </a>
         </div>
       </div>

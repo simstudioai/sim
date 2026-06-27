@@ -6,6 +6,7 @@ import { ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
+import { useTranslations } from 'next-intl'
 
 /**
  * Props for a generic parameter with label component
@@ -44,6 +45,7 @@ export function ParameterWithLabel({
   isPreview,
   children,
 }: ParameterWithLabelProps) {
+  const t = useTranslations('auto')
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -99,7 +101,7 @@ export function ParameterWithLabel({
                 className='-my-1 h-5 px-2 py-0 text-xs'
                 onClick={handleSearchClick}
               >
-                Generate
+                {t('generate')}
               </Button>
             ) : (
               <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
@@ -126,7 +128,7 @@ export function ParameterWithLabel({
                     'h-5 min-w-[80px] flex-1 text-xs',
                     isStreaming && 'text-muted-foreground'
                   )}
-                  placeholder='Generate with AI...'
+                  placeholder={t('generate_with_ai')}
                 />
                 <Button
                   variant='primary'

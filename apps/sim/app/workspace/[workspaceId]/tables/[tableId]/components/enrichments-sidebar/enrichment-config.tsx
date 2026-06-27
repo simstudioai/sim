@@ -26,6 +26,7 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { RunSettingsSection } from '../workflow-sidebar/run-settings-section'
+import { useTranslations } from 'next-intl'
 
 interface EnrichmentConfigProps {
   enrichment: EnrichmentDef
@@ -66,6 +67,7 @@ export function EnrichmentConfig({
   onClose,
   existingGroup,
 }: EnrichmentConfigProps) {
+  const t = useTranslations('auto')
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
@@ -223,7 +225,7 @@ export function EnrichmentConfig({
             size='sm'
             onClick={onBack}
             className='!p-1 size-7 flex-none'
-            aria-label='Back to enrichments'
+            aria-label={t('back_to_enrichments')}
           >
             <ArrowLeft className='size-[14px]' />
           </Button>
@@ -236,7 +238,7 @@ export function EnrichmentConfig({
           size='sm'
           onClick={onClose}
           className='!p-1 size-7 flex-none'
-          aria-label='Close'
+          aria-label={t('close')}
         >
           <X className='size-[14px]' />
         </Button>
@@ -244,10 +246,10 @@ export function EnrichmentConfig({
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         <div className='flex flex-col gap-[9.5px]'>
-          <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>Inputs</Label>
+          <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>{t('inputs')}</Label>
           {enrichment.inputs.length === 0 ? (
             <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-              This enrichment needs no inputs.
+              {t('this_enrichment_needs_no_inputs')}
             </p>
           ) : (
             <div className='flex flex-col gap-2'>
@@ -265,7 +267,7 @@ export function EnrichmentConfig({
                     setCollapsed((prev) => ({ ...prev, [input.id]: !prev[input.id] }))
                   }
                 >
-                  <Label className='text-small'>Column</Label>
+                  <Label className='text-small'>{t('column')}</Label>
                   <ChipCombobox
                     searchable
                     searchPlaceholder='Search columns…'
@@ -273,8 +275,8 @@ export function EnrichmentConfig({
                     dropdownWidth='trigger'
                     maxHeight={240}
                     disabled={columnOptions.length === 0}
-                    emptyMessage='No columns.'
-                    placeholder='Select a column'
+                    emptyMessage={t('no_columns')}
+                    placeholder={t('select_a_column')}
                     options={columnOptions}
                     value={inputMappings[input.id] ?? ''}
                     onChange={(columnName: string) =>
@@ -293,7 +295,7 @@ export function EnrichmentConfig({
         <FieldDivider />
 
         <div className='flex flex-col gap-[9.5px]'>
-          <Label className='pl-0.5'>Output columns</Label>
+          <Label className='pl-0.5'>{t('output_columns')}</Label>
           <div className='flex flex-col gap-2'>
             {enrichment.outputs.map((output) => {
               const outErr = showValidation ? outputNameError(output.id) : null
@@ -314,7 +316,7 @@ export function EnrichmentConfig({
                     }))
                   }
                 >
-                  <Label className='text-small'>Column name</Label>
+                  <Label className='text-small'>{t('column_name')}</Label>
                   <ChipInput
                     value={outputNames[output.id] ?? ''}
                     onChange={(e) =>
@@ -334,7 +336,7 @@ export function EnrichmentConfig({
         <FieldDivider />
 
         <div className='flex items-center justify-between pl-0.5'>
-          <Label htmlFor='enrichment-auto-run'>Auto-run</Label>
+          <Label htmlFor='enrichment-auto-run'>{t('auto_run')}</Label>
           <Switch
             id='enrichment-auto-run'
             checked={autoRun}
@@ -356,7 +358,7 @@ export function EnrichmentConfig({
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>
-          Cancel
+          {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
           {isEditing ? 'Update' : 'Save'}

@@ -46,6 +46,7 @@ import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useTranslations } from 'next-intl'
 
 const SEARCH_PANEL_WIDTH = 360
 const SEARCH_PANEL_COLLAPSED_HEIGHT = 82
@@ -108,6 +109,7 @@ function createActiveSearchTarget(
 }
 
 export function WorkflowSearchReplace() {
+  const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
   const routeWorkflowId = params.workflowId as string | undefined
@@ -532,7 +534,7 @@ export function WorkflowSearchReplace() {
   return (
     <div
       role='dialog'
-      aria-label='Search and replace'
+      aria-label={t('search_and_replace')}
       className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -548,7 +550,7 @@ export function WorkflowSearchReplace() {
       >
         <div className='flex min-w-0 items-center'>
           <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
-            Search and replace
+            {t('search_and_replace')}
           </span>
         </div>
         <div
@@ -580,7 +582,7 @@ export function WorkflowSearchReplace() {
         <Input
           ref={searchInputRef}
           value={query}
-          placeholder='Search'
+          placeholder={t('search')}
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return
             event.preventDefault()

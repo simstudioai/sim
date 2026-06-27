@@ -5,6 +5,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const COLUMNS = [
   { id: 'name', header: 'Name', widthMultiplier: 1.15 },
@@ -22,10 +23,11 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function FilesLoading() {
+  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={FilesIcon}
-      title='Files'
+      title={t('files')}
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search files...'

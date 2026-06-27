@@ -95,6 +95,7 @@ import {
   StatusBadge,
   TriggerBadge,
 } from './utils'
+import { useTranslations } from 'next-intl'
 
 const LOGS_PER_PAGE = 50 as const
 const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
@@ -206,6 +207,7 @@ function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
  * @returns The logs page view with table and sidebar details
  */
 export default function Logs() {
+  const tI18n = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -962,7 +964,7 @@ export default function Logs() {
           <div className='py-1'>
             {suggestionType === 'filters' && (
               <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
-                SUGGESTED FILTERS
+                {tI18n('suggested_filters')}
               </div>
             )}
             {suggestions.map((suggestion, index) => (
@@ -1096,7 +1098,7 @@ export default function Logs() {
   return (
     <>
       <Resource>
-        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
+        <Resource.Header icon={Library} title={tI18n('logs')} actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}
@@ -1177,6 +1179,7 @@ interface LogsFilterPanelProps {
 }
 
 function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelProps) {
+  const tI18n = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -1328,13 +1331,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   return (
     <div className='flex w-[240px] flex-col gap-4 p-3'>
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>Status</span>
+        <span className='text-[var(--text-muted)] text-small'>{tI18n('status')}</span>
         <ChipCombobox
           options={statusOptions}
           multiSelect
           multiSelectValues={selectedStatuses}
           onMultiSelectChange={handleStatusChange}
-          placeholder='All statuses'
+          placeholder={tI18n('all_statuses')}
           overlayContent={
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedStatusColor && (
@@ -1353,13 +1356,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>Workflow</span>
+        <span className='text-[var(--text-muted)] text-small'>{tI18n('workflow')}</span>
         <ChipCombobox
           options={workflowOptions}
           multiSelect
           multiSelectValues={workflowIds}
           onMultiSelectChange={setWorkflowIds}
-          placeholder='All workflows'
+          placeholder={tI18n('all_workflows')}
           overlayContent={
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
@@ -1377,13 +1380,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>Folder</span>
+        <span className='text-[var(--text-muted)] text-small'>{tI18n('folder')}</span>
         <ChipCombobox
           options={folderOptions}
           multiSelect
           multiSelectValues={folderIds}
           onMultiSelectChange={setFolderIds}
-          placeholder='All folders'
+          placeholder={tI18n('all_folders')}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
           }
@@ -1396,13 +1399,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>Trigger</span>
+        <span className='text-[var(--text-muted)] text-small'>{tI18n('trigger')}</span>
         <ChipCombobox
           options={triggerOptions}
           multiSelect
           multiSelectValues={triggers}
           onMultiSelectChange={setTriggers}
-          placeholder='All triggers'
+          placeholder={tI18n('all_triggers')}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
           }
@@ -1415,13 +1418,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-[9px]'>
-        <span className='text-[var(--text-muted)] text-small'>Time Range</span>
+        <span className='text-[var(--text-muted)] text-small'>{tI18n('time_range')}</span>
         <div className='relative'>
           <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
-            placeholder='All time'
+            placeholder={tI18n('all_time')}
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
             }
@@ -1461,7 +1464,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onClick={handleClearFilters}
           className='h-[32px] w-full rounded-md'
         >
-          Clear All Filters
+          {tI18n('clear_all_filters')}
         </Button>
       )}
     </div>

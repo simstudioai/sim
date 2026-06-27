@@ -55,6 +55,7 @@ import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/ter
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FloatingChat')
 
@@ -216,6 +217,7 @@ interface StartInputFormatField {
  * position across sessions using the floating chat store.
  */
 export function Chat() {
+  const t = useTranslations('auto')
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blocks = useWorkflowStore((state) => state.blocks)
   const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
@@ -868,7 +870,7 @@ export function Chat() {
     <div
       ref={preventZoomRef}
       role='dialog'
-      aria-label='Chat'
+      aria-label={t('chat')}
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -888,7 +890,7 @@ export function Chat() {
         onMouseDown={handleMouseDown}
       >
         <span className='flex-shrink-0 pr-0.5 font-medium text-[var(--text-primary)] text-sm'>
-          Chat
+          {t('chat')}
         </span>
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
@@ -900,14 +902,14 @@ export function Chat() {
             <button
               type='button'
               className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
-              title='Add chat inputs to Start block'
+              title={t('add_chat_inputs_to_start_block')}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
                 handleConfigureStartInputs()
               }}
             >
-              <span className='whitespace-nowrap'>Add inputs</span>
+              <span className='whitespace-nowrap'>{t('add_inputs')}</span>
             </button>
           )}
 
@@ -916,7 +918,7 @@ export function Chat() {
             selectedOutputs={selectedOutputs}
             onOutputSelect={handleOutputSelection}
             disabled={!activeWorkflowId}
-            placeholder='Outputs'
+            placeholder={t('outputs')}
             align='end'
             maxHeight={180}
           />
@@ -950,7 +952,7 @@ export function Chat() {
                   disabled={workflowMessages.length === 0}
                 >
                   <Download className='size-[13px]' />
-                  <span>Export</span>
+                  <span>{t('export')}</span>
                 </PopoverItem>
                 <PopoverItem
                   onClick={() => {
@@ -960,7 +962,7 @@ export function Chat() {
                   disabled={workflowMessages.length === 0}
                 >
                   <Trash className='size-[13px]' />
-                  <span>Clear</span>
+                  <span>{t('clear')}</span>
                 </PopoverItem>
               </PopoverScrollArea>
             </PopoverContent>
@@ -979,7 +981,7 @@ export function Chat() {
         <div className='flex-1 overflow-hidden'>
           {workflowMessages.length === 0 ? (
             <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
-              No messages yet
+              {t('no_messages_yet')}
             </div>
           ) : (
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
@@ -1008,7 +1010,7 @@ export function Chat() {
                   <AlertCircle className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
                     <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
-                      File upload error
+                      {t('file_upload_error')}
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
@@ -1108,7 +1110,7 @@ export function Chat() {
                       <Paperclip className='!h-3.5 !w-3.5' />
                     </Badge>
                   </Tooltip.Trigger>
-                  <Tooltip.Content>Attach file</Tooltip.Content>
+                  <Tooltip.Content>{t('attach_file')}</Tooltip.Content>
                 </Tooltip.Root>
 
                 {isStreaming ? (
