@@ -16,7 +16,7 @@ export default function NotFound() {
         <p className='text-[var(--text-muted)]'>
           The page you're looking for doesn't exist or has been moved.
         </p>
-        <ChipLink href='/' variant='brand'>
+        <ChipLink href='/' variant='primary'>
           Go home
         </ChipLink>
       </div>
