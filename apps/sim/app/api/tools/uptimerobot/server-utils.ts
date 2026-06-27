@@ -118,18 +118,30 @@ export async function forwardPspRequest(options: {
     )
   }
 
-  let data: Record<string, unknown> = {}
-  if (text) {
-    try {
-      const parsed = JSON.parse(text)
-      if (parsed && typeof parsed === 'object') data = parsed as Record<string, unknown>
-    } catch {
-      logger.error(`[${requestId}] UptimeRobot returned a non-JSON PSP response`, { body: text })
-      return NextResponse.json(
-        { success: false, error: 'UptimeRobot returned an unexpected response' },
-        { status: 502 }
-      )
+  // A successful PSP create/update must return the PspDto object. An empty or
+  // non-object body is unexpected — reject it rather than mapping a phantom PSP
+  // (id: 0, empty name, null images) back to the workflow.
+  if (!text) {
+    logger.error(`[${requestId}] UptimeRobot returned an empty PSP response`)
+    return NextResponse.json(
+      { success: false, error: 'UptimeRobot returned an unexpected response' },
+      { status: 502 }
+    )
+  }
+
+  let data: Record<string, unknown>
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Expected a PSP object response')
     }
+    data = parsed as Record<string, unknown>
+  } catch {
+    logger.error(`[${requestId}] UptimeRobot returned an unexpected PSP response`, { body: text })
+    return NextResponse.json(
+      { success: false, error: 'UptimeRobot returned an unexpected response' },
+      { status: 502 }
+    )
   }
   return NextResponse.json({ success: true, output: { psp: mapPsp(data) } })
 }
