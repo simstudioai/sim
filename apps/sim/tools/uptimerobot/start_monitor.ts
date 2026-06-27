@@ -36,7 +36,10 @@ export const uptimeRobotStartMonitorTool: ToolConfig<
   request: {
     url: (params) => `${UPTIMEROBOT_API_BASE}/monitors/${params.monitorId}/start`,
     method: 'POST',
-    headers: (params) => uptimeRobotHeaders(params.apiKey),
+    headers: (params) => ({
+      ...uptimeRobotHeaders(params.apiKey),
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async (response: Response) => {

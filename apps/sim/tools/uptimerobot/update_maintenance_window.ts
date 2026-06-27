@@ -62,12 +62,6 @@ export const uptimeRobotUpdateMaintenanceWindowTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Duration in minutes (minimum 1)',
     },
-    autoAddMonitors: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to automatically add all monitors to this window',
-    },
     days: {
       type: 'string',
       required: false,

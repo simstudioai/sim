@@ -459,7 +459,8 @@ export const UptimeRobotBlock: BlockConfig<UptimeRobotMonitorResponse> = {
       title: 'Auto-add Monitors',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: MAINTENANCE_EDIT_OPS },
+      // Only on create — UpdateMaintenanceWindowDto has no autoAddMonitors field.
+      condition: { field: 'operation', value: 'create_maintenance_window' },
     },
     {
       id: 'maintenanceStatus',
