@@ -21,7 +21,7 @@ export const twilioSmsReceivedTrigger: TriggerConfig = {
     triggerOptions: twilioSmsTriggerOptions,
     includeDropdown: true,
     setupInstructions: twilioSmsReceivedInstructions(),
-    extraFields: buildTwilioSmsAuthFields(),
+    extraFields: buildTwilioSmsAuthFields('twilio_sms_received'),
   }),
 
   outputs: buildTwilioSmsOutputs(),

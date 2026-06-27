@@ -1,23 +1,21 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-/** All Twilio SMS trigger IDs, used to share auth fields across both triggers. */
-export const TWILIO_SMS_TRIGGER_IDS = ['twilio_sms_received', 'twilio_sms_status'] as const
-
 export const twilioSmsTriggerOptions = [
   { label: 'SMS Received', id: 'twilio_sms_received' },
   { label: 'Message Status', id: 'twilio_sms_status' },
 ]
 
 /**
- * Shared Account SID + Auth Token fields. Rendered only by the primary trigger
- * (with a condition covering both trigger IDs) so the fields are not duplicated
- * when both triggers' subBlocks are spread into the block.
+ * Account SID + Auth Token fields, used to verify the `X-Twilio-Signature`
+ * header. Added to each trigger (conditioned on its own `selectedTriggerId`) so
+ * the values are captured into `providerConfig` whichever trigger is deployed —
+ * the inner subBlock IDs stay shared so the values persist across trigger types.
  */
-export function buildTwilioSmsAuthFields(): SubBlockConfig[] {
+export function buildTwilioSmsAuthFields(triggerId: string): SubBlockConfig[] {
   const condition = {
     field: 'selectedTriggerId',
-    value: [...TWILIO_SMS_TRIGGER_IDS],
+    value: triggerId,
   }
   return [
     {

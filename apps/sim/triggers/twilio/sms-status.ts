@@ -1,6 +1,7 @@
 import { TwilioIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildTwilioSmsAuthFields,
   buildTwilioSmsOutputs,
   twilioSmsStatusInstructions,
   twilioSmsTriggerOptions,
@@ -19,6 +20,7 @@ export const twilioSmsStatusTrigger: TriggerConfig = {
     triggerId: 'twilio_sms_status',
     triggerOptions: twilioSmsTriggerOptions,
     setupInstructions: twilioSmsStatusInstructions(),
+    extraFields: buildTwilioSmsAuthFields('twilio_sms_status'),
   }),
 
   outputs: buildTwilioSmsOutputs(),
