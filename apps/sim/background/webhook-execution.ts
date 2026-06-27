@@ -375,10 +375,12 @@ async function executeWebhookJobInternal(
     skipUsageLimits: true,
     workspaceId: payload.workspaceId,
     loggingSession,
-    // Reuse the route-resolved actor only for inline execution (set on the
-    // in-process payload). When absent — queued/Trigger.dev runs — preprocessing
-    // re-resolves the current billed account. Either way the ban and
-    // archived-workflow gates run fresh against the resolved actor.
+    /**
+     * Reuse the route-resolved actor only for inline execution (set on the
+     * in-process payload). When absent — queued/Trigger.dev runs — preprocessing
+     * re-resolves the current billed account. Either way the ban and
+     * archived-workflow gates run fresh against the resolved actor.
+     */
     resolvedActorUserId: payload.resolvedActorUserId,
   })
 

@@ -269,9 +269,11 @@ export async function preprocessExecution(
       logger.info(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
     }
 
-    // Reuse an actor already resolved upstream this request (e.g. the webhook
-    // route's preprocessing) to skip the redundant workspace billed-account
-    // lookup. Gates below still run against this actor.
+    /**
+     * Reuse an actor already resolved upstream this request (e.g. the webhook
+     * route's preprocessing) to skip the redundant workspace billed-account
+     * lookup. Gates below still run against this actor.
+     */
     if (!actorUserId && resolvedActorUserId) {
       actorUserId = resolvedActorUserId
       logger.info(`[${requestId}] Using pre-resolved billing actor: ${actorUserId}`)
