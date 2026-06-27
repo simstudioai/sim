@@ -419,7 +419,11 @@ export function PromoteWorkspaceModal({
           primaryAdjacentAction={activeTab === 'activity' ? undefined : syncPrimaryAdjacent}
           primaryAction={
             activeTab === 'activity'
-              ? { label: 'Done', onClick: () => onOpenChange(false) }
+              ? {
+                  label: submitting ? 'Working...' : 'Done',
+                  onClick: () => onOpenChange(false),
+                  disabled: submitting,
+                }
               : safeStep >= 1 && !isLastStep
                 ? { label: 'Next', onClick: () => setStep(safeStep + 1), disabled: submitting }
                 : {
