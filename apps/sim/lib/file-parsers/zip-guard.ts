@@ -15,6 +15,7 @@ const logger = createLogger('ZipBombGuard')
  * compression ratio exceeds a safe threshold — without decompressing anything.
  */
 
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
 const EOCD_SIGNATURE = 0x06054b50
 const ZIP64_EOCD_LOCATOR_SIGNATURE = 0x07064b50
 const ZIP64_EOCD_SIGNATURE = 0x06064b50
@@ -59,13 +60,35 @@ export class ZipBombError extends Error {
 }
 
 /**
+ * Whether the buffer is shaped like a ZIP archive — i.e. begins with a local
+ * file header (the leading signature of every non-empty ZIP, and thus every
+ * OOXML document) or with the EOCD signature of an empty archive. Used to fail
+ * closed: a ZIP-shaped buffer the guard cannot parse must be rejected rather
+ * than handed to a decompression library.
+ */
+function isZipShaped(buffer: Buffer): boolean {
+  if (buffer.length < 4) {
+    return false
+  }
+  const signature = buffer.readUInt32LE(0)
+  return signature === LOCAL_FILE_HEADER_SIGNATURE || signature === EOCD_SIGNATURE
+}
+
+/**
  * Locate the End Of Central Directory record by scanning backwards from the end
- * of the buffer (it sits within the trailing 22 + comment bytes).
+ * of the buffer (it sits within the trailing 22 + comment bytes). A candidate
+ * is only accepted when its declared comment length places the record exactly
+ * at the buffer tail, so a decoy EOCD signature planted in the comment region
+ * cannot redirect the guard to a smaller, attacker-chosen central directory.
  */
 function findEocdOffset(buffer: Buffer): number {
   const minStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
   for (let offset = buffer.length - EOCD_MIN_SIZE; offset >= minStart; offset--) {
-    if (buffer.readUInt32LE(offset) === EOCD_SIGNATURE) {
+    if (buffer.readUInt32LE(offset) !== EOCD_SIGNATURE) {
+      continue
+    }
+    const commentLength = buffer.readUInt16LE(offset + 20)
+    if (offset + EOCD_MIN_SIZE + commentLength === buffer.length) {
       return offset
     }
   }
@@ -198,8 +221,11 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
  * Reject an OOXML archive whose declared expanded size or compression ratio
  * exceeds safe bounds, before any decompression library materializes it.
  *
- * No-op for inputs that are not parseable ZIP archives — those are handled by
- * the downstream parser's own validation and fallbacks.
+ * Fails closed: a ZIP-shaped buffer whose central directory cannot be parsed is
+ * rejected rather than passed through, so a malformed archive that a downstream
+ * library still inflates cannot bypass the guard. Genuinely non-ZIP inputs
+ * (legacy OLE `.xls`/`.doc`, misidentified plaintext) no-op and defer to the
+ * downstream parser's own validation and fallbacks.
  */
 export function assertOoxmlArchiveWithinLimits(
   buffer: Buffer,
@@ -207,6 +233,14 @@ export function assertOoxmlArchiveWithinLimits(
 ): void {
   const totalUncompressed = sumDeclaredUncompressedSize(buffer, limits.maxTotalUncompressedBytes)
   if (totalUncompressed === null) {
+    if (isZipShaped(buffer)) {
+      logger.warn('Rejected ZIP-shaped archive: central directory could not be parsed', {
+        compressedBytes: buffer.length,
+      })
+      throw new ZipBombError(
+        'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'
+      )
+    }
     return
   }
 
