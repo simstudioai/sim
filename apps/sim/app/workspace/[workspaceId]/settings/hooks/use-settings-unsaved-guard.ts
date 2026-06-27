@@ -34,6 +34,10 @@ export function useSettingsUnsavedGuard({
   useEffect(() => {
     isDirtyRef.current = isDirty
     setDirty(isDirty)
+    if (!isDirty) {
+      pendingLeaveRef.current = null
+      setShowUnsavedModal(false)
+    }
   }, [isDirty, setDirty])
 
   useEffect(() => {
