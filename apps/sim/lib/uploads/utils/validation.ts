@@ -95,6 +95,14 @@ export const SUPPORTED_AUDIO_EXTENSIONS = [
 
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] as const
 
+/**
+ * Archive formats accepted as chat attachments. A `.zip` is stored as a single
+ * object and presented to the agent as a virtual folder it can list and read
+ * entry-by-entry — extraction happens lazily on read in the copilot VFS, so the
+ * archive itself never needs a document parser here.
+ */
+export const SUPPORTED_ARCHIVE_EXTENSIONS = ['zip'] as const
+
 export const SUPPORTED_IMAGE_EXTENSIONS = [
   'png',
   'jpg',
@@ -207,10 +215,18 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   'image/vnd.microsoft.icon',
 ]
 
+const SUPPORTED_ARCHIVE_MIME_TYPES = [
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
+]
+
 export const CHAT_ACCEPT_ATTRIBUTE = [
   ACCEPT_ATTRIBUTE,
   ...SUPPORTED_IMAGE_MIME_TYPES,
   ...SUPPORTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`),
+  ...SUPPORTED_ARCHIVE_MIME_TYPES,
+  ...SUPPORTED_ARCHIVE_EXTENSIONS.map((ext) => `.${ext}`),
 ].join(',')
 
 export interface FileValidationError {
@@ -226,14 +242,16 @@ export const SUPPORTED_ATTACHMENT_EXTENSIONS = Array.from(
     ...SUPPORTED_IMAGE_EXTENSIONS,
     ...SUPPORTED_AUDIO_EXTENSIONS,
     ...SUPPORTED_VIDEO_EXTENSIONS,
+    ...SUPPORTED_ARCHIVE_EXTENSIONS,
   ])
 ) as readonly string[]
 
 /**
  * Validate that a file's extension is allowed as a chat/mothership attachment.
  *
- * Permits documents, code, images, audio, and video — anything users would
- * reasonably attach to a chat message. Rejects executables and unknown types.
+ * Permits documents, code, images, audio, video, and zip archives — anything
+ * users would reasonably attach to a chat message. Rejects executables and
+ * unknown types.
  */
 export function validateAttachmentFileType(fileName: string): FileValidationError | null {
   const raw = extractExtension(fileName)
@@ -242,7 +260,7 @@ export function validateAttachmentFileType(fileName: string): FileValidationErro
   if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
     return {
       code: 'UNSUPPORTED_FILE_TYPE',
-      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, and video.`,
+      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, video, and zip archives.`,
       supportedTypes: [...SUPPORTED_ATTACHMENT_EXTENSIONS],
     }
   }

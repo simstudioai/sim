@@ -2,24 +2,45 @@
  * @vitest-environment node
  */
 
+import { Buffer } from 'buffer'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
 
-const { mockReadFileRecord } = vi.hoisted(() => ({
-  mockReadFileRecord: vi.fn(),
-}))
+const { mockReadFileRecord, mockRenderFileBuffer, mockFetchWorkspaceFileBuffer } = vi.hoisted(
+  () => ({
+    mockReadFileRecord: vi.fn(),
+    // Echo the entry bytes back as text so a successful resolve is observable.
+    mockRenderFileBuffer: vi.fn(async (buffer: Buffer) => ({
+      content: buffer.toString('utf-8'),
+      totalLines: 1,
+    })),
+    mockFetchWorkspaceFileBuffer: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/copilot/vfs/file-reader', () => ({
   readFileRecord: mockReadFileRecord,
+  renderFileBuffer: mockRenderFileBuffer,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
 }))
 
 import {
   findMothershipUploadRowByChatAndName,
+  listChatUploadArchiveEntries,
   listChatUploads,
-  readChatUpload,
+  readChatUploadPath,
 } from './upload-file-reader'
+
+async function buildZip(files: Record<string, string>): Promise<Buffer> {
+  const zip = new JSZip()
+  for (const [name, content] of Object.entries(files)) zip.file(name, content)
+  return Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
+}
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const NOW = new Date('2026-05-05T00:00:00.000Z')
@@ -147,7 +168,7 @@ describe('listChatUploads', () => {
   })
 })
 
-describe('readChatUpload', () => {
+describe('readChatUploadPath (plain upload)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -159,7 +180,7 @@ describe('readChatUpload', () => {
     mockOrderByThenLimit([row])
     mockReadFileRecord.mockResolvedValueOnce({ content: 'PNGDATA', totalLines: 1 })
 
-    const result = await readChatUpload('image (2).png', CHAT_ID)
+    const result = await readChatUploadPath('image (2).png', '', CHAT_ID)
 
     expect(result).toEqual({ content: 'PNGDATA', totalLines: 1 })
     expect(mockReadFileRecord).toHaveBeenCalledWith(
@@ -167,13 +188,89 @@ describe('readChatUpload', () => {
     )
   })
 
+  it('ignores a trailing habit suffix on a non-archive upload', async () => {
+    const row = makeRow({ id: 'wf_3', displayName: 'report.csv', contentType: 'text/csv' })
+    mockOrderByThenLimit([row])
+    mockReadFileRecord.mockResolvedValueOnce({ content: 'a,b', totalLines: 1 })
+
+    const result = await readChatUploadPath('report.csv', 'content', CHAT_ID)
+
+    expect(result).toEqual({ content: 'a,b', totalLines: 1 })
+    expect(mockReadFileRecord).toHaveBeenCalledWith(expect.objectContaining({ name: 'report.csv' }))
+  })
+
   it('returns null when no row matches', async () => {
     mockOrderByThenLimit([])
     dbChainMockFns.orderBy.mockResolvedValueOnce([] as never)
 
-    const result = await readChatUpload('nope.png', CHAT_ID)
+    const result = await readChatUploadPath('nope.png', '', CHAT_ID)
 
     expect(result).toBeNull()
     expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+})
+
+describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('lists archive entries as encoded VFS paths', async () => {
+    const buffer = await buildZip({ 'report.pdf': 'x', 'data/sheet.csv': 'a,b' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const entries = await listChatUploadArchiveEntries('bundle.zip', CHAT_ID)
+
+    expect(entries?.map((e) => e.vfsPath).sort()).toEqual([
+      'uploads/bundle.zip/data/sheet.csv',
+      'uploads/bundle.zip/report.pdf',
+    ])
+  })
+
+  it('reads a nested entry by its exact path', async () => {
+    const buffer = await buildZip({ 'data/sheet.csv': 'a,b\n1,2' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const result = await readChatUploadPath('bundle.zip', 'data/sheet.csv', CHAT_ID)
+
+    expect(result?.content).toBe('a,b\n1,2')
+  })
+
+  it('resolves a unicode (NFD) entry addressed by its NFC-encoded glob path', async () => {
+    // macOS-authored zip: entry name stored decomposed (e + combining acute).
+    const nfdName = `cafe\u0301.txt` // NFD: e + combining acute
+    const buffer = await buildZip({ [nfdName]: 'latte' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    // The agent reads back the encoded path glob produced (NFC, percent-encoded).
+    const result = await readChatUploadPath('bundle.zip', 'caf%C3%A9.txt', CHAT_ID)
+
+    expect(result?.content).toBe('latte')
+  })
+
+  it('returns null for an entry that is not in the archive', async () => {
+    const buffer = await buildZip({ 'present.txt': 'x' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const result = await readChatUploadPath('bundle.zip', 'missing.txt', CHAT_ID)
+
+    expect(result).toBeNull()
+  })
+
+  it('returns the file-tree manifest for a bare archive read', async () => {
+    const buffer = await buildZip({ 'report.pdf': 'x', 'data/sheet.csv': 'a,b' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const result = await readChatUploadPath('bundle.zip', '', CHAT_ID)
+
+    expect(result?.content).toContain('Archive "bundle.zip" — 2 files')
+    expect(result?.content).toContain('report.pdf')
+    expect(result?.content).toContain('data/sheet.csv')
   })
 })

@@ -1,5 +1,4 @@
 import { Buffer, isUtf8 } from 'buffer'
-import type { Readable } from 'stream'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -21,6 +20,16 @@ import {
   ShareValidationError,
   upsertFileShare,
 } from '@/lib/public-shares/share-manager'
+import {
+  inflateEntryWithinCaps,
+  isSymlinkEntry,
+  MAX_ARCHIVE_BYTES as MAX_DECOMPRESS_ARCHIVE_BYTES,
+  MAX_ARCHIVE_ENTRIES as MAX_DECOMPRESS_ENTRIES,
+  MAX_ARCHIVE_ENTRY_BYTES as MAX_DECOMPRESS_ENTRY_BYTES,
+  MAX_ARCHIVE_TOTAL_BYTES as MAX_DECOMPRESS_TOTAL_BYTES,
+  readEntryUncompressedSize,
+  sanitizeArchiveEntryPath,
+} from '@/lib/uploads/archive'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -197,102 +206,6 @@ const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
   }
   usedNames.add(candidate)
   return candidate
-}
-
-/** Input archive download cap for the decompress operation. */
-const MAX_DECOMPRESS_ARCHIVE_BYTES = 100 * 1024 * 1024
-/** Maximum number of entries extracted from a single archive. */
-const MAX_DECOMPRESS_ENTRIES = 1000
-/** Maximum uncompressed size for any single archive entry. */
-const MAX_DECOMPRESS_ENTRY_BYTES = 100 * 1024 * 1024
-/** Maximum total uncompressed size across all entries, to bound zip-bomb expansion. */
-const MAX_DECOMPRESS_TOTAL_BYTES = 200 * 1024 * 1024
-
-const S_IFMT = 0o170000
-const S_IFLNK = 0o120000
-
-/**
- * Read a zip entry's declared uncompressed size without materializing it. This
- * value comes straight from the (attacker-controlled) ZIP metadata, so it is only
- * usable as a cheap fast-reject for honestly-declared archives — never as the
- * authoritative cap. {@link inflateEntryWithinCaps} enforces the real limit on the
- * inflated byte stream.
- */
-const readEntryUncompressedSize = (entry: JSZip.JSZipObject): number | undefined => {
-  const data = (entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
-  const size = data?.uncompressedSize
-  return typeof size === 'number' && Number.isFinite(size) ? size : undefined
-}
-
-type InflateResult = { ok: true; buffer: Buffer } | { ok: false; reason: 'entry' | 'total' }
-
-/**
- * Inflate a single zip entry through a streaming counting sink, tearing the
- * stream down the moment cumulative output would exceed the per-entry cap or the
- * remaining total budget. The declared uncompressed size in the ZIP header is
- * attacker-controlled and is NOT trusted here: a forged-small or absent size
- * cannot cause the full (potentially gigabyte-scale) entry to be materialized in
- * memory, because enforcement happens on the actual inflated bytes as they
- * arrive. Peak memory is bounded by the cap plus one DEFLATE chunk.
- */
-const inflateEntryWithinCaps = (
-  entry: JSZip.JSZipObject,
-  remainingTotalBudget: number
-): Promise<InflateResult> =>
-  new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    let settled = false
-    const stream = entry.nodeStream() as Readable
-
-    const settle = (result: InflateResult) => {
-      if (settled) return
-      settled = true
-      stream.destroy()
-      resolve(result)
-    }
-
-    stream.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_DECOMPRESS_ENTRY_BYTES) {
-        settle({ ok: false, reason: 'entry' })
-        return
-      }
-      if (size > remainingTotalBudget) {
-        settle({ ok: false, reason: 'total' })
-        return
-      }
-      chunks.push(chunk)
-    })
-    stream.on('end', () => settle({ ok: true, buffer: Buffer.concat(chunks, size) }))
-    stream.on('error', (error) => {
-      if (settled) return
-      settled = true
-      stream.destroy()
-      reject(error)
-    })
-  })
-
-/** True when a zip entry's unix mode marks it as a symlink (never extracted). */
-const isSymlinkEntry = (entry: JSZip.JSZipObject): boolean => {
-  const mode = (entry as JSZip.JSZipObject & { unixPermissions?: number | null }).unixPermissions
-  return typeof mode === 'number' && (mode & S_IFMT) === S_IFLNK
-}
-
-/**
- * Normalize a zip entry path into safe workspace folder segments, guarding against
- * zip-slip. Returns null for traversal (`..`), so the entry is skipped rather than
- * written outside its intended location.
- */
-const sanitizeArchiveEntryPath = (rawPath: string): string[] | null => {
-  const segments = rawPath
-    .replace(/\\/g, '/')
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0 && segment !== '.')
-
-  if (segments.length === 0 || segments.includes('..')) return null
-  return segments
 }
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)

@@ -3,7 +3,11 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
-import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  type FileReadResult,
+  readFileRecord,
+  renderFileBuffer,
+} from '@/lib/copilot/vfs/file-reader'
 import {
   type GrepCountEntry,
   type GrepMatch,
@@ -13,7 +17,16 @@ import {
 } from '@/lib/copilot/vfs/operations'
 import { decodeVfsSegment, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { ArchiveError, extractArchiveEntry, listArchiveEntries } from '@/lib/uploads/archive'
+import {
+  fetchWorkspaceFileBuffer,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getFileExtension,
+  getMimeTypeFromExtension,
+  isArchiveFileName,
+} from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('UploadFileReader')
 
@@ -140,21 +153,187 @@ export async function listChatUploads(chatId: string): Promise<WorkspaceFileReco
 }
 
 /**
- * Read a specific uploaded file by display name within a chat session.
- * Resolves names with `normalizeVfsSegment` so macOS screenshot spacing (e.g. U+202F)
- * matches when the model passes a visually equivalent path.
+ * True when an uploaded chat file is an archive presented as a virtual folder
+ * (currently `.zip`). Detection is by name so it is robust to archive MIME drift.
  */
-export async function readChatUpload(
-  filename: string,
+export function isArchiveUpload(record: WorkspaceFileRecord): boolean {
+  return isArchiveFileName(record.name)
+}
+
+/** Decode each `/`-separated segment of a VFS entry path back to its real name. */
+function decodeEntryPath(raw: string): string {
+  return raw
+    .split('/')
+    .map((segment) => {
+      try {
+        return decodeVfsSegment(segment)
+      } catch {
+        return segment
+      }
+    })
+    .join('/')
+}
+
+/** Re-encode a real `/`-joined entry path into its VFS-safe per-segment form. */
+function encodeEntryPath(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => encodeVfsSegment(segment))
+    .join('/')
+}
+
+/**
+ * Canonical per-segment-encoded key for an archive entry path. Returns null for
+ * paths that cannot be encoded (empty/dot segments).
+ */
+function archiveEntryKey(path: string): string | null {
+  try {
+    return encodeEntryPath(path)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a requested entry path (percent-encoded as the agent received it from
+ * glob, or the raw display form from the manifest) to the archive's exact stored
+ * path. Matching is on the canonical key so the NFC + whitespace normalization
+ * `encodeVfsSegment` applies stays symmetric between the listed paths and the
+ * read request — otherwise a macOS-authored (NFD / U+202F) entry name would list
+ * but never resolve. Returns null when nothing matches.
+ */
+async function findArchiveEntryRawPath(
+  archiveBuffer: Buffer,
+  requestedEntryPath: string
+): Promise<string | null> {
+  const wantedKey = archiveEntryKey(decodeEntryPath(requestedEntryPath))
+  if (!wantedKey) return null
+  const entries = await listArchiveEntries(archiveBuffer)
+  return entries.find((entry) => archiveEntryKey(entry) === wantedKey) ?? null
+}
+
+/** A single entry within an uploaded archive, with both its real and VFS paths. */
+export interface ChatUploadArchiveEntry {
+  /** Real sanitized path inside the archive (e.g. `data/sheet.csv`). */
+  path: string
+  /** VFS path the agent uses to read it (e.g. `uploads/archive.zip/data/sheet.csv`). */
+  vfsPath: string
+}
+
+/**
+ * List the entries of an uploaded archive as VFS paths. Returns null when
+ * `zipName` is not an archive upload in this chat; returns `[]` when the archive
+ * is unreadable or empty (logged) so the caller still surfaces the archive leaf.
+ */
+export async function listChatUploadArchiveEntries(
+  zipName: string,
+  chatId: string
+): Promise<ChatUploadArchiveEntry[] | null> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, zipName)
+  if (!row) return null
+  const record = toWorkspaceFileRecord(row)
+  if (!isArchiveUpload(record)) return null
+
+  const encodedZip = canonicalUploadKey(record.name)
+  try {
+    const buffer = await fetchWorkspaceFileBuffer(record)
+    const entries = await listArchiveEntries(buffer)
+    return entries.map((path) => ({
+      path,
+      vfsPath: `uploads/${encodedZip}/${encodeEntryPath(path)}`,
+    }))
+  } catch (err) {
+    logger.warn('Failed to list archive entries', {
+      zipName,
+      chatId,
+      error: toError(err).message,
+    })
+    return []
+  }
+}
+
+/**
+ * Render one archive entry from the archive buffer with the same extraction
+ * logic as a stored upload. Returns null when the entry is missing; returns a
+ * placeholder result for cap violations.
+ */
+async function readArchiveEntry(
+  archiveBuffer: Buffer,
+  entryPath: string
+): Promise<FileReadResult | null> {
+  const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
+  if (!rawPath) return null
+  let entryBuffer: Buffer | null
+  try {
+    entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+  } catch (err) {
+    if (err instanceof ArchiveError) {
+      return { content: `[${err.message}]`, totalLines: 1 }
+    }
+    throw err
+  }
+  if (!entryBuffer) return null
+  const ext = getFileExtension(rawPath)
+  return renderFileBuffer(entryBuffer, {
+    name: rawPath,
+    type: getMimeTypeFromExtension(ext),
+    ext,
+  })
+}
+
+/**
+ * Build a file-tree manifest for a bare archive read (`read("uploads/x.zip")`),
+ * so the agent gets the contents instead of binary bytes. Returns a placeholder
+ * result when the archive is unreadable.
+ */
+async function buildArchiveManifest(
+  record: WorkspaceFileRecord,
+  archiveBuffer: Buffer
+): Promise<FileReadResult> {
+  const encodedZip = canonicalUploadKey(record.name)
+  try {
+    const entries = await listArchiveEntries(archiveBuffer)
+    const header = `Archive "${record.name}" — ${entries.length} file${
+      entries.length === 1 ? '' : 's'
+    }. Read an entry with read("uploads/${encodedZip}/<path>").`
+    const content = [header, '', ...entries].join('\n')
+    return { content, totalLines: content.split('\n').length }
+  } catch (err) {
+    if (err instanceof ArchiveError) {
+      return { content: `[${err.message}]`, totalLines: 1 }
+    }
+    throw err
+  }
+}
+
+/**
+ * Read a chat upload addressed by its first path segment and an optional entry
+ * path, resolving the upload row exactly once. A plain upload renders directly
+ * (a trailing habit suffix like `/content` is ignored); an archive returns the
+ * addressed entry, or its file-tree manifest when no entry is given. Resolves
+ * names like {@link findMothershipUploadRowByChatAndName} so visually equivalent
+ * spellings (e.g. macOS U+202F vs ASCII space) still match.
+ */
+export async function readChatUploadPath(
+  firstSegment: string,
+  entryPath: string,
   chatId: string
 ): Promise<FileReadResult | null> {
   try {
-    const row = await findMothershipUploadRowByChatAndName(chatId, filename)
+    const row = await findMothershipUploadRowByChatAndName(chatId, firstSegment)
     if (!row) return null
-    return readFileRecord(toWorkspaceFileRecord(row))
+    const record = toWorkspaceFileRecord(row)
+    if (!isArchiveUpload(record)) {
+      return await readFileRecord(record)
+    }
+    const archiveBuffer = await fetchWorkspaceFileBuffer(record)
+    return entryPath
+      ? await readArchiveEntry(archiveBuffer, entryPath)
+      : await buildArchiveManifest(record, archiveBuffer)
   } catch (err) {
     logger.warn('Failed to read chat upload', {
-      filename,
+      firstSegment,
+      entryPath,
       chatId,
       error: toError(err).message,
     })
@@ -163,29 +342,62 @@ export async function readChatUpload(
 }
 
 /**
- * Grep the content of a single chat upload (`uploads/<name>`), mirroring
- * {@link WorkspaceVFS.grepFile} for the chat-scoped uploads namespace. Resolves
- * the upload by name (raw or percent-encoded), reads its text per file type, and
- * greps it. Throws {@link WorkspaceFileGrepError} when the upload is missing or
- * has no searchable text (image/binary/too-large) so the caller surfaces the
- * message verbatim.
+ * Grep a chat upload addressed by its first path segment and an optional entry
+ * path, resolving the upload row exactly once and mirroring
+ * {@link WorkspaceVFS.grepFile} for the chat-scoped namespace. An archive entry
+ * is grepped from the archive; otherwise the upload itself is grepped (a trailing
+ * habit suffix on a non-archive is ignored). Throws {@link WorkspaceFileGrepError}
+ * when the upload/entry is missing or has no searchable text so the caller
+ * surfaces the message verbatim.
  */
-export async function grepChatUpload(
-  filename: string,
+export async function grepChatUploadPath(
+  firstSegment: string,
+  entryPath: string,
   chatId: string,
   pattern: string,
   options?: GrepOptions
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
-  const row = await findMothershipUploadRowByChatAndName(chatId, filename)
+  const row = await findMothershipUploadRowByChatAndName(chatId, firstSegment)
   if (!row) {
     throw new WorkspaceFileGrepError(
-      `Upload not found: "${filename}". Use glob("uploads/*") to list available uploads.`
+      `Upload not found: "${firstSegment}". Use glob("uploads/*") to list available uploads.`
     )
   }
   const record = toWorkspaceFileRecord(row)
+
+  if (entryPath && isArchiveUpload(record)) {
+    const archiveBuffer = await fetchWorkspaceFileBuffer(record)
+    const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
+    if (!rawPath) {
+      throw new WorkspaceFileGrepError(
+        `Archive entry not found: "${decodeEntryPath(entryPath)}" in "${record.name}".`
+      )
+    }
+    let entryBuffer: Buffer | null
+    try {
+      entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+    } catch (err) {
+      if (err instanceof ArchiveError) {
+        throw new WorkspaceFileGrepError(err.message)
+      }
+      throw err
+    }
+    if (!entryBuffer) {
+      throw new WorkspaceFileGrepError(`Archive entry not found: "${rawPath}" in "${record.name}".`)
+    }
+    const ext = getFileExtension(rawPath)
+    const result = await renderFileBuffer(entryBuffer, {
+      name: rawPath,
+      type: getMimeTypeFromExtension(ext),
+      ext,
+    })
+    const uploadsPath = `uploads/${canonicalUploadKey(record.name)}/${encodeEntryPath(rawPath)}`
+    return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
+  }
+
   const result = await readFileRecord(record)
   if (!result) {
-    throw new WorkspaceFileGrepError(`Upload content not found for "${filename}".`)
+    throw new WorkspaceFileGrepError(`Upload content not found for "${firstSegment}".`)
   }
   const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
   return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
