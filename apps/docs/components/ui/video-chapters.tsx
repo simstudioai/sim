@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CirclePlay } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Parse a chapter timestamp ("M:SS" or "H:MM:SS") into seconds. */
@@ -57,12 +56,11 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
                   new CustomEvent('academy:seek', { detail: { time: parseTime(chapter.time) } })
                 )
               }}
-              className='flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-[var(--text-secondary)] text-sm transition-colors hover:bg-[var(--surface-active)] disabled:cursor-default disabled:hover:bg-transparent'
+              className='flex w-full cursor-pointer items-baseline gap-3 rounded-lg px-2.5 py-2 text-left text-[var(--text-secondary)] text-sm transition-colors hover:bg-[var(--surface-active)] disabled:cursor-default disabled:hover:bg-transparent'
             >
-              <CirclePlay className='mt-0.5 size-4 shrink-0' />
               <span className='min-w-0 flex-1 break-words'>{chapter.title}</span>
               {chapter.time && (
-                <span className='mt-0.5 shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
+                <span className='shrink-0 text-[var(--text-muted)] text-xs tabular-nums'>
                   {chapter.time}
                 </span>
               )}
