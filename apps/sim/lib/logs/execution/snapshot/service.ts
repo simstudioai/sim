@@ -37,13 +37,27 @@ export class SnapshotService implements ISnapshotService {
       stateData: state,
     }
 
+    /**
+     * Insert the snapshot, or — when an identical (workflowId, stateHash) row
+     * already exists — return it without rewriting the large stateData jsonb.
+     *
+     * The hash is a sha256 of the normalized state, so an existing row's stateData
+     * is byte-identical; there is nothing to update. The previous implementation
+     * SET state_data on conflict, which rewrote the full (tens-of-KB) jsonb every
+     * run. We keep a single atomic upsert — so RETURNING always yields the row and
+     * there is no race with snapshot cleanup (unlike DO NOTHING + a follow-up
+     * select) — but SET only the small state_hash column to itself. Under Postgres
+     * MVCC the unchanged, TOASTed stateData is not rewritten: its existing
+     * out-of-line storage is reused, so the per-execution write drops from the
+     * full blob to a tiny heap tuple.
+     */
     const [upsertedSnapshot] = await db
       .insert(workflowExecutionSnapshots)
       .values(snapshotData)
       .onConflictDoUpdate({
         target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
         set: {
-          stateData: sql`excluded.state_data`,
+          stateHash: sql`excluded.state_hash`,
         },
       })
       .returning()

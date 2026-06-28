@@ -8,6 +8,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
+import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
@@ -62,6 +63,9 @@ export async function maybeWriteOutputToTable(
 
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
+
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
 
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteOutputTable,
@@ -177,6 +181,9 @@ export async function maybeWriteReadCsvToTable(
 
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
+
+  const denied = denyOutputWriteWithoutWritePermission(context)
+  if (denied) return denied
 
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteCsvToTable,

@@ -7,7 +7,7 @@ const { mockUpdate, mockSet, mockWhere, sqlCalls } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
   mockSet: vi.fn(),
   mockWhere: vi.fn(),
-  sqlCalls: [] as Array<{ values: unknown[] }>,
+  sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
 }))
 
 vi.mock('@sim/db', () => ({ db: { update: mockUpdate } }))
@@ -23,8 +23,8 @@ vi.mock('@sim/db/schema', () => ({
   workflowDeploymentVersion: {},
 }))
 vi.mock('drizzle-orm', () => ({
-  sql: (_strings: readonly string[], ...values: unknown[]) => {
-    const node = { values }
+  sql: (strings: readonly string[], ...values: unknown[]) => {
+    const node = { strings, values }
     sqlCalls.push(node)
     return node
   },
@@ -48,6 +48,10 @@ const logger = { error: vi.fn() } as never
 
 function allInterpolatedValues(): unknown[] {
   return sqlCalls.flatMap((c) => c.values)
+}
+
+function allSqlText(): string {
+  return sqlCalls.map((c) => c.strings.join('')).join(' ')
 }
 
 describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
@@ -76,5 +80,15 @@ describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
 
     expect(allInterpolatedValues()).toContain(JSON.stringify({ historyId: 'h1' }))
     expect(allInterpolatedValues().some((v) => Array.isArray(v))).toBe(false)
+  })
+
+  it('casts the json column to jsonb for the merge and back to json for storage', async () => {
+    await updateWebhookProviderConfig('wh-1', { historyId: 'h1', cleared: undefined }, logger)
+
+    const sqlText = allSqlText()
+    // Column (interpolated as a value) is cast to jsonb: `COALESCE(<col>::jsonb, ...)`
+    expect(sqlText).toContain('COALESCE(::jsonb')
+    // Merge runs in jsonb space, result cast back to the json column: `(<expr>)::json`
+    expect(sqlText).toContain(')::json')
   })
 })

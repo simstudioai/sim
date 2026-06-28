@@ -501,16 +501,6 @@ export function SecretsManager() {
     })
   }, [])
 
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-    }
-    if (hasChanges) {
-      window.addEventListener('beforeunload', handler)
-    }
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [hasChanges])
-
   /**
    * Navigation guard: intercept link clicks in the capture phase before
    * Next.js App Router processes them. This is needed because Next.js

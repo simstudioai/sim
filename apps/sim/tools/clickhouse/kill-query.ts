@@ -5,7 +5,7 @@ export const killQueryTool: ToolConfig<ClickHouseKillQueryParams, ClickHouseRows
   id: 'clickhouse_kill_query',
   name: 'ClickHouse Kill Query',
   description: 'Kill a running query by its query ID',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

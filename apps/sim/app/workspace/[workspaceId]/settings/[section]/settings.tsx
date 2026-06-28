@@ -7,6 +7,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsBeforeUnload } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-before-unload'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   isBillingEnabled,
@@ -104,6 +105,8 @@ interface SettingsPageProps {
 export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
+
+  useSettingsBeforeUnload()
 
   const isAdminRole = session?.user?.role === 'admin'
   const normalizedSection: SettingsSection =

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -7,9 +8,43 @@ import {
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 
+/**
+ * Dev-only escape hatch: when `SIM_DEV_MINIMAL_REGISTRY=1` (`bun run dev:minimal`),
+ * swap the heavy block and tool registries for tiny curated variants via a
+ * Turbopack/webpack resolve alias. The shared workspace layout drags the
+ * ~247-tool registry (~2,074 modules) into every route via providers/utils →
+ * tools/params, and the editor/executor pull all ~268 block configs; aliasing
+ * both to minimal variants stops Turbopack from compiling those graphs, cutting
+ * dev compile-time RAM (e.g. /logs ~16GB → ~5GB, 4.9min → ~15s). Only the
+ * curated core blocks/tools work in this mode. Never enabled in production.
+ */
+const useMinimalRegistry = isDev && process.env.SIM_DEV_MINIMAL_REGISTRY === '1'
+const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
+  ? {
+      '@/tools/registry': './tools/registry.minimal.ts',
+      '@/blocks/registry-maps': './blocks/registry-maps.minimal.ts',
+    }
+  : {}
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  turbopack: {
+    resolveAlias: minimalRegistryAlias,
+  },
+  webpack: (config) => {
+    if (useMinimalRegistry) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@/tools/registry$': path.resolve(import.meta.dirname, 'tools/registry.minimal.ts'),
+        '@/blocks/registry-maps$': path.resolve(
+          import.meta.dirname,
+          'blocks/registry-maps.minimal.ts'
+        ),
+      }
+    }
+    return config
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

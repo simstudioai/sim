@@ -13,6 +13,7 @@
     "dev": "turbo run dev",
     "dev:sockets": "cd apps/realtime && bun run dev",
     "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
+    "dev:full:minimal-registry": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev:minimal\" \"cd apps/realtime && bun run dev\"",
     "dev:full:capped": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev:capped\" \"cd apps/realtime && bun run dev\"",
     "test": "turbo run test",
     "format": "turbo run format",

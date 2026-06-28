@@ -5,7 +5,7 @@ export const listTablesTool: ToolConfig<ClickHouseListTablesParams, ClickHouseRo
   id: 'clickhouse_list_tables',
   name: 'ClickHouse List Tables',
   description: 'List tables in the connected ClickHouse database',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     host: {

@@ -9,7 +9,7 @@ export const dropDatabaseTool: ToolConfig<ClickHouseDropDatabaseParams, ClickHou
     id: 'clickhouse_drop_database',
     name: 'ClickHouse Drop Database',
     description: 'Drop a database from a ClickHouse server',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       host: {

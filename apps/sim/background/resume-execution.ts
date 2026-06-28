@@ -6,6 +6,7 @@ import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowData, RowExecutionMetadata } from '@/lib/table/types'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 
 const logger = createLogger('TriggerResumeExecution')
 
@@ -350,6 +351,9 @@ export const resumeExecutionTask = task({
   machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
+  },
+  queue: {
+    concurrencyLimit: RESUME_EXECUTION_CONCURRENCY_LIMIT,
   },
   run: executeResumeJob,
 })
