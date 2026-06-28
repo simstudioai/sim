@@ -296,8 +296,16 @@ export function PromoteWorkspaceModal({
   const safeStep = Math.min(step, Math.max(0, stepCount - 1))
   const isLastStep = safeStep >= stepCount - 1
   const currentGroup = safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
+  // Gate Sync on the diff being loaded too, not just the mapping: until `diff.data` arrives
+  // `dependentReconfigs` is empty, so `reconfigComplete` is vacuously true and `runPromote` would
+  // omit `dependentValues` - i.e. Sync before the diff loads would bypass dependent gating.
   const syncDisabled =
-    submitting || !otherWorkspaceId || !requiredComplete || !reconfigComplete || mapping.isLoading
+    submitting ||
+    !otherWorkspaceId ||
+    !requiredComplete ||
+    !reconfigComplete ||
+    mapping.isLoading ||
+    !diff.data
   const headsUp =
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
     (diff.data?.inlineSecretSources.length ?? 0) > 0

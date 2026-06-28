@@ -131,7 +131,13 @@ function ReconfigWorkflowRow({
   reconfig,
   setReconfig,
 }: ReconfigWorkflowRowProps) {
-  const [open, setOpen] = useState(false)
+  // Auto-open a row that has a required dependent so it's visible without hunting through
+  // chevrons (a required field is what gates Sync). Deterministic from the block config at mount
+  // (lazy initializer, no effect/flicker); the user can still collapse it, and it won't reopen on
+  // re-render - only if the row remounts (its workflow changes).
+  const [open, setOpen] = useState(() =>
+    blocks.some((block) => block.fields.some((field) => field.required))
+  )
   const configurable = blocks.length > 0
 
   return (
