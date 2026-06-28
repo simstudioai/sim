@@ -241,22 +241,31 @@ export function PromoteWorkspaceModal({
     })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
   }, [entries])
 
+  // The mapping entry each dependent hangs off, indexed by `kind:sourceId` (matching `entryKey`)
+  // so the per-field lookups below are O(1) instead of rescanning `entries` for every dependent -
+  // and several times per field across the Sync gate, the value helper, and the payload build.
+  const entriesByParent = useMemo(() => {
+    const map = new Map<string, ForkMappingEntry>()
+    for (const entry of entries) map.set(entryKey(entry), entry)
+    return map
+  }, [entries])
+
   // The mapping entry a dependent field hangs off (its credential/KB), for change + target lookups.
   const entryForDependent = (field: ForkDependentReconfig) =>
-    entries.find(
-      (entry) => entry.kind === field.parentKind && entry.sourceId === field.parentSourceId
-    )
+    entriesByParent.get(`${field.parentKind}:${field.parentSourceId}`)
 
   // The value sent + displayed for a dependent (delegates to the shared rule): the user's
   // re-pick, else the stored value - blank when this field's parent target changed in-session.
-  const dependentValueFor = (field: ForkDependentReconfig): string => {
-    const parent = entryForDependent(field)
-    return effectiveDependentValue(
+  // Callers that already resolved the parent pass it in to skip a second lookup.
+  const dependentValueFor = (
+    field: ForkDependentReconfig,
+    parent = entryForDependent(field)
+  ): string =>
+    effectiveDependentValue(
       field,
       reconfig,
       parent ? shouldReconfigureEntry(parent, targets) : false
     )
-  }
 
   // Every required dependent whose parent IS mapped must have a value before sync. A dependent
   // whose parent target is still empty can't be picked yet (its selector is disabled) and is
@@ -265,7 +274,7 @@ export function PromoteWorkspaceModal({
     if (!field.required) return true
     const parent = entryForDependent(field)
     if (!parent || targetFor(parent) === '') return true
-    return dependentValueFor(field) !== ''
+    return dependentValueFor(field, parent) !== ''
   })
 
   // Per-kind status for the overview listing: "Fully mapped" or "n/total mapped",
@@ -322,7 +331,7 @@ export function PromoteWorkspaceModal({
             workflowId: field.targetWorkflowId,
             blockId: field.targetBlockId,
             subBlockKey: field.subBlockKey,
-            value: dependentValueFor(field),
+            value: dependentValueFor(field, parent),
           },
         ]
       })
@@ -332,7 +341,11 @@ export function PromoteWorkspaceModal({
         body: {
           otherWorkspaceId,
           direction,
-          ...(dependentValues.length > 0 ? { dependentValues } : {}),
+          // Once the diff has loaded, ALWAYS send the full effective set - including `[]`, which
+          // means "every dependent went away" and must reconcile/clear the live replace targets'
+          // stored rows. Collapsing `[]` into omission would make the backend PRESERVE stale rows.
+          // Only omit before the diff loads (set unknown), so the existing store is left untouched.
+          ...(diff.data ? { dependentValues } : {}),
         },
       })
 

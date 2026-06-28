@@ -23,6 +23,8 @@ import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-
 import {
   applyDependentOverrides,
   collectClearedDependents,
+  parseNestedDependentKey,
+  readTargetDraftDependentValue,
   remapForkSubBlocks,
   remapToolBlockResources,
 } from '@/lib/workspaces/fork/remap/remap-references'
@@ -551,5 +553,90 @@ describe('applyDependentOverrides', () => {
       new Map([['tools[5].folder', 'Label_99']])
     )
     expect(result).toBe(subBlocks)
+  })
+})
+
+describe('parseNestedDependentKey', () => {
+  it('parses a nested tool-input key with a numeric index', () => {
+    expect(parseNestedDependentKey('tools[0].folder')).toEqual({
+      toolInputId: 'tools',
+      index: 0,
+      paramId: 'folder',
+    })
+    expect(parseNestedDependentKey('tools[12].channel')).toEqual({
+      toolInputId: 'tools',
+      index: 12,
+      paramId: 'channel',
+    })
+  })
+
+  it('returns null for a plain top-level key', () => {
+    expect(parseNestedDependentKey('folder')).toBeNull()
+    expect(parseNestedDependentKey('credential')).toBeNull()
+  })
+})
+
+describe('readTargetDraftDependentValue', () => {
+  it('reads a top-level draft value', () => {
+    const draft: SubBlockRecord = { folder: { value: 'INBOX' } }
+    expect(readTargetDraftDependentValue(draft, undefined, 'folder')).toBe('INBOX')
+  })
+
+  it('returns empty for a missing or non-string top-level value', () => {
+    expect(readTargetDraftDependentValue({ folder: { value: 42 } }, undefined, 'folder')).toBe('')
+    expect(readTargetDraftDependentValue({}, undefined, 'folder')).toBe('')
+    expect(readTargetDraftDependentValue(undefined, undefined, 'folder')).toBe('')
+  })
+
+  it('reads the target draft nested param when the source/target tool types match at that index', () => {
+    const target: SubBlockRecord = {
+      tools: { value: [{ type: 'gmail', params: { folder: 'INBOX' } }] },
+    }
+    const source: SubBlockRecord = {
+      tools: { value: [{ type: 'gmail', params: { folder: 'SENT' } }] },
+    }
+    // Reads the TARGET draft's value (INBOX), gated on a same-type tool at the index.
+    expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('INBOX')
+  })
+
+  it('identity guard: returns empty when the target draft tool type differs from the source dependent tool', () => {
+    // The source dependent hangs off a Gmail tool at index 0, but the target draft holds a Slack
+    // tool there - its param value is not this field's value, so nothing is seeded.
+    const target: SubBlockRecord = {
+      tools: { value: [{ type: 'slack', params: { folder: 'INBOX' } }] },
+    }
+    const source: SubBlockRecord = {
+      tools: { value: [{ type: 'gmail', params: { folder: 'SENT' } }] },
+    }
+    expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('')
+  })
+
+  it('returns empty when the target draft has no tool at the index', () => {
+    const target: SubBlockRecord = { tools: { value: [] } }
+    const source: SubBlockRecord = {
+      tools: { value: [{ type: 'gmail', params: { folder: 'SENT' } }] },
+    }
+    expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('')
+  })
+
+  it('returns empty when the source tool type cannot be verified', () => {
+    const target: SubBlockRecord = {
+      tools: { value: [{ type: 'gmail', params: { folder: 'INBOX' } }] },
+    }
+    // No source subBlocks (or no tool at the index) -> identity unverifiable -> do not seed.
+    expect(readTargetDraftDependentValue(target, undefined, 'tools[0].folder')).toBe('')
+    expect(readTargetDraftDependentValue(target, { tools: { value: [] } }, 'tools[0].folder')).toBe(
+      ''
+    )
+  })
+
+  it('handles the JSON-string stored tool array shape', () => {
+    const target: SubBlockRecord = {
+      tools: { value: JSON.stringify([{ type: 'gmail', params: { folder: 'INBOX' } }]) },
+    }
+    const source: SubBlockRecord = {
+      tools: { value: JSON.stringify([{ type: 'gmail', params: { folder: 'SENT' } }]) },
+    }
+    expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('INBOX')
   })
 })

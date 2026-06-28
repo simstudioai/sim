@@ -12,6 +12,9 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/dependent-value'
 import type { SelectorKey } from '@/hooks/selectors/types'
 
+/** Stable empty array so a workflow with no dependents reuses one reference (no per-map alloc). */
+const EMPTY_DEPENDENTS: ForkDependentReconfig[] = []
+
 interface ReconfigBlock {
   targetBlockId: string
   blockName: string
@@ -61,17 +64,22 @@ export function ResourceReconfigure({
   setReconfig,
 }: ResourceReconfigureProps) {
   // Group each workflow's dependents into blocks once per (workflows, dependents) change, so
-  // the grouping + per-workflow filter doesn't re-run on every parent re-render (setTargets /
-  // setReconfig fire often during the editing step).
-  const workflowBlocks = useMemo(
-    () =>
-      workflows.map((workflow) => ({
-        workflowId: workflow.workflowId,
-        workflowName: workflow.workflowName,
-        blocks: groupByBlock(dependents.filter((d) => d.targetWorkflowId === workflow.workflowId)),
-      })),
-    [workflows, dependents]
-  )
+  // the grouping doesn't re-run on every parent re-render (setTargets / setReconfig fire often
+  // during the editing step). Bucket dependents by target workflow in a single pass first, so
+  // the per-workflow lookup is O(1) instead of a fresh `.filter` per workflow (O(W x D)).
+  const workflowBlocks = useMemo(() => {
+    const dependentsByWorkflow = new Map<string, ForkDependentReconfig[]>()
+    for (const dependent of dependents) {
+      const list = dependentsByWorkflow.get(dependent.targetWorkflowId)
+      if (list) list.push(dependent)
+      else dependentsByWorkflow.set(dependent.targetWorkflowId, [dependent])
+    }
+    return workflows.map((workflow) => ({
+      workflowId: workflow.workflowId,
+      workflowName: workflow.workflowName,
+      blocks: groupByBlock(dependentsByWorkflow.get(workflow.workflowId) ?? EMPTY_DEPENDENTS),
+    }))
+  }, [workflows, dependents])
 
   if (workflows.length === 0) return null
   return (
@@ -178,12 +186,13 @@ function BlockReconfig({
     effectiveDependentValue(field, reconfig, parentChanged)
 
   // Chain re-picks: a field that provides a SelectorContext key feeds its effective value to
-  // its in-block descendants (a spreadsheet drives the sheet selector).
+  // its in-block descendants (a spreadsheet drives the sheet selector). Track only WHICH keys
+  // an in-block field provides (a Set) - the readiness check below tests membership, never a value.
   const providedValues: Record<string, string> = {}
-  const providerByKey = new Map<string, string>()
+  const providedContextKeys = new Set<string>()
   for (const field of block.fields) {
     if (field.providesContextKey) {
-      providerByKey.set(field.providesContextKey, dependentKey(field))
+      providedContextKeys.add(field.providesContextKey)
       const value = effectiveValue(field)
       if (value) providedValues[field.providesContextKey] = value
     }
@@ -196,7 +205,7 @@ function BlockReconfig({
         // Disabled until the parent target is set AND every in-block parent it depends on has
         // a value, so a child never queries a stale upstream value.
         const ready = field.consumesContextKeys.every(
-          (key) => !providerByKey.has(key) || providedValues[key] !== undefined
+          (key) => !providedContextKeys.has(key) || providedValues[key] !== undefined
         )
         return (
           <div key={dependentKey(field)} className='flex flex-col gap-1'>

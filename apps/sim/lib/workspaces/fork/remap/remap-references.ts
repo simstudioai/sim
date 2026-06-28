@@ -708,8 +708,58 @@ export function collectClearedDependents(
   return fields
 }
 
-/** A nested override key `toolInput[index].paramId` (matches the needs-config key format). */
-const NESTED_OVERRIDE_KEY = /^([^[]+)\[(\d+)\]\.(.+)$/
+/**
+ * Parse a nested dependent/override key `toolInput[index].paramId` into its parts (the index
+ * coerced to a number). Returns null for a plain top-level subblock key. Shared by the diff's
+ * first-sync draft reader and the override apply so both parse the `toolInput[index].paramId`
+ * shape identically.
+ */
+export function parseNestedDependentKey(
+  key: string
+): { toolInputId: string; index: number; paramId: string } | null {
+  const match = /^([^[]+)\[(\d+)\]\.(.+)$/.exec(key)
+  if (!match) return null
+  const [, toolInputId, indexStr, paramId] = match
+  return { toolInputId, index: Number(indexStr), paramId }
+}
+
+/**
+ * Read a dependent field's currently-configured value from a target block's draft subBlocks -
+ * the first-sync fallback used when the stored mapping has no entry yet. Seeds the diff pre-fill
+ * from the TARGET (never the source, which would overwrite the target's own selection on an edge
+ * that predates the store). Identity-aware: for a nested `toolInput[index].paramId` key it only
+ * reads the target draft's param when the target tool at that index is the SAME tool type the
+ * SOURCE dependent hangs off; otherwise that index holds a different tool whose value isn't this
+ * field's. Returns '' when unset or when identity can't be verified.
+ *
+ * Both records are read structurally (only each subblock's `value`), so callers can pass either a
+ * persisted {@link SubBlockRecord} (the target draft) or an in-memory `WorkflowState` block's
+ * subblocks (the source) without a cast.
+ */
+export function readTargetDraftDependentValue(
+  targetDraftSubBlocks: Record<string, { value?: unknown }> | undefined,
+  sourceSubBlocks: Record<string, { value?: unknown }> | undefined,
+  subBlockKey: string
+): string {
+  if (!targetDraftSubBlocks) return ''
+  const nested = parseNestedDependentKey(subBlockKey)
+  if (nested) {
+    const { toolInputId, index, paramId } = nested
+    const targetTool = coerceObjectArray(targetDraftSubBlocks[toolInputId]?.value).array?.[index]
+    if (!isRecord(targetTool) || typeof targetTool.type !== 'string') return ''
+    const sourceTool = coerceObjectArray(sourceSubBlocks?.[toolInputId]?.value).array?.[index]
+    if (!isRecord(sourceTool) || sourceTool.type !== targetTool.type) return ''
+    const params = isRecord(targetTool.params) ? targetTool.params : {}
+    const value = params[paramId]
+    return typeof value === 'string' ? value : ''
+  }
+  // TODO(fork): identity-guard top-level reads too - only seed when the target draft's parent
+  // (credential/KB/table) still equals the mapped target. Threading the parent subblock id and
+  // mapped target value here is invasive, and a changed parent is already blanked by the modal's
+  // `parentChanged` logic, leaving only a narrow same-index/different-parent first-sync edge.
+  const value = targetDraftSubBlocks[subBlockKey]?.value
+  return typeof value === 'string' ? value : ''
+}
 
 /**
  * Apply nested `tool-input` overrides onto one tool array, matching by index and
@@ -779,13 +829,12 @@ export function applyDependentOverrides(
   let next: SubBlockRecord | null = null
 
   for (const [key, value] of overrides) {
-    const nested = NESTED_OVERRIDE_KEY.exec(key)
+    const nested = parseNestedDependentKey(key)
     if (nested) {
-      const [, toolInputId, indexStr, paramId] = nested
-      if (!toolInputIds.has(toolInputId)) continue
-      const list = nestedByTool.get(toolInputId) ?? []
-      list.push({ index: Number(indexStr), paramId, value })
-      nestedByTool.set(toolInputId, list)
+      if (!toolInputIds.has(nested.toolInputId)) continue
+      const list = nestedByTool.get(nested.toolInputId) ?? []
+      list.push({ index: nested.index, paramId: nested.paramId, value })
+      nestedByTool.set(nested.toolInputId, list)
       continue
     }
     if (!allowedTopLevel.has(key)) continue

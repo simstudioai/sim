@@ -4,11 +4,6 @@ import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  coerceObjectArray,
-  isRecord,
-  type SubBlockRecord,
-} from '@/lib/workflows/persistence/remap-internal-ids'
 import { loadTargetDraftSubBlocks } from '@/lib/workspaces/fork/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
@@ -23,34 +18,7 @@ import {
 } from '@/lib/workspaces/fork/mapping/dependent-value-store'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
-
-/** A nested dependent key `toolInput[index].paramId` (matches the override/needs-config format). */
-const NESTED_DEPENDENT_KEY = /^([^[]+)\[(\d+)\]\.(.+)$/
-
-/**
- * Read a dependent field's currently-configured value from a target block's draft subBlocks,
- * handling the nested `toolInput[index].paramId` shape used for tool-input dependents. Seeds the
- * diff pre-fill from the TARGET (never the source, which would overwrite the target's own
- * selection on an edge that predates the stored mapping). Returns '' when unset.
- */
-function readTargetDraftDependentValue(
-  blockSubBlocks: SubBlockRecord | undefined,
-  subBlockKey: string
-): string {
-  if (!blockSubBlocks) return ''
-  const nested = NESTED_DEPENDENT_KEY.exec(subBlockKey)
-  if (nested) {
-    const [, toolInputId, indexStr, paramId] = nested
-    const { array } = coerceObjectArray(blockSubBlocks[toolInputId]?.value)
-    const tool = array?.[Number(indexStr)]
-    if (!isRecord(tool)) return ''
-    const params = isRecord(tool.params) ? tool.params : {}
-    const value = params[paramId]
-    return typeof value === 'string' ? value : ''
-  }
-  const value = blockSubBlocks[subBlockKey]?.value
-  return typeof value === 'string' ? value : ''
-}
+import { readTargetDraftDependentValue } from '@/lib/workspaces/fork/remap/remap-references'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -105,6 +73,24 @@ export const GET = withRouteHandler(
         entry.value,
       ])
     )
+
+    // Source block subBlocks keyed by their resolved target identity, so the first-sync draft
+    // fallback can identity-check a nested tool against the SOURCE dependent tool it came from -
+    // an index alone may point at a different tool in the target draft, whose value isn't the
+    // dependent's. Read structurally (only each subblock's `value`), so the in-memory state's
+    // blocks pass without a cast.
+    const sourceBlocksByTarget = new Map<string, Map<string, Record<string, { value?: unknown }>>>()
+    for (const item of plan.items) {
+      if (item.mode !== 'replace') continue
+      const state = sourceStates.get(item.sourceWorkflowId)
+      if (!state) continue
+      const byBlock = new Map<string, Record<string, { value?: unknown }>>()
+      for (const [sourceBlockId, block] of Object.entries(state.blocks)) {
+        byBlock.set(resolveBlockId(item.targetWorkflowId, sourceBlockId), block.subBlocks ?? {})
+      }
+      sourceBlocksByTarget.set(item.targetWorkflowId, byBlock)
+    }
+
     const dependentReconfigs = collectForkDependentReconfigs(
       plan.items,
       sourceStates,
@@ -117,6 +103,7 @@ export const GET = withRouteHandler(
         ) ??
         readTargetDraftDependentValue(
           targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+          sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
           field.subBlockKey
         ),
     }))
