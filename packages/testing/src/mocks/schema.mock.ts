@@ -1240,6 +1240,16 @@ export const schemaMock = {
     error: 'error',
     locators: 'locators',
   },
+  workspaceForkDependentValue: {
+    id: 'id',
+    childWorkspaceId: 'childWorkspaceId',
+    targetWorkflowId: 'targetWorkflowId',
+    targetBlockId: 'targetBlockId',
+    subBlockKey: 'subBlockKey',
+    value: 'value',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   /** Custom type export for tsvector */
   tsvector: 'tsvector',
 }

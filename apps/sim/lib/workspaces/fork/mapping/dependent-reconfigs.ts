@@ -1,4 +1,4 @@
-import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
+import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray, isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import {
@@ -11,7 +11,10 @@ import {
   evaluateSubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
-import { isSubBlockRequired } from '@/lib/workspaces/fork/remap/remap-references'
+import {
+  isSubBlockRequired,
+  scanWorkflowReferences,
+} from '@/lib/workspaces/fork/remap/remap-references'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
@@ -164,6 +167,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           subBlockKey: makeSubBlockKey(dependent.id),
           selectorKey: dependent.selectorKey,
           title: makeTitle(dependent),
+          // Source value, so the always-on listing pre-fills a stable parent's selector.
+          currentValue:
+            typeof values[dependent.id] === 'string' ? (values[dependent.id] as string) : '',
           required: isSubBlockRequired(dependent.required, values),
           providesContextKey,
           consumesContextKeys,
@@ -272,4 +278,54 @@ export function collectForkDependentReconfigs(
     }
   }
   return out
+}
+
+interface ResourceUsageItem {
+  sourceWorkflowId: string
+  targetWorkflowId: string
+  mode: 'create' | 'replace'
+  /** Source workflow name, shown as the (renamed-aware) target name in the listing. */
+  sourceMeta: { name: string }
+}
+
+/**
+ * Every workflow each mapped resource (any kind) is used in - the spine of the always-on
+ * reconfigure listing under a mapping entry. Scans each source workflow's references
+ * (deduped per workflow, so a resource used by several blocks is one workflow usage) and
+ * groups them by `(kind, sourceId)`. Unlike {@link collectForkDependentReconfigs} this is
+ * NOT anchor-limited: it includes resources with no configurable dependent (env vars, files,
+ * a Gmail block with no active label) so the modal can still list - greyed - the workflows
+ * they appear in. Replace targets only, mirroring the dependent collector (a freshly created
+ * target carries the source config over and has nothing to reconcile yet).
+ */
+export function collectForkResourceUsages(
+  items: ResourceUsageItem[],
+  sourceStates: Map<string, WorkflowState>
+): ForkResourceUsage[] {
+  const byResource = new Map<string, ForkResourceUsage>()
+  for (const item of items) {
+    if (item.mode !== 'replace') continue
+    const state = sourceStates.get(item.sourceWorkflowId)
+    if (!state) continue
+    const blocks = Object.values(state.blocks).map((block) => ({
+      id: block.id,
+      name: block.name,
+      subBlocks: block.subBlocks as unknown,
+    }))
+    // scanWorkflowReferences already dedups by `${kind}:${sourceId}` across the workflow,
+    // so each resource appears once per workflow here.
+    for (const reference of scanWorkflowReferences(blocks, () => null).references) {
+      const key = `${reference.kind}\u0000${reference.sourceId}`
+      let usage = byResource.get(key)
+      if (!usage) {
+        usage = { parentKind: reference.kind, parentSourceId: reference.sourceId, workflows: [] }
+        byResource.set(key, usage)
+      }
+      usage.workflows.push({
+        workflowId: item.targetWorkflowId,
+        workflowName: item.sourceMeta.name,
+      })
+    }
+  }
+  return Array.from(byResource.values())
 }

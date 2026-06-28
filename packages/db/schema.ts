@@ -1439,6 +1439,46 @@ export const workspaceForkBlockMap = pgTable(
   })
 )
 
+/**
+ * The user's stored dependent-field re-picks for an edge: a (target workflow, target block,
+ * subblock) -> selected value mapping (a Gmail label, a KB document, a sheet tab). The sync
+ * modal reads and writes this, and every promote applies it verbatim - it is the single
+ * source of truth for dependent values, replacing the old implicit "preserve the target's
+ * value if the credential is unchanged" path. Block ids are plain text (no FK to
+ * `workflow_blocks`, which is rewritten on every deploy); only the edge (`child_workspace_id`)
+ * cascades. The target workflow id encodes direction (push -> parent workflow, pull -> child
+ * workflow), so no separate direction column is needed.
+ */
+export const workspaceForkDependentValue = pgTable(
+  'workspace_fork_dependent_value',
+  {
+    id: text('id').primaryKey(),
+    childWorkspaceId: text('child_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    targetWorkflowId: text('target_workflow_id').notNull(),
+    targetBlockId: text('target_block_id').notNull(),
+    subBlockKey: text('sub_block_key').notNull(),
+    value: text('value').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Reconcile replaces a workflow's stored values by its id, so index that sweep.
+    childWsWorkflowIdx: index('workspace_fork_dependent_value_child_ws_wf_idx').on(
+      table.childWorkspaceId,
+      table.targetWorkflowId
+    ),
+    // One stored value per (edge, target workflow, target block, subblock).
+    childWsFieldUnique: uniqueIndex('workspace_fork_dependent_value_field_unique').on(
+      table.childWorkspaceId,
+      table.targetWorkflowId,
+      table.targetBlockId,
+      table.subBlockKey
+    ),
+  })
+)
+
 export const workspaceForkPromoteDirectionEnum = pgEnum('workspace_fork_promote_direction', [
   'push',
   'pull',

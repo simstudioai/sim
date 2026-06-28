@@ -34,6 +34,11 @@ import {
   toForkBlockPairs,
 } from '@/lib/workspaces/fork/mapping/block-map-store'
 import {
+  type ForkDependentValue,
+  loadForkDependentValues,
+  reconcileForkDependentValues,
+} from '@/lib/workspaces/fork/mapping/dependent-value-store'
+import {
   deleteWorkflowIdentityByIds,
   type ForkMappingUpsert,
   upsertEdgeMappings,
@@ -63,11 +68,15 @@ export interface PromoteForkParams {
   direction: 'push' | 'pull'
   userId: string
   /**
-   * Pre-sync re-picks from the modal for dependent fields whose credential the user
-   * swapped (target workflow id + deterministic block id + subblock key -> value).
-   * Applied during the merge so the new selection lands instead of being cleared.
+   * The full stored mapping of dependent-field values the caller is committing (target
+   * workflow id + deterministic block id + subblock key -> value). Applied to the target
+   * blocks during the merge and persisted as the stored mapping. OMITTING the field (passing
+   * `undefined`) leaves the existing stored mapping untouched - the store is the sole source
+   * of truth and is loaded + applied as-is; an explicit `[]` clears the written replace
+   * targets' mapping. This distinction keeps a programmatic promote that omits the field from
+   * silently wiping the user's saved selections.
    */
-  dependentOverrides?: Array<{
+  dependentValues?: Array<{
     workflowId: string
     blockId: string
     subBlockKey: string
@@ -258,6 +267,32 @@ interface PromoteTxApplied {
 }
 
 /**
+ * Group flat dependent values into the apply map `target workflow -> block id -> subblock -> value`
+ * that {@link copyWorkflowStateIntoTarget} consumes. Pure (no DB), so the provided-value path can
+ * build it before the transaction (it doesn't depend on the plan); the omitted path feeds it the
+ * loaded store rows inside the tx, where the plan's replace targets are known.
+ */
+function groupDependentOverrides(
+  values: ForkDependentValue[]
+): Map<string, Map<string, Map<string, string>>> {
+  const byWorkflow = new Map<string, Map<string, Map<string, string>>>()
+  for (const entry of values) {
+    let byBlock = byWorkflow.get(entry.targetWorkflowId)
+    if (!byBlock) {
+      byBlock = new Map()
+      byWorkflow.set(entry.targetWorkflowId, byBlock)
+    }
+    let byKey = byBlock.get(entry.targetBlockId)
+    if (!byKey) {
+      byKey = new Map()
+      byBlock.set(entry.targetBlockId, byKey)
+    }
+    byKey.set(entry.subBlockKey, entry.value)
+  }
+  return byWorkflow
+}
+
+/**
  * Execute a force promote along the edge. Only the source's deployed workflows
  * participate: each one's active deployed state is remapped into the target
  * (replacing mapped targets in place with deterministic block ids, creating new
@@ -272,21 +307,22 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
   const requestId = params.requestId ?? 'unknown'
 
-  // Group the modal's pre-sync re-picks as target workflow id -> block id -> subblock -> value.
-  const overridesByWorkflow = new Map<string, Map<string, Map<string, string>>>()
-  for (const override of params.dependentOverrides ?? []) {
-    let byBlock = overridesByWorkflow.get(override.workflowId)
-    if (!byBlock) {
-      byBlock = new Map()
-      overridesByWorkflow.set(override.workflowId, byBlock)
-    }
-    let byKey = byBlock.get(override.blockId)
-    if (!byKey) {
-      byKey = new Map()
-      byBlock.set(override.blockId, byKey)
-    }
-    byKey.set(override.subBlockKey, override.value)
-  }
+  // Distinguish an OMITTED dependent mapping (leave the store as-is) from an explicit empty
+  // array (clear it). When values are PROVIDED the apply map is plan-independent, so build it
+  // here - BEFORE the transaction - to keep the advisory lock tight (pure in-memory, no DB),
+  // mirroring how the source states are pre-loaded above. The OMITTED path needs the plan's
+  // replace targets, so it loads + builds inside the tx below.
+  const dependentValuesProvided = params.dependentValues !== undefined
+  const providedOverridesByWorkflow = dependentValuesProvided
+    ? groupDependentOverrides(
+        (params.dependentValues ?? []).map((entry) => ({
+          targetWorkflowId: entry.workflowId,
+          targetBlockId: entry.blockId,
+          subBlockKey: entry.subBlockKey,
+          value: entry.value,
+        }))
+      )
+    : null
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
 
@@ -351,13 +387,28 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // the correctness backstop (a stale snapshot only risks a rare, retry-able conflict).
     const nameRegistry = await loadWorkflowNameRegistry(tx, targetWorkspaceId)
 
-    // Preload the target's current draft subBlocks (replace targets only) so dependent
-    // fields the user configured against an unchanged parent are preserved rather than
-    // cleared. One batched query pre-write, so it reflects the pre-sync target state.
-    const targetDraftByWorkflow = await loadTargetDraftSubBlocks(
-      tx,
-      plan.items.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId)
-    )
+    // Replace targets (the only mode with a prior target state) - reused by the draft preload
+    // and the dependent-value apply/load below.
+    const replaceTargetIds = plan.items
+      .filter((item) => item.mode === 'replace')
+      .map((item) => item.targetWorkflowId)
+
+    // Preload the target's current draft subBlocks (replace targets only) so the copy can
+    // detect dependent fields a parent change cleared that the stored mapping didn't refill
+    // (surfaced as needs-configuration). One batched query pre-write, so it reflects the
+    // pre-sync target state.
+    const targetDraftByWorkflow = await loadTargetDraftSubBlocks(tx, replaceTargetIds)
+
+    // The dependent-value apply map (target workflow -> block id -> subblock -> value). When the
+    // caller PROVIDED values it was built pre-tx (plan-independent); apply it and reconcile the
+    // store below. When OMITTED the store is the sole source of truth - load the existing values
+    // for the plan's replace targets (one indexed query) and build the map, skipping the reconcile
+    // below so an omitted field never wipes the saved mapping.
+    const overridesByWorkflow =
+      providedOverridesByWorkflow ??
+      groupDependentOverrides(
+        await loadForkDependentValues(tx, edge.childWorkspaceId, replaceTargetIds)
+      )
 
     // Resolve each source block to its counterpart's EXISTING id (via the persisted block
     // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
@@ -442,6 +493,35 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       writtenItems.map((item) => item.sourceWorkflowId),
       blockPairs
     )
+
+    // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
+    // every written replace-target's stored set (cleared/removed fields drop out so the store
+    // equals exactly what was sent) AND prune the archived targets' now-dead rows (their
+    // workflow no longer exists and has no FK to cascade). Scope the inserted values to the
+    // delete's workflows so a value for a workflow skipped this pass (its source state
+    // vanished) can't be inserted without first clearing its old row and trip the unique
+    // constraint. When OMITTED, the store stays the source of truth (already applied above) -
+    // only prune archived targets, never touch the live replace targets' mapping.
+    const dependentTargetIds = new Set(
+      writtenItems.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId)
+    )
+    if (dependentValuesProvided) {
+      await reconcileForkDependentValues(
+        tx,
+        edge.childWorkspaceId,
+        [...dependentTargetIds, ...plan.archivedTargetIds],
+        (params.dependentValues ?? [])
+          .filter((entry) => dependentTargetIds.has(entry.workflowId))
+          .map((entry) => ({
+            targetWorkflowId: entry.workflowId,
+            targetBlockId: entry.blockId,
+            subBlockKey: entry.subBlockKey,
+            value: entry.value,
+          }))
+      )
+    } else if (plan.archivedTargetIds.length > 0) {
+      await reconcileForkDependentValues(tx, edge.childWorkspaceId, plan.archivedTargetIds, [])
+    }
 
     const archivedNames =
       plan.archivedTargetIds.length > 0

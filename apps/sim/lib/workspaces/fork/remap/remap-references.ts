@@ -18,13 +18,9 @@ import {
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
   evaluateSubBlockCondition,
   isNonEmptyValue,
-  normalizeDependencyValue,
-  parseDependsOn,
-  resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { remapForkFileUploadValue } from '@/lib/workspaces/fork/remap/remap-files'
@@ -580,176 +576,6 @@ export function clearDependentsOnRemap(
   return next ?? subBlocks
 }
 
-function subBlockValue(record: SubBlockRecord, id: string): unknown {
-  const entry = record[id]
-  return entry && typeof entry === 'object' ? entry.value : undefined
-}
-
-/** Structural equality for normalized dependency values (scalars or small id objects). */
-function dependencyValuesEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  try {
-    return JSON.stringify(a) === JSON.stringify(b)
-  } catch {
-    return false
-  }
-}
-
-/**
- * Core stable-dependent resolution shared by the subblock and nested-tool-param preserve
- * paths. Returns the ids to restore: `dependsOn` children empty in `currentValues` but
- * non-empty in `targetValues` whose every parent is non-empty AND equal between the two
- * (canonical-pair aware). Mutates `currentValues` as it restores so a restored parent
- * makes its own children eligible, carrying a stable chain (credential -> project ->
- * issue) through. Both value maps are flat id -> value.
- */
-function restoreStableDependentKeys(
-  config: NonNullable<ReturnType<typeof getBlock>>,
-  currentValues: Record<string, unknown>,
-  targetValues: Record<string, unknown>
-): Set<string> {
-  const restored = new Set<string>()
-  const candidates = config.subBlocks.filter((cfg) => {
-    if (!cfg.dependsOn || !cfg.id) return false
-    if (isNonEmptyValue(currentValues[cfg.id])) return false
-    return isNonEmptyValue(targetValues[cfg.id])
-  })
-  if (candidates.length === 0) return restored
-
-  const canonicalIndex = buildCanonicalIndex(config.subBlocks)
-  const parentStable = (parentKey: string): boolean => {
-    const current = normalizeDependencyValue(
-      resolveDependencyValue(parentKey, currentValues, canonicalIndex)
-    )
-    if (!isNonEmptyValue(current)) return false
-    const target = normalizeDependencyValue(
-      resolveDependencyValue(parentKey, targetValues, canonicalIndex)
-    )
-    return dependencyValuesEqual(current, target)
-  }
-  let restoredAny = true
-  while (restoredAny) {
-    restoredAny = false
-    for (const cfg of candidates) {
-      if (!cfg.id || restored.has(cfg.id)) continue
-      // Honor `all`/`any` dependsOn semantics: every `all` parent must be stable, and at
-      // least one `any` parent (a child like a Sheets sheet whose dep is
-      // `{ all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] }` must not
-      // require the unused manual branch to be filled).
-      const { allFields, anyFields } = parseDependsOn(cfg.dependsOn)
-      const stable =
-        allFields.every(parentStable) && (anyFields.length === 0 || anyFields.some(parentStable))
-      if (!stable) continue
-      currentValues[cfg.id] = targetValues[cfg.id]
-      restored.add(cfg.id)
-      restoredAny = true
-    }
-  }
-  return restored
-}
-
-/**
- * Restore target-configured dependent subblock values that the remap blanked but
- * whose `dependsOn` parents resolve to the SAME value the target's current draft
- * already holds. A promote always rewrites a mapped parent's id (source -> target),
- * so {@link clearDependentsOnRemap} blanks its dependents every sync even when the
- * parent maps to the same target account as before; this puts the user's
- * already-configured child value (a Gmail label, a Slack channel, a sheet tab) back
- * so they don't reconfigure it on every sync. Also reaches inside `tool-input` subblocks
- * (Agent/tool blocks) to preserve stable nested tool params. Pure and promote-only: pass
- * the target draft's subBlocks for the matching deterministic block id; fork-create has
- * no prior target state and never calls this.
- */
-export function preserveStableDependents(
-  remappedSubBlocks: SubBlockRecord,
-  blockType: string,
-  targetCurrentSubBlocks: SubBlockRecord
-): SubBlockRecord {
-  const config = getBlock(blockType)
-  if (!config) return remappedSubBlocks
-
-  const currentValues = buildSubBlockValues(remappedSubBlocks)
-  const targetValues = buildSubBlockValues(targetCurrentSubBlocks)
-  const restored = restoreStableDependentKeys(config, currentValues, targetValues)
-
-  let next: SubBlockRecord | null = null
-  for (const id of restored) {
-    next ??= { ...remappedSubBlocks }
-    const existing = next[id]
-    next[id] =
-      existing && typeof existing === 'object'
-        ? { ...existing, value: subBlockValue(targetCurrentSubBlocks, id) }
-        : { ...(targetCurrentSubBlocks[id] as object) }
-  }
-
-  // Reach into tool-input arrays (Agent/tool blocks): preserve stable nested dependents
-  // inside each selected tool too, matched to the target's tool by position + type.
-  for (const cfg of config.subBlocks) {
-    if (cfg.type !== 'tool-input' || !cfg.id) continue
-    const remappedValue = subBlockValue(next ?? remappedSubBlocks, cfg.id)
-    const mergedValue = preserveStableToolInputValue(
-      remappedValue,
-      subBlockValue(targetCurrentSubBlocks, cfg.id)
-    )
-    if (mergedValue === remappedValue) continue
-    next ??= { ...remappedSubBlocks }
-    const existing = next[cfg.id]
-    next[cfg.id] =
-      existing && typeof existing === 'object'
-        ? { ...existing, value: mergedValue }
-        : { value: mergedValue }
-  }
-
-  return next ?? remappedSubBlocks
-}
-
-/** Preserve stable nested dependents within one tool's flat `params`. */
-export function preserveStableToolParams(
-  blockType: string,
-  remappedParams: Record<string, unknown>,
-  targetParams: Record<string, unknown>
-): Record<string, unknown> {
-  const config = getBlock(blockType)
-  if (!config) return remappedParams
-  const currentValues = { ...remappedParams }
-  const restored = restoreStableDependentKeys(config, currentValues, targetParams)
-  if (restored.size === 0) return remappedParams
-  const next = { ...remappedParams }
-  for (const id of restored) next[id] = targetParams[id]
-  return next
-}
-
-/**
- * Preserve stable nested dependents across a `tool-input` array, matching each remapped
- * tool to the target's by index + type (the copy keeps source order). Handles both the
- * array and JSON-string stored shapes.
- */
-function preserveStableToolInputValue(remappedValue: unknown, targetValue: unknown): unknown {
-  const { array: remappedTools, wasString } = coerceObjectArray(remappedValue)
-  if (!remappedTools) return remappedValue
-  const { array: targetTools } = coerceObjectArray(targetValue)
-  if (!targetTools) return remappedValue
-  // Index pairing is only safe when the tool sets line up; if the source added/removed a
-  // tool (lengths differ), skip nested preserve rather than risk restoring onto the wrong
-  // tool. The per-index type guard below still protects same-length reorders.
-  if (remappedTools.length !== targetTools.length) return remappedValue
-  let changed = false
-  const merged = remappedTools.map((tool, index) => {
-    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
-    const targetTool = targetTools[index]
-    if (!isRecord(targetTool) || targetTool.type !== tool.type) return tool
-    const remappedParams = isRecord(tool.params) ? tool.params : {}
-    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
-    const preserved = preserveStableToolParams(tool.type, remappedParams, targetParams)
-    if (preserved === remappedParams) return tool
-    changed = true
-    return { ...tool, params: preserved }
-  })
-  if (!changed) return remappedValue
-  return wasString ? JSON.stringify(merged) : merged
-}
-
 /**
  * A dependent field a sync left empty (it had a source value). `required` ones gate Sync
  * and skip redeploy; optional ones are surfaced so a cleared filter never broadens silently.
@@ -925,12 +751,13 @@ function applyNestedToolOverrides(
 }
 
 /**
- * Apply the sync modal's pre-sync re-picks onto the merged subBlocks (called last, after
- * preserve, so a swapped account's new selection wins over the clear). Allowlisted to the
- * block's reconfigurable dependent selectors (`dependsOn` + `selectorKey`) - top-level
- * subblocks AND nested `tool-input` params keyed `toolInput[index].paramId` - so a crafted
- * override can never set a parent/credential field (bypassing mapping validation) or inject
- * a bogus subblock. Returns a new record only when something applied.
+ * Apply the stored dependent mapping onto the merged subBlocks (called last, after the
+ * reference transform cleared the source's dependent values, so the stored mapping is the sole
+ * source of truth for what each selector resolves to). Allowlisted to the block's
+ * reconfigurable dependent selectors (`dependsOn` + `selectorKey`) - top-level subblocks AND
+ * nested `tool-input` params keyed `toolInput[index].paramId` - so a crafted value can never
+ * set a parent/credential field (bypassing mapping validation) or inject a bogus subblock.
+ * Returns a new record only when something applied.
  */
 export function applyDependentOverrides(
   subBlocks: SubBlockRecord,

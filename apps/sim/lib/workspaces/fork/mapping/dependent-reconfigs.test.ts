@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+import {
+  collectForkDependentReconfigs,
+  collectForkResourceUsages,
+} from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
 import {
   buildForkBlockIdResolver,
   deriveForkBlockId,
@@ -85,6 +88,7 @@ describe('collectForkDependentReconfigs', () => {
         subBlockKey: 'folder',
         selectorKey: 'gmail.labels',
         title: 'Label',
+        currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
         context: {},
@@ -133,6 +137,7 @@ describe('collectForkDependentReconfigs', () => {
         subBlockKey: 'documentSelector',
         selectorKey: 'knowledge.documents',
         title: 'Document',
+        currentValue: 'doc-src',
         required: true,
         consumesContextKeys: [],
         context: {},
@@ -316,6 +321,7 @@ describe('collectForkDependentReconfigs', () => {
         subBlockKey: 'tools[0].folder',
         selectorKey: 'gmail.labels',
         title: 'Gmail 1: Label',
+        currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
         context: {},
@@ -451,5 +457,60 @@ describe('collectForkDependentReconfigs', () => {
       subBlockKey: 'conflictColumnSelector',
       selectorKey: 'table.columns',
     })
+  })
+})
+
+describe('collectForkResourceUsages', () => {
+  const usageItem = (
+    sourceWorkflowId: string,
+    targetWorkflowId: string,
+    name: string,
+    mode: 'create' | 'replace' = 'replace'
+  ) => ({ sourceWorkflowId, targetWorkflowId, mode, sourceMeta: { name } })
+
+  // The reference scan reads each subblock entry's own `type`, so credential usages need
+  // typed entries (unlike the dependent collector, which keys off the block config).
+  const credentialState = (credentialId: string): WorkflowState =>
+    ({
+      blocks: {
+        'block-1': {
+          id: 'block-1',
+          type: 'gmail',
+          name: 'Block',
+          subBlocks: { credential: { id: 'credential', type: 'oauth-input', value: credentialId } },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    }) as unknown as WorkflowState
+
+  it('lists each replace workflow a resource is used in, with its (target) name', () => {
+    const states = new Map<string, WorkflowState>([
+      ['wf-a', credentialState('cred-src')],
+      ['wf-b', credentialState('cred-src')],
+    ])
+    const result = collectForkResourceUsages(
+      [usageItem('wf-a', 'wf-tgt-a', 'Workflow A'), usageItem('wf-b', 'wf-tgt-b', 'Workflow B')],
+      states
+    )
+    expect(result).toEqual([
+      {
+        parentKind: 'credential',
+        parentSourceId: 'cred-src',
+        workflows: [
+          { workflowId: 'wf-tgt-a', workflowName: 'Workflow A' },
+          { workflowId: 'wf-tgt-b', workflowName: 'Workflow B' },
+        ],
+      },
+    ])
+  })
+
+  it('skips create-mode targets (the source config carries over on first sync)', () => {
+    const states = new Map<string, WorkflowState>([['wf-a', credentialState('cred-src')]])
+    expect(
+      collectForkResourceUsages([usageItem('wf-a', 'wf-tgt-a', 'A', 'create')], states)
+    ).toEqual([])
   })
 })

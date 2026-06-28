@@ -20,7 +20,6 @@ import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
-  preserveStableDependents,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import type {
   BlockData,
@@ -197,8 +196,8 @@ export async function loadWorkflowNameRegistry(
  * workflows, keyed `workflowId -> blockId -> subBlocks`. One query for the whole
  * promote so the locked apply phase doesn't do N per-workflow loads; called
  * pre-write so it reflects the target state the user configured before this sync
- * overwrites it. Promote uses it to preserve stable dependent fields (see
- * {@link preserveStableDependents}); fork-create has no prior target and skips it.
+ * overwrites it. Promote uses it to detect required dependents the sync left empty
+ * (see {@link collectClearedDependents}); fork-create has no prior target and skips it.
  */
 export async function loadTargetDraftSubBlocks(
   executor: DbOrTx,
@@ -291,15 +290,15 @@ export interface CopyWorkflowStateParams {
   transformSubBlocks?: SubBlockTransform
   /**
    * The target workflow's current draft subBlocks (block id -> subBlocks), for
-   * `replace` mode only. When present, dependent fields whose parent maps to the
-   * same target value are preserved instead of cleared (see
-   * {@link preserveStableDependents}), and required dependents the parent change
-   * cleared are reported in {@link CopyWorkflowResult.needsConfiguration}.
+   * `replace` mode only. When present, required dependents that the sync left empty
+   * (the parent change cleared and the stored mapping didn't fill) are reported in
+   * {@link CopyWorkflowResult.needsConfiguration}.
    */
   targetCurrentBlocks?: Map<string, SubBlockRecord>
   /**
-   * Per-block (block id -> subBlock key -> value) one-shot overrides applied last,
-   * after preserve, so the modal's pre-sync re-picks for a swapped account land.
+   * Per-block (block id -> subBlock key -> value) stored dependent values applied last,
+   * after the reference transform cleared the source's, so the stored mapping is the sole
+   * source of truth for what each dependent selector resolves to.
    */
   dependentOverrides?: Map<string, Map<string, string>>
   /**
@@ -403,15 +402,12 @@ export async function copyWorkflowStateIntoTarget(
     })
     subBlocks = remapConditionIdsInSubBlocks(subBlocks, oldBlockId, newBlockId) as SubBlockRecord
 
-    // Preserve target-configured dependents whose parent maps to the same target as
-    // before, so the user doesn't reconfigure them every sync (replace mode only).
+    // Apply the stored dependent values for this block (the modal's mapping). The reference
+    // transform already cleared the source's dependent values when their parent was remapped,
+    // so the stored mapping is the SOLE source of truth - no implicit "preserve the target's
+    // value" path. Allowlisted (top-level + nested tool params) inside applyDependentOverrides
+    // so a crafted value can't touch a parent/credential field or inject a bogus subblock.
     const targetCurrent = targetCurrentBlocks?.get(newBlockId)
-    if (mode === 'replace' && targetCurrent) {
-      subBlocks = preserveStableDependents(subBlocks, block.type, targetCurrent)
-    }
-    // Apply the modal's pre-sync re-picks last so a swapped account's new selection wins.
-    // Allowlisted (top-level + nested tool params) inside applyDependentOverrides so a
-    // crafted override can't touch a parent/credential field or inject a bogus subblock.
     const blockOverrides = dependentOverrides?.get(newBlockId)
     if (blockOverrides && blockOverrides.size > 0) {
       subBlocks = applyDependentOverrides(subBlocks, block.type, blockOverrides)

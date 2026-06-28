@@ -1,5 +1,5 @@
 {
-  "id": "87d787db-ac95-4ff4-9da8-813e1c2271b8",
+  "id": "f65305bb-18e8-4196-bf00-de66de42deec",
   "prevId": "5e9026af-bce0-4abc-b4f6-82ca3b396ed1",
   "version": "7",
   "dialect": "postgresql",
@@ -16928,6 +16928,134 @@
         "workspace_fork_block_map_child_workspace_id_workspace_id_fk": {
           "name": "workspace_fork_block_map_child_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_fork_block_map",
+          "tableTo": "workspace",
+          "columnsFrom": ["child_workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_fork_dependent_value": {
+      "name": "workspace_fork_dependent_value",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "child_workspace_id": {
+          "name": "child_workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_workflow_id": {
+          "name": "target_workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_block_id": {
+          "name": "target_block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sub_block_key": {
+          "name": "sub_block_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_fork_dependent_value_child_ws_wf_idx": {
+          "name": "workspace_fork_dependent_value_child_ws_wf_idx",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_fork_dependent_value_field_unique": {
+          "name": "workspace_fork_dependent_value_field_unique",
+          "columns": [
+            {
+              "expression": "child_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sub_block_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_fork_dependent_value_child_workspace_id_workspace_id_fk": {
+          "name": "workspace_fork_dependent_value_child_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_fork_dependent_value",
           "tableTo": "workspace",
           "columnsFrom": ["child_workspace_id"],
           "columnsTo": ["id"],

@@ -236,6 +236,15 @@ export const forkDependentReconfigSchema = z.object({
   subBlockKey: z.string(),
   selectorKey: z.string(),
   title: z.string(),
+  /**
+   * The field's stored value (from the persisted mapping), so the always-on reconfigure listing
+   * pre-fills the selector with what the user last set. Empty string when unset; for an edge
+   * that predates the store the TARGET's currently-configured value is the fallback (never the
+   * source's, which would overwrite the target's own selection on the first sync). After a
+   * parent target CHANGE the modal ignores this and starts blank, since the old value no longer
+   * resolves against the new parent.
+   */
+  currentValue: z.string(),
   /** Whether the field is required - a required empty field blocks Sync. */
   required: z.boolean(),
   /**
@@ -255,6 +264,25 @@ export const forkDependentReconfigSchema = z.object({
   context: z.record(z.string(), z.string()),
 })
 export type ForkDependentReconfig = z.output<typeof forkDependentReconfigSchema>
+
+/**
+ * Every workflow a mapped resource (any kind) is used in, for the always-on reconfigure
+ * listing under each mapping entry. Joined to the entry by `(parentKind, parentSourceId)`;
+ * the modal cross-references {@link forkDependentReconfigSchema} per workflow to decide which
+ * rows are expandable (have configurable dependents) vs. greyed (used here, nothing to tune).
+ */
+export const forkResourceUsageSchema = z.object({
+  parentKind: forkRemapKindSchema,
+  parentSourceId: z.string(),
+  workflows: z.array(
+    z.object({
+      /** Deterministic fork (target) workflow id - matches a dependent's `targetWorkflowId`. */
+      workflowId: z.string(),
+      workflowName: z.string(),
+    })
+  ),
+})
+export type ForkResourceUsage = z.output<typeof forkResourceUsageSchema>
 
 export const getForkDiffQuerySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
@@ -283,6 +311,8 @@ export const getForkDiffContract = defineRouteContract({
       inlineSecretSources: z.array(z.string()),
       /** Configured selector fields per parent (credential/KB), for the pre-sync reconfigure. */
       dependentReconfigs: z.array(forkDependentReconfigSchema),
+      /** Every workflow each mapped resource is used in, for the always-on reconfigure listing. */
+      resourceUsages: z.array(forkResourceUsageSchema),
     }),
   },
 })
@@ -303,24 +333,30 @@ export const forkNeedsConfigurationSchema = z.object({
 export type ForkNeedsConfiguration = z.output<typeof forkNeedsConfigurationSchema>
 
 /**
- * A one-shot value the user re-picked in the sync modal for a dependent field whose
- * credential they swapped. Applied during the merge (after preserve) so the new
- * selection lands instead of being cleared; not persisted - subsequent syncs keep it
- * via the stable-parent preserve. `blockId` is the deterministic fork block id.
+ * One dependent field's value in the stored mapping. The sync modal sends the full set for
+ * every dependent whose parent is mapped; promote persists them to
+ * `workspace_fork_dependent_value` and applies them verbatim to the target blocks, so the
+ * user's selection survives every future sync without re-picking. `blockId` is the
+ * deterministic fork block id, so the value lands on the right block.
  */
-export const forkDependentOverrideSchema = z.object({
+export const forkDependentValueEntrySchema = z.object({
   workflowId: nonEmptyIdSchema,
   blockId: nonEmptyIdSchema,
   subBlockKey: z.string().min(1, 'subBlockKey is required'),
   value: z.string(),
 })
-export type ForkDependentOverride = z.input<typeof forkDependentOverrideSchema>
+export type ForkDependentValueEntry = z.input<typeof forkDependentValueEntrySchema>
 
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
-  /** Pre-sync re-picks for dependent fields whose credential the user swapped. */
-  dependentOverrides: z.array(forkDependentOverrideSchema).max(2000).optional(),
+  /**
+   * The full stored mapping of dependent-field values; persisted to
+   * `workspace_fork_dependent_value` and applied to the target blocks verbatim. Omitting the
+   * field leaves the stored mapping untouched (the store stays the source of truth); sending
+   * an explicit `[]` clears it for the written replace targets.
+   */
+  dependentValues: z.array(forkDependentValueEntrySchema).max(2000).optional(),
 })
 export const promoteForkContract = defineRouteContract({
   method: 'POST',

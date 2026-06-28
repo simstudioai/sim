@@ -19,10 +19,15 @@ import type {
   ForkDependentReconfig,
   ForkLineageNodeApi,
   ForkMappingEntry,
+  ForkResourceUsage,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/dependent-field-selector'
+import { ResourceReconfigure } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/resource-reconfigure'
+import {
+  dependentKey,
+  effectiveDependentValue,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/dependent-value'
 import {
   type ForkDirection,
   useForkDiff,
@@ -30,7 +35,6 @@ import {
   usePromoteFork,
   useUpdateForkMapping,
 } from '@/hooks/queries/workspace-fork'
-import type { SelectorKey } from '@/hooks/selectors/types'
 
 interface PromoteWorkspaceModalProps {
   open: boolean
@@ -40,31 +44,6 @@ interface PromoteWorkspaceModalProps {
 }
 
 const entryKey = (entry: ForkMappingEntry) => `${entry.kind}:${entry.sourceId}`
-
-/** Stable key for a per-target dependent re-pick (target workflow + block + subblock). */
-const dependentKey = (dependent: ForkDependentReconfig) =>
-  `${dependent.targetWorkflowId}:${dependent.targetBlockId}:${dependent.subBlockKey}`
-
-/** One block's worth of dependent fields to re-pick after its parent's target changed. */
-interface ReconfigBlock {
-  targetBlockId: string
-  blockName: string
-  fields: ForkDependentReconfig[]
-}
-
-/** Group dependent re-picks by their target block, sorted by block name, for inline render. */
-function groupDependentsByBlock(dependents: ForkDependentReconfig[]): ReconfigBlock[] {
-  const byBlock = new Map<string, ReconfigBlock>()
-  for (const dependent of dependents) {
-    let block = byBlock.get(dependent.targetBlockId)
-    if (!block) {
-      block = { targetBlockId: dependent.targetBlockId, blockName: dependent.blockName, fields: [] }
-      byBlock.set(dependent.targetBlockId, block)
-    }
-    block.fields.push(dependent)
-  }
-  return Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-}
 
 /**
  * Whether a mapping entry needs an in-place reconfigure: its effective target was changed
@@ -80,6 +59,14 @@ function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string,
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
 const EMPTY_TARGET_OWNERS: ReadonlyMap<string, string> = new Map()
+
+/**
+ * Stable empty arrays so an entry with no usages/dependents keeps a constant prop reference,
+ * letting ResourceReconfigure's grouping memo skip recompute across the editing step's frequent
+ * re-renders.
+ */
+const EMPTY_USAGES: ForkResourceUsage['workflows'] = []
+const EMPTY_DEPENDENTS: ForkDependentReconfig[] = []
 
 /**
  * Targets already taken by OTHER sources in the same kind, each mapped to the owning
@@ -166,9 +153,9 @@ export function PromoteWorkspaceModal({
   // though React Query's structural sharing keeps `entries` referentially stable
   // (a target-seeding effect gated on `entries` would never re-run there).
   const [targets, setTargets] = useState<Record<string, string>>({})
-  // In-session re-picks for dependent fields whose credential the user swapped, keyed
-  // by `dependentKey`. Sent as one-shot overrides on sync; not persisted (the engine
-  // preserves them on later syncs once the account is stable).
+  // In-session re-picks for dependent fields whose parent the user swapped, keyed by
+  // `dependentKey`. Folded into the full effective set sent on sync, which promote persists as
+  // the stored mapping - so the selection survives every future sync without re-picking.
   const [reconfig, setReconfig] = useState<Record<string, string>>({})
   // Wizard step: 0 is the overview; 1..N edit one resource kind each, entered via
   // "Edit mappings". Backing out of step 1 returns to the overview.
@@ -205,6 +192,21 @@ export function PromoteWorkspaceModal({
     () => diff.data?.dependentReconfigs ?? [],
     [diff.data?.dependentReconfigs]
   )
+  const resourceUsages = useMemo(() => diff.data?.resourceUsages ?? [], [diff.data?.resourceUsages])
+
+  // Group dependents by their parent (kind:sourceId) once, so each mapping entry below gets a
+  // STABLE `dependents` array reference - a fresh `.filter` per render would defeat
+  // ResourceReconfigure's grouping memo.
+  const dependentsByParent = useMemo(() => {
+    const map = new Map<string, ForkDependentReconfig[]>()
+    for (const dependent of dependentReconfigs) {
+      const key = `${dependent.parentKind}:${dependent.parentSourceId}`
+      const list = map.get(key)
+      if (list) list.push(dependent)
+      else map.set(key, [dependent])
+    }
+    return map
+  }, [dependentReconfigs])
 
   // Effective target for an entry: the user's in-session override if present,
   // else the persisted mapping from the server. Read directly from `entries` so
@@ -213,17 +215,16 @@ export function PromoteWorkspaceModal({
 
   const requiredComplete = entries.every((entry) => !entry.required || targetFor(entry) !== '')
 
-  // Affected blocks (block-grouped dependent fields) under an entry whose target the user
-  // changed - rendered inline beneath that mapping so the credential/KB stays in context.
-  const reconfigBlocksForEntry = (entry: ForkMappingEntry): ReconfigBlock[] =>
-    shouldReconfigureEntry(entry, targets)
-      ? groupDependentsByBlock(
-          dependentReconfigs.filter(
-            (dependent) =>
-              dependent.parentKind === entry.kind && dependent.parentSourceId === entry.sourceId
-          )
-        )
-      : []
+  // Every workflow a mapping entry's resource is used in, for the always-on reconfigure
+  // listing rendered beneath that mapping (so the credential/KB stays in context).
+  const usagesForEntry = (entry: ForkMappingEntry): ForkResourceUsage['workflows'] =>
+    resourceUsages.find(
+      (usage) => usage.parentKind === entry.kind && usage.parentSourceId === entry.sourceId
+    )?.workflows ?? EMPTY_USAGES
+
+  // This entry's dependent fields (its credential/KB's selectors), from the memoized grouping.
+  const dependentsForEntry = (entry: ForkMappingEntry): ForkDependentReconfig[] =>
+    dependentsByParent.get(entryKey(entry)) ?? EMPTY_DEPENDENTS
 
   // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
@@ -240,29 +241,32 @@ export function PromoteWorkspaceModal({
     })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
   }, [entries])
 
-  // Blocks whose dependent fields need re-picking because their parent's target changed
-  // in-session - the Sync gate + override collection read this. Recomputes as the user
-  // edits mappings. Shares the gate/grouping with reconfigBlocksForEntry so the inline
-  // cards and the Sync-gated set can never disagree.
-  const reconfigBlocks = useMemo<ReconfigBlock[]>(
-    () =>
-      groupDependentsByBlock(
-        dependentReconfigs.filter((dependent) => {
-          const parent = entries.find(
-            (candidate) =>
-              candidate.kind === dependent.parentKind &&
-              candidate.sourceId === dependent.parentSourceId
-          )
-          return parent != null && shouldReconfigureEntry(parent, targets)
-        })
-      ),
-    [dependentReconfigs, entries, targets]
-  )
+  // The mapping entry a dependent field hangs off (its credential/KB), for change + target lookups.
+  const entryForDependent = (field: ForkDependentReconfig) =>
+    entries.find(
+      (entry) => entry.kind === field.parentKind && entry.sourceId === field.parentSourceId
+    )
 
-  // Every required re-pick is filled - a required dependent left empty must not be synced.
-  const reconfigComplete = reconfigBlocks.every((block) =>
-    block.fields.every((field) => !field.required || (reconfig[dependentKey(field)] ?? '') !== '')
-  )
+  // The value sent + displayed for a dependent (delegates to the shared rule): the user's
+  // re-pick, else the stored value - blank when this field's parent target changed in-session.
+  const dependentValueFor = (field: ForkDependentReconfig): string => {
+    const parent = entryForDependent(field)
+    return effectiveDependentValue(
+      field,
+      reconfig,
+      parent ? shouldReconfigureEntry(parent, targets) : false
+    )
+  }
+
+  // Every required dependent whose parent IS mapped must have a value before sync. A dependent
+  // whose parent target is still empty can't be picked yet (its selector is disabled) and is
+  // gated by `requiredComplete` on the parent instead, so it's skipped here.
+  const reconfigComplete = dependentReconfigs.every((field) => {
+    if (!field.required) return true
+    const parent = entryForDependent(field)
+    if (!parent || targetFor(parent) === '') return true
+    return dependentValueFor(field) !== ''
+  })
 
   // Per-kind status for the overview listing: "Fully mapped" or "n/total mapped",
   // flagged when a REQUIRED target is still missing (which blocks Sync). Reads the
@@ -306,29 +310,29 @@ export function PromoteWorkspaceModal({
         },
       })
 
-      // Send the user's pre-sync re-picks (reconfigBlocks already holds only the fields
-      // whose parent's target changed; unchanged parents are preserved by the engine).
-      const dependentOverrides = reconfigBlocks.flatMap((block) =>
-        block.fields.flatMap((field) => {
-          const value = reconfig[dependentKey(field)]
-          if (!value) return []
-          return [
-            {
-              workflowId: field.targetWorkflowId,
-              blockId: field.targetBlockId,
-              subBlockKey: field.subBlockKey,
-              value,
-            },
-          ]
-        })
-      )
+      // Send the full stored mapping for every dependent whose parent is mapped (its effective
+      // value - re-pick, stored, or blank-after-change). Promote persists this verbatim as the
+      // stored mapping and applies it; fields whose parent isn't mapped yet are omitted (they
+      // can't be configured). This is the whole "what's in the mapping goes in" contract.
+      const dependentValues = dependentReconfigs.flatMap((field) => {
+        const parent = entryForDependent(field)
+        if (!parent || targetFor(parent) === '') return []
+        return [
+          {
+            workflowId: field.targetWorkflowId,
+            blockId: field.targetBlockId,
+            subBlockKey: field.subBlockKey,
+            value: dependentValueFor(field),
+          },
+        ]
+      })
 
       const result = await promote.mutateAsync({
         workspaceId,
         body: {
           otherWorkspaceId,
           direction,
-          ...(dependentOverrides.length > 0 ? { dependentOverrides } : {}),
+          ...(dependentValues.length > 0 ? { dependentValues } : {}),
         },
       })
 
@@ -537,9 +541,25 @@ export function PromoteWorkspaceModal({
                         }
                       })}
                       value={targetFor(entry) || undefined}
-                      onChange={(value) =>
+                      onChange={(value) => {
                         setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                      }
+                        // Changing the parent invalidates any in-session re-picks of its
+                        // dependents - they were chosen against the old account and won't resolve
+                        // against the new one, so drop them; otherwise a stale re-pick (which
+                        // wins over the parent-changed check) would be sent to the new account.
+                        setReconfig((prev) => {
+                          let changed = false
+                          const next = { ...prev }
+                          for (const dependent of dependentsForEntry(entry)) {
+                            const key = dependentKey(dependent)
+                            if (key in next) {
+                              delete next[key]
+                              changed = true
+                            }
+                          }
+                          return changed ? next : prev
+                        })
+                      }}
                       placeholder='Select target'
                     />
                     {entry.candidatesTruncated ? (
@@ -548,76 +568,16 @@ export function PromoteWorkspaceModal({
                         one, narrow it down by name.
                       </div>
                     ) : null}
-                    {/* Account changed: re-pick its dependent fields in place, block by block. */}
-                    {reconfigBlocksForEntry(entry).map((block) => {
-                      // Chain re-picks: a re-picked field feeds its SelectorContext key to its
-                      // in-block descendants (e.g. a new spreadsheet drives the sheet selector),
-                      // so deeper selectors query against the user's new upstream choice.
-                      const providedValues: Record<string, string> = {}
-                      const providerByKey = new Map<string, string>()
-                      for (const field of block.fields) {
-                        const picked = reconfig[dependentKey(field)]
-                        if (field.providesContextKey) {
-                          providerByKey.set(field.providesContextKey, dependentKey(field))
-                          if (picked) providedValues[field.providesContextKey] = picked
-                        }
-                      }
-                      return (
-                        <div
-                          key={block.targetBlockId}
-                          className='mt-3 flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-1)] p-3'
-                        >
-                          <span className='font-medium text-[var(--text-secondary)] text-small'>
-                            {block.blockName}
-                          </span>
-                          {block.fields.map((field) => {
-                            // Disabled until the credential is set AND every in-block parent it
-                            // depends on (a sibling re-pick) is chosen, so a child never queries a
-                            // stale upstream value (e.g. a sheet before its spreadsheet is re-picked).
-                            const ready = field.consumesContextKeys.every((key) => {
-                              const providerKey = providerByKey.get(key)
-                              return !providerKey || (reconfig[providerKey] ?? '') !== ''
-                            })
-                            return (
-                              <div key={dependentKey(field)} className='flex flex-col gap-1'>
-                                <span className='text-[var(--text-tertiary)] text-caption'>
-                                  {field.title}
-                                  {field.required ? (
-                                    <span className='text-[var(--text-error)]'> *</span>
-                                  ) : null}
-                                </span>
-                                <DependentFieldSelector
-                                  selectorKey={field.selectorKey as SelectorKey}
-                                  context={{
-                                    ...field.context,
-                                    ...providedValues,
-                                    [field.parentContextKey]: targetFor(entry),
-                                  }}
-                                  enabled={targetFor(entry) !== '' && ready}
-                                  value={reconfig[dependentKey(field)] ?? ''}
-                                  onChange={(value) =>
-                                    setReconfig((prev) => {
-                                      const nextState = { ...prev, [dependentKey(field)]: value }
-                                      // A changed parent invalidates its children's stale re-picks.
-                                      const providedKey = field.providesContextKey
-                                      if (providedKey) {
-                                        for (const sibling of block.fields) {
-                                          if (sibling.consumesContextKeys.includes(providedKey)) {
-                                            delete nextState[dependentKey(sibling)]
-                                          }
-                                        }
-                                      }
-                                      return nextState
-                                    })
-                                  }
-                                  title={field.title}
-                                />
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })}
+                    {/* Always-on: every workflow this resource is used in, each expandable to
+                        its blocks + dependent selectors (greyed when nothing to configure). */}
+                    <ResourceReconfigure
+                      workflows={usagesForEntry(entry)}
+                      dependents={dependentsForEntry(entry)}
+                      parentTargetValue={targetFor(entry)}
+                      parentChanged={shouldReconfigureEntry(entry, targets)}
+                      reconfig={reconfig}
+                      setReconfig={setReconfig}
+                    />
                   </SettingsSection>
                 )
               })}

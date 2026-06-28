@@ -4,12 +4,53 @@ import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  coerceObjectArray,
+  isRecord,
+  type SubBlockRecord,
+} from '@/lib/workflows/persistence/remap-internal-ids'
+import { loadTargetDraftSubBlocks } from '@/lib/workspaces/fork/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
 import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
 import { loadForkBlockMap } from '@/lib/workspaces/fork/mapping/block-map-store'
-import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+import {
+  collectForkDependentReconfigs,
+  collectForkResourceUsages,
+} from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+import {
+  forkDependentValueKey,
+  loadForkDependentValues,
+} from '@/lib/workspaces/fork/mapping/dependent-value-store'
 import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
+
+/** A nested dependent key `toolInput[index].paramId` (matches the override/needs-config format). */
+const NESTED_DEPENDENT_KEY = /^([^[]+)\[(\d+)\]\.(.+)$/
+
+/**
+ * Read a dependent field's currently-configured value from a target block's draft subBlocks,
+ * handling the nested `toolInput[index].paramId` shape used for tool-input dependents. Seeds the
+ * diff pre-fill from the TARGET (never the source, which would overwrite the target's own
+ * selection on an edge that predates the stored mapping). Returns '' when unset.
+ */
+function readTargetDraftDependentValue(
+  blockSubBlocks: SubBlockRecord | undefined,
+  subBlockKey: string
+): string {
+  if (!blockSubBlocks) return ''
+  const nested = NESTED_DEPENDENT_KEY.exec(subBlockKey)
+  if (nested) {
+    const [, toolInputId, indexStr, paramId] = nested
+    const { array } = coerceObjectArray(blockSubBlocks[toolInputId]?.value)
+    const tool = array?.[Number(indexStr)]
+    if (!isRecord(tool)) return ''
+    const params = isRecord(tool.params) ? tool.params : {}
+    const value = params[paramId]
+    return typeof value === 'string' ? value : ''
+  }
+  const value = blockSubBlocks[subBlockKey]?.value
+  return typeof value === 'string' ? value : ''
+}
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -44,6 +85,41 @@ export const GET = withRouteHandler(
     const sourceIsParent = auth.sourceWorkspaceId === auth.edge.parentWorkspaceId
     const blockMap = await loadForkBlockMap(db, auth.edge.childWorkspaceId)
     const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
+
+    // Stored dependent values are the source of truth for what each selector is set to. Overlay
+    // them as each field's currentValue so the modal pre-fills what the user actually saved. For
+    // an edge that predates the store the fallback is the TARGET's own configured value (loaded
+    // from its draft) - never the source's, which would overwrite the target's selection on the
+    // first sync. Both the stored read and the draft read are scoped to the plan's replace
+    // targets, the only workflows with dependents to reconfigure.
+    const replaceTargetIds = plan.items
+      .filter((item) => item.mode === 'replace')
+      .map((item) => item.targetWorkflowId)
+    const [storedValues, targetDraftByWorkflow] = await Promise.all([
+      loadForkDependentValues(db, auth.edge.childWorkspaceId, replaceTargetIds),
+      loadTargetDraftSubBlocks(db, replaceTargetIds),
+    ])
+    const storedByKey = new Map(
+      storedValues.map((entry) => [
+        forkDependentValueKey(entry.targetWorkflowId, entry.targetBlockId, entry.subBlockKey),
+        entry.value,
+      ])
+    )
+    const dependentReconfigs = collectForkDependentReconfigs(
+      plan.items,
+      sourceStates,
+      resolveBlockId
+    ).map((field) => ({
+      ...field,
+      currentValue:
+        storedByKey.get(
+          forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+        ) ??
+        readTargetDraftDependentValue(
+          targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+          field.subBlockKey
+        ),
+    }))
 
     const toRef = (reference: (typeof plan.unmappedRequired)[number]) => ({
       kind: reference.kind,
@@ -90,7 +166,8 @@ export const GET = withRouteHandler(
       unmappedOptional: plan.unmappedOptional.map(toRef),
       mcpReauthServerIds: plan.mcpReauthServerIds,
       inlineSecretSources: plan.inlineSecretSources,
-      dependentReconfigs: collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId),
+      dependentReconfigs,
+      resourceUsages: collectForkResourceUsages(plan.items, sourceStates),
     })
   }
 )
