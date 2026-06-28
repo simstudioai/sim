@@ -286,7 +286,7 @@ export async function listChatUploadArchiveEntries(
     return []
   }
 
-  const encodedZip = canonicalUploadKey(record.name)
+  const encodedZip = encodeUploadName(record.name)
   try {
     const buffer = await fetchWorkspaceFileBuffer(record)
     const entries = await listArchiveEntries(buffer)
@@ -345,7 +345,7 @@ async function buildArchiveManifest(
   archiveBuffer: Buffer,
   note?: string
 ): Promise<FileReadResult> {
-  const encodedZip = canonicalUploadKey(record.name)
+  const encodedZip = encodeUploadName(record.name)
   try {
     const entries = await listArchiveEntries(archiveBuffer)
     const header = `Archive "${record.name}" — ${entries.length} file${
@@ -464,7 +464,7 @@ export async function grepChatUploadPath(
       type: getMimeTypeFromExtension(ext),
       ext,
     })
-    const uploadsPath = `uploads/${canonicalUploadKey(record.name)}/${encodeEntryPath(rawPath)}`
+    const uploadsPath = `uploads/${encodeUploadName(record.name)}/${encodeEntryPath(rawPath)}`
     return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
   }
 
@@ -472,6 +472,6 @@ export async function grepChatUploadPath(
   if (!result) {
     throw new WorkspaceFileGrepError(`Upload content not found for "${firstSegment}".`)
   }
-  const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
+  const uploadsPath = `uploads/${encodeUploadName(record.name)}`
   return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
 }

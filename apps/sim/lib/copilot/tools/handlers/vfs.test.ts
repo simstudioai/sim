@@ -424,16 +424,18 @@ describe('vfs archive uploads (virtual folders)', () => {
     vi.clearAllMocks()
   })
 
-  it('expands a specific archive glob into its entry paths', async () => {
+  const ARCHIVE_ENTRIES = [
+    { path: 'report.pdf', vfsPath: 'uploads/bundle.zip/report.pdf' },
+    { path: 'data/sheet.csv', vfsPath: 'uploads/bundle.zip/data/sheet.csv' },
+  ]
+
+  it('expands a recursive archive glob (/**) into all entry paths', async () => {
     const vfs = makeVfs()
     getOrMaterializeVFS.mockResolvedValue(vfs)
     listChatUploads.mockResolvedValue([{ name: 'bundle.zip' }])
-    listChatUploadArchiveEntries.mockResolvedValue([
-      { path: 'report.pdf', vfsPath: 'uploads/bundle.zip/report.pdf' },
-      { path: 'data/sheet.csv', vfsPath: 'uploads/bundle.zip/data/sheet.csv' },
-    ])
+    listChatUploadArchiveEntries.mockResolvedValue(ARCHIVE_ENTRIES)
 
-    const result = await executeVfsGlob({ pattern: 'uploads/bundle.zip/*' }, GREP_CTX_CHAT)
+    const result = await executeVfsGlob({ pattern: 'uploads/bundle.zip/**' }, GREP_CTX_CHAT)
 
     expect(listChatUploadArchiveEntries).toHaveBeenCalledWith('bundle.zip', 'chat-1')
     expect((result.output as { files: string[] }).files).toEqual(
@@ -443,6 +445,23 @@ describe('vfs archive uploads (virtual folders)', () => {
         'uploads/bundle.zip/data/sheet.csv',
       ])
     )
+  })
+
+  it('honors glob depth — /* is top-level only, /data/* scopes to data', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([{ name: 'bundle.zip' }])
+    listChatUploadArchiveEntries.mockResolvedValue(ARCHIVE_ENTRIES)
+
+    const topLevel = await executeVfsGlob({ pattern: 'uploads/bundle.zip/*' }, GREP_CTX_CHAT)
+    const topFiles = (topLevel.output as { files: string[] }).files
+    expect(topFiles).toContain('uploads/bundle.zip/report.pdf')
+    expect(topFiles).not.toContain('uploads/bundle.zip/data/sheet.csv')
+
+    const scoped = await executeVfsGlob({ pattern: 'uploads/bundle.zip/data/*' }, GREP_CTX_CHAT)
+    const scopedFiles = (scoped.output as { files: string[] }).files
+    expect(scopedFiles).toContain('uploads/bundle.zip/data/sheet.csv')
+    expect(scopedFiles).not.toContain('uploads/bundle.zip/report.pdf')
   })
 
   it('does not expand archives for the broad uploads/* glob', async () => {

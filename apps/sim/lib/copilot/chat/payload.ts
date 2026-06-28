@@ -331,14 +331,14 @@ export async function buildCopilotRequestPayload(
               } file${entries.length === 1 ? '' : 's'}:`,
               ...treeLines,
               '',
-              `List entries with: glob("uploads/${encodedUploadName}/*")`,
+              `List entries with: glob("uploads/${encodedUploadName}/**")`,
               `Read an entry with: read("uploads/${encodedUploadName}/<path>")`,
               `To save the archive permanently: materialize_file(fileName: "${displayName}")`,
             ]
           } else {
             lines = [
               `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-              `List entries with: glob("uploads/${encodedUploadName}/*")`,
+              `List entries with: glob("uploads/${encodedUploadName}/**")`,
               `Read an entry with: read("uploads/${encodedUploadName}/<path>")`,
               `To save the archive permanently: materialize_file(fileName: "${displayName}")`,
             ]

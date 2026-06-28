@@ -4,7 +4,7 @@ import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
-import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { matchesVfsGlob, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import {
   grepChatUploadPath,
@@ -216,12 +216,17 @@ export async function executeVfsGlob(
       files = [...files, ...uploadPaths]
 
       // Expand a specific archive's entries when the glob reaches inside it
-      // (uploads/<zip>/*). Broad uploads/* keeps archives as single leaves.
+      // (uploads/<zip>/*). Broad uploads/* keeps archives as single leaves. Entry
+      // paths are filtered through the same matcher as the VFS map, so the glob's
+      // depth (`/*` vs `/**` vs `/data/*`) is honored rather than dumping all.
       const archiveSegment = parseArchiveGlobSegment(pattern)
       if (archiveSegment) {
         const entries = await listChatUploadArchiveEntries(archiveSegment, context.chatId)
         if (entries) {
-          files = [...files, ...entries.map((entry) => entry.vfsPath)]
+          const matched = entries
+            .map((entry) => entry.vfsPath)
+            .filter((vfsPath) => matchesVfsGlob(vfsPath, pattern))
+          files = [...files, ...matched]
         }
       }
     }
