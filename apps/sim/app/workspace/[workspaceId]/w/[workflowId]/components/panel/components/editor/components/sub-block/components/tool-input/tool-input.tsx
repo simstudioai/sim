@@ -2111,6 +2111,7 @@ export const ToolInput = memo(function ToolInput({
                             toolIndex={toolIndex}
                             subBlock={sbWithTitle}
                             effectiveParamId={effectiveParamId}
+                            toolType={tool.type}
                             toolParams={tool.params}
                             onParamChange={handleParamChange}
                             disabled={disabled}

@@ -23,6 +23,9 @@ export const workspaceSchema = z.object({
   inviteMembersEnabled: z.boolean().optional(),
   inviteDisabledReason: z.string().nullable().optional(),
   inviteUpgradeRequired: z.boolean().optional(),
+  // Source workspace id when this was created as a fork (null otherwise). Optional
+  // because not every workspace response builder includes the column.
+  forkedFromWorkspaceId: z.string().nullable().optional(),
 })
 
 export type Workspace = z.output<typeof workspaceSchema>

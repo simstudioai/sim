@@ -54,6 +54,13 @@ export interface WorkspaceCreationPolicy {
 interface GetWorkspaceCreationPolicyParams {
   userId: string
   activeOrganizationId?: string | null
+  /**
+   * When true, `activeOrganizationId` is authoritative: it is used exactly as given
+   * (including `null`, which means a personal workspace) and never falls back to the
+   * caller's membership org. Forks set this so the child always lands in the SOURCE's
+   * org, not whatever org the acting user happens to belong to.
+   */
+  pinOrganization?: boolean
 }
 
 export function isOrganizationWorkspace(
@@ -215,9 +222,12 @@ export async function getInvitePlanCategoryForUser(userId: string): Promise<Plan
 export async function getWorkspaceCreationPolicy({
   userId,
   activeOrganizationId,
+  pinOrganization = false,
 }: GetWorkspaceCreationPolicyParams): Promise<WorkspaceCreationPolicy> {
   const membership = await getUserOrganization(userId)
-  const organizationId = activeOrganizationId ?? membership?.organizationId ?? null
+  const organizationId = pinOrganization
+    ? (activeOrganizationId ?? null)
+    : (activeOrganizationId ?? membership?.organizationId ?? null)
   const orgRole =
     organizationId == null
       ? undefined

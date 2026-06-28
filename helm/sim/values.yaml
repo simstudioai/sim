@@ -1312,6 +1312,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Processes the transactional outbox (deployment side-effects retry / dead-letter)
+    # and reaps stale workspace-fork background-work rows. Both are safety nets behind
+    # the immediate post-commit processing, so frequent runs keep retries timely.
+    outboxProcess:
+      enabled: true
+      name: outbox-process
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/outbox/process"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl
