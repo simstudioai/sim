@@ -138,6 +138,22 @@ describe('findMothershipUploadRowByChatAndName', () => {
 
     expect(result?.id).toBe('wf_3')
   })
+
+  it('resolves a literal-% name via its encoded glob form', async () => {
+    // Stored name has a literal `%`; glob/upload-context expose it double-encoded
+    // (`test%252A.zip`). The encoded-form fallback recovers the row.
+    const row = makeRow({
+      id: 'wf_pct',
+      displayName: 'test%2A.zip',
+      contentType: 'application/zip',
+    })
+    mockOrderByThenLimit([])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([row] as never)
+
+    const result = await findMothershipUploadRowByChatAndName(CHAT_ID, 'test%252A.zip')
+
+    expect(result?.id).toBe('wf_pct')
+  })
 })
 
 describe('listChatUploads', () => {

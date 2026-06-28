@@ -56,6 +56,21 @@ function canonicalUploadKey(name: string): string {
   }
 }
 
+/**
+ * Per-segment encode of a stored name (no decode first), so a name containing a
+ * literal `%` (e.g. `test%2A.zip`) round-trips: glob/upload-context expose it as
+ * `encodeVfsSegment(name)`, and matching that encoded form back recovers the row.
+ * {@link canonicalUploadKey} can't, because it decodes the input first and a
+ * literal `%2A` is indistinguishable from an encoded `*`.
+ */
+function encodeUploadName(name: string): string {
+  try {
+    return encodeVfsSegment(name)
+  } catch {
+    return name.trim()
+  }
+}
+
 /** VFS-visible name. Coalesces to originalName for legacy rows that predate displayName. */
 function vfsName(row: typeof workspaceFiles.$inferSelect): string {
   return row.displayName ?? row.originalName
@@ -127,7 +142,15 @@ export async function findMothershipUploadRowByChatAndName(
     .orderBy(desc(workspaceFiles.uploadedAt), desc(workspaceFiles.id))
 
   const segmentKey = canonicalUploadKey(fileName)
-  return allRows.find((r) => canonicalUploadKey(vfsName(r)) === segmentKey) ?? null
+  return (
+    allRows.find((r) => {
+      const stored = vfsName(r)
+      // Canonical-key match handles visually-equivalent spellings (U+202F vs
+      // space); the encoded-form match handles literal `%` names that survive
+      // encode but not decode.
+      return canonicalUploadKey(stored) === segmentKey || encodeUploadName(stored) === fileName
+    }) ?? null
+  )
 }
 
 /**
