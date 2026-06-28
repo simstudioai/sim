@@ -31,6 +31,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 import {
   findMothershipUploadRowByChatAndName,
+  grepChatUploadPath,
   listChatUploadArchiveEntries,
   listChatUploads,
   readChatUploadPath,
@@ -337,5 +338,15 @@ describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
     expect(result?.content).toContain('Archive "bundle.zip" — 2 files')
     expect(result?.content).toContain('report.pdf')
     expect(result?.content).toContain('data/sheet.csv')
+  })
+
+  it('refuses to grep a bare archive, guiding the agent to an entry', async () => {
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+
+    await expect(grepChatUploadPath('bundle.zip', '', CHAT_ID, 'pattern')).rejects.toThrow(
+      /Cannot grep an archive directly/
+    )
+    // The archive bytes are never downloaded or grepped as a binary blob.
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 })

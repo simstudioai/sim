@@ -189,10 +189,11 @@ export function isArchiveUpload(record: WorkspaceFileRecord): boolean {
 }
 
 /**
- * True when an archive's stored size exceeds the read cap, so it must not be
- * downloaded + parsed inline. Checked against `record.size` BEFORE fetching so an
- * oversized archive never gets buffered into memory (the decompress tool applies
- * the same {@link MAX_ARCHIVE_BYTES} cap on its own download path).
+ * True when an archive's recorded size exceeds the read cap. This is a cheap
+ * early-out on `record.size` to skip a doomed download; the download itself is
+ * also hard-capped on the actual byte stream (every archive fetch passes
+ * `{ maxBytes: MAX_ARCHIVE_BYTES }`), so an object larger than its recorded size
+ * still cannot be buffered fully into memory.
  */
 function exceedsArchiveReadCap(record: WorkspaceFileRecord): boolean {
   return record.size > MAX_ARCHIVE_BYTES
@@ -307,7 +308,7 @@ export async function listChatUploadArchiveEntries(
 
   const encodedZip = encodeUploadName(record.name)
   try {
-    const buffer = await fetchWorkspaceFileBuffer(record)
+    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
     const entries = dedupeArchiveEntriesByKey(await listArchiveEntries(buffer))
     return entries.map((path) => ({
       path,
@@ -404,7 +405,7 @@ export async function readChatUploadPath(
     if (exceedsArchiveReadCap(record)) {
       return archiveTooLargeResult(record)
     }
-    const archiveBuffer = await fetchWorkspaceFileBuffer(record)
+    const archiveBuffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
     if (!entryPath) {
       return await buildArchiveManifest(record, archiveBuffer)
     }
@@ -459,7 +460,7 @@ export async function grepChatUploadPath(
         `Archive too large to grep: "${record.name}" (limit ${MAX_ARCHIVE_BYTES / 1024 / 1024}MB).`
       )
     }
-    const archiveBuffer = await fetchWorkspaceFileBuffer(record)
+    const archiveBuffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
     try {
       const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
       if (!rawPath) {
@@ -489,6 +490,16 @@ export async function grepChatUploadPath(
       }
       throw err
     }
+  }
+
+  // A bare archive has no searchable text of its own — guide the agent to target
+  // an entry (or read the archive to list them) rather than grepping its bytes.
+  if (isArchiveUpload(record)) {
+    throw new WorkspaceFileGrepError(
+      `Cannot grep an archive directly. Grep an entry (e.g. grep path: "uploads/${encodeUploadName(
+        record.name
+      )}/<path>") or read("uploads/${encodeUploadName(record.name)}") to list its contents.`
+    )
   }
 
   const result = await readFileRecord(record)

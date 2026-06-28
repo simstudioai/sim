@@ -854,15 +854,21 @@ export async function getWorkspaceFile(
 }
 
 /**
- * Download workspace file content
+ * Download workspace file content. Pass `maxBytes` to cap the download on the
+ * actual byte stream (not just the client-declared `record.size`), so a stored
+ * object larger than its recorded size cannot be buffered fully into memory.
  */
-export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchWorkspaceFileBuffer(
+  fileRecord: WorkspaceFileRecord,
+  options: { maxBytes?: number } = {}
+): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {
     const buffer = await downloadFile({
       key: fileRecord.key,
       context: fileRecord.storageContext ?? 'workspace',
+      maxBytes: options.maxBytes,
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`
