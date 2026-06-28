@@ -3,8 +3,8 @@ import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
-import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
+import { buildAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
+import type { AgentAuthentication, AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import {
   a2aAgentParamsSchema,
   publishA2AAgentContract,
@@ -13,10 +13,12 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('A2AAgentCardAPI')
 
@@ -60,21 +62,23 @@ export const GET = withRouteHandler(
         }
       }
 
-      const agentCard = generateAgentCard(
-        {
+      const agentCard = buildAgentCard({
+        agent: {
           id: agent.agent.id,
           name: agent.agent.name,
           description: agent.agent.description,
           version: agent.agent.version,
           capabilities: agent.agent.capabilities as AgentCapabilities,
           skills: agent.agent.skills as AgentSkill[],
+          authentication: agent.agent.authentication as AgentAuthentication,
         },
-        {
-          id: agent.workflow.id,
+        baseUrl: getBaseUrl(),
+        providerOrganization: getBrandConfig().name,
+        workflow: {
           name: agent.workflow.name,
           description: agent.workflow.description,
-        }
-      )
+        },
+      })
 
       return NextResponse.json(agentCard, {
         headers: {

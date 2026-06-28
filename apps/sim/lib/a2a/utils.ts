@@ -1,12 +1,13 @@
-import type {
-  Artifact,
-  DataPart,
-  FilePart,
-  Message,
-  Part,
-  Task,
-  TaskState,
-  TextPart,
+import {
+  AGENT_CARD_PATH,
+  type Artifact,
+  type DataPart,
+  type FilePart,
+  type Message,
+  type Part,
+  type Task,
+  type TaskState,
+  type TextPart,
 } from '@a2a-js/sdk'
 import {
   type BeforeArgs,
@@ -53,12 +54,13 @@ class ApiKeyInterceptor implements CallInterceptor {
 }
 
 /**
- * Create an A2A client from an agent URL with optional API key authentication
+ * Create an A2A client from an agent URL with optional API key authentication.
  *
- * Supports both standard A2A agents (agent card at /.well-known/agent.json)
- * and Sim Studio agents (agent card at root URL via GET).
- *
- * Tries standard path first, falls back to root URL for compatibility.
+ * Resolves the agent card by trying, in order:
+ * 1. the A2A v0.3 well-known path (`.well-known/agent-card.json`, the SDK default),
+ * 2. the legacy pre-0.3 path (`/.well-known/agent.json`),
+ * 3. the provided URL directly (Sim serves the card at the same URL it serves
+ *    JSON-RPC, so the empty path makes the resolver GET the URL as-is).
  */
 export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
   const validation = await validateUrlWithDNS(agentUrl, 'agentUrl')
@@ -138,18 +140,22 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
 
   const factory = new ClientFactory(factoryOptions)
 
-  // Try standard A2A path first (/.well-known/agent.json)
-  try {
-    return await factory.createFromUrl(agentUrl, '/.well-known/agent.json')
-  } catch (standardError) {
-    logger.debug('Standard agent card path failed, trying root URL', {
-      agentUrl,
-      error: toError(standardError).message,
-    })
+  const candidatePaths = [AGENT_CARD_PATH, '/.well-known/agent.json', '']
+  let lastError: unknown
+  for (const path of candidatePaths) {
+    try {
+      return await factory.createFromUrl(agentUrl, path)
+    } catch (error) {
+      lastError = error
+      logger.debug('Agent card resolution attempt failed', {
+        agentUrl,
+        path,
+        error: toError(error).message,
+      })
+    }
   }
 
-  // Fall back to root URL (Sim Studio compatibility)
-  return factory.createFromUrl(agentUrl, '')
+  throw toError(lastError)
 }
 
 export function isTerminalState(state: TaskState): boolean {

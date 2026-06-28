@@ -1,95 +1,134 @@
-import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
-import { generateId } from '@sim/utils/id'
+import type {
+  AgentCard,
+  Artifact,
+  Message,
+  Task,
+  TaskState,
+  TaskStatus,
+  TaskStatusUpdateEvent,
+} from '@a2a-js/sdk'
+import { db } from '@sim/db'
+import { a2aAgent } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { and, eq, isNull } from 'drizzle-orm'
+import { buildAgentCard } from '@/lib/a2a/agent-card'
+import type { AgentAuthentication, AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { getRedisClient } from '@/lib/core/config/redis'
+import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
-/** A2A v0.3 JSON-RPC method names */
-export const A2A_METHODS = {
-  MESSAGE_SEND: 'message/send',
-  MESSAGE_STREAM: 'message/stream',
-  TASKS_GET: 'tasks/get',
-  TASKS_CANCEL: 'tasks/cancel',
-  TASKS_RESUBSCRIBE: 'tasks/resubscribe',
-  PUSH_NOTIFICATION_SET: 'tasks/pushNotificationConfig/set',
-  PUSH_NOTIFICATION_GET: 'tasks/pushNotificationConfig/get',
-  PUSH_NOTIFICATION_DELETE: 'tasks/pushNotificationConfig/delete',
-} as const
+const logger = createLogger('A2AServeUtils')
 
-/** A2A v0.3 error codes */
-export const A2A_ERROR_CODES = {
-  PARSE_ERROR: -32700,
-  INVALID_REQUEST: -32600,
-  METHOD_NOT_FOUND: -32601,
-  INVALID_PARAMS: -32602,
-  INTERNAL_ERROR: -32603,
-  TASK_NOT_FOUND: -32001,
-  TASK_ALREADY_COMPLETE: -32002,
-  AGENT_UNAVAILABLE: -32003,
-  AUTHENTICATION_REQUIRED: -32004,
-} as const
+const AGENT_CARD_CACHE_TTL_SECONDS = 60
 
-interface JSONRPCRequest {
-  jsonrpc: '2.0'
-  id: string | number
-  method: string
-  params?: unknown
-}
+export type ServedAgentCardResult =
+  | { ok: true; card: AgentCard; cacheHit: boolean }
+  | { ok: false; status: number; error: string }
 
-export interface JSONRPCResponse {
-  jsonrpc: '2.0'
-  id: string | number | null
-  result?: unknown
-  error?: {
-    code: number
-    message: string
-    data?: unknown
+/**
+ * Load and build the public {@link AgentCard} for a published agent.
+ *
+ * Shared by the serve GET endpoint and the `.well-known/agent-card.json`
+ * discovery endpoint. Caches the built card in Redis (best-effort).
+ */
+export async function getServedAgentCard(agentId: string): Promise<ServedAgentCardResult> {
+  const redis = getRedisClient()
+  const cacheKey = `a2a:agent:${agentId}:card`
+
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey)
+      if (cached) {
+        return { ok: true, card: JSON.parse(cached) as AgentCard, cacheHit: true }
+      }
+    } catch (err) {
+      logger.warn('Redis cache read failed', { agentId, error: err })
+    }
   }
-}
 
-interface MessageSendParams {
-  message: Message
-  configuration?: {
-    acceptedOutputModes?: string[]
-    historyLength?: number
-    pushNotificationConfig?: PushNotificationConfig
+  const [agent] = await db
+    .select({
+      id: a2aAgent.id,
+      name: a2aAgent.name,
+      description: a2aAgent.description,
+      version: a2aAgent.version,
+      capabilities: a2aAgent.capabilities,
+      skills: a2aAgent.skills,
+      authentication: a2aAgent.authentication,
+      isPublished: a2aAgent.isPublished,
+    })
+    .from(a2aAgent)
+    .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
+    .limit(1)
+
+  if (!agent) {
+    return { ok: false, status: 404, error: 'Agent not found' }
   }
+
+  if (!agent.isPublished) {
+    return { ok: false, status: 404, error: 'Agent not published' }
+  }
+
+  const card = buildAgentCard({
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      version: agent.version,
+      capabilities: agent.capabilities as AgentCapabilities,
+      skills: agent.skills as AgentSkill[],
+      authentication: agent.authentication as AgentAuthentication,
+    },
+    baseUrl: getBaseUrl(),
+    providerOrganization: getBrandConfig().name,
+  })
+
+  if (redis) {
+    try {
+      await redis.set(cacheKey, JSON.stringify(card), 'EX', AGENT_CARD_CACHE_TTL_SECONDS)
+    } catch (err) {
+      logger.warn('Redis cache write failed', { agentId, error: err })
+    }
+  }
+
+  return { ok: true, card, cacheHit: false }
 }
 
-interface TaskIdParams {
-  id: string
-  historyLength?: number
-}
-
-interface PushNotificationSetParams {
-  id: string
-  pushNotificationConfig: PushNotificationConfig
-}
-
-export function createResponse(id: string | number | null, result: unknown): JSONRPCResponse {
-  return { jsonrpc: '2.0', id, result }
-}
-
-export function createError(
-  id: string | number | null,
-  code: number,
-  message: string,
-  data?: unknown
-): JSONRPCResponse {
-  return { jsonrpc: '2.0', id, error: { code, message, data } }
-}
-
-export function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
-  if (!obj || typeof obj !== 'object') return false
-  const r = obj as Record<string, unknown>
-  return r.jsonrpc === '2.0' && typeof r.method === 'string' && r.id !== undefined
-}
-
-export function generateTaskId(): string {
-  return generateId()
-}
-
-export function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
+export function createTaskStatus(state: TaskState): TaskStatus {
   return { state, timestamp: new Date().toISOString() }
+}
+
+export function buildTaskResponse(params: {
+  taskId: string
+  contextId: string
+  state: TaskState
+  history: Message[]
+  artifacts?: Artifact[]
+}): Task {
+  return {
+    kind: 'task',
+    id: params.taskId,
+    contextId: params.contextId,
+    status: createTaskStatus(params.state),
+    history: params.history,
+    artifacts: params.artifacts || [],
+  }
+}
+
+export function buildStatusUpdate(params: {
+  taskId: string
+  contextId: string
+  state: TaskState
+  final: boolean
+}): TaskStatusUpdateEvent {
+  return {
+    kind: 'status-update',
+    taskId: params.taskId,
+    contextId: params.contextId,
+    status: createTaskStatus(params.state),
+    final: params.final,
+  }
 }
 
 export function formatTaskResponse(task: Task, historyLength?: number): Task {
@@ -141,37 +180,16 @@ export function extractAgentContent(executeResult: {
   output?: { content?: string; [key: string]: unknown }
   error?: string
 }): string {
-  // Prefer explicit content field
   if (executeResult.output?.content) {
     return executeResult.output.content
   }
 
-  // If output is an object with meaningful data, stringify it
   if (typeof executeResult.output === 'object' && executeResult.output !== null) {
     const keys = Object.keys(executeResult.output)
-    // Skip empty objects or objects with only undefined values
     if (keys.length > 0 && keys.some((k) => executeResult.output![k] !== undefined)) {
       return JSON.stringify(executeResult.output)
     }
   }
 
-  // Fallback to error message or default
   return executeResult.error || 'Task completed'
-}
-
-export function buildTaskResponse(params: {
-  taskId: string
-  contextId: string
-  state: TaskState
-  history: Message[]
-  artifacts?: Artifact[]
-}): Task {
-  return {
-    kind: 'task',
-    id: params.taskId,
-    contextId: params.contextId,
-    status: createTaskStatus(params.state),
-    history: params.history,
-    artifacts: params.artifacts || [],
-  }
 }

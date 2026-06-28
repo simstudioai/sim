@@ -17,9 +17,9 @@ export const A2A_DEFAULT_CAPABILITIES = {
   stateTransitionHistory: true,
 } as const
 
-export const A2A_DEFAULT_INPUT_MODES = ['text'] as const
+export const A2A_DEFAULT_INPUT_MODES = ['text/plain', 'application/json'] as const
 
-export const A2A_DEFAULT_OUTPUT_MODES = ['text'] as const
+export const A2A_DEFAULT_OUTPUT_MODES = ['text/plain', 'application/json'] as const
 
 export const A2A_CACHE = {
   AGENT_CARD_TTL: 3600, // 1 hour

@@ -35,8 +35,10 @@ export interface A2AResponse extends ToolResponse {
     description?: string
     /** Agent URL (get_agent_card) */
     url?: string
-    /** Agent version (get_agent_card) */
+    /** Agent's own version (get_agent_card) */
     version?: string
+    /** A2A protocol version supported by the agent (get_agent_card) */
+    protocolVersion?: string
     /** Agent capabilities (get_agent_card) */
     capabilities?: Record<string, boolean>
     /** Agent skills (get_agent_card) */
@@ -320,7 +322,11 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     },
     version: {
       type: 'string',
-      description: 'Agent version',
+      description: "Agent's own version",
+    },
+    protocolVersion: {
+      type: 'string',
+      description: 'A2A protocol version supported by the agent',
     },
     capabilities: {
       type: 'json',

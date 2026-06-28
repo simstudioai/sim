@@ -171,8 +171,14 @@ export const A2A_OUTPUT_PROPERTIES = {
     optional: true,
   },
 
-  /** Protocol version (single string from protocolVersion field) */
-  version: { type: 'string', description: 'A2A protocol version supported by the agent' },
+  /** Agent's own version (semver), from the card's `version` field */
+  version: { type: 'string', description: "The agent's own version" },
+
+  /** A2A protocol version, from the card's `protocolVersion` field */
+  protocolVersion: {
+    type: 'string',
+    description: 'A2A protocol version supported by the agent',
+  },
 
   /** Default input modes */
   defaultInputModes: {
@@ -227,6 +233,7 @@ export interface A2AGetAgentCardResponse extends ToolResponse {
     description?: string
     url: string
     version: string
+    protocolVersion: string
     capabilities?: {
       streaming?: boolean
       pushNotifications?: boolean

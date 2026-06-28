@@ -1,4 +1,4 @@
-import type { AgentCapabilities, AgentSkill, Message } from '@a2a-js/sdk'
+import type { AgentCapabilities, AgentSkill } from '@a2a-js/sdk'
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type { AgentAuthentication } from '@/lib/a2a/types'
@@ -90,25 +90,29 @@ export const a2aAgentSchema = z.object({
   taskCount: z.number().optional(),
 })
 
-export const a2aAgentCardSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  url: z.string(),
-  protocolVersion: z.string(),
-  version: z.string().optional(),
-  documentationUrl: z.string().optional(),
-  provider: z
-    .object({
-      organization: z.string(),
-      url: z.string().optional(),
-    })
-    .optional(),
-  capabilities: a2aAgentCapabilitiesSchema,
-  skills: z.array(a2aAgentSkillSchema),
-  authentication: a2aAgentAuthenticationSchema.optional(),
-  defaultInputModes: z.array(z.string()),
-  defaultOutputModes: z.array(z.string()),
-})
+export const a2aAgentCardSchema = z
+  .object({
+    protocolVersion: z.string(),
+    name: z.string(),
+    description: z.string(),
+    url: z.string(),
+    version: z.string(),
+    preferredTransport: z.string().optional(),
+    documentationUrl: z.string().optional(),
+    provider: z
+      .object({
+        organization: z.string(),
+        url: z.string().optional(),
+      })
+      .optional(),
+    capabilities: a2aAgentCapabilitiesSchema,
+    skills: z.array(a2aAgentSkillSchema),
+    defaultInputModes: z.array(z.string()),
+    defaultOutputModes: z.array(z.string()),
+  })
+  // Agent cards carry optional SDK fields (securitySchemes, security, iconUrl,
+  // additionalInterfaces, signatures) that pass through untouched.
+  .passthrough()
 
 export const listA2AAgentsContract = defineRouteContract({
   method: 'GET',
@@ -197,43 +201,7 @@ export const a2aServeAgentParamsSchema = z.object({
 })
 export type A2AServeAgentParams = z.output<typeof a2aServeAgentParamsSchema>
 
-export const a2aJsonRpcIdSchema = z.union([z.string(), z.number(), z.null()])
-export type A2AJsonRpcId = z.output<typeof a2aJsonRpcIdSchema>
-
-export const a2aJsonRpcRequestSchema = z
-  .object({
-    jsonrpc: z.literal('2.0'),
-    id: a2aJsonRpcIdSchema,
-    method: z.string(),
-    params: z.unknown().optional(),
-  })
-  .passthrough()
-export type A2AJsonRpcRequest = z.output<typeof a2aJsonRpcRequestSchema>
-
-export const a2aMessageSendParamsSchema = z
-  .object({
-    message: z.custom<Message>(isRecordLike),
-  })
-  .passthrough()
-export type A2AMessageSendParams = z.output<typeof a2aMessageSendParamsSchema>
-
-export const a2aTaskIdParamsSchema = z
-  .object({
-    id: z.string().min(1),
-    historyLength: z.number().optional(),
-  })
-  .passthrough()
-export type A2ATaskIdParams = z.output<typeof a2aTaskIdParamsSchema>
-
-export const a2aPushNotificationSetParamsSchema = z
-  .object({
-    id: z.string().min(1),
-    pushNotificationConfig: z
-      .object({
-        url: z.string().min(1),
-        token: z.string().optional(),
-      })
-      .passthrough(),
-  })
-  .passthrough()
-export type A2APushNotificationSetParams = z.output<typeof a2aPushNotificationSetParamsSchema>
+/**
+ * JSON-RPC request/param validation for the A2A serve endpoint is owned by the
+ * `@a2a-js/sdk` `JsonRpcTransportHandler`, so no boundary schemas live here.
+ */
