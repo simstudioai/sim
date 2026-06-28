@@ -709,13 +709,6 @@ export function GroupDetail({
         hint: 'Hide the MCP server deployment option.',
       },
       {
-        id: 'hide-deploy-a2a',
-        label: 'A2A',
-        category: 'Deploy Tabs',
-        configKey: 'hideDeployA2a' as const,
-        hint: 'Hide the agent-to-agent deployment option.',
-      },
-      {
         id: 'hide-deploy-chatbot',
         label: 'Chat',
         category: 'Deploy Tabs',

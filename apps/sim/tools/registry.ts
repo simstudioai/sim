@@ -1,14 +1,4 @@
 import {
-  a2aCancelTaskTool,
-  a2aDeletePushNotificationTool,
-  a2aGetAgentCardTool,
-  a2aGetPushNotificationTool,
-  a2aGetTaskTool,
-  a2aResubscribeTool,
-  a2aSendMessageTool,
-  a2aSetPushNotificationTool,
-} from '@/tools/a2a'
-import {
   agentmailCreateDraftTool,
   agentmailCreateInboxTool,
   agentmailDeleteDraftTool,
@@ -4115,14 +4105,6 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
-  a2a_cancel_task: a2aCancelTaskTool,
-  a2a_delete_push_notification: a2aDeletePushNotificationTool,
-  a2a_get_agent_card: a2aGetAgentCardTool,
-  a2a_get_push_notification: a2aGetPushNotificationTool,
-  a2a_get_task: a2aGetTaskTool,
-  a2a_resubscribe: a2aResubscribeTool,
-  a2a_send_message: a2aSendMessageTool,
-  a2a_set_push_notification: a2aSetPushNotificationTool,
   agentmail_create_draft: agentmailCreateDraftTool,
   agentmail_create_inbox: agentmailCreateInboxTool,
   agentmail_delete_draft: agentmailDeleteDraftTool,

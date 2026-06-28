@@ -454,7 +454,7 @@ async function handleExecutePost(
     }
 
     // Programmatic execution (API key or public API) is gated on the workflow's
-    // workspace billed account — the same entity MCP/A2A/webhooks/chat gate on —
+    // workspace billed account — the same entity MCP/webhooks/chat gate on —
     // so a paid workspace is never blocked because an individual is on free.
     if (auth.authType === AuthType.API_KEY || isPublicApiAccess) {
       if (!gateWorkspaceId) {

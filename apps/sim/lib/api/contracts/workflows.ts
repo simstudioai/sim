@@ -323,7 +323,6 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
   'chat',
   'webhook',
   'mcp',
-  'a2a',
   'copilot',
   'mothership',
   'workflow',

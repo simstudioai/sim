@@ -40,7 +40,6 @@ export const permissionGroupConfigSchema = z.object({
   allowedFileShareAuthTypes: z.array(z.enum(FILE_SHARE_AUTH_TYPES)).nullable().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
-  hideDeployA2a: z.boolean().optional(),
   hideDeployChatbot: z.boolean().optional(),
   hideDeployTemplate: z.boolean().optional(),
 })
@@ -79,7 +78,6 @@ export interface PermissionGroupConfig {
   allowedFileShareAuthTypes: ShareAuthType[] | null
   hideDeployApi: boolean
   hideDeployMcp: boolean
-  hideDeployA2a: boolean
   hideDeployChatbot: boolean
   hideDeployTemplate: boolean
 }
@@ -107,7 +105,6 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   allowedFileShareAuthTypes: null,
   hideDeployApi: false,
   hideDeployMcp: false,
-  hideDeployA2a: false,
   hideDeployChatbot: false,
   hideDeployTemplate: false,
 }
@@ -152,7 +149,6 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
       : null,
     hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,
     hideDeployMcp: typeof c.hideDeployMcp === 'boolean' ? c.hideDeployMcp : false,
-    hideDeployA2a: typeof c.hideDeployA2a === 'boolean' ? c.hideDeployA2a : false,
     hideDeployChatbot: typeof c.hideDeployChatbot === 'boolean' ? c.hideDeployChatbot : false,
     hideDeployTemplate: typeof c.hideDeployTemplate === 'boolean' ? c.hideDeployTemplate : false,
   }
