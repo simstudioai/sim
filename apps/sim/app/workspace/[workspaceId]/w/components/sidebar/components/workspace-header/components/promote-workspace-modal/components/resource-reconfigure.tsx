@@ -231,9 +231,8 @@ function BlockReconfig({
               context={{
                 ...field.context,
                 ...providedValues,
-                // The target workspace, for workspace-scoped selectors (e.g. table.columns). The
-                // parent value below wins on key collision, though parentContextKey never collides.
-                ...(workspaceId ? { workspaceId } : {}),
+                // Target workspace, for workspace-scoped selectors like table.columns.
+                workspaceId,
                 [field.parentContextKey]: parentTargetValue,
               }}
               enabled={parentTargetValue !== '' && ready}
