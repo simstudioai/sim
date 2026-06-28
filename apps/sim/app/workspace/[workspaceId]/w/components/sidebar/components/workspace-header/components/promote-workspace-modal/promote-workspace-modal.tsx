@@ -588,6 +588,7 @@ export function PromoteWorkspaceModal({
                       dependents={dependentsForEntry(entry)}
                       parentTargetValue={targetFor(entry)}
                       parentChanged={shouldReconfigureEntry(entry, targets)}
+                      workspaceId={diff.data?.targetWorkspaceId ?? ''}
                       reconfig={reconfig}
                       setReconfig={setReconfig}
                     />

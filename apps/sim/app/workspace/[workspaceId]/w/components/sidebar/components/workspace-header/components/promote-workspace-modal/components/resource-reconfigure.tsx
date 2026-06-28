@@ -44,6 +44,12 @@ interface ResourceReconfigureProps {
   parentTargetValue: string
   /** True when the target was changed in-session: start blank (the old value won't resolve). */
   parentChanged: boolean
+  /**
+   * The target workspace the dependent selectors query against (direction-aware: the parent on
+   * push, the child on pull). Workspace-scoped selectors like `table.columns` and sim workflow
+   * pickers gate on it - the canvas supplies it from the active workspace, so the modal must too.
+   */
+  workspaceId: string
   reconfig: Record<string, string>
   setReconfig: Dispatch<SetStateAction<Record<string, string>>>
 }
@@ -60,6 +66,7 @@ export function ResourceReconfigure({
   dependents,
   parentTargetValue,
   parentChanged,
+  workspaceId,
   reconfig,
   setReconfig,
 }: ResourceReconfigureProps) {
@@ -93,6 +100,7 @@ export function ResourceReconfigure({
               blocks={workflow.blocks}
               parentTargetValue={parentTargetValue}
               parentChanged={parentChanged}
+              workspaceId={workspaceId}
               reconfig={reconfig}
               setReconfig={setReconfig}
             />
@@ -108,6 +116,7 @@ interface ReconfigWorkflowRowProps {
   blocks: ReconfigBlock[]
   parentTargetValue: string
   parentChanged: boolean
+  workspaceId: string
   reconfig: Record<string, string>
   setReconfig: Dispatch<SetStateAction<Record<string, string>>>
 }
@@ -118,6 +127,7 @@ function ReconfigWorkflowRow({
   blocks,
   parentTargetValue,
   parentChanged,
+  workspaceId,
   reconfig,
   setReconfig,
 }: ReconfigWorkflowRowProps) {
@@ -155,6 +165,7 @@ function ReconfigWorkflowRow({
               block={block}
               parentTargetValue={parentTargetValue}
               parentChanged={parentChanged}
+              workspaceId={workspaceId}
               reconfig={reconfig}
               setReconfig={setReconfig}
             />
@@ -168,6 +179,7 @@ interface BlockReconfigProps {
   block: ReconfigBlock
   parentTargetValue: string
   parentChanged: boolean
+  workspaceId: string
   reconfig: Record<string, string>
   setReconfig: Dispatch<SetStateAction<Record<string, string>>>
 }
@@ -177,6 +189,7 @@ function BlockReconfig({
   block,
   parentTargetValue,
   parentChanged,
+  workspaceId,
   reconfig,
   setReconfig,
 }: BlockReconfigProps) {
@@ -218,6 +231,9 @@ function BlockReconfig({
               context={{
                 ...field.context,
                 ...providedValues,
+                // The target workspace, for workspace-scoped selectors (e.g. table.columns). The
+                // parent value below wins on key collision, though parentContextKey never collides.
+                ...(workspaceId ? { workspaceId } : {}),
                 [field.parentContextKey]: parentTargetValue,
               }}
               enabled={parentTargetValue !== '' && ready}
