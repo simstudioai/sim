@@ -280,6 +280,15 @@ describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
     expect(result?.content).toContain('present.txt')
   })
 
+  it('surfaces an archive error on a nested read instead of null', async () => {
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(Buffer.from('not a zip at all'))
+
+    const result = await readChatUploadPath('bundle.zip', 'entry.txt', CHAT_ID)
+
+    expect(result?.content).toContain('Not a valid .zip archive')
+  })
+
   it('rejects an oversized archive WITHOUT downloading it', async () => {
     mockOrderByThenLimit([
       makeRow({

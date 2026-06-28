@@ -306,31 +306,32 @@ export async function listChatUploadArchiveEntries(
 
 /**
  * Render one archive entry from the archive buffer with the same extraction
- * logic as a stored upload. Returns null when the entry is missing; returns a
- * placeholder result for cap violations.
+ * logic as a stored upload. Returns null when the entry is genuinely missing;
+ * returns a bracketed placeholder for any {@link ArchiveError} (invalid archive,
+ * too many entries, oversized entry) — matching {@link buildArchiveManifest} so a
+ * nested read surfaces the real reason instead of the VFS "Upload not found".
  */
 async function readArchiveEntry(
   archiveBuffer: Buffer,
   entryPath: string
 ): Promise<FileReadResult | null> {
-  const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
-  if (!rawPath) return null
-  let entryBuffer: Buffer | null
   try {
-    entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+    const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
+    if (!rawPath) return null
+    const entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+    if (!entryBuffer) return null
+    const ext = getFileExtension(rawPath)
+    return renderFileBuffer(entryBuffer, {
+      name: rawPath,
+      type: getMimeTypeFromExtension(ext),
+      ext,
+    })
   } catch (err) {
     if (err instanceof ArchiveError) {
       return { content: `[${err.message}]`, totalLines: 1 }
     }
     throw err
   }
-  if (!entryBuffer) return null
-  const ext = getFileExtension(rawPath)
-  return renderFileBuffer(entryBuffer, {
-    name: rawPath,
-    type: getMimeTypeFromExtension(ext),
-    ext,
-  })
 }
 
 /**
@@ -440,32 +441,35 @@ export async function grepChatUploadPath(
       )
     }
     const archiveBuffer = await fetchWorkspaceFileBuffer(record)
-    const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
-    if (!rawPath) {
-      throw new WorkspaceFileGrepError(
-        `Archive entry not found: "${decodeEntryPath(entryPath)}" in "${record.name}".`
-      )
-    }
-    let entryBuffer: Buffer | null
     try {
-      entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+      const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
+      if (!rawPath) {
+        throw new WorkspaceFileGrepError(
+          `Archive entry not found: "${decodeEntryPath(entryPath)}" in "${record.name}".`
+        )
+      }
+      const entryBuffer = await extractArchiveEntry(archiveBuffer, rawPath)
+      if (!entryBuffer) {
+        throw new WorkspaceFileGrepError(
+          `Archive entry not found: "${rawPath}" in "${record.name}".`
+        )
+      }
+      const ext = getFileExtension(rawPath)
+      const result = await renderFileBuffer(entryBuffer, {
+        name: rawPath,
+        type: getMimeTypeFromExtension(ext),
+        ext,
+      })
+      const uploadsPath = `uploads/${encodeUploadName(record.name)}/${encodeEntryPath(rawPath)}`
+      return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
     } catch (err) {
+      // Surface archive failures (invalid/too-many/oversized) as a grep error
+      // with the real reason rather than a generic internal failure.
       if (err instanceof ArchiveError) {
         throw new WorkspaceFileGrepError(err.message)
       }
       throw err
     }
-    if (!entryBuffer) {
-      throw new WorkspaceFileGrepError(`Archive entry not found: "${rawPath}" in "${record.name}".`)
-    }
-    const ext = getFileExtension(rawPath)
-    const result = await renderFileBuffer(entryBuffer, {
-      name: rawPath,
-      type: getMimeTypeFromExtension(ext),
-      ext,
-    })
-    const uploadsPath = `uploads/${encodeUploadName(record.name)}/${encodeEntryPath(rawPath)}`
-    return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
   }
 
   const result = await readFileRecord(record)
