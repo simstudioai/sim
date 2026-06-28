@@ -152,9 +152,12 @@ async function loadArchive(buffer: Buffer): Promise<JSZip> {
  * Enumerate the safe, extractable entry paths of an archive WITHOUT inflating
  * them, each a sanitized `/`-joined path (e.g. `data/sheet.csv`). Skips
  * directories, symlinks, zip-slip paths, and filesystem noise (`__MACOSX/`,
- * `.DS_Store`, `Thumbs.db`), and de-duplicates entries that sanitize to the same
- * path (e.g. `./a/b` and `a/b`) since only the first is extractable by path.
- * Throws {@link ArchiveError} `too_many_entries` past {@link MAX_ARCHIVE_ENTRIES}.
+ * `.DS_Store`, `Thumbs.db`). Throws {@link ArchiveError} `too_many_entries` past
+ * {@link MAX_ARCHIVE_ENTRIES}.
+ *
+ * Paths are returned raw (not de-duplicated): two entries can collide only once
+ * projected into the VFS's canonical (NFC-encoded) form, so de-duplication
+ * belongs with the caller that owns that encoding (`listChatUploadArchiveEntries`).
  */
 export async function listArchiveEntries(buffer: Buffer): Promise<string[]> {
   const zip = await loadArchive(buffer)
@@ -169,15 +172,11 @@ export async function listArchiveEntries(buffer: Buffer): Promise<string[]> {
     )
   }
 
-  const seen = new Set<string>()
   const paths: string[] = []
   for (const entry of realEntries) {
     const segments = sanitizeArchiveEntryPath(entry.name)
     if (!segments || isArchiveNoiseEntry(segments)) continue
-    const path = segments.join('/')
-    if (seen.has(path)) continue
-    seen.add(path)
-    paths.push(path)
+    paths.push(segments.join('/'))
   }
   return paths
 }

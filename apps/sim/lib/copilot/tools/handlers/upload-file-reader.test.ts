@@ -245,6 +245,29 @@ describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
     ])
   })
 
+  it('de-duplicates entries that collapse to one VFS key (NFC/NFD, ./ prefix)', async () => {
+    // "café.txt" stored twice (NFC precomposed + NFD decomposed) plus a
+    // ./-prefixed duplicate of a/b.txt — all collapse to the same VFS path, so
+    // only one of each must be listed (otherwise the second is unreachable).
+    const nfc = `caf\u00e9.txt` // precomposed e-acute
+    const nfd = `cafe\u0301.txt` // e + combining acute
+    expect(nfc).not.toBe(nfd)
+    const buffer = await buildZip({
+      [nfc]: 'nfc',
+      [nfd]: 'nfd',
+      'a/b.txt': 'first',
+      './a/b.txt': 'dup',
+    })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const entries = await listChatUploadArchiveEntries('bundle.zip', CHAT_ID)
+    const vfsPaths = entries?.map((e) => e.vfsPath) ?? []
+
+    expect(vfsPaths.filter((p) => p === 'uploads/bundle.zip/caf%C3%A9.txt')).toHaveLength(1)
+    expect(vfsPaths.filter((p) => p === 'uploads/bundle.zip/a/b.txt')).toHaveLength(1)
+  })
+
   it('reads a nested entry by its exact path', async () => {
     const buffer = await buildZip({ 'data/sheet.csv': 'a,b\n1,2' })
     mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])

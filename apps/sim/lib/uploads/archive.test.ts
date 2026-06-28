@@ -61,17 +61,6 @@ describe('listArchiveEntries', () => {
     expect(paths).not.toContain('evil2.txt')
   })
 
-  it('de-duplicates entries that sanitize to the same path', async () => {
-    const buffer = await buildZip({
-      'a/b.txt': 'first',
-      './a/b.txt': 'shadowed',
-    })
-
-    const paths = await listArchiveEntries(buffer)
-
-    expect(paths).toEqual(['a/b.txt'])
-  })
-
   it('filters __MACOSX, .DS_Store and Thumbs.db noise', async () => {
     const buffer = await buildZip({
       'doc.txt': 'real',

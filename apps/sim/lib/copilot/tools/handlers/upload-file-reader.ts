@@ -243,6 +243,25 @@ function archiveEntryKey(path: string): string | null {
 }
 
 /**
+ * De-duplicate raw entry paths by their canonical VFS key (first wins), so two
+ * entries that differ only in a form the VFS normalizes away (NFC vs NFD, U+202F
+ * vs space, collapsed whitespace) collapse to one listed path. This matches how
+ * {@link findArchiveEntryRawPath} resolves a read — first entry whose key matches
+ * — so every listed path is reachable and none is silently shadowed.
+ */
+function dedupeArchiveEntriesByKey(paths: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const path of paths) {
+    const key = archiveEntryKey(path) ?? path
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(path)
+  }
+  return result
+}
+
+/**
  * Resolve a requested entry path (percent-encoded as the agent received it from
  * glob, or the raw display form from the manifest) to the archive's exact stored
  * path. Matching is on the canonical key so the NFC + whitespace normalization
@@ -289,7 +308,7 @@ export async function listChatUploadArchiveEntries(
   const encodedZip = encodeUploadName(record.name)
   try {
     const buffer = await fetchWorkspaceFileBuffer(record)
-    const entries = await listArchiveEntries(buffer)
+    const entries = dedupeArchiveEntriesByKey(await listArchiveEntries(buffer))
     return entries.map((path) => ({
       path,
       vfsPath: `uploads/${encodedZip}/${encodeEntryPath(path)}`,
@@ -348,7 +367,7 @@ async function buildArchiveManifest(
 ): Promise<FileReadResult> {
   const encodedZip = encodeUploadName(record.name)
   try {
-    const entries = await listArchiveEntries(archiveBuffer)
+    const entries = dedupeArchiveEntriesByKey(await listArchiveEntries(archiveBuffer))
     const header = `Archive "${record.name}" — ${entries.length} file${
       entries.length === 1 ? '' : 's'
     }. Read an entry with read("uploads/${encodedZip}/<path>").`
