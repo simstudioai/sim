@@ -252,14 +252,31 @@ describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
     expect(result?.content).toBe('latte')
   })
 
-  it('returns null for an entry that is not in the archive', async () => {
+  it('falls back to the manifest (with a note) when the entry is not found', async () => {
     const buffer = await buildZip({ 'present.txt': 'x' })
     mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
     mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
 
-    const result = await readChatUploadPath('bundle.zip', 'missing.txt', CHAT_ID)
+    // Covers the /content habit suffix and plain typos uniformly.
+    const result = await readChatUploadPath('bundle.zip', 'content', CHAT_ID)
 
-    expect(result).toBeNull()
+    expect(result?.content).toContain('Entry "content" not found in "bundle.zip"')
+    expect(result?.content).toContain('present.txt')
+  })
+
+  it('rejects an oversized archive WITHOUT downloading it', async () => {
+    mockOrderByThenLimit([
+      makeRow({
+        displayName: 'huge.zip',
+        contentType: 'application/zip',
+        size: 200 * 1024 * 1024, // 200MB > 100MB cap
+      }),
+    ])
+
+    const result = await readChatUploadPath('huge.zip', 'anything.txt', CHAT_ID)
+
+    expect(result?.content).toContain('[Archive too large to read: huge.zip')
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 
   it('returns the file-tree manifest for a bare archive read', async () => {

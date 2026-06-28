@@ -17,7 +17,12 @@ import {
 } from '@/lib/copilot/vfs/operations'
 import { decodeVfsSegment, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
-import { ArchiveError, extractArchiveEntry, listArchiveEntries } from '@/lib/uploads/archive'
+import {
+  ArchiveError,
+  extractArchiveEntry,
+  listArchiveEntries,
+  MAX_ARCHIVE_BYTES,
+} from '@/lib/uploads/archive'
 import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
@@ -160,6 +165,26 @@ export function isArchiveUpload(record: WorkspaceFileRecord): boolean {
   return isArchiveFileName(record.name)
 }
 
+/**
+ * True when an archive's stored size exceeds the read cap, so it must not be
+ * downloaded + parsed inline. Checked against `record.size` BEFORE fetching so an
+ * oversized archive never gets buffered into memory (the decompress tool applies
+ * the same {@link MAX_ARCHIVE_BYTES} cap on its own download path).
+ */
+function exceedsArchiveReadCap(record: WorkspaceFileRecord): boolean {
+  return record.size > MAX_ARCHIVE_BYTES
+}
+
+/** Placeholder for an archive too large to download and extract inline. */
+function archiveTooLargeResult(record: WorkspaceFileRecord): FileReadResult {
+  return {
+    content: `[Archive too large to read: ${record.name} (${Math.round(
+      record.size / 1024 / 1024
+    )}MB, limit ${MAX_ARCHIVE_BYTES / 1024 / 1024}MB)]`,
+    totalLines: 1,
+  }
+}
+
 /** Decode each `/`-separated segment of a VFS entry path back to its real name. */
 function decodeEntryPath(raw: string): string {
   return raw
@@ -233,6 +258,10 @@ export async function listChatUploadArchiveEntries(
   if (!row) return null
   const record = toWorkspaceFileRecord(row)
   if (!isArchiveUpload(record)) return null
+  if (exceedsArchiveReadCap(record)) {
+    logger.warn('Archive too large to list entries', { zipName, chatId, size: record.size })
+    return []
+  }
 
   const encodedZip = canonicalUploadKey(record.name)
   try {
@@ -282,13 +311,16 @@ async function readArchiveEntry(
 }
 
 /**
- * Build a file-tree manifest for a bare archive read (`read("uploads/x.zip")`),
- * so the agent gets the contents instead of binary bytes. Returns a placeholder
- * result when the archive is unreadable.
+ * Build a file-tree manifest for an archive (`read("uploads/x.zip")`), so the
+ * agent gets the contents instead of binary bytes. An optional `note` is
+ * prepended — used to tell the agent a requested entry was not found while still
+ * showing the valid paths. Returns a placeholder result when the archive is
+ * unreadable.
  */
 async function buildArchiveManifest(
   record: WorkspaceFileRecord,
-  archiveBuffer: Buffer
+  archiveBuffer: Buffer,
+  note?: string
 ): Promise<FileReadResult> {
   const encodedZip = canonicalUploadKey(record.name)
   try {
@@ -296,7 +328,7 @@ async function buildArchiveManifest(
     const header = `Archive "${record.name}" — ${entries.length} file${
       entries.length === 1 ? '' : 's'
     }. Read an entry with read("uploads/${encodedZip}/<path>").`
-    const content = [header, '', ...entries].join('\n')
+    const content = [...(note ? [note, ''] : []), header, '', ...entries].join('\n')
     return { content, totalLines: content.split('\n').length }
   } catch (err) {
     if (err instanceof ArchiveError) {
@@ -326,10 +358,23 @@ export async function readChatUploadPath(
     if (!isArchiveUpload(record)) {
       return await readFileRecord(record)
     }
+    if (exceedsArchiveReadCap(record)) {
+      return archiveTooLargeResult(record)
+    }
     const archiveBuffer = await fetchWorkspaceFileBuffer(record)
-    return entryPath
-      ? await readArchiveEntry(archiveBuffer, entryPath)
-      : await buildArchiveManifest(record, archiveBuffer)
+    if (!entryPath) {
+      return await buildArchiveManifest(record, archiveBuffer)
+    }
+    const entry = await readArchiveEntry(archiveBuffer, entryPath)
+    if (entry) return entry
+    // Entry not found — show the manifest so the agent can pick a valid path.
+    // Handles a stray `/content` habit suffix (carried over from files/) and
+    // plain typos uniformly, without special-casing any segment name.
+    return await buildArchiveManifest(
+      record,
+      archiveBuffer,
+      `Entry "${decodeEntryPath(entryPath)}" not found in "${record.name}".`
+    )
   } catch (err) {
     logger.warn('Failed to read chat upload', {
       firstSegment,
@@ -366,6 +411,11 @@ export async function grepChatUploadPath(
   const record = toWorkspaceFileRecord(row)
 
   if (entryPath && isArchiveUpload(record)) {
+    if (exceedsArchiveReadCap(record)) {
+      throw new WorkspaceFileGrepError(
+        `Archive too large to grep: "${record.name}" (limit ${MAX_ARCHIVE_BYTES / 1024 / 1024}MB).`
+      )
+    }
     const archiveBuffer = await fetchWorkspaceFileBuffer(record)
     const rawPath = await findArchiveEntryRawPath(archiveBuffer, entryPath)
     if (!rawPath) {
