@@ -53,6 +53,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'x-exa-integration': 'sim',
     }),
     body: (params) => {
       const body: Record<string, any> = {

@@ -42,6 +42,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'x-exa-integration': 'sim',
     }),
     body: (params) => {
       const body: any = {
@@ -85,6 +86,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
           headers: {
             'x-api-key': params.apiKey,
             'Content-Type': 'application/json',
+            'x-exa-integration': 'sim',
           },
         })
 
