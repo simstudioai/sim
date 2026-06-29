@@ -43,7 +43,11 @@ export const outlookSearchTool: ToolConfig<OutlookSearchParams, OutlookSearchRes
 
   request: {
     url: (params) => {
-      const query = params.query?.trim()
+      const rawQuery = params.query?.trim()
+      if (!rawQuery) {
+        throw new Error('A search query is required')
+      }
+      const query = rawQuery.replace(/"/g, ' ').trim()
       if (!query) {
         throw new Error('A search query is required')
       }

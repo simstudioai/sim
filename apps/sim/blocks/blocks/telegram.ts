@@ -583,20 +583,10 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             if (!params.question) {
               throw new Error('Poll question is required.')
             }
-            const rawOptions = params.pollOptions
-            const options = Array.isArray(rawOptions)
-              ? rawOptions.map((option) => String(option).trim()).filter(Boolean)
-              : String(rawOptions ?? '')
-                  .split('\n')
-                  .map((option) => option.trim())
-                  .filter(Boolean)
-            if (options.length < 2) {
-              throw new Error('At least 2 poll options are required.')
-            }
             const pollParams: Record<string, unknown> = {
               ...commonParams,
               question: params.question,
-              options,
+              options: params.pollOptions,
             }
             if (params.isAnonymous !== undefined && params.isAnonymous !== '') {
               pollParams.isAnonymous = toBoolean(params.isAnonymous)

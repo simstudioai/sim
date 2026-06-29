@@ -379,9 +379,11 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       title: 'Archive Block',
       type: 'dropdown',
       options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
+        { label: 'Leave unchanged', id: 'unchanged' },
+        { label: 'No (restore)', id: 'false' },
+        { label: 'Yes (archive)', id: 'true' },
       ],
+      value: () => 'unchanged',
       mode: 'advanced',
       condition: { field: 'operation', value: 'notion_update_block' },
     },
@@ -581,7 +583,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         // Coerce archived flag — agent calls deliver "true"/"false" strings
         let coercedArchived
-        if (operation === 'notion_update_block' && archived !== undefined && archived !== '') {
+        if (
+          operation === 'notion_update_block' &&
+          archived !== undefined &&
+          archived !== '' &&
+          archived !== 'unchanged'
+        ) {
           coercedArchived = archived === true || archived === 'true'
         }
 
