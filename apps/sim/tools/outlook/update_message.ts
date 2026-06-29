@@ -100,8 +100,11 @@ export const outlookUpdateMessageTool: ToolConfig<
       const rawCategories: unknown = params.categories
       if (Array.isArray(rawCategories)) {
         body.categories = normalizeCategories(rawCategories)
-      } else if (typeof rawCategories === 'string' && rawCategories.trim() !== '') {
-        body.categories = normalizeCategories(rawCategories)
+      } else if (typeof rawCategories === 'string') {
+        const normalizedCategories = normalizeCategories(rawCategories)
+        if (normalizedCategories.length > 0) {
+          body.categories = normalizedCategories
+        }
       }
 
       if (params.flagStatus) {
