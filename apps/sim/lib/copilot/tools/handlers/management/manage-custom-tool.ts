@@ -1,6 +1,8 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteCustomTool,
   getCustomToolById,
@@ -100,6 +102,30 @@ export async function executeManageCustomTool(
       })
       const created = resultTools.find((tool) => tool.title === title)
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.CUSTOM_TOOL_CREATED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: created?.id,
+        resourceName: title,
+        description: `Created custom tool "${title}"`,
+        metadata: { source: 'tool_input' },
+      })
+      if (created?.id) {
+        captureServerEvent(
+          context.userId,
+          'custom_tool_saved',
+          {
+            tool_id: created.id,
+            workspace_id: workspaceId,
+            tool_name: title,
+            source: 'tool_input',
+          },
+          { groups: { workspace: workspaceId } }
+        )
+      }
+
       return {
         success: true,
         output: {
@@ -148,6 +174,28 @@ export async function executeManageCustomTool(
         userId: context.userId,
       })
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.CUSTOM_TOOL_UPDATED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: params.toolId,
+        resourceName: title,
+        description: `Updated custom tool "${title}"`,
+        metadata: { source: 'tool_input' },
+      })
+      captureServerEvent(
+        context.userId,
+        'custom_tool_saved',
+        {
+          tool_id: params.toolId,
+          workspace_id: workspaceId,
+          tool_name: title,
+          source: 'tool_input',
+        },
+        { groups: { workspace: workspaceId } }
+      )
+
       return {
         success: true,
         output: {
@@ -179,6 +227,26 @@ export async function executeManageCustomTool(
           deleted.push(toolId)
         } else {
           notFound.push(toolId)
+        }
+      }
+
+      for (const toolId of deleted) {
+        recordAudit({
+          workspaceId: workspaceId ?? null,
+          actorId: context.userId,
+          action: AuditAction.CUSTOM_TOOL_DELETED,
+          resourceType: AuditResourceType.CUSTOM_TOOL,
+          resourceId: toolId,
+          description: 'Deleted custom tool',
+          metadata: { source: 'tool_input' },
+        })
+        if (workspaceId) {
+          captureServerEvent(
+            context.userId,
+            'custom_tool_deleted',
+            { tool_id: toolId, workspace_id: workspaceId, source: 'tool_input' },
+            { groups: { workspace: workspaceId } }
+          )
         }
       }
 

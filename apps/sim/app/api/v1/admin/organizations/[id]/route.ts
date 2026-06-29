@@ -16,6 +16,7 @@
  * Response: AdminSingleResponse<AdminOrganization>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -159,6 +160,18 @@ export const PATCH = withRouteHandler(
 
       logger.info(`Admin API: Updated organization ${organizationId}`, {
         fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+      })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORGANIZATION_UPDATED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        resourceName: updated.name,
+        description: `Admin API updated organization "${updated.name}"`,
+        metadata: { fields: Object.keys(updateData).filter((k) => k !== 'updatedAt') },
+        request,
       })
 
       return singleResponse(toAdminOrganization(updated))

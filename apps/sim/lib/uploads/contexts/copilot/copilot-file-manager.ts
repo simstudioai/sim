@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import {
+  checkStorageQuota,
+  decrementStorageUsage,
+  incrementStorageUsage,
+} from '@/lib/billing/storage'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   deleteFile,
@@ -7,6 +12,7 @@ import {
   generatePresignedUploadUrl,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
+import { deleteFileMetadata, getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
@@ -116,6 +122,11 @@ export async function uploadCopilotFile(options: {
   contentType: string
   userId: string
 }): Promise<CopilotStoredFile> {
+  const quotaCheck = await checkStorageQuota(options.userId, options.buffer.length)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
   const fileInfo = await uploadFile({
     file: options.buffer,
     fileName: options.fileName,
@@ -136,6 +147,12 @@ export async function uploadCopilotFile(options: {
     size: fileInfo.size,
     userId: options.userId,
   })
+
+  try {
+    await incrementStorageUsage(options.userId, options.buffer.length)
+  } catch (storageError) {
+    logger.error('Failed to update storage tracking:', storageError)
+  }
 
   return {
     id: fileInfo.key,
@@ -239,10 +256,26 @@ export async function generateCopilotDownloadUrl(
  * @param key File storage key
  */
 export async function deleteCopilotFile(key: string): Promise<void> {
+  // Storage accounting is best-effort: reading metadata must never prevent the
+  // file delete (the primary operation).
+  const metadata = await getFileMetadataByKey(key, 'copilot').catch((error) => {
+    logger.error('Failed to read copilot file metadata for storage accounting:', error)
+    return null
+  })
+
   await deleteFile({
     key,
     context: 'copilot',
   })
+
+  if (metadata) {
+    try {
+      await deleteFileMetadata(key)
+      await decrementStorageUsage(metadata.userId, metadata.size, metadata.workspaceId ?? undefined)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
+  }
 
   logger.info(`Successfully deleted copilot file: ${key}`)
 }

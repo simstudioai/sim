@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -18,6 +19,9 @@ type PendingVariable = {
   latest: { variableId: string; field: string; value: any; timestamp: number }
   timeout: NodeJS.Timeout
   opToSocket: Map<string, string>
+  /** Most recent writer, used as the audit actor when the coalesced update is persisted. */
+  actorId: string
+  actorName?: string
 }
 
 // Keyed by `${workflowId}:${variableId}:${field}`
@@ -177,6 +181,8 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
       if (existing) {
         clearTimeout(existing.timeout)
         existing.latest = { variableId, field, value, timestamp }
+        existing.actorId = session.userId
+        existing.actorName = session.userName
         if (operationId) existing.opToSocket.set(operationId, socket.id)
         existing.timeout = setTimeout(async () => {
           await flushVariableUpdate(workflowId, existing, roomManager)
@@ -196,6 +202,8 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
           latest: { variableId, field, value, timestamp },
           timeout,
           opToSocket,
+          actorId: session.userId,
+          actorName: session.userName,
         })
       }
     } catch (error) {
@@ -231,7 +239,11 @@ async function flushVariableUpdate(
 
   try {
     const workflowExists = await db
-      .select({ id: workflow.id })
+      .select({
+        id: workflow.id,
+        name: workflow.name,
+        workspaceId: workflow.workspaceId,
+      })
       .from(workflow)
       .where(eq(workflow.id, workflowId))
       .limit(1)
@@ -294,6 +306,19 @@ async function flushVariableUpdate(
     })
 
     if (updateSuccessful) {
+      const workflowRow = workflowExists[0]
+      recordAudit({
+        workspaceId: workflowRow.workspaceId ?? null,
+        actorId: pending.actorId,
+        actorName: pending.actorName,
+        action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: workflowId,
+        resourceName: workflowRow.name ?? undefined,
+        description: `Updated workflow variables`,
+        metadata: { variableId, field },
+      })
+
       // Broadcast to room excluding all senders (works cross-pod via Redis adapter)
       const senderSocketIds = [...pending.opToSocket.values()]
       const broadcastPayload = {

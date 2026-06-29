@@ -21,6 +21,7 @@
  * Response: AdminSingleResponse<{ removed: true, memberId: string, userId: string }>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -196,6 +197,22 @@ export const PATCH = withRouteHandler(
         previousPermissions: existingMember.permissionType,
       })
 
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: `Admin API changed workspace member permissions to ${permissionLevel}`,
+        metadata: {
+          memberId,
+          targetUserId: existingMember.userId,
+          previousPermissions: existingMember.permissionType,
+          permissions: permissionLevel,
+        },
+        request,
+      })
+
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update workspace member', { error, workspaceId, memberId })
@@ -273,6 +290,17 @@ export const DELETE = withRouteHandler(
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,
+      })
+
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.MEMBER_REMOVED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        description: 'Admin API removed member from workspace',
+        metadata: { memberId, targetUserId: existingMember.userId },
+        request,
       })
 
       return singleResponse({

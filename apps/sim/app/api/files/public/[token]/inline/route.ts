@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -10,6 +11,7 @@ import {
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -87,7 +89,28 @@ export const GET = withRouteHandler(
       }
 
       // Content-truth gate (`sniff`): render only genuine raster image bytes.
-      return await serveInlineImage(image, { sniff: true })
+      // Audit only after the bytes are accepted so a sniff rejection does not
+      // record a spurious download.
+      const response = await serveInlineImage(image, { sniff: true })
+
+      recordAudit({
+        workspaceId: doc.workspaceId,
+        actorId: doc.userId,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceName: image.filename,
+        description: `Public share inline image "${image.filename}"`,
+        metadata: { access: 'public_share', anonymous: true, inline: true },
+        request,
+      })
+      captureServerEvent(
+        doc.userId,
+        'file_downloaded',
+        { workspace_id: doc.workspaceId, is_bulk: false, file_count: 1 },
+        { groups: { workspace: doc.workspaceId } }
+      )
+
+      return response
     } catch (error) {
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)

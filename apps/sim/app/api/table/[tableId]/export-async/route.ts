@@ -58,7 +58,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     return NextResponse.json({ error: 'Failed to start export' }, { status: 409 })
   }
 
-  const payload: TableExportPayload = { jobId, tableId, workspaceId, format }
+  const payload: TableExportPayload = {
+    jobId,
+    tableId,
+    workspaceId,
+    format,
+    userId: authResult.userId,
+  }
   if (isTriggerDevEnabled) {
     try {
       const [{ tableExportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([

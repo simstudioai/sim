@@ -25,6 +25,7 @@
  * Response: { success: true, memberId: string, billingActions: {...} }
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -205,6 +206,22 @@ export const PATCH = withRouteHandler(
         previousRole: existingMember.role,
       })
 
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        description: `Admin API changed organization member role to ${role}`,
+        metadata: {
+          memberId,
+          targetUserId: existingMember.userId,
+          previousRole: existingMember.role,
+          role,
+        },
+        request,
+      })
+
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update member', { error, organizationId, memberId })
@@ -273,6 +290,17 @@ export const DELETE = withRouteHandler(
       logger.info(`Admin API: Removed member ${memberId} from organization ${organizationId}`, {
         userId,
         billingActions: result.billingActions,
+      })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORG_MEMBER_REMOVED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        description: 'Admin API removed member from organization',
+        metadata: { memberId, targetUserId: userId },
+        request,
       })
 
       return singleResponse({

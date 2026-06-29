@@ -90,6 +90,7 @@ describe('POST /api/table/[tableId]/export-async', () => {
       tableId: 'tbl_1',
       workspaceId: 'workspace-1',
       format: 'csv',
+      userId: 'user-1',
     })
   })
 

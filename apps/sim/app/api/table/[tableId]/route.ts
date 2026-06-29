@@ -125,7 +125,7 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const updated = await renameTable(tableId, validated.name, requestId)
+      const updated = await renameTable(tableId, validated.name, requestId, authResult.userId)
 
       return NextResponse.json({
         success: true,
@@ -172,7 +172,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      await deleteTable(tableId, requestId)
+      await deleteTable(tableId, requestId, authResult.userId)
 
       captureServerEvent(
         authResult.userId,

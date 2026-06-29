@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -173,6 +174,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { from_plan: sub.plan ?? 'unknown', to_plan: targetPlanName, interval: targetInterval },
       { set: { plan: targetPlanName } }
     )
+
+    if (isOrgScopedSubscription(sub, userId)) {
+      recordAudit({
+        actorId: userId,
+        action: AuditAction.ORG_PLAN_CONVERTED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: sub.referenceId,
+        description: `Plan converted from ${sub.plan ?? 'unknown'} to ${targetPlanName}`,
+        metadata: {
+          organizationId: sub.referenceId,
+          subscriptionId: sub.id,
+          fromPlan: sub.plan,
+          toPlan: targetPlanName,
+          interval: targetInterval,
+        },
+        request,
+      })
+      captureServerEvent(userId, 'plan_converted', {
+        organization_id: sub.referenceId,
+        from_plan: sub.plan ?? 'unknown',
+        to_plan: targetPlanName,
+      })
+    }
 
     return NextResponse.json({ success: true, plan: targetPlanName, interval: targetInterval })
   } catch (error) {

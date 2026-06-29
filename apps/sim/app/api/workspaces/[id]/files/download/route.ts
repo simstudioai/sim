@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -5,6 +6,7 @@ import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspac
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildWorkspaceFileFolderPathMap,
   fetchWorkspaceFileBuffer,
@@ -135,6 +137,23 @@ export const GET = withRouteHandler(
       }
 
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        description: `Downloaded ${filesToZip.length} file${filesToZip.length === 1 ? '' : 's'} as zip`,
+        metadata: { fileCount: filesToZip.length, totalBytes },
+        request,
+      })
+      captureServerEvent(
+        session.user.id,
+        'file_downloaded',
+        { workspace_id: workspaceId, is_bulk: true, file_count: filesToZip.length },
+        { groups: { workspace: workspaceId } }
+      )
+
       return new NextResponse(new Uint8Array(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
