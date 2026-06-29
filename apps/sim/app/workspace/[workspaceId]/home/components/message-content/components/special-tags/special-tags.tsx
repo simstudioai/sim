@@ -26,7 +26,6 @@ import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
   useUpsertWorkspaceEnvironment,
-  useWorkspaceEnvironment,
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -671,20 +670,11 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
   const { data: personalEnv } = usePersonalEnvironment()
-  const { data: workspaceEnv } = useWorkspaceEnvironment(workspaceId)
   const { canEdit } = useUserPermissionsContext()
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
   const canManage = scope === 'personal' || canEdit
-
-  // Reflect persisted state so the widget still shows "saved" after navigating
-  // away and back (local `saved` is lost on remount). Key presence is enough —
-  // workspace values come back masked for non-admins.
-  const alreadySaved =
-    scope === 'personal'
-      ? personalEnv !== undefined && secretName in personalEnv
-      : workspaceEnv !== undefined && secretName in workspaceEnv.workspace
 
   const isSaving = upsertWorkspace.isPending || savePersonal.isPending
   // Personal saves replace the whole map, so block until existing vars are loaded.
@@ -712,9 +702,9 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   }
 
   if (!secretName) return null
-  // Already-set keys show a read-only "saved" indicator for everyone; the editable
-  // input only renders for users who can actually set the key.
-  if (saved || alreadySaved) return <SecretReveal redacted />
+  // Only confirm after the user saves via THIS widget. A fresh prompt always shows
+  // the input so the user can set or override the key, even if it already exists.
+  if (saved) return <SecretReveal redacted />
   if (!canManage) return null
 
   return (
