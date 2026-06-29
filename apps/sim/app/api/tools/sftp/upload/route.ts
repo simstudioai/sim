@@ -96,6 +96,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        let resolvedTotal = 0
         for (const file of userFiles) {
           try {
             const denied = await assertToolFileAccess(
@@ -110,8 +111,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             )
             const { buffer } = await downloadServableFileFromStorage(file, requestId, logger)
 
-            if (buffer.length > maxSize) {
-              const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+            resolvedTotal += buffer.length
+            if (resolvedTotal > maxSize) {
+              const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
               return NextResponse.json(
                 { success: false, error: `Total file size (${sizeMB}MB) exceeds limit of 100MB` },
                 { status: 400 }
