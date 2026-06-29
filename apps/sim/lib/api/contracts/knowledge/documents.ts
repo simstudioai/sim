@@ -13,14 +13,28 @@ import {
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 
-export const documentTagFilterSchema = z.object({
-  tagSlot: z.string().min(1),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']),
-  operator: z.string().min(1),
-  value: z.unknown(),
-  valueTo: z.unknown().optional(),
-})
+export const documentTagFilterSchema = z
+  .object({
+    tagSlot: z.string().min(1),
+    fieldType: z.enum(['text', 'number', 'date', 'boolean']),
+    operator: z.string().min(1),
+    value: z.unknown(),
+    valueTo: z.unknown().optional(),
+  })
+  .superRefine((filter, ctx) => {
+    // Reject operators that aren't valid for the field type so a bad operator
+    // returns a 400 instead of being silently dropped by the query builder.
+    const validOperators = getOperatorsForFieldType(filter.fieldType).map((op) => op.value)
+    if (!validOperators.includes(filter.operator)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['operator'],
+        message: `Unsupported operator "${filter.operator}" for a ${filter.fieldType} tag filter`,
+      })
+    }
+  })
 export type DocumentTagFilter = z.output<typeof documentTagFilterSchema>
 
 export const listKnowledgeDocumentsQuerySchema = z.object({

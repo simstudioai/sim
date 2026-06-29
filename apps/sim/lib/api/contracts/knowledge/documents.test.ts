@@ -43,4 +43,21 @@ describe('parseDocumentTagFiltersParam', () => {
   it('throws when the shape is wrong', () => {
     expect(() => parseDocumentTagFiltersParam(JSON.stringify([{ tagSlot: '' }]))).toThrow()
   })
+
+  it('rejects an operator that is not valid for the field type', () => {
+    // unknown operator
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([{ tagSlot: 'tag1', fieldType: 'text', operator: 'bogus', value: 'x' }])
+      )
+    ).toThrow()
+    // valid operator name, wrong field type (contains is text-only)
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([
+          { tagSlot: 'number1', fieldType: 'number', operator: 'contains', value: '1' },
+        ])
+      )
+    ).toThrow()
+  })
 })
