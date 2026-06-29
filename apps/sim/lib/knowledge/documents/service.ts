@@ -14,10 +14,12 @@ import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   checkStorageQuota,
-  decrementStorageUsage,
+  decrementStorageUsageInTx,
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
@@ -2058,27 +2060,35 @@ export async function hardDeleteDocuments(
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
 
+  // Sum the billable bytes per owning user. Connector-synced documents are never
+  // metered at ingest (the sync engine inserts them directly), so they must not
+  // be decremented here.
+  const bytesByUser = new Map<string, number>()
+  for (const doc of documentsToDelete) {
+    if (doc.connectorId || doc.fileSize <= 0) continue
+    const billedUserId = doc.uploadedBy ?? doc.kbUserId
+    if (!billedUserId) continue
+    bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
+  }
+
+  // Resolve each owner's subscription before the transaction (these are reads),
+  // then decrement the counters inside the same transaction that deletes the
+  // rows, so a failure of either rolls both back — the billed storage can never
+  // be left inflated once the content is gone.
+  const subByUser = new Map<string, HighestPrioritySubscription | null>()
+  for (const billedUserId of bytesByUser.keys()) {
+    subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
+  }
+
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
     await tx.delete(document).where(inArray(document.id, existingIds))
+    for (const [billedUserId, bytes] of bytesByUser) {
+      await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
+    }
   })
 
   await deleteDocumentStorageFiles(documentsToDelete, requestId)
-
-  for (const doc of documentsToDelete) {
-    // Connector-synced documents are never metered at ingest (the sync engine
-    // inserts them directly), so they must not be decremented here — doing so
-    // would erode legitimately-counted bytes in the same owner counter.
-    if (doc.connectorId) continue
-    const billedUserId = doc.uploadedBy ?? doc.kbUserId
-    if (billedUserId && doc.fileSize > 0) {
-      try {
-        await decrementStorageUsage(billedUserId, doc.fileSize, doc.workspaceId ?? undefined)
-      } catch (storageError) {
-        logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
-      }
-    }
-  }
 
   logger.info(`[${requestId}] Hard deleted ${existingIds.length} documents`, {
     documentIds: existingIds,
