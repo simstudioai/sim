@@ -284,8 +284,14 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
           search: params.search,
           category: params.category || undefined,
           pageSize: toNumber(params.pageSize),
-          stability: toNumber(params.stability ?? params.editStability),
-          similarityBoost: toNumber(params.similarityBoost ?? params.editSimilarityBoost),
+          stability: toNumber(
+            params.operation === 'edit_voice_settings' ? params.editStability : params.stability
+          ),
+          similarityBoost: toNumber(
+            params.operation === 'edit_voice_settings'
+              ? params.editSimilarityBoost
+              : params.similarityBoost
+          ),
           style: toNumber(params.editStyle),
           speed: toNumber(params.editSpeed),
           useSpeakerBoost: toBoolean(params.editUseSpeakerBoost),

@@ -162,6 +162,10 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
     transformResponse: async (response: Response) => {
       const data = await response.json()
 
+      if (!data.id) {
+        throw new Error(data.error || 'Firecrawl did not return a batch scrape job id to poll')
+      }
+
       return {
         success: true,
         output: {

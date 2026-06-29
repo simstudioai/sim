@@ -82,6 +82,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    const metadata = error as { name?: string; $metadata?: { httpStatusCode?: number } }
+    if (metadata?.name === 'NotFound' || metadata?.$metadata?.httpStatusCode === 404) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          exists: false,
+          contentLength: null,
+          contentType: null,
+          etag: null,
+          lastModified: null,
+          versionId: null,
+          storageClass: null,
+          serverSideEncryption: null,
+          deleteMarker: null,
+          metadata: {},
+        },
+      })
+    }
+
     logger.error(`[${requestId}] Error fetching S3 object metadata:`, error)
 
     return NextResponse.json(
