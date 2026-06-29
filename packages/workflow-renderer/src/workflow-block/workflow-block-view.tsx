@@ -65,29 +65,29 @@ export interface WorkflowBlockViewProps {
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
-  /** Child-workflow deploy badge state. */
-  isWorkflowSelector: boolean
+  /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
+  isWorkflowSelector?: boolean
   childWorkflowId?: string
-  childIsDeployed: boolean | null
-  childNeedsRedeploy: boolean
-  isDeploying: boolean
-  canAdmin: boolean
-  onDeployChild: () => void
+  childIsDeployed?: boolean | null
+  childNeedsRedeploy?: boolean
+  isDeploying?: boolean
+  canAdmin?: boolean
+  onDeployChild?: () => void
 
-  /** Schedule badge state. */
-  shouldShowScheduleBadge: boolean
-  scheduleIsDisabled: boolean
-  onReactivateSchedule: () => void
+  /** Schedule badge state — editor-only; omit in read-only contexts. */
+  shouldShowScheduleBadge?: boolean
+  scheduleIsDisabled?: boolean
+  onReactivateSchedule?: () => void
 
-  /** Webhook badge state. */
-  showWebhookIndicator: boolean
+  /** Webhook badge state — editor-only; omit in read-only contexts. */
+  showWebhookIndicator?: boolean
   webhookProvider?: string
   webhookPath?: string
   webhookProviderName?: string
-  isWebhookConfigured: boolean
-  isWebhookDisabled: boolean
+  isWebhookConfigured?: boolean
+  isWebhookDisabled?: boolean
   webhookId?: string
-  onReactivateWebhook: () => void
+  onReactivateWebhook?: () => void
 
   /** Selects this block in the editor panel. */
   onSelect: () => void
@@ -221,7 +221,7 @@ export function WorkflowBlockView({
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
-                        onDeployChild()
+                        onDeployChild?.()
                       }}
                     >
                       {isDeploying ? 'Deploying...' : !childIsDeployed ? 'undeployed' : 'redeploy'}
@@ -250,7 +250,7 @@ export function WorkflowBlockView({
                     dot
                     onClick={(e) => {
                       e.stopPropagation()
-                      onReactivateSchedule()
+                      onReactivateSchedule?.()
                     }}
                   >
                     disabled
@@ -293,7 +293,7 @@ export function WorkflowBlockView({
                     dot
                     onClick={(e) => {
                       e.stopPropagation()
-                      onReactivateWebhook()
+                      onReactivateWebhook?.()
                     }}
                   >
                     disabled

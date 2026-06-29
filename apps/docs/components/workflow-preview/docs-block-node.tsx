@@ -148,24 +148,6 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
         conditionRows={conditionRows}
         routerRows={routerRows}
         wouldCreateConnectionCycle={() => false}
-        isWorkflowSelector={false}
-        childWorkflowId={undefined}
-        childIsDeployed={null}
-        childNeedsRedeploy={false}
-        isDeploying={false}
-        canAdmin={false}
-        onDeployChild={() => {}}
-        shouldShowScheduleBadge={false}
-        scheduleIsDisabled={false}
-        onReactivateSchedule={() => {}}
-        showWebhookIndicator={false}
-        webhookProvider={undefined}
-        webhookPath={undefined}
-        webhookProviderName={undefined}
-        isWebhookConfigured={false}
-        isWebhookDisabled={false}
-        webhookId={undefined}
-        onReactivateWebhook={() => {}}
         onSelect={() => {}}
         rows={rows}
       />
