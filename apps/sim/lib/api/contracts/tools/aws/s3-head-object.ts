@@ -18,7 +18,7 @@ const S3HeadObjectSchema = z.object({
 const S3HeadObjectResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
-    exists: z.literal(true),
+    exists: z.boolean(),
     contentLength: z.number().nullable(),
     contentType: z.string().nullable(),
     etag: z.string().nullable(),
