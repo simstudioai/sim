@@ -72,7 +72,6 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   chat: 'purple',
   webhook: 'orange',
   mcp: 'cyan',
-  a2a: 'teal',
   copilot: 'pink',
   mothership: 'pink',
   workflow: 'blue-secondary',

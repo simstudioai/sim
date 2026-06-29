@@ -37,6 +37,7 @@ const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 /** Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must never clobber. */
 const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'index',
+  'a2a',
   'google-service-account',
   'atlassian-service-account',
   'hubspot-setup',

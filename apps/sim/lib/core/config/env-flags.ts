@@ -38,7 +38,7 @@ export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
  * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
+ * API, MCP server, generic webhooks, cross-origin chat embeds).
  * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
  * dark and be enabled per-deployment once verified.
  */

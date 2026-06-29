@@ -100,7 +100,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
  * `// boundary-raw-json: <reason>` instead.
  */
 const RAW_JSON_BASELINE_ROUTES = new Set([
-  'apps/sim/app/api/a2a/serve/[agentId]/route.ts',
   'apps/sim/app/api/billing/portal/route.ts',
   'apps/sim/app/api/contact/route.ts',
   'apps/sim/app/api/copilot/api-keys/generate/route.ts',

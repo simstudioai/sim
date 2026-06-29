@@ -9,7 +9,7 @@ import { prefetchUpgradeBillingData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
 
 interface DeployUpgradeGateProps {
-  feature: 'API' | 'MCP' | 'A2A'
+  feature: 'API' | 'MCP'
 }
 
 export function DeployUpgradeGate({ feature }: DeployUpgradeGateProps) {

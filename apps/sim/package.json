@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@1password/sdk": "0.3.1",
-    "@a2a-js/sdk": "0.3.7",
+    "@a2a-js/sdk": "1.0.0-alpha.0",
     "@anthropic-ai/sdk": "0.71.2",
     "@aws-sdk/client-appconfigdata": "3.1032.0",
     "@aws-sdk/client-athena": "3.1032.0",
