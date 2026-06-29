@@ -70,9 +70,11 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Records the egress only once the export response is actually produced, so a
-    // mid-export failure never logs a download that never happened. Covers every
-    // exit (redirect to serve, plain markdown, and the bundled zip).
+    /**
+     * Records the egress only at a real success exit (serve redirect, plain
+     * markdown, or bundled zip) so a mid-export failure never logs a download
+     * that never happened.
+     */
     const auditExport = (format: 'file' | 'markdown' | 'zip', assetCount: number) => {
       recordAudit({
         workspaceId: record.workspaceId ?? null,

@@ -142,8 +142,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const saActorId = authz.requesterUserId
       const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
-      // Emitted only after the secret is successfully retrieved, so a failed
-      // provider call never records a spurious credential access.
       const emitServiceAccountAccess = () => {
         if (!saActorId) return
         recordAudit({
@@ -228,8 +226,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         resolvedCredentialId
       )
 
-      // Emitted only after the token is successfully resolved, so a failed
-      // refresh never records a spurious credential access.
       if (oauthActorId) {
         recordAudit({
           workspaceId: oauthWorkspaceId,
@@ -341,8 +337,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         resolvedCredentialId
       )
 
-      // Emitted only after the token is successfully resolved, so a failed
-      // refresh never records a spurious credential access.
       if (actorId) {
         recordAudit({
           workspaceId,
