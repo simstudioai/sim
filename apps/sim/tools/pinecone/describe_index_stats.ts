@@ -1,4 +1,5 @@
 import type { PineconeDescribeIndexStatsParams, PineconeResponse } from '@/tools/pinecone/types'
+import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const describeIndexStatsTool: ToolConfig<
@@ -43,7 +44,7 @@ export const describeIndexStatsTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.filter != null && params.filter !== '') {
-        body.filter = typeof params.filter === 'string' ? JSON.parse(params.filter) : params.filter
+        body.filter = parseJsonParam(params.filter, 'filter')
       }
       return body
     },

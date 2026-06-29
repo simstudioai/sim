@@ -1,4 +1,5 @@
 import type { PineconeResponse, PineconeUpdateVectorParams } from '@/tools/pinecone/types'
+import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateVectorTool: ToolConfig<PineconeUpdateVectorParams, PineconeResponse> = {
@@ -66,19 +67,13 @@ export const updateVectorTool: ToolConfig<PineconeUpdateVectorParams, PineconeRe
         body.namespace = params.namespace
       }
       if (params.values != null && params.values !== '') {
-        body.values = typeof params.values === 'string' ? JSON.parse(params.values) : params.values
+        body.values = parseJsonParam(params.values, 'values')
       }
       if (params.sparseValues != null && params.sparseValues !== '') {
-        body.sparseValues =
-          typeof params.sparseValues === 'string'
-            ? JSON.parse(params.sparseValues)
-            : params.sparseValues
+        body.sparseValues = parseJsonParam(params.sparseValues, 'sparseValues')
       }
       if (params.setMetadata != null && params.setMetadata !== '') {
-        body.setMetadata =
-          typeof params.setMetadata === 'string'
-            ? JSON.parse(params.setMetadata)
-            : params.setMetadata
+        body.setMetadata = parseJsonParam(params.setMetadata, 'setMetadata')
       }
       return body
     },

@@ -1,4 +1,5 @@
 import type { PineconeDeleteVectorsParams, PineconeResponse } from '@/tools/pinecone/types'
+import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, PineconeResponse> = {
@@ -62,7 +63,7 @@ export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, Pinecone
         body.namespace = params.namespace
       }
       if (params.ids != null && params.ids !== '') {
-        const ids = typeof params.ids === 'string' ? JSON.parse(params.ids) : params.ids
+        const ids = parseJsonParam<unknown>(params.ids, 'ids')
         if (Array.isArray(ids) && ids.length > 0) {
           body.ids = ids
         }
@@ -71,7 +72,7 @@ export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, Pinecone
         body.deleteAll = true
       }
       if (params.filter != null && params.filter !== '') {
-        body.filter = typeof params.filter === 'string' ? JSON.parse(params.filter) : params.filter
+        body.filter = parseJsonParam(params.filter, 'filter')
       }
       return body
     },
