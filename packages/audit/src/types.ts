@@ -47,7 +47,6 @@ export const AuditAction = {
 
   // Subscriptions
   SUBSCRIPTION_CREATED: 'subscription.created',
-  SUBSCRIPTION_UPDATED: 'subscription.updated',
   SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
   SUBSCRIPTION_TRANSFERRED: 'subscription.transferred',
   ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',

@@ -704,16 +704,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  /** Recurring runtime KB retrieval — the core knowledge-base usage signal. */
-  knowledge_base_searched: {
-    knowledge_base_id: string
-    workspace_id: string
-    result_count: number
-    top_k: number
-    reranking_enabled: boolean
-    duration_ms: number
-  }
-
   /** A stored credential's plaintext secret was deliberately retrieved via the token API. */
   credential_used: {
     credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
