@@ -189,3 +189,32 @@ export function getOperatorsForFieldType(fieldType: FilterFieldType): OperatorIn
       return []
   }
 }
+
+/** Wire format for a date filter value (`YYYY-MM-DD`). */
+const DATE_ONLY_VALUE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Whether a raw filter value is usable for the given field type. Shared source
+ * of truth so the API boundary can reject unusable values (e.g. `"abc"` for a
+ * number, `"not-a-date"` for a date) instead of letting them be silently
+ * dropped further down. Values arrive as strings from the filter UI.
+ */
+export function isValidFilterValue(fieldType: FilterFieldType, value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  switch (fieldType) {
+    case 'text':
+      return typeof value === 'string' && value.length > 0
+    case 'number':
+      if (typeof value === 'number') return Number.isFinite(value)
+      return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))
+    case 'date':
+      return typeof value === 'string' && DATE_ONLY_VALUE.test(value)
+    case 'boolean':
+      return (
+        typeof value === 'boolean' ||
+        (typeof value === 'string' && ['true', 'false'].includes(value.trim().toLowerCase()))
+      )
+    default:
+      return false
+  }
+}

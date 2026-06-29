@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
-import { getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 
 export const documentTagFilterSchema = z
   .object({
@@ -53,6 +53,23 @@ export const documentTagFilterSchema = z
         code: 'custom',
         path: ['operator'],
         message: `Unsupported operator "${filter.operator}" for a ${filter.fieldType} tag filter`,
+      })
+      return
+    }
+    if (!isValidFilterValue(filter.fieldType, filter.value)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: `Invalid value for a ${filter.fieldType} tag filter`,
+      })
+    }
+    // `between` is only valid for number/date (enforced by the operator check
+    // above), and needs a usable upper bound.
+    if (filter.operator === 'between' && !isValidFilterValue(filter.fieldType, filter.valueTo)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['valueTo'],
+        message: `Invalid second value for a ${filter.fieldType} "between" tag filter`,
       })
     }
   })

@@ -79,4 +79,59 @@ describe('parseDocumentTagFiltersParam', () => {
       )
     ).toThrow()
   })
+
+  it('rejects values that are unusable for the field type', () => {
+    // non-numeric value on a number field
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([{ tagSlot: 'number1', fieldType: 'number', operator: 'eq', value: 'abc' }])
+      )
+    ).toThrow()
+    // non-date value on a date field
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([{ tagSlot: 'date1', fieldType: 'date', operator: 'eq', value: 'nope' }])
+      )
+    ).toThrow()
+    // non-boolean value on a boolean field
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([
+          { tagSlot: 'boolean1', fieldType: 'boolean', operator: 'eq', value: 'maybe' },
+        ])
+      )
+    ).toThrow()
+  })
+
+  it('rejects a between filter missing a usable upper bound', () => {
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([
+          {
+            tagSlot: 'number1',
+            fieldType: 'number',
+            operator: 'between',
+            value: '1',
+            valueTo: 'x',
+          },
+        ])
+      )
+    ).toThrow()
+  })
+
+  it('accepts a valid number, date, boolean, and between filter', () => {
+    const filters = [
+      { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: '42' },
+      { tagSlot: 'date1', fieldType: 'date', operator: 'eq', value: '2026-04-21' },
+      { tagSlot: 'boolean1', fieldType: 'boolean', operator: 'eq', value: 'true' },
+      {
+        tagSlot: 'number2',
+        fieldType: 'number',
+        operator: 'between',
+        value: '1',
+        valueTo: '10',
+      },
+    ]
+    expect(parseDocumentTagFiltersParam(JSON.stringify(filters))).toEqual(filters)
+  })
 })
