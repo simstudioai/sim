@@ -60,4 +60,23 @@ describe('parseDocumentTagFiltersParam', () => {
       )
     ).toThrow()
   })
+
+  it('rejects a fieldType that does not match the tag slot', () => {
+    // number1 is a numeric column; claiming it is text must fail
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([
+          { tagSlot: 'number1', fieldType: 'text', operator: 'contains', value: 'x' },
+        ])
+      )
+    ).toThrow()
+  })
+
+  it('rejects an unknown tag slot', () => {
+    expect(() =>
+      parseDocumentTagFiltersParam(
+        JSON.stringify([{ tagSlot: 'tag99', fieldType: 'text', operator: 'eq', value: 'x' }])
+      )
+    ).toThrow()
+  })
 })

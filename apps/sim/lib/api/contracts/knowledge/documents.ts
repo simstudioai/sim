@@ -13,6 +13,7 @@ import {
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 
 export const documentTagFilterSchema = z
@@ -24,8 +25,28 @@ export const documentTagFilterSchema = z
     valueTo: z.unknown().optional(),
   })
   .superRefine((filter, ctx) => {
-    // Reject operators that aren't valid for the field type so a bad operator
-    // returns a 400 instead of being silently dropped by the query builder.
+    // The tag slot determines the column type, so validate against the slot
+    // (the source of truth) — not just the client-supplied fieldType. Rejecting
+    // unknown slots, type mismatches, and bad operators at the boundary returns
+    // a 400 instead of the query builder silently dropping or mis-handling the
+    // filter (e.g. a text `contains` aimed at a numeric column).
+    const slotFieldType = getFieldTypeForSlot(filter.tagSlot)
+    if (slotFieldType === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['tagSlot'],
+        message: `Unknown tag slot "${filter.tagSlot}"`,
+      })
+      return
+    }
+    if (slotFieldType !== filter.fieldType) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fieldType'],
+        message: `fieldType "${filter.fieldType}" does not match tag slot "${filter.tagSlot}" (expected "${slotFieldType}")`,
+      })
+      return
+    }
     const validOperators = getOperatorsForFieldType(filter.fieldType).map((op) => op.value)
     if (!validOperators.includes(filter.operator)) {
       ctx.addIssue({
