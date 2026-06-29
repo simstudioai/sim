@@ -48,7 +48,8 @@ export const extractStatusTool: ToolConfig<
         status: data.status,
         data: data.data ?? {},
         expiresAt: data.expiresAt ?? null,
-        sources: data.sources ?? null,
+        creditsUsed: data.creditsUsed ?? null,
+        tokensUsed: data.tokensUsed ?? null,
       },
     }
   },
@@ -59,7 +60,7 @@ export const extractStatusTool: ToolConfig<
       description: 'Current extract status (processing, completed, failed, or cancelled)',
     },
     data: {
-      type: 'object',
+      type: 'json',
       description: 'Extracted structured data according to the schema or prompt',
     },
     expiresAt: {
@@ -67,9 +68,14 @@ export const extractStatusTool: ToolConfig<
       description: 'ISO timestamp when the extract results expire',
       optional: true,
     },
-    sources: {
-      type: 'json',
-      description: 'Source URLs for the extracted data (when showSources was enabled)',
+    creditsUsed: {
+      type: 'number',
+      description: 'Number of credits used by the extract job',
+      optional: true,
+    },
+    tokensUsed: {
+      type: 'number',
+      description: 'Number of tokens used by the extract job',
       optional: true,
     },
   },

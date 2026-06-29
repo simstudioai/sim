@@ -52,10 +52,18 @@ export const describeIndexStatsTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
+    const rawNamespaces = (data.namespaces ?? {}) as Record<
+      string,
+      { vectorCount?: number; vector_count?: number }
+    >
+    const namespaces: Record<string, { vectorCount: number | null }> = {}
+    for (const [name, summary] of Object.entries(rawNamespaces)) {
+      namespaces[name] = { vectorCount: summary.vectorCount ?? summary.vector_count ?? null }
+    }
     return {
       success: true,
       output: {
-        namespaces: data.namespaces ?? {},
+        namespaces,
         dimension: data.dimension ?? null,
         indexFullness: data.indexFullness ?? data.index_fullness ?? null,
         totalVectorCount: data.totalVectorCount ?? data.total_vector_count ?? null,

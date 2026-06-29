@@ -247,6 +247,21 @@ Example 2 - Product Data:
       },
     },
     {
+      id: 'maxConcurrency',
+      title: 'Max Concurrency',
+      type: 'short-input',
+      placeholder: 'Maximum number of concurrent scrapes',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'batch_scrape' },
+    },
+    {
+      id: 'ignoreInvalidURLs',
+      title: 'Ignore Invalid URLs',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'batch_scrape' },
+    },
+    {
       id: 'waitFor',
       title: 'Wait For (ms)',
       type: 'short-input',
@@ -644,6 +659,12 @@ Example 2 - Product Data:
               }
             }
             if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
+            if (params.maxConcurrency != null && params.maxConcurrency !== '') {
+              result.maxConcurrency = Number.parseInt(String(params.maxConcurrency))
+            }
+            if (params.ignoreInvalidURLs != null) {
+              result.ignoreInvalidURLs = params.ignoreInvalidURLs
+            }
             break
 
           case 'crawl_status':
@@ -733,6 +754,7 @@ Example 2 - Product Data:
     links: { type: 'json', description: 'Discovered URLs array' },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
+    tokensUsed: { type: 'number', description: 'Tokens consumed by the extract job' },
     jobId: { type: 'string', description: 'Job ID for the started operation' },
     status: { type: 'string', description: 'Job status' },
     expiresAt: { type: 'string', description: 'Result expiration timestamp' },

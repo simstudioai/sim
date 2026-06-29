@@ -650,9 +650,10 @@ export interface FirecrawlExtractStatusParams {
 export interface FirecrawlExtractStatusResponse extends ToolResponse {
   output: {
     status: string
-    data: Record<string, any>
+    data: Record<string, any> | unknown[]
     expiresAt?: string | null
-    sources?: Record<string, any> | string[] | null
+    creditsUsed?: number | null
+    tokensUsed?: number | null
   }
 }
 

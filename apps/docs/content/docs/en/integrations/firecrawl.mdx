@@ -347,9 +347,10 @@ Check the status and retrieve results of a previously started Firecrawl extract 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | string | Current extract status \(processing, completed, failed, or cancelled\) |
-| `data` | object | Extracted structured data according to the schema or prompt |
+| `data` | json | Extracted structured data according to the schema or prompt |
 | `expiresAt` | string | ISO timestamp when the extract results expire |
-| `sources` | json | Source URLs for the extracted data \(when showSources was enabled\) |
+| `creditsUsed` | number | Number of credits used by the extract job |
+| `tokensUsed` | number | Number of tokens used by the extract job |
 
 ### `firecrawl_agent`
 

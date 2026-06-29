@@ -123,7 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       exportFormat: exportMimeType,
     })
 
-    const exportUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}&supportsAllDrives=true`
+    const exportUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}`
     const exportUrlValidation = await validateUrlWithDNS(exportUrl, 'exportUrl')
     if (!exportUrlValidation.isValid) {
       return NextResponse.json(

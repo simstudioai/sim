@@ -39,6 +39,12 @@ export const elevenLabsListVoicesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of voices to return (1-100, default 10)',
     },
+    nextPageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page token from a previous response to fetch the next page of voices',
+    },
   },
 
   request: {
@@ -47,6 +53,7 @@ export const elevenLabsListVoicesTool: ToolConfig<
       if (params.search) query.set('search', params.search)
       if (params.category) query.set('category', params.category)
       if (params.pageSize !== undefined) query.set('page_size', String(params.pageSize))
+      if (params.nextPageToken) query.set('next_page_token', params.nextPageToken)
       const qs = query.toString()
       return `https://api.elevenlabs.io/v2/voices${qs ? `?${qs}` : ''}`
     },

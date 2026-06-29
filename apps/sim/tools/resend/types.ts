@@ -257,6 +257,7 @@ export interface GetBroadcastResult extends ToolResponse {
     id: string
     name: string
     audienceId: string | null
+    segmentId: string | null
     from: string
     subject: string
     replyTo: string | string[] | null

@@ -247,6 +247,14 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_voices' },
     },
+    {
+      id: 'nextPageToken',
+      title: 'Next Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous response to fetch the next page',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
 
     {
       id: 'apiKey',
@@ -283,6 +291,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
           audioFile,
           search: params.search,
           category: params.category || undefined,
+          nextPageToken: params.nextPageToken || undefined,
           pageSize: toNumber(params.pageSize),
           stability: toNumber(
             params.operation === 'edit_voice_settings' ? params.editStability : params.stability

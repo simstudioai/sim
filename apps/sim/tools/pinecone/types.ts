@@ -43,7 +43,7 @@ export interface PineconeResponse extends ToolResponse {
     }
     indexes?: PineconeIndexModel[]
     index?: PineconeIndexModel
-    namespaces?: Record<string, { vectorCount: number }>
+    namespaces?: Record<string, { vectorCount: number | null }>
     dimension?: number | null
     indexFullness?: number | null
     totalVectorCount?: number | null

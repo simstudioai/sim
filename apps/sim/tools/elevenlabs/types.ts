@@ -41,6 +41,7 @@ export interface ElevenLabsListVoicesParams {
   search?: string
   category?: string
   pageSize?: number
+  nextPageToken?: string
 }
 
 export interface ElevenLabsListVoicesResponse extends ToolResponse {
