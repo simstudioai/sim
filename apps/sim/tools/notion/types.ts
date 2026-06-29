@@ -559,6 +559,66 @@ export const WRITE_OUTPUT_PROPERTIES = {
   appended: { type: 'boolean', description: 'Whether content was successfully appended' },
 } as const satisfies Record<string, OutputProperty>
 
+/**
+ * Comment object properties from Notion API.
+ * @see https://developers.notion.com/reference/comment-object
+ */
+export const COMMENT_OUTPUT_PROPERTIES = {
+  object: { type: 'string', description: 'Always "comment"' },
+  id: { type: 'string', description: 'Comment UUID' },
+  parent: PARENT_OUTPUT,
+  discussion_id: { type: 'string', description: 'UUID of the discussion thread' },
+  created_time: { type: 'string', description: 'ISO 8601 creation timestamp' },
+  last_edited_time: { type: 'string', description: 'ISO 8601 last edit timestamp' },
+  created_by: PARTIAL_USER_OUTPUT,
+  rich_text: RICH_TEXT_ARRAY_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete comment output definition for array items
+ */
+export const COMMENT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Notion comment object',
+  properties: COMMENT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Array of block objects (used by append/retrieve block children).
+ */
+export const BLOCK_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion block objects',
+  items: {
+    type: 'object',
+    properties: BLOCK_OUTPUT_PROPERTIES,
+  },
+}
+
+/**
+ * Array of comment objects (used by list comments).
+ */
+export const COMMENT_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion comment objects',
+  items: {
+    type: 'object',
+    properties: COMMENT_OUTPUT_PROPERTIES,
+  },
+}
+
+/**
+ * Array of user objects (used by list users).
+ */
+export const USER_LIST_RESULTS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Array of Notion user objects',
+  items: {
+    type: 'object',
+    properties: USER_OUTPUT_PROPERTIES,
+  },
+}
+
 export interface NotionReadParams {
   pageId: string
   accessToken: string
@@ -633,5 +693,56 @@ interface NotionReadDatabaseParams {
 export interface NotionAddDatabaseRowParams {
   databaseId: string
   properties: Record<string, any>
+  accessToken: string
+}
+
+export interface NotionAppendBlocksParams {
+  blockId: string
+  children: any[] | string
+  after?: string
+  accessToken: string
+}
+
+export interface NotionRetrieveBlockChildrenParams {
+  blockId: string
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionUpdateBlockParams {
+  blockId: string
+  block: Record<string, any> | string
+  archived?: boolean
+  accessToken: string
+}
+
+export interface NotionDeleteBlockParams {
+  blockId: string
+  accessToken: string
+}
+
+export interface NotionCreateCommentParams {
+  pageId?: string
+  discussionId?: string
+  content: string
+  accessToken: string
+}
+
+export interface NotionListCommentsParams {
+  blockId: string
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionListUsersParams {
+  startCursor?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionRetrieveUserParams {
+  userId: string
   accessToken: string
 }

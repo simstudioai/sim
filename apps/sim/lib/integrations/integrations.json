@@ -11447,8 +11447,8 @@
       "type": "outlook",
       "slug": "outlook",
       "name": "Outlook",
-      "description": "Send, read, draft, forward, and move Outlook email messages",
-      "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
+      "description": "Send, read, search, reply, organize, and manage Outlook email",
+      "longDescription": "Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
       "bgColor": "#FFFFFF",
       "iconName": "OutlookIcon",
       "docsUrl": "https://docs.sim.ai/integrations/outlook",
@@ -11466,12 +11466,28 @@
           "description": "Read emails from Outlook"
         },
         {
+          "name": "Search Email",
+          "description": "Search Outlook messages using a free-text query (Microsoft Graph $search)"
+        },
+        {
+          "name": "Reply to Email",
+          "description": "Reply to the sender of an Outlook message with a comment"
+        },
+        {
+          "name": "Reply All",
+          "description": "Reply to all recipients of an Outlook message with a comment"
+        },
+        {
           "name": "Forward Email",
           "description": "Forward an existing Outlook message to specified recipients"
         },
         {
           "name": "Move Email",
           "description": "Move emails between Outlook folders"
+        },
+        {
+          "name": "Copy Email",
+          "description": "Copy an Outlook message to another folder"
         },
         {
           "name": "Mark as Read",
@@ -11482,15 +11498,31 @@
           "description": "Mark an Outlook message as unread"
         },
         {
+          "name": "Set Categories & Flag",
+          "description": "Set the categories, follow-up flag, and importance on an Outlook message"
+        },
+        {
           "name": "Delete Email",
           "description": "Delete an Outlook message (move to Deleted Items)"
         },
         {
-          "name": "Copy Email",
-          "description": "Copy an Outlook message to another folder"
+          "name": "List Folders",
+          "description": "List mail folders in the root of the Outlook mailbox"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new mail folder in the root of the Outlook mailbox"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List the attachments on an Outlook message (metadata only, without contents)"
+        },
+        {
+          "name": "Get Attachment",
+          "description": "Get a single attachment on an Outlook message, including its file contents"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 17,
       "triggers": [
         {
           "id": "outlook_poller",
@@ -16998,7 +17030,7 @@
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
-      "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
+      "longDescription": "Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.",
       "bgColor": "#FFFFFF",
       "iconName": "TelegramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/telegram",
@@ -17028,11 +17060,59 @@
           "description": "Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the Telegram Bot API."
         },
         {
+          "name": "Send Location",
+          "description": "Send a point on the map to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Contact",
+          "description": "Send a phone contact to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Poll",
+          "description": "Send a native poll to a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Send Chat Action",
+          "description": "Show a status action such as a typing indicator in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Edit Message Text",
+          "description": "Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API."
+        },
+        {
+          "name": "Forward Message",
+          "description": "Forward a message from one Telegram chat to another through the Telegram Bot API."
+        },
+        {
+          "name": "Copy Message",
+          "description": "Copy a message to another Telegram chat without a forward header through the Telegram Bot API."
+        },
+        {
           "name": "Delete Message",
           "description": "Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Unpin a pinned message in a Telegram chat through the Telegram Bot API. Unpins the most recent pinned message when no message ID is given."
+        },
+        {
+          "name": "Set Message Reaction",
+          "description": "Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat",
+          "description": "Get up-to-date information about a Telegram chat through the Telegram Bot API."
+        },
+        {
+          "name": "Get Chat Member",
+          "description": "Get information about a member of a Telegram chat through the Telegram Bot API."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "telegram_webhook",
