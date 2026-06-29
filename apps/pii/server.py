@@ -5,6 +5,8 @@ VIN recognizer) and one AnonymizerEngine at startup, exposing stock-compatible
 endpoints so a single PRESIDIO_URL serves both.
 """
 
+import logging
+import time
 from typing import Any
 
 from fastapi import FastAPI
@@ -133,6 +135,9 @@ def build_analyzer() -> AnalyzerEngine:
 analyzer = build_analyzer()
 anonymizer = AnonymizerEngine()
 
+# Propagates to uvicorn's root handler, so timing lands in the container log stream.
+logger = logging.getLogger("sim.pii")
+
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
 
 
@@ -163,6 +168,7 @@ def supported_entities(language: str = "en") -> list[str]:
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
+    started = time.perf_counter()
     results = analyzer.analyze(
         text=req.text,
         language=req.language,
@@ -170,11 +176,19 @@ def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
         score_threshold=req.score_threshold,
         return_decision_process=req.return_decision_process,
     )
+    logger.info(
+        "analyze lang=%s chars=%d entities=%d duration_ms=%.1f",
+        req.language,
+        len(req.text),
+        len(results),
+        (time.perf_counter() - started) * 1000,
+    )
     return [r.to_dict() for r in results]
 
 
 @app.post("/anonymize")
 def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
+    started = time.perf_counter()
     analyzer_results = [
         RecognizerResult(
             entity_type=r["entity_type"],
@@ -196,6 +210,12 @@ def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
         text=req.text,
         analyzer_results=analyzer_results,
         operators=operators,
+    )
+    logger.info(
+        "anonymize chars=%d spans=%d duration_ms=%.1f",
+        len(req.text),
+        len(analyzer_results),
+        (time.perf_counter() - started) * 1000,
     )
     return {
         "text": result.text,
