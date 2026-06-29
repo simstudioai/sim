@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "**/components/code/prism.ts"
   ],
   "type": "module",
   "license": "Apache-2.0",
