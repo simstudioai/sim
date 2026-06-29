@@ -3,17 +3,27 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { db } from '@sim/db'
+import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
+import {
+  DEFAULT_PII_REDACTION,
+  type EffectivePiiRedaction,
+  resolveEffectivePiiRedaction,
+} from '@/lib/billing/retention'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   loadDeployedWorkflowState,
@@ -635,6 +645,36 @@ export async function executeWorkflowCore(
       metadata.resumeFromSnapshot === true ||
       Boolean(runFromBlock?.sourceSnapshot && !runFromBlock.sourceExecutionId)
 
+    // Resolve the org/workspace PII redaction policy once; serves both the input
+    // stage (below) and the block-outputs stage (threaded into the executor).
+    // Same fail-safe stance as the logs stage: presence of a rule implies
+    // entitlement, so we never re-check the plan (which would fail open on a
+    // transient lookup error and leak PII).
+    let piiRedaction: EffectivePiiRedaction = DEFAULT_PII_REDACTION
+    if (await isFeatureEnabled('pii-redaction')) {
+      const [row] = await db
+        .select({ orgSettings: organization.dataRetentionSettings })
+        .from(workspace)
+        .leftJoin(organization, eq(organization.id, workspace.organizationId))
+        .where(eq(workspace.id, providedWorkspaceId))
+        .limit(1)
+      piiRedaction = resolveEffectivePiiRedaction({
+        orgSettings: row?.orgSettings,
+        workspaceId: providedWorkspaceId,
+      })
+    }
+
+    if (piiRedaction.input.enabled) {
+      // Redact the input before the workflow sees it. `onFailure: 'throw'` aborts
+      // the run (handled by the surrounding catch) rather than feeding a scrub
+      // marker into execution or leaking unredacted input.
+      processedInput = await redactObjectStrings(processedInput, {
+        entityTypes: piiRedaction.input.entityTypes,
+        language: piiRedaction.input.language,
+        onFailure: 'throw',
+      })
+    }
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
@@ -647,6 +687,7 @@ export async function executeWorkflowCore(
       userId,
       isDeployedContext: !metadata.isClientSession,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
+      piiBlockOutputRedaction: piiRedaction.blockOutputs,
       onBlockStart: wrappedOnBlockStart,
       onBlockComplete: wrappedOnBlockComplete,
       onStream,

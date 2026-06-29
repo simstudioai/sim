@@ -42,6 +42,22 @@ function normalizeConfigured(
           rules: settings.piiRedaction.rules.map((rule) => ({
             ...rule,
             language: coercePiiLanguage(rule.language),
+            stages: rule.stages
+              ? {
+                  input: {
+                    ...rule.stages.input,
+                    language: coercePiiLanguage(rule.stages.input.language),
+                  },
+                  blockOutputs: {
+                    ...rule.stages.blockOutputs,
+                    language: coercePiiLanguage(rule.stages.blockOutputs.language),
+                  },
+                  logs: {
+                    ...rule.stages.logs,
+                    language: coercePiiLanguage(rule.stages.logs.language),
+                  },
+                }
+              : undefined,
           })),
         }
       : null,

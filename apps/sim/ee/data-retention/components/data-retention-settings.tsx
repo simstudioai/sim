@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Checkbox,
   Chip,
+  ChipConfirmModal,
   ChipDropdown,
   ChipInput,
   ChipSelect,
   ChipSwitch,
   ChipTag,
+  Info,
   Search,
   toast,
 } from '@sim/emcn'
@@ -22,11 +24,18 @@ import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
-  DEFAULT_PII_LANGUAGE,
-  PII_ENTITY_GROUPS,
+  emptyPiiStages,
+  getEntityGroupsForLanguage,
+  isEntitySupportedForLanguage,
+  normalizeRuleStages,
   PII_LANGUAGES,
+  PII_STAGE_META,
+  PII_STAGES,
+  type PIIEntityType,
   type PIILanguage,
-  SUPPORTED_PII_ENTITIES,
+  type PiiStageKey,
+  type PiiStagePolicy,
+  type PiiStages,
 } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
@@ -43,8 +52,6 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
-
-const ENTITY_LABELS = SUPPORTED_PII_ENTITIES as Record<string, string>
 
 /** Sentinel `RetentionSelect` value meaning "inherit the org-level value". */
 const INHERIT = 'inherit'
@@ -66,8 +73,7 @@ const DAY_OPTIONS = [
 interface PiiOverride {
   id: string
   workspaceId: string
-  entityTypes: string[]
-  language: PIILanguage
+  stages: PiiStages
 }
 
 /**
@@ -84,8 +90,7 @@ interface PolicyDraft {
   softDeleteDays: string
   taskCleanupDays: string
   piiOverride: boolean
-  piiEntityTypes: string[]
-  piiLanguage: PIILanguage
+  piiStages: PiiStages
 }
 
 interface EditingPolicy {
@@ -132,6 +137,19 @@ function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): Retent
   return hasField ? override : null
 }
 
+/** Stable serialization of a stage set for dirty-detection. */
+function serializeStages(stages: PiiStages): Array<[PiiStageKey, boolean, string[], PIILanguage]> {
+  return PII_STAGES.map((key) => {
+    const policy = stages[key]
+    return [key, policy.enabled, [...policy.entityTypes].sort(), policy.language] as [
+      PiiStageKey,
+      boolean,
+      string[],
+      PIILanguage,
+    ]
+  })
+}
+
 function normalizePolicyDraft(draft: PolicyDraft): string {
   return JSON.stringify({
     isOrgDefault: draft.isOrgDefault,
@@ -140,16 +158,43 @@ function normalizePolicyDraft(draft: PolicyDraft): string {
     softDeleteDays: draft.softDeleteDays,
     taskCleanupDays: draft.taskCleanupDays,
     piiOverride: draft.piiOverride,
-    piiEntityTypes: draft.piiOverride ? [...draft.piiEntityTypes].sort() : [],
-    piiLanguage: draft.piiLanguage,
+    piiStages: draft.piiOverride ? serializeStages(draft.piiStages) : [],
   })
 }
 
-function entitySummary(entityTypes: string[]): string {
-  if (entityTypes.length === 0) return 'Not redacted'
-  const labels = entityTypes.map((t) => ENTITY_LABELS[t] ?? t)
-  if (labels.length <= 3) return labels.join(', ')
-  return `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more`
+/** A stage is "on" iff it has at least one entity type selected. */
+function stageHasContent(policy: PiiStagePolicy): boolean {
+  return policy.entityTypes.length > 0
+}
+
+function anyStageHasContent(stages: PiiStages): boolean {
+  return PII_STAGES.some((key) => stageHasContent(stages[key]))
+}
+
+/** Persist-time guarantee that `enabled` mirrors "has entity types" for every stage. */
+function withSyncedEnabled(stages: PiiStages): PiiStages {
+  return PII_STAGES.reduce((acc, key) => {
+    acc[key] = { ...stages[key], enabled: stages[key].entityTypes.length > 0 }
+    return acc
+  }, {} as PiiStages)
+}
+
+/** Prune entity selections that the chosen language has no recognizer for. */
+function pruneEntitiesForLanguage(entityTypes: string[], language: PIILanguage): string[] {
+  return entityTypes.filter((t) => isEntitySupportedForLanguage(t as PIIEntityType, language))
+}
+
+/** Row-summary fragment, e.g. "Input 3 · Outputs off · Logs 5". */
+function stageSummary(stages: PiiStages): string {
+  const short: Record<PiiStageKey, string> = {
+    input: 'Input',
+    blockOutputs: 'Outputs',
+    logs: 'Logs',
+  }
+  return PII_STAGES.map((key) => {
+    const policy = stages[key]
+    return `${short[key]} ${stageHasContent(policy) ? policy.entityTypes.length : 'off'}`
+  }).join(' · ')
 }
 
 /** Row-summary label for a retention field driven by stored hours. */
@@ -187,22 +232,35 @@ function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSel
 }
 
 interface EntityCheckboxGridProps {
+  groups: ReadonlyArray<{
+    label: string
+    entities: ReadonlyArray<{ value: PIIEntityType; label: string }>
+  }>
   selected: string[]
   onChange: (entityTypes: string[]) => void
+  /** Optional control rendered directly beneath the search row (e.g. language). */
+  belowSearch?: ReactNode
 }
 
-function EntityCheckboxGrid({ selected, onChange }: EntityCheckboxGridProps) {
+function EntityCheckboxGrid({
+  groups: sourceGroups,
+  selected,
+  onChange,
+  belowSearch,
+}: EntityCheckboxGridProps) {
   const [search, setSearch] = useState('')
   const query = search.trim().toLowerCase()
 
-  const groups = PII_ENTITY_GROUPS.map((group) => ({
-    label: group.label,
-    entities: query
-      ? group.entities.filter(
-          (e) => e.label.toLowerCase().includes(query) || e.value.toLowerCase().includes(query)
-        )
-      : group.entities,
-  })).filter((group) => group.entities.length > 0)
+  const groups = sourceGroups
+    .map((group) => ({
+      label: group.label,
+      entities: query
+        ? group.entities.filter(
+            (e) => e.label.toLowerCase().includes(query) || e.value.toLowerCase().includes(query)
+          )
+        : group.entities,
+    }))
+    .filter((group) => group.entities.length > 0)
 
   const visibleValues: string[] = groups.flatMap((g) => g.entities.map((e) => e.value))
   const allVisibleSelected =
@@ -234,6 +292,7 @@ function EntityCheckboxGrid({ selected, onChange }: EntityCheckboxGridProps) {
           {allVisibleSelected ? 'Deselect all' : 'Select all'}
         </Chip>
       </div>
+      {belowSearch}
       <div className='flex flex-col gap-3'>
         {groups.map((group) => (
           <div key={group.label} className='flex flex-col gap-1.5'>
@@ -280,6 +339,58 @@ function PiiLanguageSelect({ value, onChange }: PiiLanguageSelectProps) {
   )
 }
 
+interface PiiStagePanelProps {
+  description: string
+  value: PiiStagePolicy
+  onChange: (next: PiiStagePolicy) => void
+}
+
+/**
+ * The config body for the currently-selected redaction stage (tab panel). The
+ * stage is "on" purely by virtue of having entity types selected — `enabled` is
+ * kept in sync with that, so there is no separate toggle.
+ */
+function PiiStagePanel({ description, value, onChange }: PiiStagePanelProps) {
+  const groups = getEntityGroupsForLanguage(value.language)
+
+  function update(entityTypes: string[], language = value.language) {
+    onChange({ ...value, language, entityTypes, enabled: entityTypes.length > 0 })
+  }
+
+  return (
+    <div className='flex flex-col gap-4'>
+      <span className='text-[var(--text-muted)] text-small'>{description}</span>
+
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-[var(--text-muted)] text-small'>Entity types</span>
+          <Info side='top' align='start'>
+            Loose numeric recognizers (US Social Security Number, US bank account number) and Date
+            or time match aggressively and frequently over-redact. Enable these only where false
+            positives are acceptable.
+          </Info>
+        </div>
+        <EntityCheckboxGrid
+          groups={groups}
+          selected={value.entityTypes}
+          onChange={(entityTypes) => update(entityTypes)}
+          belowSearch={
+            <div className='flex items-center justify-between gap-3'>
+              <span className='text-[var(--text-muted)] text-small'>Language</span>
+              <PiiLanguageSelect
+                value={value.language}
+                onChange={(language) =>
+                  update(pruneEntitiesForLanguage(value.entityTypes, language), language)
+                }
+              />
+            </div>
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
 interface PolicyDetailProps {
   draft: PolicyDraft
   isNew: boolean
@@ -311,6 +422,13 @@ function PolicyDetail({
 }: PolicyDetailProps) {
   const isOrg = draft.isOrgDefault
   const showPiiGrid = isOrg || draft.piiOverride
+  const [activeStage, setActiveStage] = useState<PiiStageKey>(
+    () =>
+      PII_STAGE_META.find((s) => stageHasContent(draft.piiStages[s.key]))?.key ??
+      PII_STAGE_META[0].key
+  )
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+  const activeStageMeta = PII_STAGE_META.find((s) => s.key === activeStage) ?? PII_STAGE_META[0]
   const title = isOrg
     ? 'Organization defaults'
     : isNew
@@ -335,7 +453,11 @@ function PolicyDetail({
             saveDisabled={!isOrg && draft.workspaceIds.length === 0}
           />
           {canRemove && (
-            <Chip variant='destructive' onClick={onRemove} disabled={isSaving}>
+            <Chip
+              variant='destructive'
+              onClick={() => setShowRemoveConfirm(true)}
+              disabled={isSaving}
+            >
               Remove override
             </Chip>
           )}
@@ -359,10 +481,11 @@ function PolicyDetail({
                 </span>
                 <ChipDropdown
                   multiple
+                  showAllOption={false}
+                  allLabel='Select workspaces'
                   value={draft.workspaceIds}
                   onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
                   options={workspaceOptions}
-                  placeholder='Select workspaces'
                   className='flex-shrink-0'
                 />
               </div>
@@ -417,19 +540,32 @@ function PolicyDetail({
                     />
                   </div>
                 )}
+                {!isOrg && draft.piiOverride && (
+                  <span className='text-[var(--text-muted)] text-caption'>
+                    Overriding replaces all three redaction stages for this workspace.
+                  </span>
+                )}
                 {showPiiGrid && (
                   <>
-                    <EntityCheckboxGrid
-                      selected={draft.piiEntityTypes}
-                      onChange={(piiEntityTypes) => onChange({ ...draft, piiEntityTypes })}
+                    <ChipSwitch
+                      value={activeStage}
+                      onChange={setActiveStage}
+                      aria-label='Redaction stage'
+                      options={PII_STAGE_META.map((stage) => ({
+                        value: stage.key,
+                        label: stage.label,
+                      }))}
                     />
-                    <div className='flex items-center justify-between gap-3'>
-                      <span className='text-[var(--text-muted)] text-small'>Language</span>
-                      <PiiLanguageSelect
-                        value={draft.piiLanguage}
-                        onChange={(piiLanguage) => onChange({ ...draft, piiLanguage })}
-                      />
-                    </div>
+                    <PiiStagePanel
+                      description={activeStageMeta.description}
+                      value={draft.piiStages[activeStage]}
+                      onChange={(next) =>
+                        onChange({
+                          ...draft,
+                          piiStages: { ...draft.piiStages, [activeStage]: next },
+                        })
+                      }
+                    />
                   </>
                 )}
               </div>
@@ -437,6 +573,29 @@ function PolicyDetail({
           )}
         </div>
       </div>
+
+      <ChipConfirmModal
+        open={showRemoveConfirm}
+        onOpenChange={setShowRemoveConfirm}
+        title='Remove override'
+        text={[
+          'This removes the retention and PII redaction override for ',
+          {
+            text:
+              draft.workspaceIds.length === 1
+                ? 'this workspace'
+                : `these ${draft.workspaceIds.length} workspaces`,
+            bold: true,
+          },
+          { text: '. They will fall back to the organization defaults.', error: true },
+        ]}
+        confirm={{
+          label: 'Remove override',
+          onClick: onRemove,
+          pending: isSaving,
+          pendingLabel: 'Removing...',
+        }}
+      />
     </div>
   )
 }
@@ -480,13 +639,7 @@ export function DataRetentionSettings() {
     const rules = data.configured.piiRedaction?.rules ?? []
     const defaultRule = rules.find((r) => r.workspaceId === null)
     setDefaultPii(
-      defaultRule
-        ? {
-            id: defaultRule.id,
-            entityTypes: defaultRule.entityTypes,
-            language: defaultRule.language ?? DEFAULT_PII_LANGUAGE,
-          }
-        : null
+      defaultRule ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) } : null
     )
     setPiiOverrides(
       rules
@@ -494,8 +647,7 @@ export function DataRetentionSettings() {
         .map((r) => ({
           id: r.id,
           workspaceId: r.workspaceId as string,
-          entityTypes: r.entityTypes,
-          language: r.language ?? DEFAULT_PII_LANGUAGE,
+          stages: normalizeRuleStages(r),
         }))
     )
     setOverrides(data.configured.retentionOverrides ?? [])
@@ -530,7 +682,9 @@ export function DataRetentionSettings() {
     ]
     if (piiEnabled) {
       parts.push(
-        defaultPii?.entityTypes.length ? `PII: ${entitySummary(defaultPii.entityTypes)}` : 'No PII'
+        defaultPii && anyStageHasContent(defaultPii.stages)
+          ? `PII: ${stageSummary(defaultPii.stages)}`
+          : 'No PII'
       )
     }
     return parts.join(' · ')
@@ -544,7 +698,7 @@ export function DataRetentionSettings() {
       `Soft-delete ${retentionLabel(ov?.softDeleteRetentionHours)}`,
       `Task ${retentionLabel(ov?.taskCleanupHours)}`,
     ]
-    if (piiEnabled) parts.push(pii ? `PII: ${entitySummary(pii.entityTypes)}` : 'PII inherited')
+    if (piiEnabled) parts.push(pii ? `PII: ${stageSummary(pii.stages)}` : 'PII inherited')
     return parts.join(' · ')
   }
 
@@ -569,23 +723,17 @@ export function DataRetentionSettings() {
       retentionOverrides: next.overrides,
     }
     if (piiEnabled) {
-      const rules: {
-        id: string
-        entityTypes: string[]
-        workspaceId: string | null
-        language: PIILanguage
-      }[] = next.piiOverrides.map((p) => ({
-        id: p.id,
-        entityTypes: p.entityTypes,
-        workspaceId: p.workspaceId,
-        language: p.language,
-      }))
+      const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
+        next.piiOverrides.map((p) => ({
+          id: p.id,
+          workspaceId: p.workspaceId,
+          stages: withSyncedEnabled(p.stages),
+        }))
       if (next.defaultPii) {
         rules.unshift({
           id: next.defaultPii.id,
-          entityTypes: next.defaultPii.entityTypes,
           workspaceId: null,
-          language: next.defaultPii.language,
+          stages: withSyncedEnabled(next.defaultPii.stages),
         })
       }
       settings.piiRedaction = { rules }
@@ -613,8 +761,7 @@ export function DataRetentionSettings() {
       softDeleteDays,
       taskCleanupDays,
       piiOverride: true,
-      piiEntityTypes: defaultPii?.entityTypes ?? [],
-      piiLanguage: defaultPii?.language ?? DEFAULT_PII_LANGUAGE,
+      piiStages: defaultPii?.stages ?? emptyPiiStages(),
     }
     setEditing({ draft, original: draft, isNew: false })
   }
@@ -628,8 +775,7 @@ export function DataRetentionSettings() {
       softDeleteDays: INHERIT,
       taskCleanupDays: INHERIT,
       piiOverride: false,
-      piiEntityTypes: [],
-      piiLanguage: DEFAULT_PII_LANGUAGE,
+      piiStages: emptyPiiStages(),
     }
     setEditing({ draft, original: draft, isNew: true })
   }
@@ -644,8 +790,7 @@ export function DataRetentionSettings() {
       softDeleteDays: hoursToOverrideValue(ov?.softDeleteRetentionHours),
       taskCleanupDays: hoursToOverrideValue(ov?.taskCleanupHours),
       piiOverride: Boolean(pii),
-      piiEntityTypes: pii?.entityTypes ?? [],
-      piiLanguage: pii?.language ?? DEFAULT_PII_LANGUAGE,
+      piiStages: pii?.stages ?? emptyPiiStages(),
     }
     setEditing({ draft, original: draft, isNew: false })
   }
@@ -668,11 +813,10 @@ export function DataRetentionSettings() {
           logDays: draft.logDays,
           softDeleteDays: draft.softDeleteDays,
           taskCleanupDays: draft.taskCleanupDays,
-          defaultPii: draft.piiEntityTypes.length
+          defaultPii: anyStageHasContent(draft.piiStages)
             ? {
                 id: defaultPii?.id ?? generateId(),
-                entityTypes: draft.piiEntityTypes,
-                language: draft.piiLanguage,
+                stages: draft.piiStages,
               }
             : null,
         })
@@ -694,8 +838,7 @@ export function DataRetentionSettings() {
           nextPiiOverrides.push({
             id: existing?.id ?? generateId(),
             workspaceId,
-            entityTypes: draft.piiEntityTypes,
-            language: draft.piiLanguage,
+            stages: draft.piiStages,
           })
         }
       }

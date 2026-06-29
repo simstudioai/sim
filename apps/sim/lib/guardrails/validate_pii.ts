@@ -2,14 +2,20 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
 const logger = createLogger('PIIValidator')
 
 /** Just above the analyzer's spaCy NER budget so a stuck sidecar aborts gracefully. */
 const REQUEST_TIMEOUT_MS = 45_000
 
-/** Concurrent per-string sidecar calls within one batch; the warm model handles parallelism. */
-const MASK_CONCURRENCY = 8
+/**
+ * Concurrent chunk requests in flight. Each chunk is itself a batched sidecar call
+ * (spaCy `nlp.pipe` over many strings), so a small concurrency keeps the single-model
+ * sidecar from holding too many parallel docs in memory while still overlapping
+ * HTTP/JSON with the next chunk's NER.
+ */
+const CHUNK_CONCURRENCY = 4
 
 /** Single Presidio sidecar serving both /analyze and /anonymize (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'
@@ -67,6 +73,61 @@ async function analyze(
     throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
   }
   return (await response.json()) as AnalyzerSpan[]
+}
+
+/**
+ * Detect PII spans for many texts in a single analyzer pass (spaCy `nlp.pipe`),
+ * the batched counterpart to {@link analyze}. Returns one span array per input,
+ * in order. An empty `entityTypes` ⇒ detect all. Throws on transport/HTTP failure.
+ */
+async function analyzeBatch(
+  texts: string[],
+  entityTypes: string[],
+  language: string
+): Promise<AnalyzerSpan[][]> {
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
+
+  // boundary-raw-fetch: internal call to the Presidio analyzer sidecar over localhost
+  const response = await fetch(`${PII_URL}/analyze_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts, language, ...(entities ? { entities } : {}) }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  return (await response.json()) as AnalyzerSpan[][]
+}
+
+interface AnonymizeBatchItem {
+  text: string
+  analyzer_results: AnalyzerSpan[]
+}
+
+/**
+ * Mask many texts in a single anonymizer pass, the batched counterpart to
+ * {@link anonymize}. Each item carries its own detected spans; callers must omit
+ * items with no spans (those texts pass through unchanged). Returns masked text
+ * per item, in order. Throws on failure.
+ */
+async function anonymizeBatch(items: AnonymizeBatchItem[]): Promise<string[]> {
+  if (items.length === 0) return []
+
+  // boundary-raw-fetch: internal call to the Presidio anonymizer sidecar over localhost
+  const response = await fetch(`${PII_URL}/anonymize_batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ items }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
+  }
+  const data = (await response.json()) as { texts: string[] }
+  return data.texts
 }
 
 /**
@@ -156,12 +217,14 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 
 /**
  * Mask PII across many strings via the Presidio sidecar, preserving input order.
- * Each string runs analyze → anonymize; strings with no detected PII are returned
- * unchanged. Calls run with bounded concurrency: the sidecar's model is warm, so
- * the bottleneck is round-trip latency, and a batch of thousands of small leaves
- * would otherwise exceed the caller's request timeout if run strictly sequentially.
- * Rejects on any sidecar failure (which fails the whole batch) so callers can apply
- * their own fail-safe (scrub).
+ *
+ * Strings are grouped into byte/count-budgeted chunks (see {@link chunkIndicesByBudget}),
+ * and each chunk runs one batched `analyze` pass followed by one batched `anonymize`
+ * pass over only the strings that actually matched — so the sidecar round-trip count
+ * scales with payload size, not leaf count, and spaCy batches NER via `nlp.pipe`.
+ * Chunks run with bounded concurrency. Strings with no detected PII pass through
+ * unchanged. Rejects on any sidecar failure (which fails the whole batch) so callers
+ * can apply their own fail-safe (scrub).
  */
 export async function maskPIIBatch(
   texts: string[],
@@ -170,11 +233,31 @@ export async function maskPIIBatch(
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
-  return mapWithConcurrency(texts, MASK_CONCURRENCY, async (text) => {
-    if (!text) return text
-    const spans = await analyze(text, entityTypes, language)
-    return anonymize(text, spans)
+  const result = new Array<string>(texts.length)
+
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
+    const chunkTexts = indices.map((i) => texts[i])
+    const spansPerText = await analyzeBatch(chunkTexts, entityTypes, language)
+
+    const toAnonymize: AnonymizeBatchItem[] = []
+    const anonymizePositions: number[] = []
+    indices.forEach((originalIndex, pos) => {
+      const spans = spansPerText[pos] ?? []
+      if (spans.length === 0) {
+        result[originalIndex] = chunkTexts[pos]
+        return
+      }
+      toAnonymize.push({ text: chunkTexts[pos], analyzer_results: spans })
+      anonymizePositions.push(pos)
+    })
+
+    const masked = await anonymizeBatch(toAnonymize)
+    anonymizePositions.forEach((pos, k) => {
+      result[indices[pos]] = masked[k]
+    })
   })
+
+  return result
 }
 
 export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

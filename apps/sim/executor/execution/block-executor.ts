@@ -4,6 +4,7 @@ import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
@@ -217,6 +218,18 @@ export class BlockExecutor {
           maxBytes: ctx.base64MaxBytes,
           preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput
+      }
+
+      if (ctx.piiBlockOutputRedaction?.enabled) {
+        // In-flight redaction: mask before compaction (so offloaded large values
+        // are seen) and before the log/state split below, so both the downstream
+        // state copy and the persisted log copy are masked. `onFailure: 'throw'`
+        // aborts the run rather than feeding corrupted/leaked data downstream.
+        normalizedOutput = await redactObjectStrings(normalizedOutput, {
+          entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+          language: ctx.piiBlockOutputRedaction.language,
+          onFailure: 'throw',
+        })
       }
 
       normalizedOutput = (await compactExecutionPayload(normalizedOutput, {

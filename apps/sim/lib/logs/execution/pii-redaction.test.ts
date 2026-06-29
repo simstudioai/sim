@@ -11,7 +11,12 @@ vi.mock('@/lib/guardrails/mask-client', () => ({
   maskPIIBatchViaHttp: mockMaskPIIBatch,
 }))
 
-import { REDACTION_FAILED_MARKER, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
+import {
+  PiiRedactionError,
+  REDACTION_FAILED_MARKER,
+  redactObjectStrings,
+  redactPIIFromExecution,
+} from '@/lib/logs/execution/pii-redaction'
 
 describe('redactPIIFromExecution', () => {
   beforeEach(() => {
@@ -116,5 +121,51 @@ describe('redactPIIFromExecution', () => {
     const result = await redactPIIFromExecution(payload, { entityTypes: [] })
     expect(result).toBe(payload)
     expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+  })
+})
+
+describe('redactObjectStrings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
+  })
+
+  it('masks every string leaf and preserves structure', async () => {
+    const value = { name: 'bob', nested: { email: 'a@b.com' }, list: ['x', 1, true] }
+    const result = await redactObjectStrings(value, { entityTypes: ['PERSON'] })
+    expect(result).toEqual({
+      name: 'MASKED(bob)',
+      nested: { email: 'MASKED(a@b.com)' },
+      list: ['MASKED(x)', 1, true],
+    })
+    expect(mockMaskPIIBatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves non-string and empty values untouched', async () => {
+    const value = { count: 5, flag: false, empty: '', nullish: null }
+    const result = await redactObjectStrings(value, { entityTypes: [] })
+    expect(result).toEqual(value)
+    expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+  })
+
+  it('throws PiiRedactionError on masking failure when onFailure is throw', async () => {
+    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    await expect(
+      redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [], onFailure: 'throw' })
+    ).rejects.toBeInstanceOf(PiiRedactionError)
+  })
+
+  it('throws when the payload exceeds the ceiling and onFailure is throw', async () => {
+    const big = 'x'.repeat(17 * 1024 * 1024)
+    await expect(
+      redactObjectStrings({ big }, { entityTypes: [], onFailure: 'throw' })
+    ).rejects.toBeInstanceOf(PiiRedactionError)
+    expect(mockMaskPIIBatch).not.toHaveBeenCalled()
+  })
+
+  it('scrubs (does not throw) by default on failure', async () => {
+    mockMaskPIIBatch.mockRejectedValueOnce(new Error('presidio down'))
+    const result = await redactObjectStrings({ text: 'a@b.com' }, { entityTypes: [] })
+    expect(result).toEqual({ text: REDACTION_FAILED_MARKER })
   })
 })

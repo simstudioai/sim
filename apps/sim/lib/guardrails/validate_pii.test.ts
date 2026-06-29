@@ -35,6 +35,19 @@ describe('validate_pii (Presidio sidecar)', () => {
     analyzeBodies = []
     fetchMock = vi.fn(async (url: string, init: { body: string }) => {
       const body = JSON.parse(init.body)
+      if (url.includes('/analyze_batch')) {
+        for (const text of body.texts as string[]) {
+          analyzeBodies.push({ text, language: body.language, entities: body.entities })
+        }
+        const spans = (body.texts as string[]).map((t) => emailSpans(t, body.entities))
+        return new Response(JSON.stringify(spans), { status: 200 })
+      }
+      if (url.includes('/anonymize_batch')) {
+        const texts = (body.items as Array<{ text: string; analyzer_results: Span[] }>).map((i) =>
+          applyReplace(i.text, i.analyzer_results)
+        )
+        return new Response(JSON.stringify({ texts }), { status: 200 })
+      }
       if (url.includes('/analyze')) {
         analyzeBodies.push({ text: body.text, language: body.language, entities: body.entities })
         return new Response(JSON.stringify(emailSpans(body.text, body.entities)), { status: 200 })

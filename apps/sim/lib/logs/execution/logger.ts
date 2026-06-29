@@ -637,7 +637,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // `isWorkspaceOnEnterprisePlan` here: it returns false on transient lookup
     // errors, which would silently skip masking and leak PII (fail-open). When
     // rules are present we always redact (fail-safe; over-redaction at worst).
-    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
+    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
     return redactPIIFromExecution(payload, {
