@@ -195,6 +195,21 @@ describe('ApiBlockHandler', () => {
     )
   })
 
+  it('should handle malformed JSON body by keeping original string', async () => {
+    const inputs = {
+      url: 'https://example.com/api',
+      body: '{invalid json body',
+    }
+
+    await handler.execute(mockContext, mockBlock, inputs)
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'http_request',
+      expect.objectContaining({ body: '{invalid json body' }),
+      { executionContext: mockContext }
+    )
+  })
+
   it('should handle null body by converting to undefined', async () => {
     const inputs = {
       url: 'https://example.com/api',

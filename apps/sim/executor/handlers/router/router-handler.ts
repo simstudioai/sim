@@ -12,6 +12,7 @@ import {
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
+import { parseJSON, parseJSONOrThrow } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -122,7 +123,9 @@ export class RouterBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {}
+        } catch (error) {
+          logger.warn('Failed to parse error response body', { error })
+        }
         throw new Error(errorMessage)
       }
 
@@ -275,7 +278,9 @@ export class RouterBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {}
+        } catch (error) {
+          logger.warn('Failed to parse error response body', { error })
+        }
         throw new Error(errorMessage)
       }
 
@@ -285,7 +290,7 @@ export class RouterBlockHandler implements BlockHandler {
       let reasoning = ''
 
       try {
-        const parsedResponse = JSON.parse(result.content)
+        const parsedResponse = parseJSONOrThrow(result.content)
         chosenRouteId = parsedResponse.route?.trim() || ''
         reasoning = parsedResponse.reasoning || ''
       } catch (_parseError) {
@@ -375,18 +380,19 @@ export class RouterBlockHandler implements BlockHandler {
    * Parse routes from input (can be JSON string or array)
    */
   private parseRoutes(input: any): RouteDefinition[] {
-    try {
-      if (typeof input === 'string') {
-        return JSON.parse(input)
-      }
-      if (Array.isArray(input)) {
-        return input
-      }
-      return []
-    } catch (error) {
-      logger.error('Failed to parse routes:', { input, error })
+    if (Array.isArray(input)) {
+      return input
+    }
+    const parsed = parseJSON(input, null)
+    if (parsed === null) {
+      logger.error('Failed to parse routes:', { input })
       return []
     }
+    if (!Array.isArray(parsed)) {
+      logger.error('Routes parsed but is not an array:', { input, parsed })
+      return []
+    }
+    return parsed
   }
 
   private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
