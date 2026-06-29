@@ -78,6 +78,7 @@ import {
 } from '@/tools/ahrefs'
 import {
   airtableCreateRecordsTool,
+  airtableDeleteRecordsTool,
   airtableGetBaseSchemaTool,
   airtableGetRecordTool,
   airtableListBasesTool,
@@ -85,6 +86,7 @@ import {
   airtableListTablesTool,
   airtableUpdateMultipleRecordsTool,
   airtableUpdateRecordTool,
+  airtableUpsertRecordsTool,
 } from '@/tools/airtable'
 import { airweaveSearchTool } from '@/tools/airweave'
 import {
@@ -1245,7 +1247,17 @@ import {
   googleContactsSearchTool,
   googleContactsUpdateTool,
 } from '@/tools/google_contacts'
-import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
+import {
+  googleDocsCreateTool,
+  googleDocsInsertImageTool,
+  googleDocsInsertPageBreakTool,
+  googleDocsInsertTableTool,
+  googleDocsInsertTextTool,
+  googleDocsReadTool,
+  googleDocsReplaceTextTool,
+  googleDocsUpdateTextStyleTool,
+  googleDocsWriteTool,
+} from '@/tools/google_docs'
 import {
   googleDriveCopyTool,
   googleDriveCreateFolderTool,
@@ -2157,8 +2169,13 @@ import {
   dataverseWhoAmITool,
 } from '@/tools/microsoft_dataverse'
 import {
+  microsoftExcelClearRangeTool,
+  microsoftExcelCreateTableTool,
+  microsoftExcelDeleteWorksheetTool,
+  microsoftExcelFormatRangeTool,
   microsoftExcelReadTool,
   microsoftExcelReadV2Tool,
+  microsoftExcelSortRangeTool,
   microsoftExcelTableAddTool,
   microsoftExcelWorksheetAddTool,
   microsoftExcelWriteTool,
@@ -3949,7 +3966,14 @@ import {
   webflowListItemsTool,
   webflowUpdateItemTool,
 } from '@/tools/webflow'
-import { whatsappSendMessageTool } from '@/tools/whatsapp'
+import {
+  whatsappMarkReadTool,
+  whatsappSendInteractiveTool,
+  whatsappSendMediaTool,
+  whatsappSendMessageTool,
+  whatsappSendReactionTool,
+  whatsappSendTemplateTool,
+} from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
   wikipediaPageSummaryTool,
@@ -5184,6 +5208,11 @@ export const tools: Record<string, ToolConfig> = {
   gmail_untrash_thread_v2: gmailUntrashThreadV2Tool,
   gmail_update_label_v2: gmailUpdateLabelV2Tool,
   whatsapp_send_message: whatsappSendMessageTool,
+  whatsapp_send_template: whatsappSendTemplateTool,
+  whatsapp_send_media: whatsappSendMediaTool,
+  whatsapp_send_interactive: whatsappSendInteractiveTool,
+  whatsapp_send_reaction: whatsappSendReactionTool,
+  whatsapp_mark_read: whatsappMarkReadTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,
@@ -5934,6 +5963,12 @@ export const tools: Record<string, ToolConfig> = {
   google_docs_read: googleDocsReadTool,
   google_docs_write: googleDocsWriteTool,
   google_docs_create: googleDocsCreateTool,
+  google_docs_insert_text: googleDocsInsertTextTool,
+  google_docs_replace_text: googleDocsReplaceTextTool,
+  google_docs_insert_table: googleDocsInsertTableTool,
+  google_docs_insert_image: googleDocsInsertImageTool,
+  google_docs_insert_page_break: googleDocsInsertPageBreakTool,
+  google_docs_update_text_style: googleDocsUpdateTextStyleTool,
   google_books_volume_search: googleBooksVolumeSearchTool,
   google_books_volume_details: googleBooksVolumeDetailsTool,
   google_maps_air_quality: googleMapsAirQualityTool,
@@ -6412,6 +6447,7 @@ export const tools: Record<string, ToolConfig> = {
   algolia_clear_records: algoliaClearRecordsTool,
   algolia_delete_by_filter: algoliaDeleteByFilterTool,
   airtable_create_records: airtableCreateRecordsTool,
+  airtable_delete_records: airtableDeleteRecordsTool,
   airtable_get_base_schema: airtableGetBaseSchemaTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_bases: airtableListBasesTool,
@@ -6419,6 +6455,7 @@ export const tools: Record<string, ToolConfig> = {
   airtable_list_tables: airtableListTablesTool,
   airtable_update_multiple_records: airtableUpdateMultipleRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
+  airtable_upsert_records: airtableUpsertRecordsTool,
   attio_assert_record: attioAssertRecordTool,
   attio_create_comment: attioCreateCommentTool,
   attio_create_list: attioCreateListTool,
@@ -7021,6 +7058,11 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_worksheet_add: microsoftExcelWorksheetAddTool,
   microsoft_excel_read_v2: microsoftExcelReadV2Tool,
   microsoft_excel_write_v2: microsoftExcelWriteV2Tool,
+  microsoft_excel_clear_range: microsoftExcelClearRangeTool,
+  microsoft_excel_format_range: microsoftExcelFormatRangeTool,
+  microsoft_excel_create_table: microsoftExcelCreateTableTool,
+  microsoft_excel_delete_worksheet: microsoftExcelDeleteWorksheetTool,
+  microsoft_excel_sort_range: microsoftExcelSortRangeTool,
   microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
   microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   microsoft_planner_update_task: microsoftPlannerUpdateTaskTool,

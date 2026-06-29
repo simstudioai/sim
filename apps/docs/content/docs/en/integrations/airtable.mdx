@@ -26,7 +26,7 @@ In Sim, the Airtable integration enables your agents to interact with your Airta
 
 ## Usage Instructions
 
-Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
+Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
 
 
 
@@ -202,6 +202,58 @@ Update multiple existing records in an Airtable table
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of records updated |
 |   ↳ `updatedRecordIds` | array | List of updated record IDs |
+
+### `airtable_upsert_records`
+
+Update existing records or create new ones in an Airtable table, matching on the specified merge fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
+| `records` | json | Yes | Array of records to upsert, each with a `fields` object |
+| `fieldsToMergeOn` | json | Yes | Array of field names used to match existing records \(max 3\). A record is updated when all merge fields match, otherwise it is created. Example: \["Name"\] |
+| `typecast` | boolean | No | When true, Airtable automatically converts string values to the field type |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of upserted Airtable records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `createdTime` | string | Record creation timestamp |
+|   ↳ `fields` | json | Record field values |
+| `createdRecords` | array | IDs of records that were created |
+| `updatedRecords` | array | IDs of records that were updated |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Total number of records returned |
+|   ↳ `createdCount` | number | Number of records created |
+|   ↳ `updatedCount` | number | Number of records updated |
+
+### `airtable_delete_records`
+
+Delete one or more records from an Airtable table by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
+| `recordIds` | json | Yes | Array of record IDs to delete \(each starts with "rec", e.g., \["recXXXXXXXXXXXXXX"\]\). Pass a single-element array to delete one record. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of deleted Airtable records |
+|   ↳ `id` | string | Record ID |
+|   ↳ `deleted` | boolean | Whether the record was deleted |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of records deleted |
+|   ↳ `deletedRecordIds` | array | List of deleted record IDs |
 
 ### `airtable_get_base_schema`
 

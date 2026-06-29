@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-27",
+  "updatedAt": "2026-06-29",
   "integrations": [
     {
       "type": "onepassword",
@@ -393,7 +393,7 @@
       "slug": "airtable",
       "name": "Airtable",
       "description": "Read, create, and update Airtable",
-      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
+      "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
       "bgColor": "#FFFFFF",
       "iconName": "AirtableIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airtable",
@@ -429,9 +429,17 @@
         {
           "name": "Update Multiple Records",
           "description": "Update multiple existing records in an Airtable table"
+        },
+        {
+          "name": "Upsert Records",
+          "description": "Update existing records or create new ones in an Airtable table, matching on the specified merge fields"
+        },
+        {
+          "name": "Delete Records",
+          "description": "Delete one or more records from an Airtable table by ID"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [
         {
           "id": "airtable_webhook",
@@ -2658,8 +2666,44 @@
         }
       ],
       "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "clerk_user_created",
+          "name": "Clerk User Created",
+          "description": "Trigger workflow when a Clerk user is created"
+        },
+        {
+          "id": "clerk_user_updated",
+          "name": "Clerk User Updated",
+          "description": "Trigger workflow when a Clerk user is updated"
+        },
+        {
+          "id": "clerk_user_deleted",
+          "name": "Clerk User Deleted",
+          "description": "Trigger workflow when a Clerk user is deleted"
+        },
+        {
+          "id": "clerk_session_created",
+          "name": "Clerk Session Created",
+          "description": "Trigger workflow when a Clerk session is created"
+        },
+        {
+          "id": "clerk_organization_created",
+          "name": "Clerk Organization Created",
+          "description": "Trigger workflow when a Clerk organization is created"
+        },
+        {
+          "id": "clerk_organization_membership_created",
+          "name": "Clerk Organization Membership Created",
+          "description": "Trigger workflow when a Clerk organization membership is created"
+        },
+        {
+          "id": "clerk_webhook",
+          "name": "Clerk Webhook",
+          "description": "Trigger workflow on any Clerk webhook event"
+        }
+      ],
+      "triggerCount": 7,
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
@@ -4274,7 +4318,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "incident-management", "observability"]
+      "tags": ["monitoring", "incident-management"]
     },
     {
       "type": "dropbox",
@@ -6233,8 +6277,8 @@
       "type": "google_docs",
       "slug": "google-docs",
       "name": "Google Docs",
-      "description": "Read, write, and create documents",
-      "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
+      "description": "Read, write, create, and edit documents",
+      "longDescription": "Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.",
       "bgColor": "#FFFFFF",
       "iconName": "GoogleDocsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_docs",
@@ -6250,9 +6294,33 @@
         {
           "name": "Create Document",
           "description": "Create a new Google Docs document"
+        },
+        {
+          "name": "Insert Text",
+          "description": "Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted."
+        },
+        {
+          "name": "Find & Replace Text",
+          "description": "Replace all occurrences of a search string with new text across a Google Docs document."
+        },
+        {
+          "name": "Insert Table",
+          "description": "Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document."
+        },
+        {
+          "name": "Insert Image",
+          "description": "Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document."
+        },
+        {
+          "name": "Insert Page Break",
+          "description": "Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document."
+        },
+        {
+          "name": "Apply Text Style",
+          "description": "Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -8023,8 +8091,29 @@
         }
       ],
       "operationCount": 46,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "incidentio_incident_created",
+          "name": "incident.io Incident Created",
+          "description": "Trigger workflow when an incident is created in incident.io"
+        },
+        {
+          "id": "incidentio_incident_updated",
+          "name": "incident.io Incident Updated",
+          "description": "Trigger workflow when an incident is updated in incident.io"
+        },
+        {
+          "id": "incidentio_incident_status_updated",
+          "name": "incident.io Incident Status Updated",
+          "description": "Trigger workflow when an incident"
+        },
+        {
+          "id": "incidentio_alert_created",
+          "name": "incident.io Alert Created",
+          "description": "Trigger workflow when an alert is created in incident.io"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -9924,8 +10013,49 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "loops_email_delivered",
+          "name": "Loops Email Delivered",
+          "description": "Trigger workflow when a Loops email is delivered"
+        },
+        {
+          "id": "loops_email_opened",
+          "name": "Loops Email Opened",
+          "description": "Trigger workflow when a Loops email is opened"
+        },
+        {
+          "id": "loops_email_clicked",
+          "name": "Loops Email Clicked",
+          "description": "Trigger workflow when a link in a Loops email is clicked"
+        },
+        {
+          "id": "loops_email_hard_bounced",
+          "name": "Loops Email Hard Bounced",
+          "description": "Trigger workflow when a Loops email hard bounces"
+        },
+        {
+          "id": "loops_email_soft_bounced",
+          "name": "Loops Email Soft Bounced",
+          "description": "Trigger workflow when a Loops email soft bounces"
+        },
+        {
+          "id": "loops_campaign_email_sent",
+          "name": "Loops Campaign Email Sent",
+          "description": "Trigger workflow when a Loops campaign email is sent"
+        },
+        {
+          "id": "loops_loop_email_sent",
+          "name": "Loops Loop Email Sent",
+          "description": "Trigger workflow when a Loops loop email is sent"
+        },
+        {
+          "id": "loops_transactional_email_sent",
+          "name": "Loops Transactional Email Sent",
+          "description": "Trigger workflow when a Loops transactional email is sent"
+        }
+      ],
+      "triggerCount": 8,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
@@ -10492,9 +10622,29 @@
         {
           "name": "Write Data",
           "description": "Write data to a Microsoft Excel spreadsheet"
+        },
+        {
+          "name": "Clear Range",
+          "description": "Clear the values and/or formatting of a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Format Range",
+          "description": "Apply fill color and/or font formatting to a range in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a new table over a range of cells in a Microsoft Excel workbook"
+        },
+        {
+          "name": "Sort Range",
+          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+        },
+        {
+          "name": "Delete Worksheet",
+          "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -13084,8 +13234,39 @@
         }
       ],
       "operationCount": 10,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "revenuecat_initial_purchase",
+          "name": "RevenueCat Initial Purchase",
+          "description": "Trigger workflow when a subscriber makes their first purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_renewal",
+          "name": "RevenueCat Renewal",
+          "description": "Trigger workflow when a RevenueCat subscription renews"
+        },
+        {
+          "id": "revenuecat_cancellation",
+          "name": "RevenueCat Cancellation",
+          "description": "Trigger workflow when a subscriber cancels a RevenueCat subscription"
+        },
+        {
+          "id": "revenuecat_expiration",
+          "name": "RevenueCat Expiration",
+          "description": "Trigger workflow when a RevenueCat subscription expires"
+        },
+        {
+          "id": "revenuecat_non_renewing_purchase",
+          "name": "RevenueCat Non-Renewing Purchase",
+          "description": "Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat"
+        },
+        {
+          "id": "revenuecat_product_change",
+          "name": "RevenueCat Product Change",
+          "description": "Trigger workflow when a subscriber changes their RevenueCat subscription product"
+        }
+      ],
+      "triggerCount": 6,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
@@ -13630,8 +13811,29 @@
         }
       ],
       "operationCount": 41,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "rootly_incident_created",
+          "name": "Rootly Incident Created",
+          "description": "Trigger workflow when a new incident is created in Rootly"
+        },
+        {
+          "id": "rootly_incident_updated",
+          "name": "Rootly Incident Updated",
+          "description": "Trigger workflow when an incident is updated in Rootly"
+        },
+        {
+          "id": "rootly_incident_resolved",
+          "name": "Rootly Incident Resolved",
+          "description": "Trigger workflow when an incident is resolved in Rootly"
+        },
+        {
+          "id": "rootly_alert_created",
+          "name": "Rootly Alert Created",
+          "description": "Trigger workflow when a new alert is created in Rootly"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -14554,8 +14756,34 @@
         }
       ],
       "operationCount": 13,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "sentry_issue_created",
+          "name": "Sentry Issue Created",
+          "description": "Trigger workflow when a new issue is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_resolved",
+          "name": "Sentry Issue Resolved",
+          "description": "Trigger workflow when an issue is resolved in Sentry"
+        },
+        {
+          "id": "sentry_error_created",
+          "name": "Sentry Error Created",
+          "description": "Trigger workflow when a new error event is created in Sentry"
+        },
+        {
+          "id": "sentry_issue_alert",
+          "name": "Sentry Issue Alert",
+          "description": "Trigger workflow when a Sentry issue alert rule fires"
+        },
+        {
+          "id": "sentry_metric_alert",
+          "name": "Sentry Metric Alert",
+          "description": "Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)"
+        }
+      ],
+      "triggerCount": 5,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
@@ -17417,8 +17645,19 @@
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
       "operations": [],
       "operationCount": 0,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "twilio_sms_received",
+          "name": "Twilio SMS Received",
+          "description": "Trigger workflow when an inbound SMS or MMS message is received via Twilio"
+        },
+        {
+          "id": "twilio_sms_status",
+          "name": "Twilio Message Status",
+          "description": "Trigger workflow when a Twilio message status changes (sent, delivered, failed)"
+        }
+      ],
+      "triggerCount": 2,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
@@ -18245,12 +18484,37 @@
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
-      "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
+      "longDescription": "Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API.",
       "bgColor": "#25D366",
       "iconName": "WhatsAppIcon",
       "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Send Message",
+          "description": "Send a text message through the WhatsApp Cloud API."
+        },
+        {
+          "name": "Send Template",
+          "description": "Send a pre-approved WhatsApp template message with a language and optional variable components."
+        },
+        {
+          "name": "Send Media",
+          "description": "Send an image, document, video, or audio message via a public link or an uploaded media ID."
+        },
+        {
+          "name": "Send Interactive",
+          "description": "Send an interactive WhatsApp message with reply buttons or a selectable list."
+        },
+        {
+          "name": "Send Reaction",
+          "description": "React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction."
+        },
+        {
+          "name": "Mark As Read",
+          "description": "Mark a received WhatsApp message as read so the sender sees blue checkmarks."
+        }
+      ],
+      "operationCount": 6,
       "triggers": [
         {
           "id": "whatsapp_webhook",
@@ -18262,7 +18526,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation", "customer-support", "marketing"]
     },
     {
       "type": "wikipedia",

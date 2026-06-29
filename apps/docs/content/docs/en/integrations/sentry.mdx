@@ -687,3 +687,223 @@ List all teams in a Sentry organization. Useful for discovering the team slug re
 |   ↳ `hasMore` | boolean | Whether there are more results available |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Sentry Error Created
+
+Trigger workflow when a new error event is created in Sentry
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientSecret` | string | Yes | Client Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
+| `installation` | json | Installation object containing the integration installation uuid |
+| `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
+| `error` | object | error output from the tool |
+|   ↳ `event_id` | string | Unique event ID |
+|   ↳ `issue_id` | string | ID of the issue this error belongs to |
+|   ↳ `issue_url` | string | API URL of the issue |
+|   ↳ `project` | number | Project ID |
+|   ↳ `key_id` | string | Project key ID |
+|   ↳ `level` | string | Error level |
+|   ↳ `title` | string | Error title |
+|   ↳ `eventType` | string | Event type \(the payload's `type` field; `type` is reserved\) |
+|   ↳ `message` | string | Error message |
+|   ↳ `culprit` | string | Error culprit \(location/transaction\) |
+|   ↳ `platform` | string | Platform |
+|   ↳ `logger` | string | Logger name |
+|   ↳ `timestamp` | number | Event timestamp \(epoch seconds\) |
+|   ↳ `datetime` | string | Event datetime \(ISO 8601\) |
+|   ↳ `received` | number | Received timestamp \(epoch seconds\) |
+|   ↳ `dist` | string | Distribution identifier |
+|   ↳ `release` | string | Release version |
+|   ↳ `fingerprint` | json | Grouping fingerprint |
+|   ↳ `tags` | json | Event tags |
+|   ↳ `user` | json | User context |
+|   ↳ `request` | json | HTTP request context |
+|   ↳ `contexts` | json | Additional contexts \(browser, os, device\) |
+|   ↳ `sdk` | json | SDK information |
+|   ↳ `exception` | json | Exception details including stack frames |
+|   ↳ `metadata` | json | Error metadata |
+|   ↳ `url` | string | API URL for the event |
+|   ↳ `web_url` | string | Browser URL for the event |
+
+
+---
+
+### Sentry Issue Alert
+
+Trigger workflow when a Sentry issue alert rule fires
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientSecret` | string | Yes | Client Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
+| `installation` | json | Installation object containing the integration installation uuid |
+| `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
+| `event` | json | The event that triggered the alert rule |
+| `triggered_rule` | string | Label of the alert rule that was triggered |
+| `issue_alert` | object | issue_alert output from the tool |
+|   ↳ `title` | string | Alert rule name |
+|   ↳ `settings` | json | Alert rule action settings \(name/value pairs\) |
+
+
+---
+
+### Sentry Issue Created
+
+Trigger workflow when a new issue is created in Sentry
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientSecret` | string | Yes | Client Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
+| `installation` | json | Installation object containing the integration installation uuid |
+| `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `shortId` | string | Short human-readable issue ID |
+|   ↳ `shareId` | string | Share ID for the issue |
+|   ↳ `title` | string | Issue title |
+|   ↳ `culprit` | string | Issue culprit \(location/transaction\) |
+|   ↳ `logger` | string | Logger name |
+|   ↳ `level` | string | Issue level \(error, warning, etc.\) |
+|   ↳ `status` | string | Issue status \(unresolved, resolved, ignored\) |
+|   ↳ `substatus` | string | Issue substatus |
+|   ↳ `statusDetails` | json | Status details \(inRelease, inCommit, ignore*\) |
+|   ↳ `platform` | string | Platform of the issue |
+|   ↳ `eventType` | string | Issue type \(the payload's `type` field; `type` is reserved\) |
+|   ↳ `issueType` | string | Specific issue type classification |
+|   ↳ `issueCategory` | string | Issue category |
+|   ↳ `isUnhandled` | boolean | Whether the issue is unhandled |
+|   ↳ `isPublic` | boolean | Whether the issue is public |
+|   ↳ `isBookmarked` | boolean | Whether the issue is bookmarked |
+|   ↳ `isSubscribed` | boolean | Whether the viewer is subscribed |
+|   ↳ `hasSeen` | boolean | Whether the issue has been seen |
+|   ↳ `numComments` | number | Number of comments on the issue |
+|   ↳ `count` | string | Total event count |
+|   ↳ `userCount` | number | Number of affected users |
+|   ↳ `firstSeen` | string | Timestamp when first seen |
+|   ↳ `lastSeen` | string | Timestamp when last seen |
+|   ↳ `priority` | string | Issue priority |
+|   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
+|   ↳ `annotations` | json | Issue annotations |
+|   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
+|   ↳ `project` | object | project output from the tool |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `url` | string | API URL for the issue |
+|   ↳ `web_url` | string | Browser URL for the issue |
+|   ↳ `project_url` | string | Browser URL for the project |
+|   ↳ `permalink` | string | Permalink to the issue |
+
+
+---
+
+### Sentry Issue Resolved
+
+Trigger workflow when an issue is resolved in Sentry
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientSecret` | string | Yes | Client Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
+| `installation` | json | Installation object containing the integration installation uuid |
+| `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `shortId` | string | Short human-readable issue ID |
+|   ↳ `shareId` | string | Share ID for the issue |
+|   ↳ `title` | string | Issue title |
+|   ↳ `culprit` | string | Issue culprit \(location/transaction\) |
+|   ↳ `logger` | string | Logger name |
+|   ↳ `level` | string | Issue level \(error, warning, etc.\) |
+|   ↳ `status` | string | Issue status \(unresolved, resolved, ignored\) |
+|   ↳ `substatus` | string | Issue substatus |
+|   ↳ `statusDetails` | json | Status details \(inRelease, inCommit, ignore*\) |
+|   ↳ `platform` | string | Platform of the issue |
+|   ↳ `eventType` | string | Issue type \(the payload's `type` field; `type` is reserved\) |
+|   ↳ `issueType` | string | Specific issue type classification |
+|   ↳ `issueCategory` | string | Issue category |
+|   ↳ `isUnhandled` | boolean | Whether the issue is unhandled |
+|   ↳ `isPublic` | boolean | Whether the issue is public |
+|   ↳ `isBookmarked` | boolean | Whether the issue is bookmarked |
+|   ↳ `isSubscribed` | boolean | Whether the viewer is subscribed |
+|   ↳ `hasSeen` | boolean | Whether the issue has been seen |
+|   ↳ `numComments` | number | Number of comments on the issue |
+|   ↳ `count` | string | Total event count |
+|   ↳ `userCount` | number | Number of affected users |
+|   ↳ `firstSeen` | string | Timestamp when first seen |
+|   ↳ `lastSeen` | string | Timestamp when last seen |
+|   ↳ `priority` | string | Issue priority |
+|   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
+|   ↳ `annotations` | json | Issue annotations |
+|   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
+|   ↳ `project` | object | project output from the tool |
+|     ↳ `id` | string | Project ID |
+|     ↳ `name` | string | Project name |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `platform` | string | Project platform |
+|   ↳ `url` | string | API URL for the issue |
+|   ↳ `web_url` | string | Browser URL for the issue |
+|   ↳ `project_url` | string | Browser URL for the project |
+|   ↳ `permalink` | string | Permalink to the issue |
+
+
+---
+
+### Sentry Metric Alert
+
+Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientSecret` | string | Yes | Client Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
+| `installation` | json | Installation object containing the integration installation uuid |
+| `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
+| `metric_alert` | json | Metric alert object \(alert_rule + incident details\) |
+| `description_text` | string | Human-friendly description of the alert |
+| `description_title` | string | Human-friendly title of the alert |
+| `web_url` | string | API URL for the incident |
+
