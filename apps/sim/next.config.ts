@@ -133,7 +133,6 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
-      '@sim/emcn',
       'lodash',
       'framer-motion',
       'reactflow',

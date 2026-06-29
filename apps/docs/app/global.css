@@ -2,6 +2,7 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-openapi/css/preset.css";
+@source "../../../packages/emcn/src";
 
 /* Prevent overscroll bounce effect on the page */
 html,
