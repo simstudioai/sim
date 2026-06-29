@@ -130,6 +130,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        const resolvedTotal = resolved.reduce((sum, r) => sum + r.buffer.length, 0)
+        const maxSize = 30 * 1024 * 1024
+        if (resolvedTotal > maxSize) {
+          const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Total attachment size (${sizeMB}MB) exceeds SendGrid's limit of 30MB`,
+            },
+            { status: 400 }
+          )
+        }
+
         const sendGridAttachments = userFiles.map((file, i) => ({
           content: resolved[i].buffer.toString('base64'),
           filename: file.name,
