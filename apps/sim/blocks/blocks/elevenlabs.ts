@@ -1,13 +1,36 @@
 import { ElevenLabsIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
+
+const VOICE_OPERATIONS = [
+  'tts',
+  'speech_to_speech',
+  'get_voice',
+  'get_voice_settings',
+  'edit_voice_settings',
+]
+const AUDIO_INPUT_OPERATIONS = ['speech_to_speech', 'audio_isolation']
+
+const toNumber = (value: unknown): number | undefined => {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const toBoolean = (value: unknown): boolean | undefined => {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'boolean') return value
+  return String(value).toLowerCase() === 'true'
+}
 
 export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   type: 'elevenlabs',
   name: 'ElevenLabs',
-  description: 'Convert text to speech with ElevenLabs',
+  description: 'Generate and transform audio with ElevenLabs',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate ElevenLabs into the workflow. Can convert text to speech.',
+  longDescription:
+    'Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.',
   docsLink: 'https://docs.sim.ai/integrations/elevenlabs',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -16,19 +39,62 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
 
   subBlocks: [
     {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Text to Speech', id: 'tts' },
+        { label: 'Sound Effects', id: 'sound_effects' },
+        { label: 'Speech to Speech', id: 'speech_to_speech' },
+        { label: 'Audio Isolation', id: 'audio_isolation' },
+        { label: 'List Voices', id: 'list_voices' },
+        { label: 'Get Voice', id: 'get_voice' },
+        { label: 'Get Voice Settings', id: 'get_voice_settings' },
+        { label: 'Edit Voice Settings', id: 'edit_voice_settings' },
+        { label: 'List Models', id: 'list_models' },
+        { label: 'Get User Info', id: 'get_user' },
+      ],
+      value: () => 'tts',
+      required: true,
+    },
+
+    {
       id: 'text',
       title: 'Text',
       type: 'long-input',
       placeholder: 'Enter the text to convert to speech',
-      required: true,
+      condition: { field: 'operation', value: 'tts' },
+      required: { field: 'operation', value: 'tts' },
     },
+    {
+      id: 'text',
+      title: 'Sound Prompt',
+      type: 'long-input',
+      placeholder: 'Describe the sound effect (e.g., "thunder rumbling in the distance")',
+      condition: { field: 'operation', value: 'sound_effects' },
+      required: { field: 'operation', value: 'sound_effects' },
+    },
+
     {
       id: 'voiceId',
       title: 'Voice ID',
       type: 'short-input',
       placeholder: 'Enter the voice ID',
-      required: true,
+      condition: { field: 'operation', value: VOICE_OPERATIONS },
+      required: { field: 'operation', value: VOICE_OPERATIONS },
     },
+
+    {
+      id: 'audioFile',
+      title: 'Audio File',
+      type: 'file-upload',
+      placeholder: 'Upload an audio file',
+      multiple: false,
+      acceptedTypes: '.mp3,.m4a,.wav,.webm,.ogg,.flac,.aac,.opus',
+      condition: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
+      required: { field: 'operation', value: AUDIO_INPUT_OPERATIONS },
+    },
+
     {
       id: 'modelId',
       title: 'Model ID',
@@ -42,13 +108,35 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         { label: 'eleven_v3', id: 'eleven_v3' },
       ],
       value: () => 'eleven_monolingual_v1',
+      condition: { field: 'operation', value: 'tts' },
     },
+    {
+      id: 'modelId',
+      title: 'Model ID',
+      type: 'dropdown',
+      options: [{ label: 'eleven_text_to_sound_v2', id: 'eleven_text_to_sound_v2' }],
+      value: () => 'eleven_text_to_sound_v2',
+      condition: { field: 'operation', value: 'sound_effects' },
+    },
+    {
+      id: 'modelId',
+      title: 'Model ID',
+      type: 'dropdown',
+      options: [
+        { label: 'eleven_english_sts_v2', id: 'eleven_english_sts_v2' },
+        { label: 'eleven_multilingual_sts_v2', id: 'eleven_multilingual_sts_v2' },
+      ],
+      value: () => 'eleven_english_sts_v2',
+      condition: { field: 'operation', value: 'speech_to_speech' },
+    },
+
     {
       id: 'stability',
       title: 'Stability',
       type: 'short-input',
       placeholder: '0.0 to 1.0 (e.g., 0.5)',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'tts' },
     },
     {
       id: 'similarityBoost',
@@ -56,7 +144,110 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       type: 'short-input',
       placeholder: '0.0 to 1.0 (e.g., 0.75)',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'tts' },
     },
+
+    {
+      id: 'durationSeconds',
+      title: 'Duration (seconds)',
+      type: 'short-input',
+      placeholder: '0.5 to 30 (leave empty to auto-determine)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'sound_effects' },
+    },
+    {
+      id: 'promptInfluence',
+      title: 'Prompt Influence',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.3)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'sound_effects' },
+    },
+    {
+      id: 'loop',
+      title: 'Loop',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'sound_effects' },
+    },
+
+    {
+      id: 'removeBackgroundNoise',
+      title: 'Remove Background Noise',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'speech_to_speech' },
+    },
+
+    {
+      id: 'editStability',
+      title: 'Stability',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.5)',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+    {
+      id: 'editSimilarityBoost',
+      title: 'Similarity Boost',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.75)',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+    {
+      id: 'editStyle',
+      title: 'Style',
+      type: 'short-input',
+      placeholder: '0.0 to 1.0 (e.g., 0.0)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+    {
+      id: 'editSpeed',
+      title: 'Speed',
+      type: 'short-input',
+      placeholder: '1.0 = normal',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+    {
+      id: 'editUseSpeakerBoost',
+      title: 'Use Speaker Boost',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+
+    {
+      id: 'search',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Filter voices by name, description, labels, or category',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    {
+      id: 'category',
+      title: 'Category',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Premade', id: 'premade' },
+        { label: 'Cloned', id: 'cloned' },
+        { label: 'Generated', id: 'generated' },
+        { label: 'Professional', id: 'professional' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    {
+      id: 'pageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '1 to 100 (default 10)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+
     {
       id: 'apiKey',
       title: 'API Key',
@@ -68,39 +259,205 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   ],
 
   tools: {
-    access: ['elevenlabs_tts'],
+    access: [
+      'elevenlabs_tts',
+      'elevenlabs_sound_effects',
+      'elevenlabs_speech_to_speech',
+      'elevenlabs_audio_isolation',
+      'elevenlabs_list_voices',
+      'elevenlabs_get_voice',
+      'elevenlabs_get_voice_settings',
+      'elevenlabs_edit_voice_settings',
+      'elevenlabs_list_models',
+      'elevenlabs_get_user',
+    ],
     config: {
-      tool: () => 'elevenlabs_tts',
+      tool: (params) => `elevenlabs_${params.operation || 'tts'}`,
       params: (params) => {
-        const parseUnitInterval = (value: unknown): number | undefined => {
-          if (value === undefined || value === null || value === '') return undefined
-          const n = Number(value)
-          return Number.isFinite(n) ? n : undefined
-        }
+        const audioFile = normalizeFileInput(params.audioFile, { single: true })
         return {
           apiKey: params.apiKey,
           text: params.text,
           voiceId: params.voiceId,
           modelId: params.modelId,
-          stability: parseUnitInterval(params.stability),
-          similarityBoost: parseUnitInterval(params.similarityBoost),
+          audioFile,
+          search: params.search,
+          category: params.category || undefined,
+          pageSize: toNumber(params.pageSize),
+          stability: toNumber(params.stability ?? params.editStability),
+          similarityBoost: toNumber(params.similarityBoost ?? params.editSimilarityBoost),
+          style: toNumber(params.editStyle),
+          speed: toNumber(params.editSpeed),
+          useSpeakerBoost: toBoolean(params.editUseSpeakerBoost),
+          durationSeconds: toNumber(params.durationSeconds),
+          promptInfluence: toNumber(params.promptInfluence),
+          loop: toBoolean(params.loop),
+          removeBackgroundNoise: toBoolean(params.removeBackgroundNoise),
         }
       },
     },
   },
 
   inputs: {
-    text: { type: 'string', description: 'Text to convert' },
+    operation: { type: 'string', description: 'Operation to perform' },
+    text: { type: 'string', description: 'Text to convert or sound prompt' },
     voiceId: { type: 'string', description: 'Voice identifier' },
+    audioFile: { type: 'json', description: 'Source audio file (UserFile)' },
     modelId: { type: 'string', description: 'Model identifier' },
     stability: { type: 'number', description: 'Voice stability 0.0-1.0' },
     similarityBoost: { type: 'number', description: 'Similarity boost 0.0-1.0' },
+    durationSeconds: { type: 'number', description: 'Sound effect length in seconds (0.5-30)' },
+    promptInfluence: { type: 'number', description: 'Sound prompt influence 0.0-1.0' },
+    loop: { type: 'boolean', description: 'Generate a seamlessly looping sound effect' },
+    removeBackgroundNoise: { type: 'boolean', description: 'Isolate the voice during conversion' },
+    editStability: { type: 'number', description: 'Voice stability to set 0.0-1.0' },
+    editSimilarityBoost: { type: 'number', description: 'Similarity boost to set 0.0-1.0' },
+    editStyle: { type: 'number', description: 'Style exaggeration to set 0.0-1.0' },
+    editSpeed: { type: 'number', description: 'Speech speed to set (1.0 = normal)' },
+    editUseSpeakerBoost: { type: 'boolean', description: 'Enable speaker boost' },
+    search: { type: 'string', description: 'Voice search filter' },
+    category: { type: 'string', description: 'Voice category filter' },
+    pageSize: { type: 'number', description: 'Number of voices to return (1-100)' },
     apiKey: { type: 'string', description: 'ElevenLabs API key' },
   },
 
   outputs: {
-    audioUrl: { type: 'string', description: 'Generated audio URL' },
-    audioFile: { type: 'file', description: 'Generated audio file' },
+    audioUrl: {
+      type: 'string',
+      description: 'Generated audio URL',
+      condition: {
+        field: 'operation',
+        value: ['tts', 'sound_effects', 'speech_to_speech', 'audio_isolation'],
+      },
+    },
+    audioFile: {
+      type: 'file',
+      description: 'Generated audio file',
+      condition: {
+        field: 'operation',
+        value: ['tts', 'sound_effects', 'speech_to_speech', 'audio_isolation'],
+      },
+    },
+    voices: {
+      type: 'array',
+      description: 'List of voices',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    totalCount: {
+      type: 'number',
+      description: 'Total number of matching voices',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether more voices are available',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token to fetch the next page',
+      condition: { field: 'operation', value: 'list_voices' },
+    },
+    voiceId: {
+      type: 'string',
+      description: 'Voice identifier',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    name: {
+      type: 'string',
+      description: 'Voice name',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    category: {
+      type: 'string',
+      description: 'Voice category',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    description: {
+      type: 'string',
+      description: 'Voice description',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    labels: {
+      type: 'json',
+      description: 'Voice labels',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    previewUrl: {
+      type: 'string',
+      description: 'Preview audio URL',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    settings: {
+      type: 'json',
+      description: 'Voice settings',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    availableForTiers: {
+      type: 'array',
+      description: 'Subscription tiers the voice is available on',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    highQualityBaseModelIds: {
+      type: 'array',
+      description: 'Model IDs supporting high-quality output for this voice',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    isOwner: {
+      type: 'boolean',
+      description: 'Whether the current user owns this voice',
+      condition: { field: 'operation', value: 'get_voice' },
+    },
+    stability: {
+      type: 'number',
+      description: 'Voice stability',
+      condition: { field: 'operation', value: 'get_voice_settings' },
+    },
+    similarityBoost: {
+      type: 'number',
+      description: 'Similarity boost',
+      condition: { field: 'operation', value: 'get_voice_settings' },
+    },
+    style: {
+      type: 'number',
+      description: 'Style exaggeration',
+      condition: { field: 'operation', value: 'get_voice_settings' },
+    },
+    useSpeakerBoost: {
+      type: 'boolean',
+      description: 'Whether speaker boost is enabled',
+      condition: { field: 'operation', value: 'get_voice_settings' },
+    },
+    speed: {
+      type: 'number',
+      description: 'Speech speed',
+      condition: { field: 'operation', value: 'get_voice_settings' },
+    },
+    status: {
+      type: 'string',
+      description: 'Edit outcome ("ok" on success)',
+      condition: { field: 'operation', value: 'edit_voice_settings' },
+    },
+    models: {
+      type: 'array',
+      description: 'List of available models',
+      condition: { field: 'operation', value: 'list_models' },
+    },
+    userId: {
+      type: 'string',
+      description: 'User identifier',
+      condition: { field: 'operation', value: 'get_user' },
+    },
+    isNewUser: {
+      type: 'boolean',
+      description: 'Whether the user is new',
+      condition: { field: 'operation', value: 'get_user' },
+    },
+    subscription: {
+      type: 'json',
+      description: 'Subscription and usage details',
+      condition: { field: 'operation', value: 'get_user' },
+    },
   },
 }
 

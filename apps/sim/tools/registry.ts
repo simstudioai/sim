@@ -792,7 +792,18 @@ import {
   elasticsearchSearchTool,
   elasticsearchUpdateDocumentTool,
 } from '@/tools/elasticsearch'
-import { elevenLabsTtsTool } from '@/tools/elevenlabs'
+import {
+  elevenLabsAudioIsolationTool,
+  elevenLabsEditVoiceSettingsTool,
+  elevenLabsGetUserTool,
+  elevenLabsGetVoiceSettingsTool,
+  elevenLabsGetVoiceTool,
+  elevenLabsListModelsTool,
+  elevenLabsListVoicesTool,
+  elevenLabsSoundEffectsTool,
+  elevenLabsSpeechToSpeechTool,
+  elevenLabsTtsTool,
+} from '@/tools/elevenlabs'
 import {
   emailBisonAttachLeadsToCampaignTool,
   emailBisonAttachTagsToLeadsTool,
@@ -6759,6 +6770,15 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_upsert_document: knowledgeUpsertDocumentTool,
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  elevenlabs_list_voices: elevenLabsListVoicesTool,
+  elevenlabs_get_voice: elevenLabsGetVoiceTool,
+  elevenlabs_get_voice_settings: elevenLabsGetVoiceSettingsTool,
+  elevenlabs_edit_voice_settings: elevenLabsEditVoiceSettingsTool,
+  elevenlabs_list_models: elevenLabsListModelsTool,
+  elevenlabs_get_user: elevenLabsGetUserTool,
+  elevenlabs_sound_effects: elevenLabsSoundEffectsTool,
+  elevenlabs_speech_to_speech: elevenLabsSpeechToSpeechTool,
+  elevenlabs_audio_isolation: elevenLabsAudioIsolationTool,
   fathom_list_meetings: fathomListMeetingsTool,
   fathom_get_summary: fathomGetSummaryTool,
   fathom_get_transcript: fathomGetTranscriptTool,
