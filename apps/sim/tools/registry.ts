@@ -78,6 +78,7 @@ import {
 } from '@/tools/ahrefs'
 import {
   airtableCreateRecordsTool,
+  airtableDeleteRecordsTool,
   airtableGetBaseSchemaTool,
   airtableGetRecordTool,
   airtableListBasesTool,
@@ -85,6 +86,7 @@ import {
   airtableListTablesTool,
   airtableUpdateMultipleRecordsTool,
   airtableUpdateRecordTool,
+  airtableUpsertRecordsTool,
 } from '@/tools/airtable'
 import { airweaveSearchTool } from '@/tools/airweave'
 import {
@@ -6412,6 +6414,7 @@ export const tools: Record<string, ToolConfig> = {
   algolia_clear_records: algoliaClearRecordsTool,
   algolia_delete_by_filter: algoliaDeleteByFilterTool,
   airtable_create_records: airtableCreateRecordsTool,
+  airtable_delete_records: airtableDeleteRecordsTool,
   airtable_get_base_schema: airtableGetBaseSchemaTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_bases: airtableListBasesTool,
@@ -6419,6 +6422,7 @@ export const tools: Record<string, ToolConfig> = {
   airtable_list_tables: airtableListTablesTool,
   airtable_update_multiple_records: airtableUpdateMultipleRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
+  airtable_upsert_records: airtableUpsertRecordsTool,
   attio_assert_record: attioAssertRecordTool,
   attio_create_comment: attioCreateCommentTool,
   attio_create_list: attioCreateListTool,
