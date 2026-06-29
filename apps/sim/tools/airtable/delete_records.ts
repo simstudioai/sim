@@ -43,7 +43,9 @@ export const airtableDeleteRecordsTool: ToolConfig<AirtableDeleteParams, Airtabl
   request: {
     url: (params) => {
       const base = `https://api.airtable.com/v0/${params.baseId?.trim()}/${params.tableId?.trim()}`
-      const ids = (params.recordIds ?? []).map((id) => id?.trim()).filter(Boolean)
+      const ids = (params.recordIds ?? [])
+        .map((id) => (id == null ? '' : String(id).trim()))
+        .filter(Boolean)
       if (ids.length === 0) {
         throw new Error('At least one record ID is required to delete')
       }
