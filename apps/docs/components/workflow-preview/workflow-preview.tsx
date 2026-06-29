@@ -196,7 +196,7 @@ function PreviewFlow({
       fitViewOptions={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS}
       className='h-full w-full'
     >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--wp-border)' />
+      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--border)' />
     </ReactFlow>
   )
 }
@@ -254,7 +254,7 @@ export function WorkflowPreview({
   return (
     <LazyMotion features={domAnimation}>
       <div
-        className='wp-scope not-prose group relative my-6 overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)]'
+        className='not-prose group relative my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
         style={{ height }}
       >
         <ReactFlowProvider key={`${workflow.id}-${highlightBlock ?? ''}-${highlightEdge ?? ''}`}>
@@ -270,7 +270,7 @@ export function WorkflowPreview({
           type='button'
           aria-label='Expand workflow preview'
           onClick={() => openWith(null)}
-          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-btn)] text-[var(--wp-text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--wp-text)] group-hover:opacity-100'
+          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] group-hover:opacity-100'
         >
           <Maximize2 className='size-[13px]' />
         </button>
@@ -284,19 +284,19 @@ export function WorkflowPreview({
           role='presentation'
         >
           <div
-            className='wp-scope relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)]'
+            className='relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
             onClick={(e) => e.stopPropagation()}
             onKeyDown={() => {}}
             role='presentation'
           >
             <div className='relative min-w-0 flex-1'>
               <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
-                <span className='text-[13px] text-[var(--wp-text-muted)]'>{workflow.name}</span>
+                <span className='text-[13px] text-[var(--text-muted)]'>{workflow.name}</span>
                 <button
                   type='button'
                   aria-label='Close'
                   onClick={() => setExpanded(false)}
-                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-btn)] text-[var(--wp-text-muted)] transition-colors hover:text-[var(--wp-text)]'
+                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                 >
                   <X className='size-[14px]' />
                 </button>
@@ -313,7 +313,7 @@ export function WorkflowPreview({
               </ReactFlowProvider>
             </div>
 
-            <div className='w-[340px] flex-shrink-0 border-[var(--wp-border)] border-l'>
+            <div className='w-[340px] flex-shrink-0 border-[var(--border)] border-l'>
               {selectedBlock ? (
                 <BlockInspector
                   embedded
@@ -329,7 +329,7 @@ export function WorkflowPreview({
                   }))}
                 />
               ) : (
-                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--wp-text-muted)]'>
+                <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--text-muted)]'>
                   Select a block to see its full configuration
                 </div>
               )}

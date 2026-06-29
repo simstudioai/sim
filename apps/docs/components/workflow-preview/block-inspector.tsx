@@ -48,18 +48,18 @@ function resolveIcon(type: string) {
 }
 
 const CONTROL =
-  'flex w-full items-center justify-between gap-2 rounded-[10px] bg-[var(--wp-control)] px-3 py-2.5 text-[13px]'
+  'flex w-full items-center justify-between gap-2 rounded-[10px] bg-[var(--surface-5)] px-3 py-2.5 text-[13px]'
 
 function FieldControl({ field }: { field: InspectorField }) {
   const kind = field.kind ?? 'input'
   const hasValue = field.value !== undefined && field.value !== ''
-  const textColor = hasValue ? 'var(--wp-text)' : 'var(--wp-text-muted)'
+  const textColor = hasValue ? 'var(--text-primary)' : 'var(--text-muted)'
   const text = hasValue ? field.value : (field.placeholder ?? '—')
 
   if (kind === 'textarea' || kind === 'code') {
     return (
       <div
-        className='w-full rounded-[10px] bg-[var(--wp-control)] px-3 py-2.5 text-[13px] leading-[1.55]'
+        className='w-full rounded-[10px] bg-[var(--surface-5)] px-3 py-2.5 text-[13px] leading-[1.55]'
         style={{
           color: textColor,
           fontFamily: kind === 'code' ? 'var(--font-mono, monospace)' : undefined,
@@ -76,14 +76,14 @@ function FieldControl({ field }: { field: InspectorField }) {
       <div className='flex items-center gap-2'>
         <div
           className='flex h-[18px] w-[32px] items-center rounded-full px-[2px] transition-colors'
-          style={{ background: on ? 'var(--brand-accent)' : 'var(--wp-border-1)' }}
+          style={{ background: on ? 'var(--brand-accent)' : 'var(--border-1)' }}
         >
           <div
             className='size-[14px] rounded-full bg-white'
             style={{ marginLeft: on ? 'auto' : 0 }}
           />
         </div>
-        <span className='text-[12px] text-[var(--wp-text-muted)]'>{on ? 'On' : 'Off'}</span>
+        <span className='text-[12px] text-[var(--text-muted)]'>{on ? 'On' : 'Off'}</span>
       </div>
     )
   }
@@ -92,7 +92,7 @@ function FieldControl({ field }: { field: InspectorField }) {
     const percent = field.percent ?? 50
     return (
       <div className='flex w-full items-center gap-3'>
-        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--wp-border-1)]'>
+        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--border-1)]'>
           <div
             className='absolute inset-y-0 left-0 rounded-full bg-[var(--brand-accent)]'
             style={{ width: `${percent}%` }}
@@ -102,7 +102,7 @@ function FieldControl({ field }: { field: InspectorField }) {
             style={{ left: `calc(${percent}% - 6px)` }}
           />
         </div>
-        <span className='text-[13px] text-[var(--wp-text)]'>{field.value}</span>
+        <span className='text-[13px] text-[var(--text-primary)]'>{field.value}</span>
       </div>
     )
   }
@@ -113,7 +113,7 @@ function FieldControl({ field }: { field: InspectorField }) {
         {text}
       </span>
       {kind === 'select' && (
-        <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--wp-text-muted)]' />
+        <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
       )}
     </div>
   )
@@ -139,19 +139,19 @@ export function BlockInspector({
     <div
       className={
         embedded
-          ? 'wp-scope flex h-full w-full flex-col overflow-y-auto bg-[var(--wp-panel)]'
-          : 'wp-scope not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-panel)]'
+          ? 'flex h-full w-full flex-col overflow-y-auto bg-[var(--surface-1)]'
+          : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-1)]'
       }
     >
-      <div className='flex items-center gap-2.5 border-[var(--wp-border)] border-b px-3 py-2.5'>
+      <div className='flex items-center gap-2.5 border-[var(--border)] border-b px-3 py-2.5'>
         <div
           className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-[6px]'
           style={{ background: color }}
         >
           {Icon && <Icon className='size-[13px] text-white' />}
         </div>
-        <span className='font-medium text-[14px] text-[var(--wp-text)]'>{name}</span>
-        <span className='ml-auto flex items-center gap-2.5 text-[var(--wp-text-muted)]'>
+        <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
+        <span className='ml-auto flex items-center gap-2.5 text-[var(--text-muted)]'>
           <Pencil className='size-[13px]' />
           <BookOpen className='size-[13px]' />
         </span>
@@ -162,11 +162,11 @@ export function BlockInspector({
           <div
             key={field.label}
             className='flex flex-col gap-2 py-3'
-            style={i > 0 ? { borderTop: '1px dashed var(--wp-divider)' } : undefined}
+            style={i > 0 ? { borderTop: '1px dashed var(--divider)' } : undefined}
           >
-            <span className='font-medium text-[13px] text-[var(--wp-text)]'>
+            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
               {field.label}
-              {field.required && <span className='ml-1 text-[var(--wp-text-muted)]'>*</span>}
+              {field.required && <span className='ml-1 text-[var(--text-muted)]'>*</span>}
             </span>
             <FieldControl field={field} />
           </div>
@@ -175,16 +175,16 @@ export function BlockInspector({
         {tools && tools.length > 0 && (
           <div
             className='flex flex-col gap-2 py-3'
-            style={fields.length > 0 ? { borderTop: '1px dashed var(--wp-divider)' } : undefined}
+            style={fields.length > 0 ? { borderTop: '1px dashed var(--divider)' } : undefined}
           >
-            <span className='font-medium text-[13px] text-[var(--wp-text)]'>Tools</span>
+            <span className='font-medium text-[13px] text-[var(--text-primary)]'>Tools</span>
             <div className='flex flex-wrap gap-[6px]'>
               {tools.map((tool) => {
                 const TIcon = resolveIcon(tool.type)
                 return (
                   <div
                     key={tool.type}
-                    className='flex items-center gap-[5px] rounded-[6px] border border-[var(--wp-border-1)] bg-[var(--wp-control)] px-[7px] py-[4px]'
+                    className='flex items-center gap-[5px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[7px] py-[4px]'
                   >
                     <div
                       className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
@@ -192,7 +192,7 @@ export function BlockInspector({
                     >
                       {TIcon && <TIcon className='size-[9px] text-white' />}
                     </div>
-                    <span className='text-[12px] text-[var(--wp-text)]'>{tool.name}</span>
+                    <span className='text-[12px] text-[var(--text-primary)]'>{tool.name}</span>
                   </div>
                 )
               })}
@@ -202,8 +202,8 @@ export function BlockInspector({
       </div>
 
       {connections && connections.length > 0 && (
-        <div className='border-[var(--wp-border)] border-t px-3 py-2.5'>
-          <div className='flex items-center gap-1.5 text-[12px] text-[var(--wp-text-muted)]'>
+        <div className='border-[var(--border)] border-t px-3 py-2.5'>
+          <div className='flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]'>
             <ChevronDown className='size-[12px]' />
             Connections
           </div>
@@ -213,12 +213,12 @@ export function BlockInspector({
               <div key={c.name} className='mt-2 flex items-center gap-2'>
                 <div
                   className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-[5px]'
-                  style={{ background: c.color ?? 'var(--wp-border-1)' }}
+                  style={{ background: c.color ?? 'var(--border-1)' }}
                 >
                   {CIcon && <CIcon className='size-[10px] text-white' />}
                 </div>
-                <span className='text-[13px] text-[var(--wp-text)]'>{c.name}</span>
-                <ChevronRight className='size-[12px] text-[var(--wp-text-muted)]' />
+                <span className='text-[13px] text-[var(--text-primary)]'>{c.name}</span>
+                <ChevronRight className='size-[12px] text-[var(--text-muted)]' />
               </div>
             )
           })}

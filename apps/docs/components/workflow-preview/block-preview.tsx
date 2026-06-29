@@ -22,16 +22,16 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
   const hasContent = spec.rows.length > 0 || branches.length > 0 || Boolean(spec.showError)
 
   return (
-    <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--wp-border-1)] bg-[var(--wp-surface)]'>
+    <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
       {!spec.hideTargetHandle && (
-        <span className={`${HEADER_DOT} left-[-8px] rounded-l-[2px] bg-[var(--wp-edge)]`} />
+        <span className={`${HEADER_DOT} left-[-8px] rounded-l-[2px] bg-[var(--workflow-edge)]`} />
       )}
       {!spec.hideSourceHandle && (
-        <span className={`${HEADER_DOT} right-[-8px] rounded-r-[2px] bg-[var(--wp-edge)]`} />
+        <span className={`${HEADER_DOT} right-[-8px] rounded-r-[2px] bg-[var(--workflow-edge)]`} />
       )}
 
       <div
-        className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--wp-border-1)] border-b' : ''}`}
+        className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--border-1)] border-b' : ''}`}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <div
@@ -40,7 +40,7 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
           >
             {Icon && <Icon className='size-[16px] text-white' />}
           </div>
-          <span className='truncate font-medium text-[16px] text-[var(--wp-text)]'>
+          <span className='truncate font-medium text-[16px] text-[var(--text-primary)]'>
             {spec.name}
           </span>
         </div>
@@ -50,11 +50,11 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
         <div className='flex flex-col gap-2 p-2'>
           {spec.rows.map((row) => (
             <div key={row.title} className='flex items-center gap-2'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
+              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-tertiary)] capitalize'>
                 {row.title}
               </span>
               {row.value && (
-                <span className='flex min-w-0 flex-1 items-center justify-end font-normal text-[14px] text-[var(--wp-text)]'>
+                <span className='flex min-w-0 flex-1 items-center justify-end font-normal text-[14px] text-[var(--text-primary)]'>
                   <span className='truncate'>{row.value}</span>
                 </span>
               )}
@@ -63,17 +63,17 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
 
           {branches.map((branch) => (
             <div key={branch} className='relative flex items-center justify-between gap-2'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
+              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-tertiary)] capitalize'>
                 {branch}
               </span>
-              <span className='font-normal text-[14px] text-[var(--wp-text-3)]'>-</span>
-              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[var(--wp-edge)]`} />
+              <span className='font-normal text-[14px] text-[var(--text-tertiary)]'>-</span>
+              <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[var(--workflow-edge)]`} />
             </div>
           ))}
 
           {spec.showError && (
             <div className='relative flex items-center'>
-              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
+              <span className='flex-shrink-0 font-normal text-[14px] text-[var(--text-tertiary)] capitalize'>
                 error
               </span>
               <span className={`${DOT} right-[-16px] rounded-r-[2px] bg-[var(--text-error)]`} />
@@ -100,7 +100,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
   if (!spec) return null
 
   return (
-    <div className='wp-scope not-prose my-6 flex justify-center overflow-x-auto rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)] px-6 py-10'>
+    <div className='not-prose my-6 flex justify-center overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--bg)] px-6 py-10'>
       <div style={{ zoom: SCALE }}>
         <BlockCard spec={spec} />
       </div>
