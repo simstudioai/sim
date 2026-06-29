@@ -121,7 +121,13 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const totalOverageCents = Math.round(currentOverage * 100)
 
     const billedResult = await db.transaction(
-      async (tx): Promise<{ amount: number; creditsApplied: number } | null> => {
+      async (
+        tx
+      ): Promise<{
+        amount: number
+        creditsApplied: number
+        settledVia: 'stripe' | 'credits'
+      } | null> => {
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
         const statsRecords = await tx
@@ -200,7 +206,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
             creditsApplied,
             unbilledOverage,
           })
-          return null
+          return { amount: unbilledOverage, creditsApplied, settledVia: 'credits' }
         }
 
         const amountCents = Math.round(amountToBill * 100)
@@ -240,18 +246,19 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
           newBilledTotal: billedOverageThisPeriod + unbilledOverage,
         })
 
-        return { amount: amountToBill, creditsApplied }
+        return { amount: amountToBill, creditsApplied, settledVia: 'stripe' }
       }
     )
 
     if (billedResult) {
-      const { amount, creditsApplied } = billedResult
+      const { amount, creditsApplied, settledVia } = billedResult
+      const settledLabel = settledVia === 'credits' ? 'covered by credits' : 'billed'
       recordAudit({
         actorId: userId,
         action: AuditAction.OVERAGE_BILLED,
         resourceType: AuditResourceType.BILLING,
         resourceId: userSubscription.id,
-        description: `Overage of $${amount.toFixed(2)} billed for user ${userId}`,
+        description: `Overage of $${amount.toFixed(2)} ${settledLabel} for user ${userId}`,
         metadata: {
           entityType: 'user',
           referenceId: userId,
@@ -259,6 +266,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
           amount,
           currency: 'usd',
           creditsApplied,
+          settledVia,
           billingPeriod,
         },
       })
@@ -267,6 +275,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         currency: 'usd',
         entity_type: 'user',
         reference_id: userId,
+        settled_via: settledVia,
       })
     }
   } catch (error) {
@@ -405,7 +414,14 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     const totalOverageCents = Math.round(currentOverage * 100)
 
     const orgBilledResult = await db.transaction(
-      async (tx): Promise<{ amount: number; creditsApplied: number; ownerId: string } | null> => {
+      async (
+        tx
+      ): Promise<{
+        amount: number
+        creditsApplied: number
+        ownerId: string
+        settledVia: 'stripe' | 'credits'
+      } | null> => {
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
         const lockedOwnerRows = await tx
@@ -529,7 +545,12 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
             creditsApplied,
             unbilledOverage,
           })
-          return null
+          return {
+            amount: unbilledOverage,
+            creditsApplied,
+            ownerId: lockedOwnerId,
+            settledVia: 'credits',
+          }
         }
 
         const amountCents = Math.round(amountToBill * 100)
@@ -570,18 +591,24 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
           billingPeriod,
         })
 
-        return { amount: amountToBill, creditsApplied, ownerId: lockedOwnerId }
+        return {
+          amount: amountToBill,
+          creditsApplied,
+          ownerId: lockedOwnerId,
+          settledVia: 'stripe',
+        }
       }
     )
 
     if (orgBilledResult) {
-      const { amount, creditsApplied, ownerId } = orgBilledResult
+      const { amount, creditsApplied, ownerId, settledVia } = orgBilledResult
+      const settledLabel = settledVia === 'credits' ? 'covered by credits' : 'billed'
       recordAudit({
         actorId: ownerId,
         action: AuditAction.OVERAGE_BILLED,
         resourceType: AuditResourceType.BILLING,
         resourceId: orgSubscription.id,
-        description: `Overage of $${amount.toFixed(2)} billed for organization ${organizationId}`,
+        description: `Overage of $${amount.toFixed(2)} ${settledLabel} for organization ${organizationId}`,
         metadata: {
           entityType: 'organization',
           referenceId: organizationId,
@@ -589,6 +616,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
           amount,
           currency: 'usd',
           creditsApplied,
+          settledVia,
           billingPeriod,
         },
       })
@@ -597,6 +625,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         currency: 'usd',
         entity_type: 'organization',
         reference_id: organizationId,
+        settled_via: settledVia,
       })
     }
   } catch (error) {

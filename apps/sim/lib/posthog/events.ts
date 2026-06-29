@@ -743,6 +743,7 @@ export interface PostHogEventMap {
     currency: string
     entity_type: 'user' | 'organization'
     reference_id: string
+    settled_via: 'stripe' | 'credits'
   }
 
   credits_purchased: {
