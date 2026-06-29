@@ -249,16 +249,20 @@ export async function generateCopilotDownloadUrl(
  * @param key File storage key
  */
 export async function deleteCopilotFile(key: string): Promise<void> {
+  let metadataReadFailed = false
   const metadata = await getFileMetadataByKey(key, 'copilot').catch((error) => {
     logger.error('Failed to read copilot file metadata for storage accounting:', error)
+    metadataReadFailed = true
     return null
   })
 
   // Settle storage accounting (atomic metadata soft-delete + quota decrement)
-  // BEFORE removing the blob. If it fails, the file is left fully intact — blob,
-  // active metadata, and counter all consistent — so a retry can re-run cleanly,
-  // rather than orphaning the blob with a permanently inflated counter.
-  let released = true
+  // BEFORE removing the blob. If accounting can't be completed, the file is left
+  // fully intact — blob, active metadata, and counter all consistent — so a retry
+  // re-runs cleanly rather than orphaning the blob with an inflated counter. A
+  // failed metadata *read* (vs a genuine missing row) also blocks the blob delete,
+  // since a row may still exist and would be left un-decremented.
+  let released = !metadataReadFailed
   if (metadata) {
     try {
       await releaseDeletedFileStorage(
@@ -267,6 +271,7 @@ export async function deleteCopilotFile(key: string): Promise<void> {
         metadata.size,
         metadata.workspaceId ?? undefined
       )
+      released = true
     } catch (storageError) {
       released = false
       logger.error('Failed to release copilot file storage:', storageError)
