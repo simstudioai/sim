@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -17,6 +18,28 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
+
+/**
+ * Resolve a real `user.id` to use as the audit actor for a subscription
+ * event. Org-scoped subscriptions resolve to the org owner; personally
+ * scoped subscriptions already reference a user.
+ */
+async function resolveSubscriptionActorId(referenceId: string): Promise<string> {
+  try {
+    const rows = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
+      .limit(1)
+    return rows[0]?.userId ?? referenceId
+  } catch (error) {
+    logger.warn('Failed to resolve subscription actor; falling back to reference id', {
+      referenceId,
+      error,
+    })
+    return referenceId
+  }
+}
 
 /**
  * Restore personal Pro subscriptions for every member of an organization
@@ -253,6 +276,19 @@ export async function handleSubscriptionCreated(subscriptionData: {
     }
 
     if (wasFreePreviously && isPaidPlan) {
+      const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
+      recordAudit({
+        actorId,
+        action: AuditAction.SUBSCRIPTION_CREATED,
+        resourceType: AuditResourceType.SUBSCRIPTION,
+        resourceId: subscriptionData.id,
+        description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
+        metadata: {
+          plan: subscriptionData.plan,
+          status: subscriptionData.status,
+          referenceId: subscriptionData.referenceId,
+        },
+      })
       captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
         plan: subscriptionData.plan ?? 'unknown',
         status: subscriptionData.status,
@@ -329,6 +365,19 @@ export async function handleSubscriptionDeleted(
             ...dormantResult,
           })
 
+          const enterpriseActorId = await resolveSubscriptionActorId(subscription.referenceId)
+          recordAudit({
+            actorId: enterpriseActorId,
+            action: AuditAction.SUBSCRIPTION_CANCELLED,
+            resourceType: AuditResourceType.SUBSCRIPTION,
+            resourceId: subscription.id,
+            description: `Enterprise subscription cancelled for ${subscription.referenceId}`,
+            metadata: {
+              plan: subscription.plan,
+              referenceId: subscription.referenceId,
+              kind: 'enterprise',
+            },
+          })
           captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
             plan: subscription.plan ?? 'unknown',
             reference_id: subscription.referenceId,
@@ -451,6 +500,19 @@ export async function handleSubscriptionDeleted(
           workspacesDetached,
         })
 
+        const cancelActorId = await resolveSubscriptionActorId(subscription.referenceId)
+        recordAudit({
+          actorId: cancelActorId,
+          action: AuditAction.SUBSCRIPTION_CANCELLED,
+          resourceType: AuditResourceType.SUBSCRIPTION,
+          resourceId: subscription.id,
+          description: `Subscription cancelled on ${subscription.plan ?? 'unknown'} plan for ${subscription.referenceId}`,
+          metadata: {
+            plan: subscription.plan,
+            referenceId: subscription.referenceId,
+            totalOverage,
+          },
+        })
         captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
           plan: subscription.plan ?? 'unknown',
           reference_id: subscription.referenceId,

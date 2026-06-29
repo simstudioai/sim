@@ -316,6 +316,7 @@ describe('acceptInvitation', () => {
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
       organizationId: 'org-new',
       reason: 'member-accepted-invite',
+      actorId: 'invitee-user',
     })
     expect(mockSetActiveOrganizationForCurrentSession).toHaveBeenCalledWith('org-new')
   })

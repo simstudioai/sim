@@ -164,7 +164,7 @@ export async function importAppendRows(
       // the order and deadlocking concurrent inserts on this table. The lock is
       // re-entrant, so the per-batch acquire below is a no-op.
       await acquireRowOrderLock(trx, table.id)
-      working = await addTableColumnsWithTx(trx, table, additions, ctx.requestId)
+      working = await addTableColumnsWithTx(trx, table, additions, ctx.requestId, ctx.userId)
     }
     const inserted: TableRow[] = []
     for (let i = 0; i < rows.length; i += CSV_MAX_BATCH_SIZE) {
@@ -209,7 +209,7 @@ export async function importReplaceRows(
     let working = table
     if (additions.length > 0) {
       await acquireRowOrderLock(trx, table.id)
-      working = await addTableColumnsWithTx(trx, table, additions, requestId)
+      working = await addTableColumnsWithTx(trx, table, additions, requestId, data.userId)
     }
     return replaceTableRowsWithTx(
       trx,

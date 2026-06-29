@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tableExportFormatSchema, tableIdParamsSchema } from '@/lib/api/contracts/tables'
@@ -6,6 +7,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { queryRows } from '@/lib/table/rows/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -29,6 +31,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
+  const userId = auth.userId
 
   const { searchParams } = new URL(request.url)
   const formatValidation = tableExportFormatSchema.safeParse(
@@ -98,6 +101,26 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
           format,
           rowCount: table.rowCount,
         })
+
+        recordAudit({
+          workspaceId: table.workspaceId ?? null,
+          actorId: userId,
+          action: AuditAction.TABLE_EXPORTED,
+          resourceType: AuditResourceType.TABLE,
+          resourceId: tableId,
+          resourceName: table.name,
+          description: `Exported table "${table.name}" as ${format.toUpperCase()}`,
+          metadata: { format, rowCount: table.rowCount },
+          request,
+        })
+        if (table.workspaceId) {
+          captureServerEvent(
+            userId,
+            'table_exported',
+            { table_id: tableId, workspace_id: table.workspaceId },
+            { groups: { workspace: table.workspaceId } }
+          )
+        }
       } catch (err) {
         logger.error(`[${requestId}] Export failed for table ${tableId}`, err)
         controller.error(err)

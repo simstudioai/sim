@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -8,6 +9,7 @@ import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('OrganizationSeats')
 
@@ -22,6 +24,13 @@ export interface ReconcileOrganizationSeatsResult {
 interface ReconcileOrganizationSeatsParams {
   organizationId: string
   reason: string
+  /**
+   * Real `user.id` of the actor whose action triggered this reconcile, used to
+   * attribute the seat-change audit log and analytics event. Omit for system
+   * reconciles (e.g. the seat-drift sweep) that have no acting user; the audit
+   * is then skipped and analytics fall back to the organization id.
+   */
+  actorId?: string
 }
 
 /**
@@ -41,6 +50,7 @@ interface ReconcileOrganizationSeatsParams {
 export async function reconcileOrganizationSeats({
   organizationId,
   reason,
+  actorId,
 }: ReconcileOrganizationSeatsParams): Promise<ReconcileOrganizationSeatsResult> {
   if (!isBillingEnabled) {
     return { changed: false, reason: 'Billing is not enabled' }
@@ -141,6 +151,30 @@ export async function reconcileOrganizationSeats({
     reason,
     outboxEventId: outcome.outboxEventId,
   })
+
+  const increased = outcome.seats > outcome.previousSeats
+  if (actorId) {
+    recordAudit({
+      workspaceId: null,
+      actorId,
+      action: increased ? AuditAction.ORG_SEAT_PROVISIONED : AuditAction.ORG_SEAT_DEPROVISIONED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      description: `${increased ? 'Provisioned' : 'Deprovisioned'} organization seats: ${outcome.previousSeats} → ${outcome.seats}`,
+      metadata: { previousSeats: outcome.previousSeats, seats: outcome.seats, reason },
+    })
+  }
+  captureServerEvent(
+    actorId ?? organizationId,
+    increased ? 'seats_provisioned' : 'seats_deprovisioned',
+    {
+      organization_id: organizationId,
+      previous_seats: outcome.previousSeats,
+      seats: outcome.seats,
+      reason,
+    },
+    { groups: { organization: organizationId } }
+  )
 
   return {
     changed: true,

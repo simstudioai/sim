@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import JSZip from 'jszip'
@@ -9,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -83,6 +85,35 @@ export const GET = withRouteHandler(
     const imageIds = extractEmbeddedImageIds(mdContent)
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
+
+    const exportFormat = imageIds.length === 0 ? 'markdown' : 'zip'
+    recordAudit({
+      workspaceId: record.workspaceId ?? null,
+      actorId: userId,
+      action: AuditAction.FILE_DOWNLOADED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: record.id,
+      resourceName: record.originalName,
+      description: `Exported file "${record.originalName}"`,
+      metadata: {
+        fileId: record.id,
+        fileName: record.originalName,
+        bytes: record.size,
+        format: exportFormat,
+        assetCount: imageIds.length,
+      },
+      request,
+    })
+    captureServerEvent(
+      userId,
+      'file_downloaded',
+      {
+        workspace_id: record.workspaceId ?? '',
+        is_bulk: imageIds.length > 0,
+        file_count: 1 + imageIds.length,
+      },
+      record.workspaceId ? { groups: { workspace: record.workspaceId } } : undefined
+    )
 
     if (imageIds.length === 0) {
       const mdName = safeFilename(record.originalName)

@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -19,6 +20,7 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env, envNumber } from '@/lib/core/config/env'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ThresholdBilling')
 
@@ -118,73 +120,91 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
     const totalOverageCents = Math.round(currentOverage * 100)
 
-    await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
+    const billedResult = await db.transaction(
+      async (tx): Promise<{ amount: number; creditsApplied: number } | null> => {
+        await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
-      const statsRecords = await tx
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, userId))
-        .for('update')
-        .limit(1)
-
-      if (statsRecords.length === 0) {
-        logger.warn('User stats not found for threshold billing', { userId })
-        return
-      }
-
-      const stats = statsRecords[0]
-      const lockedUsageSnapshot = personalUsageSnapshotFromStats(stats)
-      if (!personalUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)) {
-        logger.debug('Personal usage changed during threshold billing check; retry later', {
-          userId,
-          usageSnapshot,
-          lockedUsageSnapshot,
-        })
-        return
-      }
-
-      const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
-      const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
-
-      logger.debug('Threshold billing check', {
-        userId,
-        plan: userSubscription.plan,
-        currentOverage,
-        billedOverageThisPeriod,
-        unbilledOverage,
-        threshold,
-      })
-
-      if (unbilledOverage < threshold) {
-        return
-      }
-
-      // Apply credits to reduce the amount to bill (use stats from locked row)
-      let amountToBill = unbilledOverage
-      let creditsApplied = 0
-      const creditBalance = toNumber(toDecimal(stats.creditBalance))
-
-      if (creditBalance > 0) {
-        creditsApplied = Math.min(creditBalance, amountToBill)
-        await tx
-          .update(userStats)
-          .set({
-            creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${creditsApplied})`,
-          })
+        const statsRecords = await tx
+          .select()
+          .from(userStats)
           .where(eq(userStats.userId, userId))
-        amountToBill = amountToBill - creditsApplied
+          .for('update')
+          .limit(1)
 
-        logger.info('Applied credits to reduce threshold overage', {
+        if (statsRecords.length === 0) {
+          logger.warn('User stats not found for threshold billing', { userId })
+          return null
+        }
+
+        const stats = statsRecords[0]
+        const lockedUsageSnapshot = personalUsageSnapshotFromStats(stats)
+        if (!personalUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)) {
+          logger.debug('Personal usage changed during threshold billing check; retry later', {
+            userId,
+            usageSnapshot,
+            lockedUsageSnapshot,
+          })
+          return null
+        }
+
+        const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
+        const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
+
+        logger.debug('Threshold billing check', {
           userId,
-          creditBalance,
-          creditsApplied,
-          remainingToBill: amountToBill,
+          plan: userSubscription.plan,
+          currentOverage,
+          billedOverageThisPeriod,
+          unbilledOverage,
+          threshold,
         })
-      }
 
-      // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
-      if (amountToBill <= 0) {
+        if (unbilledOverage < threshold) {
+          return null
+        }
+
+        // Apply credits to reduce the amount to bill (use stats from locked row)
+        let amountToBill = unbilledOverage
+        let creditsApplied = 0
+        const creditBalance = toNumber(toDecimal(stats.creditBalance))
+
+        if (creditBalance > 0) {
+          creditsApplied = Math.min(creditBalance, amountToBill)
+          await tx
+            .update(userStats)
+            .set({
+              creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${creditsApplied})`,
+            })
+            .where(eq(userStats.userId, userId))
+          amountToBill = amountToBill - creditsApplied
+
+          logger.info('Applied credits to reduce threshold overage', {
+            userId,
+            creditBalance,
+            creditsApplied,
+            remainingToBill: amountToBill,
+          })
+        }
+
+        // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
+        if (amountToBill <= 0) {
+          await tx
+            .update(userStats)
+            .set({
+              billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${unbilledOverage}`,
+            })
+            .where(eq(userStats.userId, userId))
+
+          logger.info('Credits fully covered threshold overage', {
+            userId,
+            creditsApplied,
+            unbilledOverage,
+          })
+          return null
+        }
+
+        const amountCents = Math.round(amountToBill * 100)
+
         await tx
           .update(userStats)
           .set({
@@ -192,51 +212,63 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
           })
           .where(eq(userStats.userId, userId))
 
-        logger.info('Credits fully covered threshold overage', {
-          userId,
-          creditsApplied,
-          unbilledOverage,
-        })
-        return
-      }
-
-      const amountCents = Math.round(amountToBill * 100)
-
-      await tx
-        .update(userStats)
-        .set({
-          billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${unbilledOverage}`,
-        })
-        .where(eq(userStats.userId, userId))
-
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
-        customerId,
-        stripeSubscriptionId,
-        amountCents,
-        description: `Threshold overage billing – ${billingPeriod}`,
-        itemDescription: `Usage overage ($${amountToBill.toFixed(2)})`,
-        billingPeriod,
-        invoiceIdemKeyStem: `threshold-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
-        itemIdemKeyStem: `threshold-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
-        metadata: {
-          type: 'overage_threshold_billing',
-          userId,
-          subscriptionId: stripeSubscriptionId,
+        await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
+          customerId,
+          stripeSubscriptionId,
+          amountCents,
+          description: `Threshold overage billing – ${billingPeriod}`,
+          itemDescription: `Usage overage ($${amountToBill.toFixed(2)})`,
           billingPeriod,
-          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+          invoiceIdemKeyStem: `threshold-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          itemIdemKeyStem: `threshold-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          metadata: {
+            type: 'overage_threshold_billing',
+            userId,
+            subscriptionId: stripeSubscriptionId,
+            billingPeriod,
+            totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+          },
+        })
+
+        logger.info('Queued threshold overage invoice for Stripe', {
+          userId,
+          plan: userSubscription.plan,
+          amountToBill,
+          billingPeriod,
+          creditsApplied,
+          totalProcessed: unbilledOverage,
+          newBilledTotal: billedOverageThisPeriod + unbilledOverage,
+        })
+
+        return { amount: amountToBill, creditsApplied }
+      }
+    )
+
+    if (billedResult) {
+      const { amount, creditsApplied } = billedResult
+      recordAudit({
+        actorId: userId,
+        action: AuditAction.OVERAGE_BILLED,
+        resourceType: AuditResourceType.BILLING,
+        resourceId: userSubscription.id,
+        description: `Overage of $${amount.toFixed(2)} billed for user ${userId}`,
+        metadata: {
+          entityType: 'user',
+          referenceId: userId,
+          plan: userSubscription.plan,
+          amount,
+          currency: 'usd',
+          creditsApplied,
+          billingPeriod,
         },
       })
-
-      logger.info('Queued threshold overage invoice for Stripe', {
-        userId,
-        plan: userSubscription.plan,
-        amountToBill,
-        billingPeriod,
-        creditsApplied,
-        totalProcessed: unbilledOverage,
-        newBilledTotal: billedOverageThisPeriod + unbilledOverage,
+      captureServerEvent(userId, 'overage_billed', {
+        amount,
+        currency: 'usd',
+        entity_type: 'user',
+        reference_id: userId,
       })
-    })
+    }
   } catch (error) {
     logger.error('Error in threshold billing check', {
       userId,
@@ -372,116 +404,138 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
     const totalOverageCents = Math.round(currentOverage * 100)
 
-    await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
+    const orgBilledResult = await db.transaction(
+      async (tx): Promise<{ amount: number; creditsApplied: number; ownerId: string } | null> => {
+        await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
-      const lockedOwnerRows = await tx
-        .select({ userId: member.userId })
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-        .for('update')
-        .limit(1)
-      const lockedOwnerId = lockedOwnerRows[0]?.userId
-      if (!lockedOwnerId) {
-        logger.error('Organization owner not found after locking organization', { organizationId })
-        return
-      }
-
-      const ownerStatsLock = await tx
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, lockedOwnerId))
-        .for('update')
-        .limit(1)
-      if (ownerStatsLock.length === 0) {
-        logger.error('Owner stats not found', { organizationId, ownerId: lockedOwnerId })
-        return
-      }
-
-      const orgLock = await tx
-        .select()
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .for('update')
-        .limit(1)
-
-      if (orgLock.length === 0) {
-        logger.error('Organization not found', { organizationId })
-        return
-      }
-
-      const lockedMemberUsageRows = await tx
-        .select({
-          userId: member.userId,
-          role: member.role,
-          currentPeriodCost: userStats.currentPeriodCost,
-          departedMemberUsage: organization.departedMemberUsage,
-        })
-        .from(member)
-        .leftJoin(userStats, eq(member.userId, userStats.userId))
-        .innerJoin(organization, eq(organization.id, member.organizationId))
-        .where(eq(member.organizationId, organizationId))
-
-      const lockedUsageSnapshot = buildOrganizationUsageSnapshot(lockedMemberUsageRows)
-      if (
-        !lockedUsageSnapshot ||
-        lockedOwnerId !== usageSnapshot.ownerId ||
-        !organizationUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)
-      ) {
-        logger.debug('Organization usage changed during threshold billing check; retry later', {
-          organizationId,
-          usageSnapshot,
-          lockedUsageSnapshot,
-          lockedOwnerId,
-        })
-        return
-      }
-
-      const totalBilledOverage = toNumber(toDecimal(ownerStatsLock[0].billedOverageThisPeriod))
-      const orgCreditBalance = toNumber(toDecimal(orgLock[0].creditBalance))
-
-      const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
-
-      logger.debug('Organization threshold billing check', {
-        organizationId,
-        totalTeamUsage:
-          usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
-        ledgerUsage,
-        effectiveTeamUsage,
-        basePrice,
-        currentOverage,
-        totalBilledOverage,
-        unbilledOverage,
-        threshold,
-      })
-
-      if (unbilledOverage < threshold) {
-        return
-      }
-
-      let amountToBill = unbilledOverage
-      let creditsApplied = 0
-
-      if (orgCreditBalance > 0) {
-        creditsApplied = Math.min(orgCreditBalance, amountToBill)
-        await tx
-          .update(organization)
-          .set({
-            creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${creditsApplied})`,
+        const lockedOwnerRows = await tx
+          .select({ userId: member.userId })
+          .from(member)
+          .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+          .for('update')
+          .limit(1)
+        const lockedOwnerId = lockedOwnerRows[0]?.userId
+        if (!lockedOwnerId) {
+          logger.error('Organization owner not found after locking organization', {
+            organizationId,
           })
+          return null
+        }
+
+        const ownerStatsLock = await tx
+          .select()
+          .from(userStats)
+          .where(eq(userStats.userId, lockedOwnerId))
+          .for('update')
+          .limit(1)
+        if (ownerStatsLock.length === 0) {
+          logger.error('Owner stats not found', { organizationId, ownerId: lockedOwnerId })
+          return null
+        }
+
+        const orgLock = await tx
+          .select()
+          .from(organization)
           .where(eq(organization.id, organizationId))
-        amountToBill = amountToBill - creditsApplied
+          .for('update')
+          .limit(1)
 
-        logger.info('Applied org credits to reduce threshold overage', {
+        if (orgLock.length === 0) {
+          logger.error('Organization not found', { organizationId })
+          return null
+        }
+
+        const lockedMemberUsageRows = await tx
+          .select({
+            userId: member.userId,
+            role: member.role,
+            currentPeriodCost: userStats.currentPeriodCost,
+            departedMemberUsage: organization.departedMemberUsage,
+          })
+          .from(member)
+          .leftJoin(userStats, eq(member.userId, userStats.userId))
+          .innerJoin(organization, eq(organization.id, member.organizationId))
+          .where(eq(member.organizationId, organizationId))
+
+        const lockedUsageSnapshot = buildOrganizationUsageSnapshot(lockedMemberUsageRows)
+        if (
+          !lockedUsageSnapshot ||
+          lockedOwnerId !== usageSnapshot.ownerId ||
+          !organizationUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)
+        ) {
+          logger.debug('Organization usage changed during threshold billing check; retry later', {
+            organizationId,
+            usageSnapshot,
+            lockedUsageSnapshot,
+            lockedOwnerId,
+          })
+          return null
+        }
+
+        const totalBilledOverage = toNumber(toDecimal(ownerStatsLock[0].billedOverageThisPeriod))
+        const orgCreditBalance = toNumber(toDecimal(orgLock[0].creditBalance))
+
+        const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
+
+        logger.debug('Organization threshold billing check', {
           organizationId,
-          creditBalance: orgCreditBalance,
-          creditsApplied,
-          remainingToBill: amountToBill,
+          totalTeamUsage:
+            usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
+          ledgerUsage,
+          effectiveTeamUsage,
+          basePrice,
+          currentOverage,
+          totalBilledOverage,
+          unbilledOverage,
+          threshold,
         })
-      }
 
-      // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
-      if (amountToBill <= 0) {
+        if (unbilledOverage < threshold) {
+          return null
+        }
+
+        let amountToBill = unbilledOverage
+        let creditsApplied = 0
+
+        if (orgCreditBalance > 0) {
+          creditsApplied = Math.min(orgCreditBalance, amountToBill)
+          await tx
+            .update(organization)
+            .set({
+              creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${creditsApplied})`,
+            })
+            .where(eq(organization.id, organizationId))
+          amountToBill = amountToBill - creditsApplied
+
+          logger.info('Applied org credits to reduce threshold overage', {
+            organizationId,
+            creditBalance: orgCreditBalance,
+            creditsApplied,
+            remainingToBill: amountToBill,
+          })
+        }
+
+        // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
+        if (amountToBill <= 0) {
+          await tx
+            .update(userStats)
+            .set({
+              billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${unbilledOverage}`,
+            })
+            .where(eq(userStats.userId, lockedOwnerId))
+
+          logger.info('Credits fully covered org threshold overage', {
+            organizationId,
+            creditsApplied,
+            unbilledOverage,
+          })
+          return null
+        }
+
+        const amountCents = Math.round(amountToBill * 100)
+
+        // Bump billed tracker and enqueue Stripe invoice atomically.
+        // See user-path above for the full retry-invariant reasoning.
         await tx
           .update(userStats)
           .set({
@@ -489,52 +543,62 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
           })
           .where(eq(userStats.userId, lockedOwnerId))
 
-        logger.info('Credits fully covered org threshold overage', {
-          organizationId,
-          creditsApplied,
-          unbilledOverage,
-        })
-        return
-      }
-
-      const amountCents = Math.round(amountToBill * 100)
-
-      // Bump billed tracker and enqueue Stripe invoice atomically.
-      // See user-path above for the full retry-invariant reasoning.
-      await tx
-        .update(userStats)
-        .set({
-          billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${unbilledOverage}`,
-        })
-        .where(eq(userStats.userId, lockedOwnerId))
-
-      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
-        customerId,
-        stripeSubscriptionId,
-        amountCents,
-        description: `Team threshold overage billing – ${billingPeriod}`,
-        itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
-        billingPeriod,
-        invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
-        itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
-        metadata: {
-          type: 'overage_threshold_billing_org',
-          organizationId,
-          subscriptionId: stripeSubscriptionId,
+        await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
+          customerId,
+          stripeSubscriptionId,
+          amountCents,
+          description: `Team threshold overage billing – ${billingPeriod}`,
+          itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
           billingPeriod,
-          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+          invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          metadata: {
+            type: 'overage_threshold_billing_org',
+            organizationId,
+            subscriptionId: stripeSubscriptionId,
+            billingPeriod,
+            totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+          },
+        })
+
+        logger.info('Queued organization threshold overage invoice for Stripe', {
+          organizationId,
+          ownerId: lockedOwnerId,
+          creditsApplied,
+          amountBilled: amountToBill,
+          totalProcessed: unbilledOverage,
+          billingPeriod,
+        })
+
+        return { amount: amountToBill, creditsApplied, ownerId: lockedOwnerId }
+      }
+    )
+
+    if (orgBilledResult) {
+      const { amount, creditsApplied, ownerId } = orgBilledResult
+      recordAudit({
+        actorId: ownerId,
+        action: AuditAction.OVERAGE_BILLED,
+        resourceType: AuditResourceType.BILLING,
+        resourceId: orgSubscription.id,
+        description: `Overage of $${amount.toFixed(2)} billed for organization ${organizationId}`,
+        metadata: {
+          entityType: 'organization',
+          referenceId: organizationId,
+          plan: orgSubscription.plan,
+          amount,
+          currency: 'usd',
+          creditsApplied,
+          billingPeriod,
         },
       })
-
-      logger.info('Queued organization threshold overage invoice for Stripe', {
-        organizationId,
-        ownerId: lockedOwnerId,
-        creditsApplied,
-        amountBilled: amountToBill,
-        totalProcessed: unbilledOverage,
-        billingPeriod,
+      captureServerEvent(ownerId, 'overage_billed', {
+        amount,
+        currency: 'usd',
+        entity_type: 'organization',
+        reference_id: organizationId,
       })
-    })
+    }
   } catch (error) {
     logger.error('Error in organization threshold billing', {
       organizationId,

@@ -1,10 +1,12 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { subscription, user, userStats } from '@sim/db/schema'
+import { member, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('DisputeWebhooks')
 
@@ -15,6 +17,59 @@ async function getCustomerIdFromDispute(dispute: Stripe.Dispute): Promise<string
   const stripe = requireStripeClient()
   const charge = await stripe.charges.retrieve(chargeId)
   return typeof charge.customer === 'string' ? charge.customer : (charge.customer?.id ?? null)
+}
+
+async function getOrganizationOwnerId(organizationId: string): Promise<string | null> {
+  try {
+    const rows = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      .limit(1)
+    return rows[0]?.userId ?? null
+  } catch (error) {
+    logger.warn('Failed to resolve organization owner for dispute audit', { organizationId, error })
+    return null
+  }
+}
+
+/**
+ * Record audit + PostHog instrumentation for a charge dispute money event.
+ * `actorId` must be the responsible user (org owner for org-scoped charges).
+ */
+function recordDisputeInstrumentation(
+  status: 'opened' | 'closed',
+  dispute: Stripe.Dispute,
+  customerId: string,
+  actorId: string,
+  entity: { type: 'user' | 'organization'; id: string }
+): void {
+  const amount = dispute.amount / 100
+  recordAudit({
+    actorId,
+    action:
+      status === 'opened' ? AuditAction.CHARGE_DISPUTE_OPENED : AuditAction.CHARGE_DISPUTE_CLOSED,
+    resourceType: AuditResourceType.BILLING,
+    resourceId: dispute.id,
+    description: `Charge dispute ${status} for $${amount.toFixed(2)} (${dispute.reason})`,
+    metadata: {
+      entityType: entity.type,
+      entityId: entity.id,
+      customerId,
+      amount,
+      currency: dispute.currency,
+      reason: dispute.reason,
+      status: dispute.status,
+    },
+  })
+  captureServerEvent(actorId, 'charge_disputed', {
+    amount,
+    currency: dispute.currency,
+    reason: dispute.reason,
+    status,
+    entity_type: entity.type,
+    reference_id: entity.id,
+  })
 }
 
 /**
@@ -46,6 +101,11 @@ export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
       disputeId: dispute.id,
       userId: users[0].id,
     })
+
+    recordDisputeInstrumentation('opened', dispute, customerId, users[0].id, {
+      type: 'user',
+      id: users[0].id,
+    })
     return
   }
 
@@ -67,6 +127,12 @@ export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
         memberCount,
       })
     }
+
+    const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
+    recordDisputeInstrumentation('opened', dispute, customerId, actorId, {
+      type: 'organization',
+      id: orgId,
+    })
   }
 }
 
@@ -115,6 +181,11 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
       userId: users[0].id,
       status: dispute.status,
     })
+
+    recordDisputeInstrumentation('closed', dispute, customerId, users[0].id, {
+      type: 'user',
+      id: users[0].id,
+    })
     return
   }
 
@@ -134,6 +205,12 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
       organizationId: orgId,
       memberCount,
       status: dispute.status,
+    })
+
+    const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
+    recordDisputeInstrumentation('closed', dispute, customerId, actorId, {
+      type: 'organization',
+      id: orgId,
     })
   }
 }

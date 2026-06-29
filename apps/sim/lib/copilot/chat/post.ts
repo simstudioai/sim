@@ -45,6 +45,7 @@ import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,
@@ -1076,6 +1077,19 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // all side-channel work on this request appear as child spans
       // of this same trace in Tempo instead of disconnected roots.
       // W3C traceparent format: `00-<trace-id>-<parent-id>-<flags>`.
+      captureServerEvent(
+        authenticatedUserId,
+        'copilot_chat_sent',
+        {
+          workflow_id: branch.kind === 'workflow' ? branch.workflowId : '',
+          workspace_id: workspaceId ?? '',
+          has_file_attachments: (body.fileAttachments?.length ?? 0) > 0,
+          has_contexts: normalizedContexts.length > 0,
+          mode: branch.kind === 'workflow' ? branch.mode : 'agent',
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
+
       const rootCtx = activeOtelRoot.span.spanContext()
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'

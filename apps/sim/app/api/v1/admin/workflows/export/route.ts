@@ -14,6 +14,7 @@
  *   - JSON: AdminListResponse<WorkflowExportPayload[]>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -100,6 +101,20 @@ export const POST = withRouteHandler(
       }
 
       logger.info(`Admin API: Exporting ${workflowExports.length} workflows`)
+
+      recordAudit({
+        actorId: 'admin-api',
+        action: AuditAction.WORKFLOW_EXPORTED,
+        resourceType: AuditResourceType.WORKFLOW,
+        description: `Admin API exported ${workflowExports.length} workflow(s)`,
+        metadata: {
+          format,
+          requestedCount: body.ids.length,
+          exportedCount: workflowExports.length,
+          requestedIds: body.ids,
+        },
+        request,
+      })
 
       if (format === 'json') {
         return listResponse(workflowExports, {

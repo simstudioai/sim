@@ -11,6 +11,7 @@
  *   - JSON: WorkspaceExportPayload
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow, workflowFolder, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -123,6 +124,22 @@ export const GET = withRouteHandler(
       logger.info(
         `Admin API: Exporting workspace ${workspaceId} with ${workflowExports.length} workflows and ${folderExports.length} folders`
       )
+
+      recordAudit({
+        workspaceId,
+        actorId: 'admin-api',
+        action: AuditAction.WORKSPACE_EXPORTED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        resourceName: workspaceData.name,
+        description: `Admin API exported workspace "${workspaceData.name}"`,
+        metadata: {
+          format,
+          workflowCount: workflowExports.length,
+          folderCount: folderExports.length,
+        },
+        request,
+      })
 
       if (format === 'json') {
         const exportPayload: WorkspaceExportPayload = {

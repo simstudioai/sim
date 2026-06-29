@@ -340,7 +340,7 @@ describe('recordAudit', () => {
       )
     })
 
-    it('sets actor info to null when user is not found', async () => {
+    it('nulls the actor FK and labels it System when the user is not found', async () => {
       dbChainMockFns.limit.mockResolvedValue([])
 
       recordAudit({
@@ -355,8 +355,29 @@ describe('recordAudit', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
-          actorId: 'deleted-user',
-          actorName: undefined,
+          actorId: null,
+          actorName: 'System',
+          actorEmail: undefined,
+        })
+      )
+    })
+
+    it('labels the admin-api system actor while nulling its FK', async () => {
+      dbChainMockFns.limit.mockResolvedValue([])
+
+      recordAudit({
+        workspaceId: 'ws-1',
+        actorId: 'admin-api',
+        action: AuditAction.WORKFLOW_DELETED,
+        resourceType: AuditResourceType.WORKFLOW,
+      })
+
+      await flush()
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: null,
+          actorName: 'Admin API',
           actorEmail: undefined,
         })
       )

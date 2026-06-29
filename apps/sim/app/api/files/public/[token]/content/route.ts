@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -7,6 +8,7 @@ import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -75,6 +77,29 @@ export const GET = withRouteHandler(
       const contentType = servable.kind === 'artifact' ? servable.contentType : file.contentType
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
+
+      recordAudit({
+        workspaceId: file.workspaceId ?? null,
+        actorId: file.userId,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: file.id,
+        resourceName: file.originalName,
+        description: `Public share download of "${file.originalName}"`,
+        metadata: {
+          access: 'public_share',
+          anonymous: true,
+          fileName: file.originalName,
+          bytes: buffer.length,
+        },
+        request,
+      })
+      captureServerEvent(
+        file.userId,
+        'file_downloaded',
+        { workspace_id: file.workspaceId ?? '', is_bulk: false, file_count: 1 },
+        file.workspaceId ? { groups: { workspace: file.workspaceId } } : undefined
+      )
 
       // Revalidate every request: a shared file can be unshared, edited, or deleted,
       // so the fixed token URL must never serve stale bytes from a long-lived cache.
