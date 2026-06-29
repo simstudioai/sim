@@ -142,7 +142,8 @@ const adminV1RemoveOrganizationMemberResultSchema = z.object({
   memberId: z.string(),
   userId: z.string(),
   billingActions: z.object({
-    usageCaptured: z.boolean(),
+    /** Dollar amount of departed-member usage captured (0 when none). */
+    usageCaptured: z.number(),
     proRestored: z.boolean(),
     usageRestored: z.boolean(),
     skipBillingLogic: z.boolean(),
@@ -159,8 +160,10 @@ const adminV1TransferOwnershipResultSchema = z.object({
   currentOwnerUserId: z.string(),
   newOwnerUserId: z.string(),
   workspacesReassigned: z.number(),
-  billedAccountReassigned: z.boolean(),
-  overageMigrated: z.boolean(),
+  /** Count of workspaces whose billed account was reassigned to the new owner. */
+  billedAccountReassigned: z.number(),
+  /** Decimal-string dollar amount of overage migrated to the new owner ('0' when none). */
+  overageMigrated: z.string(),
   billingBlockInherited: z.boolean(),
 })
 

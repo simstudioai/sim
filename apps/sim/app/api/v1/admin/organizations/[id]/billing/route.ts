@@ -29,6 +29,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
   adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
@@ -152,7 +153,7 @@ export const PATCH = withRouteHandler(
         { params: routeParams },
         {
           validationErrorResponse: adminValidationErrorResponse,
-          invalidJson: 'throw',
+          invalidJsonResponse: adminInvalidJsonResponse,
         }
       )
       if (!parsed.success) return parsed.response

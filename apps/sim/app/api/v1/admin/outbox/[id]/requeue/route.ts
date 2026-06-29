@@ -71,7 +71,10 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to requeue outbox event', { eventId: id, error: toError(error).message })
-      return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'Failed to requeue outbox event' },
+        { status: 500 }
+      )
     }
   })
 )

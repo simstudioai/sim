@@ -33,7 +33,7 @@ Audit logs are also accessible through the Sim API for integration with external
 
 ```http
 GET /api/v1/audit-logs
-Authorization: Bearer <api-key>
+X-API-Key: <api-key>
 ```
 
 **Query parameters:**
@@ -71,11 +71,18 @@ Authorization: Bearer <api-key>
       "createdAt": "2026-04-20T21:16:00.000Z"
     }
   ],
-  "nextCursor": "eyJpZCI6ImFiYzEyMyJ9"
+  "nextCursor": "eyJpZCI6ImFiYzEyMyJ9",
+  "limits": {
+    "workflowExecutionRateLimit": {
+      "sync": { "requestsPerMinute": 60, "maxBurst": 10, "remaining": 59, "resetAt": "2026-04-20T21:17:00.000Z" },
+      "async": { "requestsPerMinute": 30, "maxBurst": 5, "remaining": 30, "resetAt": "2026-04-20T21:17:00.000Z" }
+    },
+    "usage": { "currentPeriodCost": 1.25, "limit": 50, "plan": "enterprise", "isExceeded": false }
+  }
 }
 ```
 
-Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page.
+Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page. Each entry also includes `actorName`; `metadata` is an arbitrary per-action JSON object. The `limits` object reports your current rate-limit and usage status.
 
 The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
 

@@ -1,0 +1,1802 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Knowledge Bases",
+    "description": "The v2 Knowledge Bases API lets you create and manage knowledge bases, upload and inspect documents, and run vector and tag search over your indexed content.\n\n## Conventions\n\nAll endpoints live under the `/api/v2` base path and share a single set of conventions:\n\n- **Authentication** — Send your Sim API key in the `X-API-Key` header on every request. Keys are scoped to a workspace (or are personal keys that target a workspace); `workspaceId` is always required so the request can be tenant-scoped and rate-limited.\n- **Single-resource and mutation responses** return `{ \"data\": ... }`.\n- **List responses** use an opaque-cursor envelope: `{ \"data\": [ ... ], \"nextCursor\": string | null }`. Pass the returned `nextCursor` back as the `cursor` query parameter to fetch the next page. When `nextCursor` is `null` there are no more results. Cursors are opaque — do not parse or construct them.\n- **Errors** use a single envelope: `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`. The HTTP status code and the stable `code` field move together (for example `404` ⇄ `NOT_FOUND`).\n- **Rate limiting** — Every response carries the current limiter state in the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. A throttled request returns `429` with a `Retry-After` header.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Knowledge Bases",
+      "description": "Create and manage knowledge bases, upload and inspect documents, and run vector and tag search (v2 API)."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/knowledge": {
+      "get": {
+        "operationId": "listKnowledgeBases",
+        "summary": "List Knowledge Bases",
+        "description": "List all knowledge bases in a workspace. The full bounded per-workspace set is returned as a single page, so `nextCursor` is always `null` today; treat the response as a standard cursor list so pagination can be added later without a contract change.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/knowledge?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge bases for the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "The knowledge bases in the workspace.",
+                      "items": {
+                        "$ref": "#/components/schemas/KnowledgeBase"
+                      }
+                    },
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeBase",
+        "summary": "Create Knowledge Base",
+        "description": "Create a new knowledge base in a workspace. The embedding model and dimension are fixed server-side and cannot be supplied. Returns `201` with the created knowledge base.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/knowledge\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"Product Documentation\",\n    \"description\": \"All product docs and guides\"\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The knowledge base to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeBaseBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The knowledge base was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBaseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        }
+      ],
+      "get": {
+        "operationId": "getKnowledgeBase",
+        "summary": "Get Knowledge Base",
+        "description": "Retrieve a single knowledge base by ID. A knowledge base that does not exist, belongs to another workspace, or that the caller cannot read is reported as `404` so cross-workspace existence is never leaked.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBaseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateKnowledgeBase",
+        "summary": "Update Knowledge Base",
+        "description": "Update a knowledge base's name, description, or chunking config. At least one of `name`, `description`, or `chunkingConfig` must be provided. The target workspace is carried in the request body.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"Updated name\"\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The fields to update. At least one of name, description, or chunkingConfig is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeBaseBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBaseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeBase",
+        "summary": "Delete Knowledge Base",
+        "description": "Delete a knowledge base and all of its documents. Returns a delete acknowledgement with the id of the removed knowledge base.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The knowledge base was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/search": {
+      "post": {
+        "operationId": "searchKnowledge",
+        "summary": "Search Knowledge",
+        "description": "Run vector and/or tag search across one or more knowledge bases. Provide a `query` for semantic vector search, `tagFilters` for structured filtering, or both. At least one of `query` or `tagFilters` is required.\n\nNotes and limits:\n- Tag filters are only supported when searching a single knowledge base.\n- When a `query` is supplied, all targeted knowledge bases must use the same embedding model; otherwise the request is rejected. Search such knowledge bases separately.\n- A text query consumes hosted embedding (and optional rerank) usage; tag-only search is free.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/knowledge/search\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"knowledgeBaseIds\": [\"KB_ID\"],\n    \"query\": \"How do I reset my password?\",\n    \"topK\": 10\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The search request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request. Returned when neither `query` nor `tagFilters` is provided, when tag filters target more than one knowledge base, when the selected knowledge bases use different embedding models, or when a tag name/value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "crossModel": {
+                    "summary": "Knowledge bases use different embedding models",
+                    "value": {
+                      "error": {
+                        "code": "BAD_REQUEST",
+                        "message": "Selected knowledge bases use different embedding models and cannot be searched together. Search them separately."
+                      }
+                    }
+                  },
+                  "multiKbTagFilter": {
+                    "summary": "Tag filters across multiple knowledge bases",
+                    "value": {
+                      "error": {
+                        "code": "BAD_REQUEST",
+                        "message": "Tag filters are only supported when searching a single knowledge base"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "One or more of the requested knowledge bases do not exist or are not accessible from this workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Knowledge base not found or access denied"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        },
+        {
+          "$ref": "#/components/parameters/WorkspaceIdQuery"
+        }
+      ],
+      "get": {
+        "operationId": "listKnowledgeDocuments",
+        "summary": "List Documents",
+        "description": "List documents in a knowledge base. Supports search, enabled-state filtering, sorting, and cursor pagination. Pass the returned `nextCursor` back as `cursor` to fetch the next page; the total document count is available as `docCount` on the parent knowledge base.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}/documents?workspaceId=YOUR_WORKSPACE_ID&limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of documents to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque pagination cursor from a previous response's `nextCursor`. Omit for the first page.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against document filenames.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabledFilter",
+            "in": "query",
+            "required": false,
+            "description": "Filter documents by their enabled state.",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "enabled", "disabled"],
+              "default": "all"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "filename",
+                "fileSize",
+                "tokenCount",
+                "chunkCount",
+                "uploadedAt",
+                "processingStatus",
+                "enabled"
+              ],
+              "default": "uploadedAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents in the knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "description": "The documents on this page.",
+                      "items": {
+                        "$ref": "#/components/schemas/DocumentSummary"
+                      }
+                    },
+                    "nextCursor": {
+                      "$ref": "#/components/schemas/NextCursor"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadKnowledgeDocument",
+        "summary": "Upload Document",
+        "description": "Upload a single document to a knowledge base as `multipart/form-data`. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the file body is buffered. The maximum file size is 100 MB. Processing is asynchronous: the document is returned with `processingStatus: \"pending\"` and indexing continues in the background — poll the Get Document endpoint to observe progress.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}/documents?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"file=@/path/to/document.pdf\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The file to upload.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The document file to upload (max 100 MB)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The document was accepted and queued for processing.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSummaryEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request. Returned when the body is not valid multipart form data or the required `file` field is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "file form field is required"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "description": "The uploaded file exceeds the 100 MB limit, or the workspace storage limit has been reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "File size exceeds 100MB limit (123.45MB)"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/{documentId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/KnowledgeBaseId"
+        },
+        {
+          "$ref": "#/components/parameters/DocumentId"
+        },
+        {
+          "$ref": "#/components/parameters/WorkspaceIdQuery"
+        }
+      ],
+      "get": {
+        "operationId": "getKnowledgeDocument",
+        "summary": "Get Document",
+        "description": "Retrieve the full detail for a single document, including processing state and connector provenance.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}/documents/{documentId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document detail.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeDocument",
+        "summary": "Delete Document",
+        "description": "Delete a single document from a knowledge base. Returns a delete acknowledgement with the id of the removed document.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/knowledge/{id}/documents/{documentId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimitLimit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimitRemaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimitReset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "parameters": {
+      "KnowledgeBaseId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The unique identifier of the knowledge base.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        }
+      },
+      "DocumentId": {
+        "name": "documentId",
+        "in": "path",
+        "required": true,
+        "description": "The unique identifier of the document.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"
+        }
+      },
+      "WorkspaceIdQuery": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "description": "The unique identifier of the workspace that scopes the request.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+        }
+      }
+    },
+    "headers": {
+      "RateLimitLimit": {
+        "description": "The maximum number of requests permitted in the current rate-limit window.",
+        "schema": {
+          "type": "integer",
+          "example": 60
+        }
+      },
+      "RateLimitRemaining": {
+        "description": "The number of requests remaining in the current rate-limit window.",
+        "schema": {
+          "type": "integer",
+          "example": 59
+        }
+      },
+      "RateLimitReset": {
+        "description": "ISO 8601 timestamp at which the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2025-06-20T14:16:00Z"
+        }
+      },
+      "RetryAfter": {
+        "description": "Number of seconds to wait before retrying the request.",
+        "schema": {
+          "type": "integer",
+          "example": 30
+        }
+      }
+    },
+    "schemas": {
+      "NextCursor": {
+        "type": ["string", "null"],
+        "description": "Opaque cursor for the next page, or null when there are no more results. Pass it back as the `cursor` query parameter. Do not parse or construct cursors.",
+        "example": null
+      },
+      "ChunkingConfig": {
+        "type": "object",
+        "description": "How documents in this knowledge base are split into chunks before embedding.",
+        "required": ["maxSize", "minSize", "overlap"],
+        "additionalProperties": true,
+        "properties": {
+          "maxSize": {
+            "type": "integer",
+            "description": "Maximum chunk size, in tokens.",
+            "example": 1024
+          },
+          "minSize": {
+            "type": "integer",
+            "description": "Minimum chunk size, in characters.",
+            "example": 100
+          },
+          "overlap": {
+            "type": "integer",
+            "description": "Number of overlapping characters between adjacent chunks.",
+            "example": 200
+          },
+          "strategy": {
+            "type": "string",
+            "description": "Chunking strategy applied during processing.",
+            "enum": ["auto", "text", "regex", "recursive", "sentence", "token"]
+          }
+        }
+      },
+      "ChunkingConfigInput": {
+        "type": "object",
+        "description": "Chunking configuration for the knowledge base. Defaults are applied when omitted.",
+        "properties": {
+          "maxSize": {
+            "type": "integer",
+            "description": "Maximum chunk size, in tokens.",
+            "minimum": 100,
+            "maximum": 4000,
+            "default": 1024
+          },
+          "minSize": {
+            "type": "integer",
+            "description": "Minimum chunk size, in characters.",
+            "minimum": 1,
+            "maximum": 2000,
+            "default": 100
+          },
+          "overlap": {
+            "type": "integer",
+            "description": "Number of overlapping characters between adjacent chunks.",
+            "minimum": 0,
+            "maximum": 500,
+            "default": 200
+          }
+        }
+      },
+      "KnowledgeBase": {
+        "type": "object",
+        "description": "A knowledge base: a collection of documents indexed for vector and tag search.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tokenCount",
+          "embeddingModel",
+          "embeddingDimension",
+          "chunkingConfig",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique knowledge base identifier.",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable knowledge base name.",
+            "example": "Product Documentation"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Optional description of the knowledge base. null when not set.",
+            "example": "All product docs and guides"
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total number of tokens across all indexed documents.",
+            "example": 48213
+          },
+          "embeddingModel": {
+            "type": "string",
+            "description": "The embedding model used to index documents in this knowledge base.",
+            "example": "text-embedding-3-small"
+          },
+          "embeddingDimension": {
+            "type": "integer",
+            "description": "The dimensionality of the embedding vectors.",
+            "example": 1536
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/ChunkingConfig"
+          },
+          "docCount": {
+            "type": "integer",
+            "description": "Number of documents in the knowledge base.",
+            "example": 12
+          },
+          "connectorTypes": {
+            "type": "array",
+            "description": "The set of external connector types that have synced documents into this knowledge base.",
+            "items": {
+              "type": "string"
+            },
+            "example": ["notion", "google_drive"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the knowledge base was created.",
+            "example": "2025-01-10T09:00:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the knowledge base was last modified.",
+            "example": "2025-06-18T16:45:00Z"
+          }
+        }
+      },
+      "KnowledgeBaseEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["knowledgeBase"],
+            "properties": {
+              "knowledgeBase": {
+                "$ref": "#/components/schemas/KnowledgeBase"
+              }
+            }
+          }
+        }
+      },
+      "CreateKnowledgeBaseBody": {
+        "type": "object",
+        "description": "Request body for creating a knowledge base.",
+        "required": ["workspaceId", "name"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace the knowledge base belongs to.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Human-readable knowledge base name.",
+            "example": "Product Documentation"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Optional description of the knowledge base.",
+            "example": "All product docs and guides"
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/ChunkingConfigInput"
+          }
+        }
+      },
+      "UpdateKnowledgeBaseBody": {
+        "type": "object",
+        "description": "Request body for updating a knowledge base. At least one of name, description, or chunkingConfig must be provided.",
+        "required": ["workspaceId"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace the knowledge base belongs to.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "New knowledge base name.",
+            "example": "Updated Product Documentation"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "New description of the knowledge base.",
+            "example": "Refreshed product docs and guides"
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/ChunkingConfigInput"
+          }
+        }
+      },
+      "DocumentSummary": {
+        "type": "object",
+        "description": "Summary representation of a document, returned in list operations and as the upload acknowledgement.",
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "filename",
+          "fileSize",
+          "mimeType",
+          "processingStatus",
+          "chunkCount",
+          "tokenCount",
+          "characterCount",
+          "enabled",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier.",
+            "example": "b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "The knowledge base this document belongs to.",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename of the uploaded document.",
+            "example": "getting-started.pdf"
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "Size of the file in bytes.",
+            "example": 248913
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the file.",
+            "example": "application/pdf"
+          },
+          "processingStatus": {
+            "type": "string",
+            "description": "Current processing state of the document.",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "example": "completed"
+          },
+          "chunkCount": {
+            "type": "integer",
+            "description": "Number of chunks the document was split into. 0 until processing completes.",
+            "example": 24
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total number of tokens extracted from the document.",
+            "example": 8123
+          },
+          "characterCount": {
+            "type": "integer",
+            "description": "Total number of characters extracted from the document.",
+            "example": 41205
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search.",
+            "example": true
+          },
+          "createdAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the document was uploaded.",
+            "example": "2025-06-18T16:45:00Z"
+          }
+        }
+      },
+      "DocumentSummaryEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["document"],
+            "properties": {
+              "document": {
+                "$ref": "#/components/schemas/DocumentSummary"
+              }
+            }
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "description": "Full document detail: the summary fields plus processing state and connector provenance.",
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "filename",
+          "fileSize",
+          "mimeType",
+          "processingStatus",
+          "chunkCount",
+          "tokenCount",
+          "characterCount",
+          "enabled",
+          "createdAt",
+          "processingError",
+          "processingStartedAt",
+          "processingCompletedAt",
+          "connectorId",
+          "connectorType",
+          "sourceUrl"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier.",
+            "example": "b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "The knowledge base this document belongs to.",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename of the uploaded document.",
+            "example": "getting-started.pdf"
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "Size of the file in bytes.",
+            "example": 248913
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the file.",
+            "example": "application/pdf"
+          },
+          "processingStatus": {
+            "type": "string",
+            "description": "Current processing state of the document.",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "example": "completed"
+          },
+          "chunkCount": {
+            "type": "integer",
+            "description": "Number of chunks the document was split into. 0 until processing completes.",
+            "example": 24
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total number of tokens extracted from the document.",
+            "example": 8123
+          },
+          "characterCount": {
+            "type": "integer",
+            "description": "Total number of characters extracted from the document.",
+            "example": 41205
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search.",
+            "example": true
+          },
+          "createdAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the document was uploaded.",
+            "example": "2025-06-18T16:45:00Z"
+          },
+          "processingError": {
+            "type": ["string", "null"],
+            "description": "Error message if processing failed, otherwise null.",
+            "example": null
+          },
+          "processingStartedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when processing started, or null.",
+            "example": "2025-06-18T16:45:05Z"
+          },
+          "processingCompletedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when processing completed, or null.",
+            "example": "2025-06-18T16:45:42Z"
+          },
+          "connectorId": {
+            "type": ["string", "null"],
+            "description": "Identifier of the connector that synced this document, or null for direct uploads.",
+            "example": null
+          },
+          "connectorType": {
+            "type": ["string", "null"],
+            "description": "Type of the connector that synced this document, or null for direct uploads.",
+            "example": null
+          },
+          "sourceUrl": {
+            "type": ["string", "null"],
+            "description": "Original source URL of the document for connector-synced documents, or null.",
+            "example": null
+          }
+        }
+      },
+      "DocumentEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["document"],
+            "properties": {
+              "document": {
+                "$ref": "#/components/schemas/Document"
+              }
+            }
+          }
+        }
+      },
+      "SearchTagFilter": {
+        "type": "object",
+        "description": "A structured tag filter applied to search. Tag filters are only supported when searching a single knowledge base.",
+        "required": ["tagName", "value"],
+        "properties": {
+          "tagName": {
+            "type": "string",
+            "description": "The display name of the tag to filter on.",
+            "example": "category"
+          },
+          "fieldType": {
+            "type": "string",
+            "description": "The tag's field type.",
+            "enum": ["text", "number", "date", "boolean"]
+          },
+          "operator": {
+            "type": "string",
+            "description": "Comparison operator. Valid operators depend on the field type.",
+            "default": "eq",
+            "example": "eq"
+          },
+          "value": {
+            "description": "The value to compare against.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "example": "billing"
+          },
+          "valueTo": {
+            "description": "Upper bound for the `between` operator (number or date).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        }
+      },
+      "SearchBody": {
+        "type": "object",
+        "description": "Request body for knowledge search. At least one of `query` or `tagFilters` must be provided.",
+        "required": ["workspaceId", "knowledgeBaseIds"],
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The workspace that owns the knowledge bases.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "knowledgeBaseIds": {
+            "description": "A single knowledge base ID or an array of up to 20 IDs to search.",
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "A single knowledge base ID."
+              },
+              {
+                "type": "array",
+                "description": "An array of knowledge base IDs.",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1,
+                "maxItems": 20
+              }
+            ],
+            "example": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "query": {
+            "type": "string",
+            "description": "The natural-language query for semantic vector search. Required if `tagFilters` is omitted.",
+            "example": "How do I reset my password?"
+          },
+          "topK": {
+            "type": "integer",
+            "description": "Maximum number of results to return.",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10
+          },
+          "tagFilters": {
+            "type": "array",
+            "description": "Structured tag filters. Only supported when searching a single knowledge base. Required if `query` is omitted.",
+            "items": {
+              "$ref": "#/components/schemas/SearchTagFilter"
+            }
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "description": "A single search hit (a matching document chunk).",
+        "required": [
+          "documentId",
+          "documentName",
+          "sourceUrl",
+          "content",
+          "chunkIndex",
+          "metadata",
+          "similarity"
+        ],
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Identifier of the document the chunk belongs to.",
+            "example": "b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"
+          },
+          "documentName": {
+            "type": ["string", "null"],
+            "description": "Filename of the source document, or null if unavailable.",
+            "example": "getting-started.pdf"
+          },
+          "sourceUrl": {
+            "type": ["string", "null"],
+            "description": "Original source URL of the document, or null for direct uploads.",
+            "example": null
+          },
+          "content": {
+            "type": "string",
+            "description": "The matching chunk's text content.",
+            "example": "To reset your password, open Settings and choose \"Security\"."
+          },
+          "chunkIndex": {
+            "type": "integer",
+            "description": "Zero-based index of the chunk within its document.",
+            "example": 3
+          },
+          "metadata": {
+            "type": "object",
+            "description": "The document's tag values keyed by tag display name. Values are user-defined and may be strings, numbers, booleans, or dates.",
+            "additionalProperties": true,
+            "example": {
+              "category": "billing",
+              "priority": 2
+            }
+          },
+          "similarity": {
+            "type": "number",
+            "description": "Similarity score in the range 0–1 for vector search (higher is more similar). 1 for tag-only matches.",
+            "example": 0.8423
+          }
+        }
+      },
+      "SearchEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["results", "query", "knowledgeBaseIds", "topK", "totalResults"],
+            "properties": {
+              "results": {
+                "type": "array",
+                "description": "The matching chunks, ordered by relevance.",
+                "items": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              },
+              "query": {
+                "type": "string",
+                "description": "The query that was executed (empty string for tag-only search).",
+                "example": "How do I reset my password?"
+              },
+              "knowledgeBaseIds": {
+                "type": "array",
+                "description": "The knowledge base IDs that were searched.",
+                "items": {
+                  "type": "string"
+                },
+                "example": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+              },
+              "topK": {
+                "type": "integer",
+                "description": "The maximum number of results requested.",
+                "example": 10
+              },
+              "totalResults": {
+                "type": "integer",
+                "description": "The number of results returned.",
+                "example": 4
+              }
+            }
+          }
+        }
+      },
+      "DeleteEnvelope": {
+        "type": "object",
+        "description": "Delete acknowledgement.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id", "deleted"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The id of the resource that was deleted.",
+                "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+              },
+              "deleted": {
+                "type": "boolean",
+                "description": "Always true.",
+                "enum": [true],
+                "example": true
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "The canonical v2 error envelope.",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable, machine-readable error code.",
+                "enum": [
+                  "BAD_REQUEST",
+                  "UNAUTHORIZED",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "CONFLICT",
+                  "PAYLOAD_TOO_LARGE",
+                  "UNSUPPORTED_MEDIA_TYPE",
+                  "USAGE_LIMIT_EXCEEDED",
+                  "LOCKED",
+                  "RATE_LIMITED",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable description of the error."
+              },
+              "details": {
+                "description": "Optional structured context for the error, such as field-level validation issues."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request was malformed or failed validation. Inspect `error.details` for field-level issues.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request",
+                "details": [
+                  {
+                    "path": "workspaceId",
+                    "message": "workspaceId query parameter is required"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid. Ensure the X-API-Key header is set with a valid key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Invalid API key"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated caller does not have access to the requested workspace or resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Access denied"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource does not exist or is not accessible from this workspace.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Knowledge base not found"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with the current state of the resource (for example, a resource with the same name already exists).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "Resource already exists"
+              }
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits. Upgrade the plan to continue.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "USAGE_LIMIT_EXCEEDED",
+                "message": "Usage limit exceeded. Please upgrade your plan to continue."
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request payload exceeds the allowed size, or the workspace storage limit has been reached.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Storage limit exceeded"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The uploaded file's MIME type or extension is not supported.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Unsupported file type"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The rate limit has been exceeded. Retry after the period indicated by the Retry-After header.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimitReset"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2025-06-20T14:16:00Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected error occurred on the server.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

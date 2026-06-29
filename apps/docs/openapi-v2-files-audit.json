@@ -1,0 +1,1125 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Files & Audit Logs",
+    "description": "Version 2 of the Sim REST API for the Files and Audit Logs surfaces.\n\n## Conventions (v2)\n\nEvery v2 endpoint shares one response family:\n\n- **Single resource:** `{ \"data\": T }`\n- **List:** `{ \"data\": T[], \"nextCursor\": string | null }`\n- **Error:** `{ \"error\": { \"code\": string, \"message\": string, \"details\"?: unknown } }`\n\n### Cursor pagination\n\nLists use an opaque keyset cursor (Stripe/Slack-style): pass `limit` and `cursor` in, receive `data` and `nextCursor` out. Treat `cursor` as opaque — pass back the `nextCursor` from the previous page verbatim. When `nextCursor` is `null` there are no more results. Total counts are not returned on lists.\n\n### Rate limiting\n\nRate-limit state is carried in response headers, not the body: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (an ISO 8601 timestamp). A throttled request returns `429` with a `Retry-After` header (seconds).\n\n### Authentication\n\nAll endpoints authenticate with the `X-API-Key` header (a personal or workspace API key). Files endpoints are workspace-scoped via the required `workspaceId` query parameter. Audit Logs endpoints are organization-scoped enterprise endpoints and require an Enterprise subscription plus an organization admin or owner role.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Files",
+      "description": "Upload, download, list, and archive workspace files (v2). Workspace-scoped via the required workspaceId query parameter."
+    },
+    {
+      "name": "Audit Logs",
+      "description": "Query the organization audit trail (v2). Organization-scoped enterprise endpoints requiring an Enterprise subscription and an organization admin or owner role."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/files": {
+      "get": {
+        "operationId": "listFiles",
+        "summary": "List Files",
+        "description": "List the active files in a workspace with opaque cursor pagination. Results are ordered by upload time. Pass the `nextCursor` from a previous response to fetch the next page; a `null` `nextCursor` means there are no more results.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files?workspaceId=YOUR_WORKSPACE_ID&limit=100\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of files to return per page. Clamped to the range 1–1000. Defaults to 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workspace files.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileListResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                      "name": "data.csv",
+                      "size": 1024,
+                      "type": "text/csv",
+                      "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                      "uploadedBy": "user_abc123",
+                      "uploadedAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": "eyJ1cGxvYWRlZEF0IjoiMjAyNi0wMS0xNVQxMDozMDowMFoiLCJpZCI6IndmX1YxU3RHWFI4ejVqZEhpNkJteVQ5MSJ9"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadFile",
+        "summary": "Upload File",
+        "description": "Upload a file to a workspace as `multipart/form-data` with a single `file` field. The workspace is supplied as the `workspaceId` query parameter (not a form field) so authorization runs before the request body is buffered. Maximum file size is 100MB. Duplicate filenames within a workspace are rejected. Returns `201 Created`.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v2/files?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"file=@/path/to/file.csv\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The file to upload, sent as multipart/form-data.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The file to upload. Maximum size is 100MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The file was uploaded successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "name": "data.csv",
+                    "size": 1024,
+                    "type": "text/csv",
+                    "key": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv",
+                    "uploadedBy": "user_abc123",
+                    "uploadedAt": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request was malformed: an invalid `workspaceId` query parameter, a body that is not valid multipart form data, or a missing `file` form field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "file form field is required"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "A file with the same name already exists in this workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "A file with this name already exists in the workspace"
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The upload exceeds the 100MB file size limit, or the workspace storage limit would be exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "File size exceeds 100MB limit (142.30MB)"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}": {
+      "get": {
+        "operationId": "downloadFile",
+        "summary": "Download File",
+        "description": "Download the raw bytes of a file. The success response body is the file content itself — there is no JSON envelope. The actual `Content-Type` reflects the stored file's MIME type (shown here as `application/octet-stream`); `Content-Disposition` and `Content-Length` describe the attachment, and rate-limit state is returned in the `X-RateLimit-*` headers. Lookups are workspace-scoped: a file that belongs to another workspace returns `404`. Error responses still use the canonical v2 JSON error envelope.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -o downloaded-file.csv"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The raw file content as binary data. The `Content-Type` header reflects the file's stored MIME type.",
+            "headers": {
+              "Content-Type": {
+                "description": "MIME type of the file. Varies per file; defaults to application/octet-stream when unknown.",
+                "schema": {
+                  "type": "string",
+                  "example": "text/csv"
+                }
+              },
+              "Content-Disposition": {
+                "description": "Attachment disposition carrying the (sanitized and RFC 5987 encoded) filename.",
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"data.csv\"; filename*=UTF-8''data.csv"
+                }
+              },
+              "Content-Length": {
+                "description": "Size of the file in bytes.",
+                "schema": {
+                  "type": "string",
+                  "example": "1024"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFile",
+        "summary": "Delete File",
+        "description": "Archive (soft delete) a file in a workspace. The operation is workspace-scoped and records its own audit entry. Returns the file id and a `deleted` acknowledgement.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v2/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file was archived.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DeleteFileResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "deleted": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The file could not be archived because of a conflicting state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "Failed to delete file"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/audit-logs": {
+      "get": {
+        "operationId": "listAuditLogs",
+        "summary": "List Audit Logs",
+        "description": "List audit log entries for the authenticated user's organization with opaque cursor pagination. These are organization-scoped (not workspace-scoped) enterprise endpoints: the caller must belong to an organization with an active Enterprise subscription and hold an admin or owner role — otherwise the request returns `403`. The `ipAddress` and `userAgent` fields are intentionally excluded from entries for privacy.",
+        "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs?limit=50\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "description": "Filter by action type (e.g., file.uploaded, workflow.deployed, member.invited).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceType",
+            "in": "query",
+            "required": false,
+            "description": "Filter by resource type (e.g., file, workflow, workspace, member).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by a specific resource ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by a workspace within your organization. Must belong to your organization, otherwise the request returns 400.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by the user who performed the action. Must be a member of your organization, otherwise the request returns 400.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "description": "Only return entries at or after this ISO 8601 timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "description": "Only return entries at or before this ISO 8601 timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "includeDeparted",
+            "in": "query",
+            "required": false,
+            "description": "When true, include entries from users who have left the organization. Defaults to false.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of entries to return per page. Must be between 1 and 100. Defaults to 50.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of audit log entries.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AuditLogListResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "audit_2c3d4e5f6g",
+                      "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                      "actorId": "user_abc123",
+                      "actorName": "Jane Smith",
+                      "actorEmail": "jane@example.com",
+                      "action": "file.uploaded",
+                      "resourceType": "file",
+                      "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                      "resourceName": "data.csv",
+                      "description": "Uploaded file \"data.csv\" via API",
+                      "metadata": {
+                        "fileSize": 1024,
+                        "fileType": "text/csv"
+                      },
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request was malformed: an invalid query parameter, an `actorId` that is not a member of your organization, or a `workspaceId` that does not belong to your organization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "actorId is not a member of your organization"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/audit-logs/{id}": {
+      "get": {
+        "operationId": "getAuditLog",
+        "summary": "Get Audit Log",
+        "description": "Retrieve a single audit log entry by ID, scoped to the authenticated user's organization. Organization-scoped (not workspace-scoped): the caller must belong to an organization with an active Enterprise subscription and hold an admin or owner role — otherwise the request returns `403`. An entry outside your organization returns `404` (existence is not leaked). The `ipAddress` and `userAgent` fields are intentionally excluded for privacy.",
+        "tags": ["Audit Logs"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v2/audit-logs/{id}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique audit log entry identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "audit_2c3d4e5f6g"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit log entry.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AuditLogResponse"
+                },
+                "example": {
+                  "data": {
+                    "id": "audit_2c3d4e5f6g",
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "actorId": "user_abc123",
+                    "actorName": "Jane Smith",
+                    "actorEmail": "jane@example.com",
+                    "action": "file.uploaded",
+                    "resourceType": "file",
+                    "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+                    "resourceName": "data.csv",
+                    "description": "Uploaded file \"data.csv\" via API",
+                    "metadata": {
+                      "fileSize": 1024,
+                      "fileType": "text/csv"
+                    },
+                    "createdAt": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+      }
+    },
+    "parameters": {
+      "WorkspaceIdQuery": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "description": "The unique identifier of the workspace.",
+        "schema": {
+          "type": "string",
+          "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+        }
+      },
+      "FileIdPath": {
+        "name": "fileId",
+        "in": "path",
+        "required": true,
+        "description": "The unique identifier of the file.",
+        "schema": {
+          "type": "string",
+          "example": "wf_V1StGXR8z5jdHi6BmyT91"
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque pagination cursor. Pass the `nextCursor` value from a previous response to fetch the next page.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "The maximum number of requests permitted in the current rate-limit window.",
+        "schema": {
+          "type": "integer",
+          "example": 100
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "The number of requests remaining in the current rate-limit window.",
+        "schema": {
+          "type": "integer",
+          "example": 95
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp at which the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-01-15T11:00:00Z"
+        }
+      }
+    },
+    "schemas": {
+      "V2File": {
+        "type": "object",
+        "description": "A workspace file as exposed by the v2 surface.",
+        "required": ["id", "name", "size", "type", "key", "uploadedBy", "uploadedAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique file identifier.",
+            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+          },
+          "name": {
+            "type": "string",
+            "description": "Original filename.",
+            "example": "data.csv"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "File size in bytes.",
+            "example": 1024
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type of the file.",
+            "example": "text/csv"
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key for the file.",
+            "example": "workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/1709571234-xyz-data.csv"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "User ID of the uploader.",
+            "example": "user_abc123"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the file was uploaded.",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "V2DeleteFileResult": {
+        "type": "object",
+        "description": "Acknowledgement returned by a successful archive (soft delete).",
+        "required": ["id", "deleted"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the archived file.",
+            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always true on a successful archive."
+          }
+        }
+      },
+      "V2AuditLogEntry": {
+        "type": "object",
+        "description": "A public enterprise audit log entry. The ipAddress and userAgent fields are intentionally excluded for privacy.",
+        "required": [
+          "id",
+          "workspaceId",
+          "actorId",
+          "actorName",
+          "actorEmail",
+          "action",
+          "resourceType",
+          "resourceId",
+          "resourceName",
+          "description",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the audit log entry.",
+            "example": "audit_2c3d4e5f6g"
+          },
+          "workspaceId": {
+            "type": ["string", "null"],
+            "description": "The workspace where the action occurred, or null for organization-level actions.",
+            "example": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          },
+          "actorId": {
+            "type": ["string", "null"],
+            "description": "The user ID of the person who performed the action, or null when not attributable.",
+            "example": "user_abc123"
+          },
+          "actorName": {
+            "type": ["string", "null"],
+            "description": "Display name of the person who performed the action.",
+            "example": "Jane Smith"
+          },
+          "actorEmail": {
+            "type": ["string", "null"],
+            "description": "Email address of the person who performed the action.",
+            "example": "jane@example.com"
+          },
+          "action": {
+            "type": "string",
+            "description": "The action that was performed (e.g., file.uploaded, workflow.deployed).",
+            "example": "file.uploaded"
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "The type of resource affected (e.g., file, workflow, workspace, member).",
+            "example": "file"
+          },
+          "resourceId": {
+            "type": ["string", "null"],
+            "description": "The unique identifier of the affected resource.",
+            "example": "wf_V1StGXR8z5jdHi6BmyT91"
+          },
+          "resourceName": {
+            "type": ["string", "null"],
+            "description": "Display name of the affected resource.",
+            "example": "data.csv"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Human-readable description of the action.",
+            "example": "Uploaded file \"data.csv\" via API"
+          },
+          "metadata": {
+            "description": "Arbitrary per-action metadata as JSON. The shape varies by action type and may be null for some actions.",
+            "example": {
+              "fileSize": 1024,
+              "fileType": "text/csv"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the action occurred.",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "V2FileListResponse": {
+        "type": "object",
+        "description": "A page of files plus the cursor for the next page.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "The files in this page.",
+            "items": {
+              "$ref": "#/components/schemas/V2File"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Opaque cursor for the next page, or null when there are no more results."
+          }
+        }
+      },
+      "V2FileResponse": {
+        "type": "object",
+        "description": "A single file resource.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2File"
+          }
+        }
+      },
+      "V2DeleteFileResponse": {
+        "type": "object",
+        "description": "The result of archiving a file.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2DeleteFileResult"
+          }
+        }
+      },
+      "V2AuditLogListResponse": {
+        "type": "object",
+        "description": "A page of audit log entries plus the cursor for the next page.",
+        "required": ["data", "nextCursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "The audit log entries in this page.",
+            "items": {
+              "$ref": "#/components/schemas/V2AuditLogEntry"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Opaque cursor for the next page, or null when there are no more results."
+          }
+        }
+      },
+      "V2AuditLogResponse": {
+        "type": "object",
+        "description": "A single audit log entry resource.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2AuditLogEntry"
+          }
+        }
+      },
+      "V2Error": {
+        "type": "object",
+        "description": "The canonical v2 error envelope.",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable, machine-readable error code (e.g., BAD_REQUEST, NOT_FOUND, RATE_LIMITED)."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message."
+              },
+              "details": {
+                "description": "Optional structured error context. For validation errors this is an array of field-level issues; for rate limiting it carries the reset timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request. Inspect `error.message` and the optional `error.details` for specifics.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request",
+                "details": [
+                  {
+                    "path": ["workspaceId"],
+                    "code": "invalid_type",
+                    "message": "Required"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Invalid or missing API key. Ensure the X-API-Key header is set with a valid key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Invalid API key"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Access denied. For Files, the API key lacks access to the workspace. For Audit Logs, this requires an Enterprise subscription and an organization admin or owner role.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Active enterprise subscription required"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found, or it does not belong to the authorized scope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "File not found"
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded. Wait for the duration in the Retry-After header before retrying.",
+        "headers": {
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request.",
+            "schema": {
+              "type": "integer",
+              "example": 30
+            }
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/X-RateLimit-Remaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/X-RateLimit-Reset"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-15T11:00:00Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected error occurred on the server.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

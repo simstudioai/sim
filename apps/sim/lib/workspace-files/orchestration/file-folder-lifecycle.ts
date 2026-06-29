@@ -40,6 +40,12 @@ export interface PerformDeleteWorkspaceFileItemsParams {
   userId: string
   fileIds?: string[]
   folderIds?: string[]
+  /**
+   * Optional originating request, forwarded to the audit log so the deletion
+   * entry captures client IP / user agent. Omitted by in-app callers that have
+   * no HTTP request in scope.
+   */
+  request?: { headers: { get(name: string): string | null } }
 }
 
 export interface PerformDeleteWorkspaceFileItemsResult {
@@ -137,7 +143,7 @@ export interface PerformRestoreWorkspaceFileFolderResult {
 export async function performDeleteWorkspaceFileItems(
   params: PerformDeleteWorkspaceFileItemsParams
 ): Promise<PerformDeleteWorkspaceFileItemsResult> {
-  const { workspaceId, userId, fileIds = [], folderIds = [] } = params
+  const { workspaceId, userId, fileIds = [], folderIds = [], request } = params
 
   if (fileIds.length === 0 && folderIds.length === 0) {
     return {
@@ -172,6 +178,7 @@ export async function performDeleteWorkspaceFileItems(
         resourceType: AuditResourceType.FILE,
         description: `Deleted ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}`,
         metadata: { fileIds },
+        request,
       })
     }
 
@@ -190,6 +197,7 @@ export async function performDeleteWorkspaceFileItems(
             folders: deletedItems.folders,
           },
         },
+        request,
       })
     }
 

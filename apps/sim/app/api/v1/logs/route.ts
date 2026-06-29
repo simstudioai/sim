@@ -124,7 +124,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const logs = await baseQuery
       .where(conditions)
-      .orderBy(orderBy)
+      .orderBy(...orderBy)
       .limit(params.limit + 1)
 
     const hasMore = logs.length > params.limit

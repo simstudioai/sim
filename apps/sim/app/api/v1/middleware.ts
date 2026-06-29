@@ -157,36 +157,46 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
 }
 
 /**
- * Verify that the API key is allowed to access the requested workspace.
- *
- * Enforces two policies:
+ * Structured workspace-access failure shared by the v1 and v2 API surfaces so
+ * each version can render the failure in its own response envelope.
+ */
+export interface WorkspaceAccessError {
+  status: number
+  code: 'FORBIDDEN'
+  message: string
+}
+
+/**
+ * Core workspace-scope check (no response rendering). Enforces two policies:
  * - A workspace-scoped key may only target its own workspace.
  * - A personal key is rejected when the workspace has disabled personal API
  *   keys (`allowPersonalApiKeys = false`), matching the workflow-execution
  *   surface in `app/api/workflows/middleware.ts`.
  */
-export async function checkWorkspaceScope(
+export async function resolveWorkspaceScope(
   rateLimit: RateLimitResult,
   requestedWorkspaceId: string
-): Promise<NextResponse | null> {
+): Promise<WorkspaceAccessError | null> {
   if (
     rateLimit.keyType === 'workspace' &&
     rateLimit.workspaceId &&
     rateLimit.workspaceId !== requestedWorkspaceId
   ) {
-    return NextResponse.json(
-      { error: 'API key is not authorized for this workspace' },
-      { status: 403 }
-    )
+    return {
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'API key is not authorized for this workspace',
+    }
   }
 
   if (rateLimit.keyType === 'personal') {
     const settings = await getWorkspaceBillingSettings(requestedWorkspaceId)
     if (!settings?.allowPersonalApiKeys) {
-      return NextResponse.json(
-        { error: 'Personal API keys are not allowed for this workspace' },
-        { status: 403 }
-      )
+      return {
+        status: 403,
+        code: 'FORBIDDEN',
+        message: 'Personal API keys are not allowed for this workspace',
+      }
     }
   }
 
@@ -194,7 +204,38 @@ export async function checkWorkspaceScope(
 }
 
 /**
- * Validates workspace-scoped API key bounds and the user's workspace permission.
+ * Core workspace-access check (scope + the user's workspace permission level),
+ * shared by v1 and v2. Returns a structured failure or null on success.
+ */
+export async function resolveWorkspaceAccess(
+  rateLimit: RateLimitResult,
+  userId: string,
+  workspaceId: string,
+  level: PermissionType = 'read'
+): Promise<WorkspaceAccessError | null> {
+  const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
+  if (scopeError) return scopeError
+
+  const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+  if (!permissionSatisfies(permission, level)) {
+    return { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
+  }
+  return null
+}
+
+/**
+ * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body.
+ */
+export async function checkWorkspaceScope(
+  rateLimit: RateLimitResult,
+  requestedWorkspaceId: string
+): Promise<NextResponse | null> {
+  const failure = await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)
+  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+}
+
+/**
+ * v1 wrapper: renders {@link resolveWorkspaceAccess} as the v1 `{ error }` body.
  * Returns null on success, NextResponse on failure.
  */
 export async function validateWorkspaceAccess(
@@ -203,12 +244,6 @@ export async function validateWorkspaceAccess(
   workspaceId: string,
   level: PermissionType = 'read'
 ): Promise<NextResponse | null> {
-  const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
-  if (scopeError) return scopeError
-
-  const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-  if (!permissionSatisfies(permission, level)) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-  return null
+  const failure = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, level)
+  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
 }

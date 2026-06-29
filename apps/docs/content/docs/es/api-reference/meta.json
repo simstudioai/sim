@@ -2,6 +2,7 @@
   "title": "API Reference",
   "root": true,
   "pages": [
+    "---Getting Started---",
     "getting-started",
     "authentication",
     "---SDKs---",
@@ -10,7 +11,13 @@
     "---Endpoints---",
     "(generated)/workflows",
     "(generated)/logs",
-    "(generated)/usage",
-    "(generated)/audit-logs"
+    "(generated)/audit-logs",
+    "(generated)/tables",
+    "(generated)/files",
+    "(generated)/knowledge-bases",
+    "---Execution and Usage---",
+    "(generated)/execution",
+    "(generated)/human-in-the-loop",
+    "(generated)/usage"
   ]
 }
