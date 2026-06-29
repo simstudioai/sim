@@ -1,0 +1,11 @@
+{
+  "api_key": "API Key",
+  "enter_your_api_key": "Enter your api key",
+  "manage_customer_details": "Manage Customer Details",
+  "operation": "Operation",
+  "process_one_time_payment": "Process One-Time Payment",
+  "process_payments_manage_subscriptions_and_handle_complex_financi": "Process payments, manage subscriptions, and handle complex financial transactions globally.",
+  "set_up_subscription_billing": "Set Up Subscription Billing",
+  "stripe_operation": "Stripe Operation",
+  "stripe_payments_billing": "Stripe Payments & Billing"
+}

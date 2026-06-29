@@ -1,0 +1,19 @@
+{
+  "child_workflow_id": "Child workflow ID",
+  "child_workflow_name": "Child workflow name",
+  "child_workflow_trace_spans": "Child workflow trace spans",
+  "enter_workflow_id": "Enter workflow ID",
+  "error_message": "Error message",
+  "execute_another_child_workflow_and_map_variables_to": "Execute another child workflow and map variables to its Start trigger schema. Helps with modularizing workflows.",
+  "execute_another_workflow_and_map_variables_to_its": "Execute another workflow and map variables to its Start trigger schema.",
+  "execution_success_status": "Execution success status",
+  "id_of_the_child_workflow": "ID of the child workflow",
+  "inputs": "Inputs",
+  "map_fields_defined_in_the_child_workflow_s": "Map fields defined in the child workflow's Start block to variables/values in this workflow.",
+  "mapping_of_input_fields_to_values": "Mapping of input fields to values",
+  "search_workflows": "Search workflows...",
+  "select_workflow": "Select Workflow",
+  "workflow": "Workflow",
+  "workflow_execution_result": "Workflow execution result",
+  "workflow_id": "Workflow ID"
+}

@@ -1,0 +1,21 @@
+{
+  "attachments": "Attachments",
+  "chat_id_to_continue_generated_when_omitted": "Chat ID to continue; generated when omitted",
+  "chat_id_used_for_this_request": "Chat ID used for this request",
+  "conversation_id": "Conversation ID",
+  "cost_of_the_execution": "Cost of the execution",
+  "e_g_user_123_session_abc_customer_456": "e.g., user-123, session-abc, customer-456",
+  "enter_your_prompt_for_sim": "Enter your prompt for Sim...",
+  "files_to_send_to_sim_as_attachments": "Files to send to Sim as attachments",
+  "generated_response_content": "Generated response content",
+  "model_used_for_generation": "Model used for generation",
+  "prompt": "Prompt",
+  "reference_files_from_previous_blocks": "Reference files from previous blocks",
+  "sim": "Sim",
+  "talk_to_sim": "Talk to Sim",
+  "the_prompt_to_send_to_sim": "The prompt to send to Sim",
+  "the_sim_block_sends_messages_to_sim_which": "The Sim block sends messages to Sim, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.",
+  "token_usage_statistics": "Token usage statistics",
+  "tool_calls_made_during_execution": "Tool calls made during execution",
+  "upload_files_to_attach": "Upload files to attach"
+}

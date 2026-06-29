@@ -1,0 +1,8 @@
+{
+  "initiate_your_workflow_manually_with_optional_structured_input": "Initiate your workflow manually with optional structured input.",
+  "input_format": "Input Format",
+  "name_and_type_define_your_input_schema_value": "Name and Type define your input schema. Value is used only for manual test runs.",
+  "start_workflow": "Start workflow",
+  "starter": "Starter",
+  "workflow_input_data": "Workflow input data"
+}

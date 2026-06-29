@@ -1,0 +1,4 @@
+{
+  "run_this_workflow_when_workspace_events_occur_run": "Run this workflow when workspace events occur: run errors or successes, deployments, and alert conditions like latency or cost spikes.",
+  "sim_workspace_events": "Sim Workspace Events"
+}

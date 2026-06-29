@@ -1,0 +1,8 @@
+{
+  "chat": "Chat",
+  "chat_trigger_to_run_the_workflow_via_deployed": "Chat trigger to run the workflow via deployed chat interfaces.",
+  "conversation_id": "Conversation ID",
+  "legacy_chat_start_block_prefer_the_unified_start": "Legacy chat start block. Prefer the unified Start block.",
+  "uploaded_files": "Uploaded files",
+  "user_message": "User message"
+}

@@ -1,0 +1,20 @@
+{
+  "add_memory_store": "Add memory store",
+  "agent_role": "Agent role",
+  "content": "Content",
+  "conversation_id": "Conversation ID",
+  "conversation_identifier": "Conversation identifier",
+  "enter_conversation_id_e_g_user_123": "Enter conversation ID (e.g., user-123)",
+  "enter_message_content": "Enter message content",
+  "integrate_memory_into_the_workflow_can_add_get": "Integrate Memory into the workflow. Can add, get a memory, get all memories, and delete memories.",
+  "memory": "Memory",
+  "memory_content": "Memory content",
+  "memory_data": "Memory data",
+  "memory_identifier": "Memory identifier",
+  "memory_identifier_conversation_id": "Memory identifier (conversation ID)",
+  "operation": "Operation",
+  "operation_to_perform": "Operation to perform",
+  "role": "Role",
+  "select_agent_role": "Select agent role",
+  "select_operation": "Select operation"
+}

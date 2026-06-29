@@ -1,0 +1,15 @@
+{
+  "arguments_to_pass_to_the_tool": "Arguments to pass to the tool",
+  "available_tools_from_the_selected_mcp_server": "Available tools from the selected MCP server",
+  "choose_from_configured_mcp_servers_in_your_workspace": "Choose from configured MCP servers in your workspace",
+  "content_array_from_mcp_tool_response_the_standard": "Content array from MCP tool response - the standard format for all MCP tools",
+  "execute_tools_from_model_context_protocol_mcp_servers": "Execute tools from Model Context Protocol (MCP) servers",
+  "integrate_mcp_into_the_workflow_can_execute_tools": "Integrate MCP into the workflow. Can execute tools from MCP servers. Requires MCP servers in workspace settings.",
+  "mcp_server": "MCP Server",
+  "mcp_server_id_to_execute_the_tool_on": "MCP server ID to execute the tool on",
+  "mcp_tool": "MCP Tool",
+  "name_of_the_tool_to_execute": "Name of the tool to execute",
+  "select_a_tool": "Select a tool",
+  "select_an_mcp_server": "Select an MCP server",
+  "tool": "Tool"
+}

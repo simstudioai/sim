@@ -1,0 +1,19 @@
+{
+  "child_workflow_id": "Child workflow ID",
+  "child_workflow_name": "Child workflow name",
+  "child_workflow_trace_spans": "Child workflow trace spans",
+  "enter_workflow_id": "Enter workflow ID",
+  "error_message": "Error message",
+  "execution_success_status": "Execution success status",
+  "id_of_the_workflow_to_execute": "ID of the workflow to execute",
+  "input_variable": "Input Variable",
+  "search_workflows": "Search workflows...",
+  "select_a_variable_to_pass_to_the_child": "Select a variable to pass to the child workflow",
+  "select_workflow": "Select Workflow",
+  "this_is_a_core_workflow_block_execute_another": "This is a core workflow block. Execute another workflow as a block in your workflow. Enter the input variable to pass to the child workflow.",
+  "this_variable_will_be_available_as_start_input": "This variable will be available as start.input in the child workflow",
+  "variable_reference_to_pass_to_the_child_workflow": "Variable reference to pass to the child workflow",
+  "workflow": "Workflow",
+  "workflow_execution_result": "Workflow execution result",
+  "workflow_id": "Workflow ID"
+}

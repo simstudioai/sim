@@ -1,0 +1,9 @@
+{
+  "acknowledged_thought_process": "Acknowledged thought process",
+  "adds_a_step_where_the_model_explicitly_outlines": "Adds a step where the model explicitly outlines its thought process before proceeding. This can improve reasoning quality by encouraging step-by-step analysis.",
+  "describe_the_step_by_step_thinking_process_here": "Describe the step-by-step thinking process here...",
+  "forces_model_to_outline_its_thought_process": "Forces model to outline its thought process.",
+  "thinking": "Thinking",
+  "thinking_process_instructions": "Thinking process instructions",
+  "thought_process_instruction": "Thought Process / Instruction"
+}

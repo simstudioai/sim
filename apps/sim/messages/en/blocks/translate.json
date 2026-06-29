@@ -1,0 +1,17 @@
+{
+  "enter_language_e_g_spanish_french_etc": "Enter language (e.g. Spanish, French, etc.)",
+  "enter_the_text_you_want_to_translate": "Enter the text you want to translate",
+  "integrate_translate_into_the_workflow_can_translate_text": "Integrate Translate into the workflow. Can translate text to any language.",
+  "model": "Model",
+  "model_used": "Model used",
+  "system_prompt": "System Prompt",
+  "target_language": "Target language",
+  "text_to_translate": "Text to Translate",
+  "token_usage": "Token usage",
+  "translate": "Translate",
+  "translate_text_to_any_language": "Translate text to any language",
+  "translate_to": "Translate To",
+  "translated_text": "Translated text",
+  "translation_instructions": "Translation instructions",
+  "type_or_select_a_model": "Type or select a model..."
+}

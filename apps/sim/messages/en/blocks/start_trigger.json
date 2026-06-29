@@ -1,0 +1,7 @@
+{
+  "add_custom_fields_beyond_the_built_in_input": "Add custom fields beyond the built-in input, conversationId, and files fields.",
+  "collect_structured_inputs_and_power_manual_runs_api": "Collect structured inputs and power manual runs, API executions, and deployed chat experiences from a single start block.",
+  "inputs": "Inputs",
+  "start": "Start",
+  "unified_workflow_entry_point_for_chat_manual_and": "Unified workflow entry point for chat, manual and API runs"
+}

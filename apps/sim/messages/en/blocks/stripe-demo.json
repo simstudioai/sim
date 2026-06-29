@@ -1,0 +1,6 @@
+{
+  "api_key": "API Key",
+  "stripe": "Stripe",
+  "stripe_api_key": "Stripe API key",
+  "stripe_payments_integration": "Stripe payments integration"
+}

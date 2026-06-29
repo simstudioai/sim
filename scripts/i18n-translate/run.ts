@@ -14,7 +14,7 @@
  *   bun run scripts/i18n-translate/run.ts --backend apple # Apple Foundation Models
  */
 import { existsSync } from 'node:fs'
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -282,8 +282,23 @@ async function translateBatchOllama(values: string[], langName: string): Promise
 
 async function main() {
   const enDir = join(MESSAGES, 'en')
-  let files = (await readdir(enDir)).filter((f) => f.endsWith('.json'))
-  if (onlyNs) files = files.filter((f) => f === `${onlyNs}.json`)
+  // Discover top-level namespace files plus one level of subdirectories (e.g.
+  // blocks/*.json), skipping `_*` metadata files like blocks/_index.json.
+  const entries = await readdir(enDir, { withFileTypes: true })
+  let files: string[] = []
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith('.json')) files.push(entry.name)
+    else if (entry.isDirectory()) {
+      const sub = (await readdir(join(enDir, entry.name))).filter(
+        (f) => f.endsWith('.json') && !f.startsWith('_')
+      )
+      for (const f of sub) files.push(`${entry.name}/${f}`)
+    }
+  }
+  if (onlyNs) {
+    // `--only blocks` matches the whole blocks/ subtree; `--only nav` matches nav.json.
+    files = files.filter((f) => f === `${onlyNs}.json` || f.startsWith(`${onlyNs}/`))
+  }
   if (!files.length) throw new Error(`no namespace files found${onlyNs ? ` for "${onlyNs}"` : ''}`)
 
   console.log(`[i18n] langs=${targetLangs.join(',')} namespaces=${files.length}`)
@@ -339,6 +354,7 @@ async function main() {
         })
       }
       const built = rebuild(resolved)
+      await mkdir(dirname(targetFile), { recursive: true })
       await writeFile(targetFile, `${JSON.stringify(built, null, 2)}\n`, 'utf-8')
       console.log(
         `[i18n] ${lang}/${file}: done in ${((performance.now() - t0) / 1000).toFixed(1)}s`

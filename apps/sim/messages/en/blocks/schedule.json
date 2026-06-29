@@ -1,0 +1,14 @@
+{
+  "cron_expression": "Cron expression",
+  "day_of_month": "Day of month",
+  "day_of_week": "Day of week",
+  "describe_your_schedule_e_g_every_weekday_at": "Describe your schedule (e.g., \"every weekday at 9am\")",
+  "integrate_schedule_into_the_workflow_can_trigger_a": "Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.",
+  "interval_minutes": "Interval (minutes)",
+  "minute": "Minute",
+  "run_frequency": "Run frequency",
+  "schedule": "Schedule",
+  "time": "Time",
+  "timezone": "Timezone",
+  "trigger_workflow_execution_on_a_schedule": "Trigger workflow execution on a schedule"
+}

@@ -1,0 +1,21 @@
+{
+  "api_key": "API Key",
+  "email_address": "Email Address",
+  "email_address_to_verify": "Email address to verify",
+  "enter_your_neverbounce_api_key": "Enter your NeverBounce API key",
+  "integrate_neverbounce_to_verify_email_deliverability_in_real": "Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
+  "neverbounce": "NeverBounce",
+  "neverbounce_api_key": "NeverBounce API key",
+  "operation": "Operation",
+  "operation_to_perform": "Operation to perform",
+  "raw_neverbounce_flags": "Raw NeverBounce flags",
+  "remaining_free_verification_credits": "Remaining free verification credits",
+  "remaining_paid_verification_credits": "Remaining paid verification credits",
+  "suggested_correction": "Suggested correction",
+  "the_verified_email_address": "The verified email address",
+  "verification_status": "Verification status",
+  "verify_email_deliverability_and_check_account_credits": "Verify email deliverability and check account credits",
+  "whether_on_a_free_email_provider": "Whether on a free email provider",
+  "whether_the_address_is_a_role_account": "Whether the address is a role account",
+  "whether_the_email_is_valid_and_safe_to": "Whether the email is valid and safe to send"
+}

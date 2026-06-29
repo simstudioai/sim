@@ -1,0 +1,8 @@
+{
+  "add_context_or_instructions_for_collaborators": "Add context or instructions for collaborators...",
+  "add_contextual_annotations_directly_onto_the_workflow_canvas": "Add contextual annotations directly onto the workflow canvas.",
+  "markdown_text_for_the_note": "Markdown text for the note.",
+  "note": "Note",
+  "use_note_blocks_to_document_decisions_share_instructions": "Use Note blocks to document decisions, share instructions, or leave context for collaborators directly on the workflow canvas. Notes support Markdown rendering and YouTube video embeds.",
+  "write_your_note_using_markdown_youtube_links_will": "Write your note using Markdown. YouTube links will display as embedded videos."
+}

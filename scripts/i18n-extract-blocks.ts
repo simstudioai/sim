@@ -11,14 +11,23 @@
  *   bun run scripts/i18n-extract-blocks.ts            # dry-run (prints counts)
  *   bun run scripts/i18n-extract-blocks.ts --write    # write messages/en/blocks.json
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { blockI18nKey } from '../apps/sim/lib/i18n/block-key'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const EN_BLOCKS = join(ROOT, 'apps', 'sim', 'messages', 'en', 'blocks.json')
+const EN_DIR = join(ROOT, 'apps', 'sim', 'messages', 'en')
+const EN_BLOCKS_DIR = join(EN_DIR, 'blocks')
 const WRITE = process.argv.includes('--write')
 
 /** Object-property names whose string value is shown to the user. */
@@ -103,16 +112,36 @@ function collect(file: string, keys: Record<string, string>): number {
 }
 
 const files = SCAN_DIRS.flatMap((d) => walk(d))
-const keys: Record<string, string> = {}
-let total = 0
-for (const f of files) total += collect(f, keys)
 
-console.log(`[i18n-blocks] scanned ${files.length} files → ${Object.keys(keys).length} unique strings`)
+/** Per-block catalogs, keyed by the source file's basename (gmail.ts → "gmail"). */
+const perBlock: Record<string, Record<string, string>> = {}
+let total = 0
+for (const f of files) {
+  const name = basename(f).replace(/\.ts$/, '')
+  const keys: Record<string, string> = perBlock[name] ?? {}
+  total += collect(f, keys)
+  if (Object.keys(keys).length > 0) perBlock[name] = keys
+}
+
+const blockNames = Object.keys(perBlock).sort()
+const allKeys = new Set(blockNames.flatMap((n) => Object.keys(perBlock[n])))
+console.log(
+  `[i18n-blocks] scanned ${files.length} files → ${blockNames.length} non-empty block catalogs, ${allKeys.size} unique strings`
+)
 
 if (WRITE) {
-  writeFileSync(EN_BLOCKS, `${JSON.stringify(keys, null, 2)}\n`, 'utf-8')
-  console.log(`[i18n-blocks] wrote ${EN_BLOCKS}`)
+  mkdirSync(EN_BLOCKS_DIR, { recursive: true })
+  // Remove a stale monolithic blocks.json (replaced by the per-block directory).
+  const monolith = join(EN_DIR, 'blocks.json')
+  if (existsSync(monolith)) rmSync(monolith)
+  for (const name of blockNames) {
+    const sorted = Object.fromEntries(Object.entries(perBlock[name]).sort(([a], [b]) => a.localeCompare(b)))
+    writeFileSync(join(EN_BLOCKS_DIR, `${name}.json`), `${JSON.stringify(sorted, null, 2)}\n`, 'utf-8')
+  }
+  // Index of block files, consumed by the i18n loader to merge the namespace.
+  writeFileSync(join(EN_BLOCKS_DIR, '_index.json'), `${JSON.stringify(blockNames, null, 2)}\n`, 'utf-8')
+  console.log(`[i18n-blocks] wrote ${blockNames.length} files + _index.json to ${EN_BLOCKS_DIR}`)
 } else {
-  console.log('[i18n-blocks] dry-run (pass --write to save). Sample:')
-  for (const [k, v] of Object.entries(keys).slice(0, 10)) console.log(`  ${k}: ${v}`)
+  console.log('[i18n-blocks] dry-run (pass --write to save). Sample blocks:')
+  for (const name of blockNames.slice(0, 8)) console.log(`  ${name}.json (${Object.keys(perBlock[name]).length} strings)`)
 }

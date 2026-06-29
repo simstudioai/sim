@@ -1,0 +1,22 @@
+{
+  "ai_powered_meeting_notes_and_action_items": "AI-powered meeting notes and action items",
+  "array_of_action_items": "Array of action items",
+  "array_of_attendee_objects": "Array of attendee objects",
+  "array_of_tags": "Array of tags",
+  "array_of_transcript_segments": "Array of transcript segments",
+  "calendar_event_id": "Calendar event ID",
+  "circleback": "Circleback",
+  "circleback_action_item_tracker": "Circleback action-item tracker",
+  "circleback_meeting_id": "Circleback meeting ID",
+  "circleback_notes_to_notion": "Circleback notes to Notion",
+  "circleback_recap_to_slack": "Circleback recap to Slack",
+  "duration_in_seconds": "Duration in seconds",
+  "full_meeting_payload": "Full meeting payload",
+  "meeting_creation_timestamp": "Meeting creation timestamp",
+  "meeting_notes_in_markdown": "Meeting notes in Markdown",
+  "meeting_title": "Meeting title",
+  "receive_meeting_notes_action_items_transcripts_and_recordings": "Receive meeting notes, action items, transcripts, and recordings when meetings are processed. Circleback uses webhooks to push data to your workflows.",
+  "recording_url_valid_24_hours": "Recording URL (valid 24 hours)",
+  "user_created_insights": "User-created insights",
+  "virtual_meeting_url_zoom_meet_teams": "Virtual meeting URL (Zoom, Meet, Teams)"
+}

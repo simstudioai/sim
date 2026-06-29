@@ -1,0 +1,18 @@
+{
+  "additional_http_headers_to_include_in_the_response": "Additional HTTP headers to include in the response",
+  "choose_how_to_define_your_response_data_structure": "Choose how to define your response data structure",
+  "describe_the_api_response_structure_you_need": "Describe the API response structure you need...",
+  "http_status_code": "HTTP status code",
+  "http_status_code_default_200": "HTTP status code (default: 200)",
+  "integrate_response_into_the_workflow_can_send_build": "Integrate Response into the workflow. Can send build or edit structured responses into a final workflow response.",
+  "json_response_body": "JSON response body",
+  "response": "Response",
+  "response_data": "Response Data",
+  "response_data_definition_mode": "Response data definition mode",
+  "response_data_mode": "Response Data Mode",
+  "response_headers": "Response Headers",
+  "response_structure": "Response Structure",
+  "send_structured_api_response": "Send structured API response",
+  "status_code": "Status Code",
+  "structured_response_data": "Structured response data"
+}

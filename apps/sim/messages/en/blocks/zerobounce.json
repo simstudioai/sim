@@ -1,0 +1,19 @@
+{
+  "api_key": "API Key",
+  "detailed_sub_status": "Detailed sub-status",
+  "email_address": "Email Address",
+  "email_address_to_validate": "Email address to validate",
+  "enter_your_zerobounce_api_key": "Enter your ZeroBounce API key",
+  "integrate_zerobounce_to_validate_email_deliverability_in_real": "Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.",
+  "operation": "Operation",
+  "operation_to_perform": "Operation to perform",
+  "remaining_validation_credits": "Remaining validation credits",
+  "suggested_correction": "Suggested correction",
+  "the_validated_email_address": "The validated email address",
+  "validate_email_deliverability_and_check_account_credits": "Validate email deliverability and check account credits",
+  "validation_status": "Validation status",
+  "whether_on_a_free_email_provider": "Whether on a free email provider",
+  "whether_the_email_is_valid_and_safe_to": "Whether the email is valid and safe to send",
+  "zerobounce": "ZeroBounce",
+  "zerobounce_api_key": "ZeroBounce API key"
+}

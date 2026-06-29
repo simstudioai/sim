@@ -1,0 +1,13 @@
+{
+  "code": "Code",
+  "console_log_output_and_debug_messages_from_function": "Console log output and debug messages from function execution",
+  "describe_the_function_you_want_to_create": "Describe the function you want to create...",
+  "execution_timeout": "Execution timeout",
+  "function": "Function",
+  "javascript_or_python_code_to_execute": "JavaScript or Python code to execute",
+  "language_javascript_or_python": "Language (javascript or python)",
+  "return_value_from_the_executed_javascript_function": "Return value from the executed JavaScript function",
+  "run_custom_logic": "Run custom logic",
+  "select_language": "Select language",
+  "this_is_a_core_workflow_block_execute_custom": "This is a core workflow block. Execute custom JavaScript or Python code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports or Python uses E2B sandbox."
+}

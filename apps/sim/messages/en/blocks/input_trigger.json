@@ -1,0 +1,7 @@
+{
+  "define_the_json_input_schema_for_this_workflow": "Define the JSON input schema for this workflow when run manually.",
+  "input_form_legacy": "Input Form (Legacy)",
+  "input_format": "Input Format",
+  "legacy_manual_start_block_with_structured_input_prefer": "Legacy manual start block with structured input. Prefer Start block.",
+  "manually_trigger_the_workflow_from_the_editor_with": "Manually trigger the workflow from the editor with a structured input schema. This enables typed inputs for parent workflows to map into."
+}

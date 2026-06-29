@@ -1,0 +1,7 @@
+{
+  "api_legacy": "API (Legacy)",
+  "api_trigger_to_start_the_workflow_via_authenticated": "API trigger to start the workflow via authenticated HTTP calls with structured input.",
+  "define_the_json_input_schema_accepted_by_the": "Define the JSON input schema accepted by the API endpoint.",
+  "input_format": "Input Format",
+  "legacy_block_for_exposing_http_api_endpoint_prefer": "Legacy block for exposing HTTP API endpoint. Prefer Start block."
+}

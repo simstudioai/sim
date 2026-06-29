@@ -1,0 +1,16 @@
+{
+  "async": "Async",
+  "iso_timestamp_at_which_a_suspended_wait_will": "ISO timestamp at which a suspended wait will resume (long waits only)",
+  "max_5_minutes_300_seconds_enable_async_for": "Max 5 minutes (300 seconds). Enable Async for up to 30 days.",
+  "pause_workflow_execution_for_a_time_interval": "Pause workflow execution for a time interval",
+  "pauses_workflow_execution_for_a_specified_time_interval": "Pauses workflow execution for a specified time interval. By default the wait runs in-process for up to 5 minutes. Enable Async to pause the run on disk and resume automatically for waits up to 30 days.",
+  "run_the_wait_asynchronously_to_allow_durations_up": "Run the wait asynchronously to allow durations up to 30 days",
+  "status_of_the_wait_block_waiting_completed_cancelled": "Status of the wait block (waiting, completed, cancelled)",
+  "unit": "Unit",
+  "wait": "Wait",
+  "wait_amount": "Wait Amount",
+  "wait_duration_in_milliseconds": "Wait duration in milliseconds",
+  "wait_duration_unit_when_async_is_off_seconds": "Wait duration unit when async is off (seconds or minutes)",
+  "wait_duration_unit_when_async_is_on_minutes": "Wait duration unit when async is on (minutes, hours, or days)",
+  "wait_duration_value": "Wait duration value"
+}

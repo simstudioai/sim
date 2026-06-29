@@ -1,0 +1,5 @@
+{
+  "legacy_manual_start_block_prefer_the_start_block": "Legacy manual start block. Prefer the Start block.",
+  "manual_legacy": "Manual (Legacy)",
+  "trigger_the_workflow_manually_without_defining_an_input": "Trigger the workflow manually without defining an input schema. Useful for simple runs where no structured input is needed."
+}

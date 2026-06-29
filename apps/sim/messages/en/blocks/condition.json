@@ -1,0 +1,8 @@
+{
+  "add_a_condition": "Add a condition",
+  "condition": "Condition",
+  "condition_result": "Condition result",
+  "selected_condition_option_id": "Selected condition option ID",
+  "selected_execution_path": "Selected execution path",
+  "this_is_a_core_workflow_block_add_a": "This is a core workflow block. Add a condition to the workflow to branch the execution path based on a boolean expression."
+}
