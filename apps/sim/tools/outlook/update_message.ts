@@ -13,6 +13,27 @@ interface OutlookMessageUpdateApi {
   isRead?: boolean
 }
 
+/**
+ * Normalize message categories into a trimmed string array. Accepts an array, a
+ * JSON-array string, or a comma/newline-separated string (the `json`-typed param
+ * can arrive in any of these forms from block inputs or agent tool-calls).
+ */
+function normalizeCategories(value: unknown): string[] {
+  let items: unknown[] = []
+  if (Array.isArray(value)) {
+    items = value
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim()
+    try {
+      const parsed = JSON.parse(trimmed)
+      items = Array.isArray(parsed) ? parsed : trimmed.split(/[,\n]/)
+    } catch {
+      items = trimmed.split(/[,\n]/)
+    }
+  }
+  return items.map((item) => String(item).trim()).filter(Boolean)
+}
+
 export const outlookUpdateMessageTool: ToolConfig<
   OutlookUpdateMessageParams,
   OutlookUpdateMessageResponse
@@ -76,10 +97,9 @@ export const outlookUpdateMessageTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
 
-      if (Array.isArray(params.categories)) {
-        body.categories = params.categories
-          .map((category) => String(category).trim())
-          .filter((category) => category.length > 0)
+      const categories = normalizeCategories(params.categories)
+      if (categories.length > 0) {
+        body.categories = categories
       }
 
       if (params.flagStatus) {

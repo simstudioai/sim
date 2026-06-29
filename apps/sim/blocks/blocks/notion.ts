@@ -595,7 +595,9 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         let coercedPageSize: number | undefined
         if (pageSize !== undefined && pageSize !== null && pageSize !== '') {
           const parsedPageSize = Number(pageSize)
-          if (Number.isFinite(parsedPageSize)) coercedPageSize = parsedPageSize
+          if (Number.isFinite(parsedPageSize)) {
+            coercedPageSize = Math.min(Math.max(Math.trunc(parsedPageSize), 1), 100)
+          }
         }
 
         return {
