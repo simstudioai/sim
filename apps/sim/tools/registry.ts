@@ -2433,10 +2433,16 @@ import {
   personaUpdateInquiryTool,
 } from '@/tools/persona'
 import {
+  pineconeDeleteVectorsTool,
+  pineconeDescribeIndexStatsTool,
+  pineconeDescribeIndexTool,
   pineconeFetchTool,
   pineconeGenerateEmbeddingsTool,
+  pineconeListIndexesTool,
+  pineconeListVectorIdsTool,
   pineconeSearchTextTool,
   pineconeSearchVectorTool,
+  pineconeUpdateVectorTool,
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
 import {
@@ -5325,10 +5331,16 @@ export const tools: Record<string, ToolConfig> = {
   x_get_usage: xGetUsageTool,
   x_hide_reply: xHideReplyTool,
   x_manage_mute: xManageMuteTool,
+  pinecone_delete_vectors: pineconeDeleteVectorsTool,
+  pinecone_describe_index: pineconeDescribeIndexTool,
+  pinecone_describe_index_stats: pineconeDescribeIndexStatsTool,
   pinecone_fetch: pineconeFetchTool,
   pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
+  pinecone_list_indexes: pineconeListIndexesTool,
+  pinecone_list_vector_ids: pineconeListVectorIdsTool,
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
+  pinecone_update_vector: pineconeUpdateVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
   pipedrive_create_activity: pipedriveCreateActivityTool,
   pipedrive_create_deal: pipedriveCreateDealTool,
