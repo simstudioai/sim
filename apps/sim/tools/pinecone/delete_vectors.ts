@@ -74,6 +74,17 @@ export const deleteVectorsTool: ToolConfig<PineconeDeleteVectorsParams, Pinecone
       if (params.filter != null && params.filter !== '') {
         body.filter = parseJsonParam(params.filter, 'filter')
       }
+
+      const selectorCount = [body.ids, body.deleteAll, body.filter].filter(
+        (selector) => selector !== undefined
+      ).length
+      if (selectorCount === 0) {
+        throw new Error('Provide exactly one of ids, deleteAll, or filter to delete vectors')
+      }
+      if (selectorCount > 1) {
+        throw new Error('ids, deleteAll, and filter are mutually exclusive — provide only one')
+      }
+
       return body
     },
   },
