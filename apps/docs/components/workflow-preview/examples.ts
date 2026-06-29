@@ -1581,7 +1581,12 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-parallel', source: 'start', target: 'parallel' },
-    { id: 'parallel-call', source: 'parallel', target: 'call', sourceHandle: 'loop-start-source' },
+    {
+      id: 'parallel-call',
+      source: 'parallel',
+      target: 'call',
+      sourceHandle: 'parallel-start-source',
+    },
     { id: 'parallel-aggregate', source: 'parallel', target: 'aggregate' },
   ],
 }
