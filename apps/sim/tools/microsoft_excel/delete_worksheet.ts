@@ -3,7 +3,11 @@ import type {
   MicrosoftExcelDeleteWorksheetParams,
   MicrosoftExcelDeleteWorksheetResponse,
 } from '@/tools/microsoft_excel/types'
-import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
+import {
+  escapeODataString,
+  getItemBasePath,
+  getSpreadsheetWebUrl,
+} from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -64,7 +68,7 @@ export const deleteWorksheetTool: ToolConfig<
         throw new Error('Worksheet name is required')
       }
       const basePath = getItemBasePath(spreadsheetId, params.driveId)
-      return `${basePath}/workbook/worksheets('${encodeURIComponent(worksheetName)}')`
+      return `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(worksheetName))}')`
     },
     method: 'DELETE',
     headers: (params) => {

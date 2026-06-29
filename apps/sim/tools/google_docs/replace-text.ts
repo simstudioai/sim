@@ -1,5 +1,9 @@
 import type { GoogleDocsReplaceTextResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
-import { buildBatchUpdateMetadata, resolveDocumentId } from '@/tools/google_docs/utils'
+import {
+  buildBatchUpdateMetadata,
+  parseOptionalBoolean,
+  resolveDocumentId,
+} from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplaceTextResponse> = {
@@ -69,7 +73,7 @@ export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplace
             replaceAllText: {
               containsText: {
                 text: params.searchText,
-                matchCase: params.matchCase ?? false,
+                matchCase: parseOptionalBoolean(params.matchCase) ?? false,
               },
               replaceText: params.replaceText ?? '',
             },

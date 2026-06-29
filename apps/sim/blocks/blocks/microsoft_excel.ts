@@ -511,8 +511,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 
         switch (operation) {
           case 'clear_range':
+            if (!trimmedRange) {
+              throw new Error('A range is required to clear cells.')
+            }
             return { ...base, range: trimmedRange, applyTo: optionalString(applyTo) }
           case 'format_range':
+            if (!trimmedRange) {
+              throw new Error('A range is required to format cells.')
+            }
             return {
               ...base,
               range: trimmedRange,

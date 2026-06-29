@@ -43,13 +43,22 @@ export const airtableDeleteRecordsTool: ToolConfig<AirtableDeleteParams, Airtabl
   request: {
     url: (params) => {
       const base = `https://api.airtable.com/v0/${params.baseId?.trim()}/${params.tableId?.trim()}`
-      const queryParams = new URLSearchParams()
-      for (const id of params.recordIds ?? []) {
-        const trimmed = id?.trim()
-        if (trimmed) queryParams.append('records[]', trimmed)
+      const ids = (params.recordIds ?? []).map((id) => id?.trim()).filter(Boolean)
+      if (ids.length === 0) {
+        throw new Error('At least one record ID is required to delete')
       }
-      const queryString = queryParams.toString()
-      return queryString ? `${base}?${queryString}` : base
+      // Airtable's batch delete endpoint accepts at most 10 record IDs per request.
+      // Reject larger batches up front so a destructive delete never partially fails.
+      if (ids.length > 10) {
+        throw new Error(
+          `Airtable deletes at most 10 records per request (received ${ids.length}). Split the delete into batches of 10 or fewer.`
+        )
+      }
+      const queryParams = new URLSearchParams()
+      for (const id of ids) {
+        queryParams.append('records[]', id as string)
+      }
+      return `${base}?${queryParams.toString()}`
     },
     method: 'DELETE',
     headers: (params) => ({

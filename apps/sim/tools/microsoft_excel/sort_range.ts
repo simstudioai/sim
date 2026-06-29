@@ -5,6 +5,7 @@ import type {
 } from '@/tools/microsoft_excel/types'
 import {
   buildWorksheetRangeUrl,
+  escapeODataString,
   getItemBasePath,
   getSpreadsheetWebUrl,
 } from '@/tools/microsoft_excel/utils'
@@ -110,7 +111,7 @@ export const sortRangeTool: ToolConfig<
 
       const tableName = params.tableName?.trim()
       if (tableName) {
-        return `${basePath}/workbook/tables('${encodeURIComponent(tableName)}')/sort/apply`
+        return `${basePath}/workbook/tables('${encodeURIComponent(escapeODataString(tableName))}')/sort/apply`
       }
 
       return `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/sort/apply`

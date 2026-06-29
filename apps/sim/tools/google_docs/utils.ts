@@ -15,6 +15,22 @@ export function resolveDocumentId(params: {
 }
 
 /**
+ * Normalize an optional boolean param that may arrive as a real boolean or as a
+ * string (`"true"`/`"false"`), which happens when values come from block inputs
+ * or agent tool-calls rather than a typed UI switch. Returns `undefined` when the
+ * value is absent or unrecognized so callers can skip the field entirely.
+ */
+export function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return undefined
+}
+
+/**
  * Build a `Location` for a batchUpdate request when an insertion index is
  * provided, otherwise fall back to `endOfSegmentLocation` (end of the body).
  * The Docs API treats index 0 as invalid, so a positive index is required to

@@ -2,7 +2,11 @@ import type {
   GoogleDocsToolParams,
   GoogleDocsUpdateTextStyleResponse,
 } from '@/tools/google_docs/types'
-import { buildBatchUpdateMetadata, resolveDocumentId } from '@/tools/google_docs/utils'
+import {
+  buildBatchUpdateMetadata,
+  parseOptionalBoolean,
+  resolveDocumentId,
+} from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateTextStyleTool: ToolConfig<
@@ -96,21 +100,25 @@ export const updateTextStyleTool: ToolConfig<
       const textStyle: Record<string, unknown> = {}
       const fields: string[] = []
 
-      if (typeof params.bold === 'boolean') {
-        textStyle.bold = params.bold
+      const bold = parseOptionalBoolean(params.bold)
+      if (bold !== undefined) {
+        textStyle.bold = bold
         fields.push('bold')
       }
-      if (typeof params.italic === 'boolean') {
-        textStyle.italic = params.italic
+      const italic = parseOptionalBoolean(params.italic)
+      if (italic !== undefined) {
+        textStyle.italic = italic
         fields.push('italic')
       }
-      if (typeof params.underline === 'boolean') {
-        textStyle.underline = params.underline
+      const underline = parseOptionalBoolean(params.underline)
+      if (underline !== undefined) {
+        textStyle.underline = underline
         fields.push('underline')
       }
-      if (typeof params.fontSize === 'number' && Number.isFinite(params.fontSize)) {
-        textStyle.fontSize = { magnitude: params.fontSize, unit: 'PT' }
-        fields.push('font_size')
+      const fontSize = Number(params.fontSize)
+      if (params.fontSize != null && Number.isFinite(fontSize)) {
+        textStyle.fontSize = { magnitude: fontSize, unit: 'PT' }
+        fields.push('fontSize')
       }
 
       if (fields.length === 0) {

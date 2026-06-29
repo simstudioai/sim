@@ -110,6 +110,17 @@ export async function extractGraphError(response: Response): Promise<string> {
   return parseGraphErrorMessage(response.status, response.statusText, errorText)
 }
 
+/**
+ * Escape a string for use inside an OData single-quoted literal (e.g. a
+ * `worksheets('...')` or `tables('...')` key). OData escapes an embedded single
+ * quote by doubling it, so a name like `O'Brien` becomes `O''Brien`; without this
+ * the apostrophe terminates the literal early and breaks the request URL.
+ * `encodeURIComponent` leaves apostrophes untouched, so the doubling must happen here.
+ */
+export function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
 /** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
 export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 
@@ -185,7 +196,7 @@ export function buildWorksheetRangeUrl(
   sheetName?: string
 ): string {
   const resolved = resolveSheetAndAddress(address, sheetName)
-  const encodedSheet = encodeURIComponent(resolved.sheetName)
+  const encodedSheet = encodeURIComponent(escapeODataString(resolved.sheetName))
   const encodedAddress = encodeURIComponent(resolved.address)
   return `${basePath}/workbook/worksheets('${encodedSheet}')/range(address='${encodedAddress}')`
 }
