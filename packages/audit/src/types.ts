@@ -2,16 +2,6 @@
  * All auditable actions in the platform, grouped by resource type.
  */
 export const AuditAction = {
-  // Account / Authentication
-  USER_LOGIN: 'user.login',
-  USER_LOGIN_FAILED: 'user.login_failed',
-  USER_SIGNIN_BLOCKED: 'user.signin_blocked',
-  USER_SIGNUP_BLOCKED: 'user.signup_blocked',
-  USER_LOGOUT: 'user.logout',
-  SESSION_REVOKED: 'session.revoked',
-  ACCOUNT_DELETED: 'account.deleted',
-  ACCOUNT_EMAIL_CHANGED: 'account.email_changed',
-
   // API Keys
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
@@ -238,11 +228,9 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
-  SESSION: 'session',
   SKILL: 'skill',
   SUBSCRIPTION: 'subscription',
   TABLE: 'table',
-  USER: 'user',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
   WORKSPACE: 'workspace',

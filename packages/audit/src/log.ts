@@ -44,20 +44,6 @@ export function recordAudit(params: AuditLogParams): void {
   })
 }
 
-/**
- * Awaitable audit log write for callers that must guarantee the row is persisted
- * before they proceed — e.g. inside a pre-delete hook where the referenced
- * `user` row is about to be removed and a deferred insert would race the delete
- * (FK violation). Never throws; failures are logged.
- */
-export async function recordAuditNow(params: AuditLogParams): Promise<void> {
-  try {
-    await insertAuditLog(params)
-  } catch (error) {
-    logger.error('Failed to record audit log', { error, action: params.action })
-  }
-}
-
 async function insertAuditLog(params: AuditLogParams): Promise<void> {
   const ipAddress = params.request ? getClientIp(params.request) : undefined
   const userAgent = params.request?.headers.get('user-agent') ?? undefined

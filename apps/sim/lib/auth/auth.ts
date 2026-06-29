@@ -2,7 +2,6 @@ import { createHash } from 'crypto'
 import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
-import { AuditAction, AuditResourceType, recordAudit, recordAuditNow } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -206,7 +205,7 @@ export const auth = betterAuth({
   user: {
     deleteUser: {
       enabled: false,
-      beforeDelete: async (deletingUser, request) => {
+      beforeDelete: async (deletingUser) => {
         const { isSoleOwnerOfPaidOrganization } = await import(
           '@/lib/billing/organizations/membership'
         )
@@ -238,26 +237,6 @@ export const auth = betterAuth({
             `Your account owns ${ownedUnresolved.length} workspace${ownedUnresolved.length === 1 ? '' : 's'} with no other admin to take over ownership. Add another admin to ${ownedUnresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${ownedUnresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
           )
         }
-
-        /**
-         * All ownership/billing blockers passed — the account deletion will
-         * proceed after this callback returns. Await the write so the row lands
-         * while the `user` row still exists; a deferred (fire-and-forget) insert
-         * would race the cascade delete and FK-violate. actorName/actorEmail are
-         * captured explicitly so the actor stays identifiable after the FK is
-         * nulled by `onDelete: set null`.
-         */
-        await recordAuditNow({
-          actorId: deletingUser.id,
-          actorName: deletingUser.name,
-          actorEmail: deletingUser.email,
-          action: AuditAction.ACCOUNT_DELETED,
-          resourceType: AuditResourceType.USER,
-          resourceId: deletingUser.id,
-          resourceName: deletingUser.name ?? deletingUser.email,
-          description: `Account deleted for ${deletingUser.email}`,
-          request,
-        })
       },
     },
   },
@@ -601,15 +580,6 @@ export const auth = betterAuth({
               logger.warn('Blocking session creation for blocked account', {
                 userId: session.userId,
               })
-              recordAudit({
-                actorId: session.userId,
-                actorEmail: sessionUser?.email,
-                action: AuditAction.USER_SIGNIN_BLOCKED,
-                resourceType: AuditResourceType.SESSION,
-                resourceId: session.userId,
-                description: 'Sign-in blocked by access control policy',
-                metadata: { reason: 'blocked_email_or_domain', email: sessionUser?.email },
-              })
               throw new APIError('FORBIDDEN', {
                 message: 'Access restricted. Please contact your administrator.',
               })
@@ -841,31 +811,6 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       /**
-       * Record a logout while the session is still live. The `/sign-out` route
-       * deletes the session row before any after-hook runs, so the acting user
-       * can no longer be resolved afterwards; resolve and audit it here.
-       */
-      if (ctx.path === '/sign-out' && ctx.headers) {
-        try {
-          const sessionData = await auth.api.getSession({ headers: ctx.headers })
-          if (sessionData?.user?.id) {
-            recordAudit({
-              actorId: sessionData.user.id,
-              actorName: sessionData.user.name,
-              actorEmail: sessionData.user.email,
-              action: AuditAction.USER_LOGOUT,
-              resourceType: AuditResourceType.SESSION,
-              resourceId: sessionData.session?.id ?? sessionData.user.id,
-              description: 'User signed out',
-              request: { headers: ctx.headers },
-            })
-          }
-        } catch (error) {
-          logger.warn('Failed to record sign-out audit', { error })
-        }
-      }
-
-      /**
        * Restrict the unauthenticated sign-in endpoints to first-party login
        * providers. Better Auth registers every generic-OAuth integration
        * connector as a social provider, so without this guard `microsoft-ad`,
@@ -909,38 +854,6 @@ export const auth = betterAuth({
         const accessControl = await getAccessControlConfig()
         const requestEmail = ctx.body?.email?.toLowerCase()
 
-        /**
-         * Audit a policy-blocked authentication attempt. The audit row's
-         * `actorId` is a FK to `user.id`, so it is only written when the email
-         * maps to an existing user (the common sign-in case). Blocked sign-ups
-         * for emails with no account are intentionally skipped to avoid an FK
-         * violation. The action reflects whether the blocked attempt was a
-         * sign-in or a sign-up so account-lifecycle events aren't mislabeled.
-         */
-        const recordSignInBlocked = async (reason: string) => {
-          if (!requestEmail) return
-          try {
-            const [blockedUser] = await db
-              .select({ id: schema.user.id })
-              .from(schema.user)
-              .where(eq(sql`lower(${schema.user.email})`, requestEmail))
-              .limit(1)
-            if (!blockedUser) return
-            recordAudit({
-              actorId: blockedUser.id,
-              actorEmail: requestEmail,
-              action: isSignUp ? AuditAction.USER_SIGNUP_BLOCKED : AuditAction.USER_SIGNIN_BLOCKED,
-              resourceType: AuditResourceType.SESSION,
-              resourceId: blockedUser.id,
-              description: `${isSignUp ? 'Sign-up' : 'Sign-in'} blocked by access control policy`,
-              metadata: { reason, email: requestEmail, path: ctx.path },
-              request: ctx.headers ? { headers: ctx.headers } : undefined,
-            })
-          } catch (error) {
-            logger.warn('Failed to record blocked authentication audit', { error })
-          }
-        }
-
         // Banning an existing account is owned by better-auth's admin plugin (a
         // `session.create.before` hook that blocks banned users at sign-in across
         // all providers), so it is not re-checked here.
@@ -953,7 +866,6 @@ export const auth = betterAuth({
             accessControl.allowedLoginEmails.includes(requestEmail) ||
             (!!emailDomain && accessControl.allowedLoginDomains.includes(emailDomain))
           if (!isAllowed) {
-            await recordSignInBlocked('not_in_allowlist')
             throw new APIError('FORBIDDEN', {
               message: 'Access restricted. Please contact your administrator.',
             })
@@ -963,7 +875,6 @@ export const auth = betterAuth({
         // Blocked emails/domains gate both signup and sign-in. OAuth/SSO sign-ins
         // have no email in the body here; the session.create.before hook covers them.
         if (isEmailBlockedByAccessControl(requestEmail, accessControl)) {
-          await recordSignInBlocked('blocked_email_or_domain')
           throw new APIError('FORBIDDEN', {
             message: isSignUp
               ? 'Sign-ups from this email are not allowed.'
@@ -981,7 +892,6 @@ export const auth = betterAuth({
             accessControl.blockedEmailMxHosts
           )
           if (!mxCheck.allowed) {
-            await recordSignInBlocked('mx_validation_failed')
             throw new APIError('FORBIDDEN', {
               message: 'Sign-ups from this email domain are not allowed.',
             })
@@ -990,75 +900,6 @@ export const auth = betterAuth({
       }
 
       return
-    }),
-    after: createAuthMiddleware(async (ctx) => {
-      const request = ctx.headers ? { headers: ctx.headers } : undefined
-
-      /**
-       * A freshly minted `newSession` marks a successful authentication. It is
-       * set by every session-establishing flow (email/password, OAuth and SSO
-       * callbacks, email-OTP). Session refreshes (`/get-session`,
-       * `/update-session`, `/update-user`) also set it, so the login audit is
-       * gated on an authentication entry path to avoid auditing a refresh as a
-       * new login.
-       */
-      const newSession = ctx.context.newSession
-      // Only genuine sign-in entrypoints count as a login. `/verify-email` is
-      // deliberately excluded: email verification is an account-lifecycle event
-      // that can mint or refresh a session without being a new sign-in, so
-      // treating it as a login would mislabel (or double-count, when the prior
-      // sign-up already recorded one).
-      const isLoginPath =
-        ctx.path.startsWith('/sign-in') ||
-        ctx.path.startsWith('/sign-up') ||
-        ctx.path.startsWith('/callback') ||
-        ctx.path.startsWith('/oauth2/callback') ||
-        ctx.path.startsWith('/sso/callback') ||
-        ctx.path.startsWith('/magic-link') ||
-        ctx.path.startsWith('/email-otp')
-      if (newSession?.user?.id && isLoginPath) {
-        recordAudit({
-          actorId: newSession.user.id,
-          actorName: newSession.user.name,
-          actorEmail: newSession.user.email,
-          action: AuditAction.USER_LOGIN,
-          resourceType: AuditResourceType.SESSION,
-          resourceId: newSession.session?.id ?? newSession.user.id,
-          description: 'User signed in',
-          metadata: {
-            method: ctx.path,
-            ...(typeof ctx.body?.provider === 'string' ? { provider: ctx.body.provider } : {}),
-          },
-          request,
-        })
-      }
-
-      /**
-       * Session revocation endpoints run `sensitiveSessionMiddleware`, so the
-       * acting user is resolved onto `ctx.context.session`. The revoked token is
-       * deliberately not stored in metadata to avoid leaking a session secret.
-       */
-      if (
-        ctx.path === '/revoke-session' ||
-        ctx.path === '/revoke-sessions' ||
-        ctx.path === '/revoke-other-sessions'
-      ) {
-        const actor = ctx.context.session?.user
-        if (actor?.id) {
-          const isSingle = ctx.path === '/revoke-session'
-          recordAudit({
-            actorId: actor.id,
-            actorName: actor.name,
-            actorEmail: actor.email,
-            action: AuditAction.SESSION_REVOKED,
-            resourceType: AuditResourceType.SESSION,
-            resourceId: actor.id,
-            description: isSingle ? 'Session revoked' : 'Sessions revoked',
-            metadata: { scope: isSingle ? 'single' : 'all', path: ctx.path },
-            request,
-          })
-        }
-      }
     }),
   },
   plugins: [
