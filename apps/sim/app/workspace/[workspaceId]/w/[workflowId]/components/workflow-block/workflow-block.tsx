@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Badge, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
+import { HANDLE_POSITIONS, SubBlockRowView } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
@@ -371,25 +371,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-2'>
-      <span
-        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
-        title={title}
-      >
-        {title}
-      </span>
-      {displayValue !== undefined && (
-        <span
-          className={cn(
-            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
-            isMonospaceField && 'font-mono'
-          )}
-          title={displayValue}
-        >
-          {displayValue}
-        </span>
-      )}
-    </div>
+    <SubBlockRowView title={title} displayValue={displayValue} isMonospace={isMonospaceField} />
   )
 }, areSubBlockRowPropsEqual)
 
