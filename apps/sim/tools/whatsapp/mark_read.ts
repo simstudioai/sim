@@ -59,10 +59,13 @@ export const markReadTool: ToolConfig<WhatsAppMarkReadParams, WhatsAppMarkReadRe
       throw new Error(errorMessage)
     }
 
+    // A 2xx response means the mark-as-read succeeded (Graph returns `{"success": true}`).
+    // Treat the HTTP success as authoritative and only report failure if the body
+    // explicitly says otherwise, so an empty or variant 200 body isn't misreported.
     return {
       success: true,
       output: {
-        success: data.success === true,
+        success: data.success !== false,
       },
     }
   },
