@@ -923,7 +923,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       condition: { field: 'operation', value: 'untrash' },
       required: true,
     },
-    // Export File Fields
     {
       id: 'exportFileSelector',
       title: 'Select File to Export',
@@ -983,7 +982,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       placeholder: 'Optional: Override the exported filename',
       condition: { field: 'operation', value: 'export' },
     },
-    // List Revisions Fields
     {
       id: 'listRevisionsFileSelector',
       title: 'Select File',
@@ -1016,7 +1014,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_revisions' },
     },
-    // Get Revision Fields
     {
       id: 'getRevisionFileSelector',
       title: 'Select File',
@@ -1049,7 +1046,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       condition: { field: 'operation', value: 'get_revision' },
       required: true,
     },
-    // List Comments Fields
     {
       id: 'listCommentsFileSelector',
       title: 'Select File',
@@ -1094,7 +1090,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_comments' },
     },
-    // Create Comment Fields
     {
       id: 'createCommentFileSelector',
       title: 'Select File',
@@ -1143,7 +1138,6 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_comment' },
     },
-    // Delete Comment Fields
     {
       id: 'deleteCommentFileSelector',
       title: 'Select File',
@@ -1281,7 +1275,6 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           shareFileId,
           unshareFileId,
           listPermissionsFileId,
-          // File canonical params for revisions/comments/export operations
           exportFileId,
           listRevisionsFileId,
           getRevisionFileId,
@@ -1408,7 +1401,6 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         const includeRevisionsValue =
           includeRevisions === 'true' ? true : includeRevisions === 'false' ? false : undefined
 
-        // Convert includeDeleted dropdown to boolean
         const includeDeletedValue =
           includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
 
@@ -1470,7 +1462,6 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
     shareFileId: { type: 'string', description: 'File to share' },
     unshareFileId: { type: 'string', description: 'File to unshare' },
     listPermissionsFileId: { type: 'string', description: 'File to list permissions for' },
-    // Revisions / comments / export canonical file params (per-operation)
     exportFileId: { type: 'string', description: 'File to export' },
     listRevisionsFileId: { type: 'string', description: 'File to list revisions for' },
     getRevisionFileId: { type: 'string', description: 'File the revision belongs to' },
@@ -1509,12 +1500,9 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
     emailMessage: { type: 'string', description: 'Custom notification message' },
     // Unshare operation inputs
     permissionId: { type: 'string', description: 'Permission ID to remove' },
-    // Export operation inputs
     exportMimeType: { type: 'string', description: 'Target MIME type to export to' },
-    // Revision operation inputs
     revisionId: { type: 'string', description: 'Revision ID to retrieve' },
     revisionsPageSize: { type: 'string', description: 'Results per page for revisions' },
-    // Comment operation inputs
     commentId: { type: 'string', description: 'Comment ID to delete' },
     anchor: { type: 'string', description: 'Anchor region for a new comment' },
     includeDeleted: { type: 'string', description: 'Include deleted comments when listing' },

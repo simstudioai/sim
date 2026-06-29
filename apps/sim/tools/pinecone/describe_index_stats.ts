@@ -56,8 +56,8 @@ export const describeIndexStatsTool: ToolConfig<
       output: {
         namespaces: data.namespaces ?? {},
         dimension: data.dimension ?? null,
-        indexFullness: data.indexFullness ?? null,
-        totalVectorCount: data.totalVectorCount ?? null,
+        indexFullness: data.indexFullness ?? data.index_fullness ?? null,
+        totalVectorCount: data.totalVectorCount ?? data.total_vector_count ?? null,
       },
     }
   },

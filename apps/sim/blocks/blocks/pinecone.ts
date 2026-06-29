@@ -261,7 +261,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       ],
       condition: { field: 'operation', value: 'search_vector' },
     },
-    // Update vector fields
     {
       id: 'indexHost',
       title: 'Index Host',
@@ -328,7 +327,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         generationType: 'json-object',
       },
     },
-    // Delete vectors fields
     {
       id: 'indexHost',
       title: 'Index Host',
@@ -383,7 +381,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         generationType: 'json-object',
       },
     },
-    // List vector IDs fields
     {
       id: 'indexHost',
       title: 'Index Host',
@@ -424,7 +421,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       condition: { field: 'operation', value: 'list_vector_ids' },
       mode: 'advanced',
     },
-    // Describe index stats fields
     {
       id: 'indexHost',
       title: 'Index Host',
@@ -448,7 +444,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         generationType: 'json-object',
       },
     },
-    // Describe index fields
     {
       id: 'indexName',
       title: 'Index Name',
@@ -546,18 +541,14 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     vector: { type: 'json', description: 'Query vector' },
     includeValues: { type: 'boolean', description: 'Include vector values' },
     includeMetadata: { type: 'boolean', description: 'Include metadata' },
-    // Update vector inputs
     id: { type: 'string', description: 'Vector identifier to update' },
     values: { type: 'json', description: 'New dense vector values' },
     sparseValues: { type: 'json', description: 'New sparse vector values' },
     setMetadata: { type: 'json', description: 'Metadata to set on the vector' },
-    // Delete vectors inputs
     deleteAll: { type: 'boolean', description: 'Delete all vectors in the namespace' },
-    // List vector IDs inputs
     prefix: { type: 'string', description: 'Vector ID prefix filter' },
     limit: { type: 'number', description: 'Maximum number of IDs to return' },
     paginationToken: { type: 'string', description: 'Pagination token for the next page' },
-    // Describe index inputs
     indexName: { type: 'string', description: 'Index name' },
   },
 

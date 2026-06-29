@@ -64,7 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Getting file metadata from Google Drive`, { fileId })
 
-    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
+    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
     const metadataUrlValidation = await validateUrlWithDNS(metadataUrl, 'metadataUrl')
     if (!metadataUrlValidation.isValid) {
       return NextResponse.json(
@@ -123,7 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       exportFormat: exportMimeType,
     })
 
-    const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}&supportsAllDrives=true`
+    const exportUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}&supportsAllDrives=true`
     const exportUrlValidation = await validateUrlWithDNS(exportUrl, 'exportUrl')
     if (!exportUrlValidation.isValid) {
       return NextResponse.json(

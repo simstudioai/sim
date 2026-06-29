@@ -97,7 +97,7 @@ export const ALL_REVISION_FIELDS = [
   'kind',
 ].join(',')
 
-// All reply fields from Google Drive API v3
+/** All reply fields requested from the Google Drive API v3. */
 const ALL_REPLY_FIELDS = [
   'id',
   'kind',
@@ -110,7 +110,7 @@ const ALL_REPLY_FIELDS = [
   'action',
 ].join(',')
 
-// All comment fields from Google Drive API v3
+/** All comment fields requested from the Google Drive API v3. */
 export const ALL_COMMENT_FIELDS = [
   'id',
   'kind',

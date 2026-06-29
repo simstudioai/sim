@@ -30,9 +30,7 @@ function normalizeUrls(value: unknown): string[] {
       if (Array.isArray(parsed)) {
         return parsed.map((entry) => String(entry).trim()).filter((entry) => entry.length > 0)
       }
-    } catch {
-      // Fall through to newline-separated parsing
-    }
+    } catch {}
     return trimmed
       .split(/\r?\n/)
       .map((entry) => entry.trim())

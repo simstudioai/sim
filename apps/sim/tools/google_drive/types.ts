@@ -184,7 +184,7 @@ export interface GoogleDriveRevision {
   kind?: string
 }
 
-// A threaded reply attached to a comment
+/** A threaded reply attached to a comment. */
 export interface GoogleDriveCommentReply {
   id?: string
   kind?: string
@@ -197,7 +197,7 @@ export interface GoogleDriveCommentReply {
   action?: string // 'resolve' | 'reopen'
 }
 
-// A comment on a file
+/** A comment on a Google Drive file. */
 export interface GoogleDriveComment {
   id?: string
   kind?: string

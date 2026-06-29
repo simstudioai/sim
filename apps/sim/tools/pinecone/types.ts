@@ -181,7 +181,6 @@ export interface PineconeSearchVectorParams extends PineconeBaseParams {
   includeMetadata?: boolean
 }
 
-// Delete Vectors
 export interface PineconeDeleteVectorsParams {
   apiKey: string
   indexHost: string
@@ -191,7 +190,6 @@ export interface PineconeDeleteVectorsParams {
   filter?: Record<string, any> | string
 }
 
-// Update Vector
 export interface PineconeUpdateVectorParams {
   apiKey: string
   indexHost: string
@@ -202,25 +200,21 @@ export interface PineconeUpdateVectorParams {
   setMetadata?: Record<string, any> | string
 }
 
-// Describe Index Stats
 export interface PineconeDescribeIndexStatsParams {
   apiKey: string
   indexHost: string
   filter?: Record<string, any> | string
 }
 
-// List Indexes
 export interface PineconeListIndexesParams {
   apiKey: string
 }
 
-// Describe Index
 export interface PineconeDescribeIndexParams {
   apiKey: string
   indexName: string
 }
 
-// List Vector IDs
 export interface PineconeListVectorIdsParams {
   apiKey: string
   indexHost: string

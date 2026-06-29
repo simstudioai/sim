@@ -22,9 +22,7 @@ function parseObjectKeys(value: unknown): string[] {
       if (Array.isArray(parsed)) {
         return parsed.map((key) => String(key).trim()).filter(Boolean)
       }
-    } catch {
-      // Fall through to delimiter-based parsing
-    }
+    } catch {}
   }
   return trimmed
     .split(/[\n,]/)
@@ -228,7 +226,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== DELETE / HEAD / PRESIGNED OBJECT KEY =====
     {
       id: 'objectKey',
       title: 'Object Key/Path',
@@ -289,7 +286,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== HEAD OBJECT FIELDS =====
     {
       id: 'headVersionId',
       title: 'Version ID',
@@ -299,7 +295,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== DELETE OBJECTS (BATCH) FIELDS =====
     {
       id: 'objectKeys',
       title: 'Object Keys',
@@ -316,7 +311,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== PRESIGNED URL FIELDS =====
     {
       id: 'presignedMethod',
       title: 'URL Type',
@@ -345,7 +339,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== LIST BUCKETS FIELDS =====
     {
       id: 'bucketPrefix',
       title: 'Bucket Prefix',
@@ -370,7 +363,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== CREATE BUCKET FIELDS =====
     {
       id: 'createBucketAcl',
       title: 'Access Control',
@@ -686,20 +678,15 @@ export const S3Block: BlockConfig<S3Response> = {
     destinationBucket: { type: 'string', description: 'Destination bucket name' },
     destinationKey: { type: 'string', description: 'Destination object key' },
     copyAcl: { type: 'string', description: 'ACL for copied object' },
-    // Head object inputs
     headVersionId: { type: 'string', description: 'Object version ID for metadata lookup' },
-    // Batch delete inputs
     objectKeys: { type: 'string', description: 'Object keys to delete (batch)' },
     quiet: { type: 'boolean', description: 'Return only deletion errors' },
-    // Presigned URL inputs
     presignedMethod: { type: 'string', description: 'Presigned URL type (get or put)' },
     expiresIn: { type: 'number', description: 'Presigned URL validity in seconds' },
     presignedContentType: { type: 'string', description: 'Content-Type for presigned upload' },
-    // List buckets inputs
     bucketPrefix: { type: 'string', description: 'Bucket name prefix filter' },
     maxBuckets: { type: 'number', description: 'Maximum number of buckets to return' },
     bucketsContinuationToken: { type: 'string', description: 'Pagination token for buckets' },
-    // Create bucket inputs
     createBucketAcl: { type: 'string', description: 'ACL for the new bucket' },
   },
   outputs: {

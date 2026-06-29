@@ -733,11 +733,9 @@ Example 2 - Product Data:
     links: { type: 'json', description: 'Discovered URLs array' },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
-    // Status / job output
     jobId: { type: 'string', description: 'Job ID for the started operation' },
     status: { type: 'string', description: 'Job status' },
     expiresAt: { type: 'string', description: 'Result expiration timestamp' },
-    // Credit usage output
     remainingCredits: { type: 'number', description: 'Credits remaining for the team' },
     planCredits: { type: 'number', description: 'Credits allocated in the current plan' },
     billingPeriodStart: { type: 'string', description: 'Start of the current billing period' },
