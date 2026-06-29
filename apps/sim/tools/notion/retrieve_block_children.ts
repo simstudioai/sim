@@ -1,5 +1,6 @@
 import type { NotionRetrieveBlockChildrenParams } from '@/tools/notion/types'
 import { BLOCK_LIST_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
+import { clampNotionPageSize } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface NotionRetrieveBlockChildrenResponse {
@@ -56,7 +57,8 @@ export const notionRetrieveBlockChildrenTool: ToolConfig<
     url: (params: NotionRetrieveBlockChildrenParams) => {
       const url = new URL(`https://api.notion.com/v1/blocks/${params.blockId.trim()}/children`)
       if (params.startCursor) url.searchParams.set('start_cursor', params.startCursor.trim())
-      if (params.pageSize != null) url.searchParams.set('page_size', String(params.pageSize))
+      const pageSize = clampNotionPageSize(params.pageSize)
+      if (pageSize != null) url.searchParams.set('page_size', String(pageSize))
       return url.toString()
     },
     method: 'GET',

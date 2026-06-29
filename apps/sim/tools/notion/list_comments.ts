@@ -1,5 +1,6 @@
 import type { NotionListCommentsParams } from '@/tools/notion/types'
 import { COMMENT_LIST_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
+import { clampNotionPageSize } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface NotionListCommentsResponse {
@@ -57,7 +58,8 @@ export const notionListCommentsTool: ToolConfig<
       const url = new URL('https://api.notion.com/v1/comments')
       url.searchParams.set('block_id', params.blockId.trim())
       if (params.startCursor) url.searchParams.set('start_cursor', params.startCursor.trim())
-      if (params.pageSize != null) url.searchParams.set('page_size', String(params.pageSize))
+      const pageSize = clampNotionPageSize(params.pageSize)
+      if (pageSize != null) url.searchParams.set('page_size', String(pageSize))
       return url.toString()
     },
     method: 'GET',
