@@ -18,6 +18,7 @@ import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   extractStorageKey,
   getFileExtension,
+  getMimeTypeFromExtension,
   inferContextFromKey,
   isInternalFileUrl,
   processSingleFileToUserFile,
@@ -342,7 +343,7 @@ export async function downloadServableFileFromStorage(
   // the authority on what actually gets swapped.
   const ext = getFileExtension(userFile.name)
   if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
-    return { buffer, contentType: userFile.type || '' }
+    return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
 
   const { parseWorkspaceFileKey } = await import(

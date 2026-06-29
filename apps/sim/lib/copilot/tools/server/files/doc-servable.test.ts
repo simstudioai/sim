@@ -3,8 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { e2bFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
+const { e2bFlag, betaFlag, mockLoadCompiledDoc, mockRunSandboxTask } = vi.hoisted(() => ({
   e2bFlag: { value: true },
+  betaFlag: { value: false },
   mockLoadCompiledDoc: vi.fn(),
   mockRunSandboxTask: vi.fn(),
 }))
@@ -28,7 +29,7 @@ vi.mock('./doc-compiled-store', () => ({
   storeCompiledDoc: vi.fn(),
 }))
 vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn().mockResolvedValue(false),
+  isFeatureEnabled: vi.fn(async () => betaFlag.value),
 }))
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isE2BDocEnabled() {
@@ -49,11 +50,14 @@ import { DocCompileUserError, resolveServableDocBytes } from './doc-compile'
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
+const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
 describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     e2bFlag.value = true
+    betaFlag.value = false
   })
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
@@ -134,5 +138,46 @@ describe('resolveServableDocBytes', () => {
     expect(result.buffer).toBe(text)
     expect(result.contentType).toBe('text/plain')
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+  })
+
+  it('passes through a real binary XLSX (ZIP magic) without an artifact lookup', async () => {
+    const result = await resolveServableDocBytes({
+      rawBuffer: ZIP_MAGIC,
+      fileName: 'sheet.xlsx',
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(result.buffer).toBe(ZIP_MAGIC)
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+  })
+
+  it('throws when a generated XLSX artifact is not ready (E2B + mothership-beta enabled)', async () => {
+    mockLoadCompiledDoc.mockResolvedValue(null)
+    e2bFlag.value = true
+    betaFlag.value = true
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: XLSX_SOURCE,
+        fileName: 'sheet.xlsx',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).rejects.toBeInstanceOf(DocCompileUserError)
+
+    expect(mockRunSandboxTask).not.toHaveBeenCalled()
+  })
+
+  it('returns raw XLSX source when there is no workspaceId (xlsx has no isolated-vm path)', async () => {
+    betaFlag.value = true
+
+    const result = await resolveServableDocBytes({
+      rawBuffer: XLSX_SOURCE,
+      fileName: 'sheet.xlsx',
+      workspaceId: undefined,
+    })
+
+    expect(result.buffer).toBe(XLSX_SOURCE)
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+    expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 })
