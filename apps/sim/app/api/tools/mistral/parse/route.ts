@@ -131,9 +131,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger
         )
         base64 = buffer.toString('base64')
-        // Prefer the resolved content type (e.g. the compiled PDF for a generated
-        // document) over the file-derived guess, but keep the extension-based
-        // fallback when storage only reports a generic octet-stream.
         if (contentType && contentType !== 'application/octet-stream') {
           mimeType = contentType
         }

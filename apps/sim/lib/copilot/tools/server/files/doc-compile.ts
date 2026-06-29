@@ -513,26 +513,19 @@ export async function resolveServableDocBytes(args: {
   const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
 
-  // A real uploaded/pre-compiled binary already carries its format magic — serve
-  // as-is. xlsx has no isolated-vm path so it isn't in COMPILABLE_FORMATS; match
-  // its ZIP magic explicitly so an uploaded xlsx short-circuits instead of being
-  // decoded and looked up as source.
+  // xlsx isn't in COMPILABLE_FORMATS (no isolated-vm path), so match its ZIP magic
+  // explicitly alongside the table-driven formats.
   const magic = format?.magic ?? (extNoDot === 'xlsx' ? ZIP_MAGIC : undefined)
   if (magic && bufferStartsWith(rawBuffer, magic)) {
     return { buffer: rawBuffer, contentType: getContentType(fileName) }
   }
 
-  // Non-doc file: nothing to resolve.
   if (!format && extNoDot !== 'xlsx') {
     return { buffer: rawBuffer, contentType: getContentType(fileName) }
   }
 
-  // Everything past here is generated-doc SOURCE; decode it once.
   const source = rawBuffer.toString('utf-8')
 
-  // Generated docs render from a content-addressed binary built once at write time.
-  // Load it; never recompile in the E2B regime — a miss means the doc is still
-  // generating, so signal "not ready" rather than ship source.
   if (workspaceId) {
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
     if (stored) {
@@ -543,10 +536,9 @@ export async function resolveServableDocBytes(args: {
     }
   }
 
-  // xlsx has no isolated-vm fallback (only the E2B path above builds it).
+  // Reaches here only for xlsx, which has no isolated-vm fallback.
   if (!format) return { buffer: rawBuffer, contentType: getContentType(fileName) }
 
-  // E2B disabled and no stored artifact → compile the JS source via isolated-vm.
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)
   if (cached) {

@@ -338,9 +338,8 @@ export async function downloadServableFileFromStorage(
     maxBytes: options.maxBytes,
   })
 
-  // Cheap pre-filter so only generated-doc candidates pay for the (heavier)
-  // resolver import below; resolveServableDocBytes re-derives the format and is
-  // the authority on what actually gets swapped.
+  // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
+  // import below.
   const ext = getFileExtension(userFile.name)
   if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
@@ -360,9 +359,8 @@ export async function downloadServableFileFromStorage(
     signal: options.signal,
   })
 
-  // `maxBytes` was enforced on the raw download above, but a generated doc swaps in
-  // its (potentially larger) compiled artifact — re-check so the caller's ceiling
-  // still holds for the bytes it actually receives.
+  // Re-check: the raw download enforced maxBytes on the source, but a generated doc
+  // resolves to a larger artifact.
   if (options.maxBytes !== undefined && resolved.buffer.length > options.maxBytes) {
     assertKnownSizeWithinLimit(resolved.buffer.length, options.maxBytes, 'servable file download')
   }

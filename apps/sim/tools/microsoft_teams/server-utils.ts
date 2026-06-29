@@ -82,9 +82,6 @@ export async function uploadFilesForTeamsMessage(params: {
     // Download file from storage
     const { buffer, contentType } = await downloadServableFileFromStorage(file, requestId, log)
 
-    // Re-check size against the RESOLVED bytes: a generated doc stores small
-    // source metadata but resolves to a larger compiled binary, so the source
-    // pre-check above can pass a payload that exceeds the limit.
     if (buffer.length > MAX_TEAMS_FILE_SIZE) {
       const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
       throw new Error(
