@@ -270,8 +270,11 @@ export async function deleteCopilotFile(key: string): Promise<void> {
 
   if (metadata) {
     try {
-      await deleteFileMetadata(key)
+      // Decrement before removing the metadata row: if the decrement fails the
+      // row is preserved (so the counter can still be reconciled) rather than
+      // leaving the quota permanently inflated with nothing to retry from.
       await decrementStorageUsage(metadata.userId, metadata.size, metadata.workspaceId ?? undefined)
+      await deleteFileMetadata(key)
     } catch (storageError) {
       logger.error('Failed to update storage tracking:', storageError)
     }
