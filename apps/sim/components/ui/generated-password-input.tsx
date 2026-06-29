@@ -33,6 +33,7 @@ export function GeneratedPasswordInput({
   autoComplete = 'new-password',
   error = false,
 }: GeneratedPasswordInputProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [showPassword, setShowPassword] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
@@ -93,7 +94,7 @@ export function GeneratedPasswordInput({
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <span>{copySuccess ? 'Copied' : 'Copy'}</span>
+              <span>{copySuccess ? tI18n('copied') : tI18n('copy')}</span>
             </Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
@@ -103,14 +104,14 @@ export function GeneratedPasswordInput({
                 variant='ghost'
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={disabled}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
                 className='!p-1.5'
               >
                 {showPassword ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <span>{showPassword ? 'Hide' : 'Show'}</span>
+              <span>{showPassword ? tI18n('hide') : tI18n('show')}</span>
             </Tooltip.Content>
           </Tooltip.Root>
         </div>

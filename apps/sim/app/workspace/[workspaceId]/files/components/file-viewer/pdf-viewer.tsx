@@ -54,6 +54,7 @@ function PdfError({ error }: { error: string }) {
 }
 
 export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: PdfViewerCoreProps) {
+  const tI18n = useTranslations('auto')
   const containerRef = useRef<HTMLDivElement>(null)
   const paddingWrapperRef = useRef<HTMLDivElement>(null)
   const pagesWrapperRef = useRef<HTMLDivElement>(null)
@@ -249,7 +250,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
             setLoadError(err.message)
             setIsDocumentReady(true)
           }}
-          error={<PdfError error={loadError ?? 'Failed to load PDF'} />}
+          error={<PdfError error={loadError ?? tI18n('failed_to_load_pdf')} />}
           className='mx-auto'
         >
           <div

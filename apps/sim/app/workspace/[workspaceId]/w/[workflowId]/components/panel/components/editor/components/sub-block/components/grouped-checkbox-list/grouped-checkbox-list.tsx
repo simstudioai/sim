@@ -67,6 +67,7 @@ export function GroupedCheckboxList({
   disabled = false,
   maxHeight = 400,
 }: GroupedCheckboxListProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
@@ -151,7 +152,12 @@ export function GroupedCheckboxList({
           count={selectedValues.length}
         />
       </Button>
-      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
+      <ChipModal
+        open={open}
+        onOpenChange={setOpen}
+        srTitle={tI18n('select_pii_types_to_detect')}
+        size='lg'
+      >
         <ChipModalHeader onClose={() => setOpen(false)}>
           {t('select_pii_types_to_detect')}
         </ChipModalHeader>

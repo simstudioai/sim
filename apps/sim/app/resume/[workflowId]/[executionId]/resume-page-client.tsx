@@ -142,6 +142,7 @@ export default function ResumeExecutionPage({
   initialExecutionDetail,
   initialContextId,
 }: ResumeExecutionPageProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workflowId, executionId } = params
   const router = useRouter()
@@ -340,7 +341,9 @@ export default function ResumeExecutionPage({
               onValueChange={(val) => handleFormFieldChange(field.name, val)}
             >
               <SelectTrigger>
-                <SelectValue placeholder={field.required ? 'Select true or false' : 'Select...'} />
+                <SelectValue
+                  placeholder={field.required ? tI18n('select_true_or_false') : 'Select...'}
+                />
               </SelectTrigger>
               <SelectContent>
                 {!field.required && <SelectItem value='__unset__'>{t('not_set')}</SelectItem>}
@@ -356,7 +359,7 @@ export default function ResumeExecutionPage({
               type='number'
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-              placeholder={field.placeholder ?? 'Enter a number...'}
+              placeholder={field.placeholder ?? tI18n('enter_a_number')}
             />
           )
         case 'array':
@@ -376,7 +379,7 @@ export default function ResumeExecutionPage({
               <Textarea
                 value={value}
                 onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-                placeholder={field.placeholder ?? 'Enter value...'}
+                placeholder={field.placeholder ?? tI18n('enter_value')}
                 rows={5}
               />
             )
@@ -385,7 +388,7 @@ export default function ResumeExecutionPage({
             <Input
               value={value}
               onChange={(e) => handleFormFieldChange(field.name, e.target.value)}
-              placeholder={field.placeholder ?? 'Enter value...'}
+              placeholder={field.placeholder ?? tI18n('enter_value')}
             />
           )
         }
@@ -1127,7 +1130,7 @@ export default function ResumeExecutionPage({
 
                       {/* Action */}
                       <Button variant='primary' onClick={handleResume} disabled={resumeDisabled}>
-                        {loadingAction ? 'Resuming...' : 'Resume Execution'}
+                        {loadingAction ? 'Resuming...' : tI18n('resume_execution')}
                       </Button>
                     </>
                   )}

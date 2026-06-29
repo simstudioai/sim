@@ -20,6 +20,7 @@ interface PublicFileAuthProps {
  * `file_auth_{shareId}` cookie is set and the page re-renders the viewer.
  */
 export function PublicFileAuth({ token }: PublicFileAuthProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const authenticate = usePublicFileAuth(token)
@@ -42,7 +43,10 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   }
 
   return (
-    <PublicFileAuthShell title={t('password_required')} subtitle='This file is password-protected'>
+    <PublicFileAuthShell
+      title={t('password_required')}
+      subtitle={tI18n('this_file_is_password_protected')}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -76,7 +80,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
               type='button'
               onClick={() => setShowPassword(!showPassword)}
               className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -95,7 +99,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
               {t('authenticating')}
             </span>
           ) : (
-            'Continue'
+            tI18n('continue')
           )}
         </button>
       </form>

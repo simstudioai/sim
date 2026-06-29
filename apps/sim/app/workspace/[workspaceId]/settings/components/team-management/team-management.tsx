@@ -7,6 +7,7 @@ import { Chip, Plus } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isLagoBillingClient } from '@/lib/billing/client/provider'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
@@ -32,6 +33,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 const logger = createLogger('TeamManagement')
 
 export function TeamManagement() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
@@ -274,7 +276,9 @@ export function TeamManagement() {
           setTransferPortalError(
             error instanceof Error
               ? error.message
-              : 'Failed to open Stripe billing portal. Please try again.'
+              : isLagoBillingClient()
+                ? 'Failed to open AACBilling portal. Please try again.'
+                : 'Failed to open Stripe billing portal. Please try again.'
           )
         },
       }
@@ -321,7 +325,7 @@ export function TeamManagement() {
             variant='primary'
             onClick={() => setInviteModalOpen(true)}
             disabled={isInvitationsDisabled}
-            title={isInvitationsDisabled ? 'Invitations are disabled' : undefined}
+            title={isInvitationsDisabled ? tI18n('invitations_are_disabled') : undefined}
           >
             {t('invite')}
           </Chip>

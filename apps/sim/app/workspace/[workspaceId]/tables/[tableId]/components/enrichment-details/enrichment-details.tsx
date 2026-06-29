@@ -125,6 +125,7 @@ function EnrichmentDetailsContent({
   groupName,
   isOpen,
 }: EnrichmentDetailsContentProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [activeTab, setActiveTab] = useState<EnrichmentDetailsTab>('result')
   const [prevKey, setPrevKey] = useState(`${rowId}:${groupId}`)
@@ -187,7 +188,7 @@ function EnrichmentDetailsContent({
                   {t('enrichment')}
                 </span>
                 <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                  {groupName || 'Enrichment'}
+                  {groupName || tI18n('enrichment')}
                 </span>
               </div>
             </div>

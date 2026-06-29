@@ -68,6 +68,7 @@ export function SubflowEditor({
   userCanEdit,
   isConnectionsAtMinHeight,
 }: SubflowEditorProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const {
@@ -134,7 +135,7 @@ export function SubflowEditor({
             className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+              {currentBlock.type === 'loop' ? tI18n('loop_type') : tI18n('parallel_type')}
             </Label>
             <Combobox
               options={typeOptions}
@@ -156,7 +157,7 @@ export function SubflowEditor({
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
-                  ? 'While Condition'
+                  ? tI18n('while_condition')
                   : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
             </Label>
 
@@ -184,7 +185,7 @@ export function SubflowEditor({
                 <CodeEditor.Container>
                   <CodeEditor.Content>
                     <CodeEditor.Placeholder gutterWidth={0} show={editorValue.length === 0}>
-                      {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                      {isConditionMode ? '<counter.value> < 10' : tI18n('item1_item2_item3')}
                     </CodeEditor.Placeholder>
 
                     <SimpleCodeEditor
@@ -277,7 +278,9 @@ export function SubflowEditor({
             }}
             role='button'
             tabIndex={0}
-            aria-label={isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'}
+            aria-label={
+              isConnectionsAtMinHeight ? tI18n('expand_connections') : tI18n('collapse_connections')
+            }
           >
             <ChevronUp
               className={

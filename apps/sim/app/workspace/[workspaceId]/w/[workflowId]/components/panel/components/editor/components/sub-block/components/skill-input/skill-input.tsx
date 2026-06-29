@@ -35,6 +35,7 @@ export function SkillInput({
   previewValue,
   disabled,
 }: SkillInputProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -127,7 +128,7 @@ export function SkillInput({
           placeholder={t('add_skill')}
           disabled={disabled}
           searchable
-          searchPlaceholder='Search skills...'
+          searchPlaceholder={tI18n('search_skills')}
           maxHeight={240}
           emptyMessage={t('no_skills_found')}
         />

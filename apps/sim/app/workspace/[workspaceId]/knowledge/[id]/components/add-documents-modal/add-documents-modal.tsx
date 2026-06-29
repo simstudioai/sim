@@ -39,6 +39,7 @@ export function AddDocumentsModal({
   knowledgeBaseId,
   chunkingConfig,
 }: AddDocumentsModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -148,7 +149,12 @@ export function AddDocumentsModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='New Documents' size='md'>
+    <ChipModal
+      open={open}
+      onOpenChange={handleOpenChange}
+      srTitle={tI18n('new_documents')}
+      size='md'
+    >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
         {t('new_documents')}
       </ChipModalHeader>

@@ -65,6 +65,7 @@ function fetchProviderStatus(): Promise<ProviderStatus> {
 }
 
 export function AuthModal({ children, defaultView = 'login', source }: AuthModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -140,10 +141,10 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
         className='dark bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]'
       >
         <ModalTitle className='sr-only'>
-          {view === 'login' ? 'Log in' : 'Create account'}
+          {view === 'login' ? tI18n('log_in') : tI18n('create_account')}
         </ModalTitle>
         <ModalDescription className='sr-only'>
-          {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          {view === 'login' ? tI18n('sign_in_to_your_account') : tI18n('create_a_new_account')}
         </ModalDescription>
 
         <div className='relative px-6 pt-6 pb-6'>
@@ -172,7 +173,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     {t('start_building')}
                   </p>
                   <h2 className='text-[22px] text-white leading-[110%] tracking-[-0.02em]'>
-                    {view === 'login' ? 'Log in to continue' : 'Create free account'}
+                    {view === 'login' ? tI18n('log_in_to_continue') : tI18n('create_free_account')}
                   </h2>
                 </div>
               </div>
@@ -187,7 +188,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   >
                     <GoogleIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
-                      {socialLoading === 'google' ? 'Connecting...' : 'Continue with Google'}
+                      {socialLoading === 'google' ? 'Connecting...' : tI18n('continue_with_google')}
                     </span>
                   </button>
                 )}
@@ -200,7 +201,9 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   >
                     <MicrosoftIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
-                      {socialLoading === 'microsoft' ? 'Connecting...' : 'Continue with Microsoft'}
+                      {socialLoading === 'microsoft'
+                        ? 'Connecting...'
+                        : tI18n('continue_with_microsoft')}
                     </span>
                   </button>
                 )}
@@ -213,7 +216,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   >
                     <GithubIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
-                      {socialLoading === 'github' ? 'Connecting...' : 'Continue with GitHub'}
+                      {socialLoading === 'github' ? 'Connecting...' : tI18n('continue_with_github')}
                     </span>
                   </button>
                 )}
@@ -250,7 +253,9 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
               <div className='mt-4 text-center text-[13.5px]'>
                 <span className='text-[var(--landing-text-muted)]'>
-                  {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                  {view === 'login'
+                    ? tI18n('don_t_have_an_account')
+                    : tI18n('already_have_an_account')}
                 </span>
                 {view === 'login' && providerStatus.registrationDisabled ? (
                   <span className='text-[var(--landing-text-muted)]'>
@@ -262,7 +267,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     onClick={() => setView(view === 'login' ? 'signup' : 'login')}
                     className='text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
                   >
-                    {view === 'login' ? 'Sign up' : 'Sign in'}
+                    {view === 'login' ? tI18n('sign_up') : tI18n('sign_in')}
                   </button>
                 )}
               </div>

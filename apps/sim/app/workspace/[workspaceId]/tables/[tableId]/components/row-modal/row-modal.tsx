@@ -60,6 +60,7 @@ function cleanRowData(
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
 export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -151,7 +152,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   }
 
   return (
-    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle='Edit Row' size='lg'>
+    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle={tI18n('edit_row')} size='lg'>
       <ChipModalHeader onClose={handleClose}>{t('edit_row')}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-tertiary)] text-small'>
@@ -190,6 +191,7 @@ interface ColumnFieldProps {
 }
 
 function ColumnField({ column, value, onChange }: ColumnFieldProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const checkboxId = useId()
   const title = (
@@ -217,7 +219,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
             htmlFor={checkboxId}
             className='font-normal text-[var(--text-tertiary)] text-small'
           >
-            {value ? 'True' : 'False'}
+            {value ? tI18n('true') : tI18n('false')}
           </Label>
         </div>
       </ChipModalField>

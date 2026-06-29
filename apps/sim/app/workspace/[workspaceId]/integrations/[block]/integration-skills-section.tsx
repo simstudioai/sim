@@ -25,6 +25,7 @@ interface SkillRowProps {
 }
 
 function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2'>
@@ -39,7 +40,7 @@ function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
         </Chip>
       ) : (
         <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled} flush>
-          {pending ? 'Adding...' : 'Add'}
+          {pending ? 'Adding...' : tI18n('add')}
         </Chip>
       )}
     </div>

@@ -248,6 +248,7 @@ export function WorkflowSidebarBody({
   onColumnRename,
   onBack,
 }: WorkflowSidebarBodyProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
@@ -840,7 +841,7 @@ export function WorkflowSidebarBody({
                 }
               />
               {showValidation && !columnNameInput.trim() && (
-                <FieldError message='Column name is required' />
+                <FieldError message={tI18n('column_name_is_required')} />
               )}
               {nameError && !(showValidation && !columnNameInput.trim()) && (
                 <FieldError message={nameError} />
@@ -945,24 +946,30 @@ export function WorkflowSidebarBody({
             emptyMessage={t('no_manual_triggers_configured')}
             maxHeight={260}
             searchable
-            searchPlaceholder='Search workflows...'
+            searchPlaceholder={tI18n('search_workflows')}
           />
-          {showValidation && !selectedWorkflowId && <FieldError message='Select a workflow' />}
+          {showValidation && !selectedWorkflowId && (
+            <FieldError message={tI18n('select_a_workflow')} />
+          )}
         </div>
 
         <FieldDivider />
 
         <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel>{isEditOutputMode ? 'Output' : 'Output columns'}</RequiredLabel>
+          <RequiredLabel>
+            {isEditOutputMode ? tI18n('output') : tI18n('output_columns')}
+          </RequiredLabel>
           <ChipCombobox
             multiSelect={!outputPickerSingleSelect}
             searchable
-            searchPlaceholder='Search outputs…'
+            searchPlaceholder={tI18n('search_outputs')}
             className='w-full'
             dropdownWidth='trigger'
             maxHeight={280}
             disabled={workflowState.isLoading || blockOutputGroups.length === 0}
-            emptyMessage={workflowState.isLoading ? 'Loading workflow…' : 'No outputs found.'}
+            emptyMessage={
+              workflowState.isLoading ? tI18n('loading_workflow') : tI18n('no_outputs_found')
+            }
             // Combobox ignores `options` when `groups` is set (see combobox.tsx),
             // but the prop is required by the type — pass an empty array.
             options={[]}
@@ -978,7 +985,7 @@ export function WorkflowSidebarBody({
                   overlayContent: (
                     <span className='truncate text-[var(--text-primary)]'>
                       {selectedOutputs.length === 0
-                        ? 'Select outputs'
+                        ? tI18n('select_outputs')
                         : `${selectedOutputs.length} selected`}
                     </span>
                   ),
@@ -986,7 +993,11 @@ export function WorkflowSidebarBody({
           />
           {showValidation && selectedWorkflowId && selectedOutputs.length === 0 && (
             <FieldError
-              message={isEditOutputMode ? 'Pick an output' : 'Pick at least one output column'}
+              message={
+                isEditOutputMode
+                  ? tI18n('pick_an_output')
+                  : tI18n('pick_at_least_one_output_column')
+              }
             />
           )}
         </div>
@@ -1009,7 +1020,9 @@ export function WorkflowSidebarBody({
                   depOptions={depOptions}
                   deps={deps}
                   onChangeDeps={setDeps}
-                  error={showValidation && deps.length === 0 ? 'Select at least one column' : null}
+                  error={
+                    showValidation && deps.length === 0 ? tI18n('select_at_least_one_column') : null
+                  }
                 />
               </>
             )}
@@ -1022,7 +1035,9 @@ export function WorkflowSidebarBody({
                     onClick={() => setShowAdvanced((v) => !v)}
                     className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                   >
-                    {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
+                    {showAdvanced
+                      ? tI18n('hide_additional_fields')
+                      : tI18n('show_additional_fields')}
                     <ChevronDown
                       className={cn(
                         'size-[14px] transition-transform duration-200',
@@ -1070,7 +1085,7 @@ export function WorkflowSidebarBody({
           {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
-          {saveDisabled ? 'Saving…' : 'Save'}
+          {saveDisabled ? 'Saving…' : tI18n('save')}
         </Button>
       </div>
     </div>

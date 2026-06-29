@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -48,6 +49,7 @@ export const SkillsMenuDropdown = React.memo(
     { skills, onSkillSelect, onClose, textareaRef, pendingCursorRef, slashQuery },
     ref
   ) {
+    const t = useTranslations('auto')
     const [open, setOpen] = useState(false)
     const [anchorPos, setAnchorPos] = useState<{ left: number; top: number } | null>(null)
     const [activeIndex, setActiveIndex] = useState(0)

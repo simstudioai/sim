@@ -218,6 +218,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [blobUrl, setBlobUrl] = useState('')
 
@@ -228,7 +229,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
+    <ZoomablePreview className='h-full' contentClassName={tI18n('h_full_w_full')}>
       {blobUrl && (
         <img
           src={blobUrl}
@@ -242,13 +243,14 @@ function SvgPreview({ content }: { content: string }) {
 }
 
 function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  const tI18n = useTranslations('auto')
   return (
     <div className='h-full overflow-auto p-6'>
       <MermaidDiagram
         definition={content}
         isStreaming={isStreaming}
         zoomable
-        zoomClassName='h-full rounded-lg'
+        zoomClassName={tI18n('h_full_rounded_lg')}
       />
     </div>
   )

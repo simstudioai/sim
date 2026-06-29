@@ -6,6 +6,7 @@ interface LessonVideoProps {
 }
 
 export function LessonVideo({ url, title }: LessonVideoProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const embedUrl = resolveEmbedUrl(url)
 
@@ -22,7 +23,7 @@ export function LessonVideo({ url, title }: LessonVideoProps) {
       <iframe
         src={embedUrl}
         title={title}
-        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+        allow={tI18n('accelerometer_autoplay_clipboard_write_encrypted')}
         allowFullScreen
         className='h-full w-full border-0'
       />

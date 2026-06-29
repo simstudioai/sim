@@ -1,18 +1,18 @@
 {
-  "workflowCreated": "\"Workflow erstellt\"",
+  "workflowCreated": "Workflow erstellt",
   "workflowDeleted": "Workflow gelöscht",
-  "workflowUpdated": "\"Worflow aktualisiert\"",
-  "workflowDuplicated": "\"Workflow dupliziert\"",
-  "executionStarted": "\"Ausführung gestartet.\"",
-  "executionCompleted": "\"Ausführung abgeschlossen\"",
-  "executionFailed": "\"Ausführung fehlgeschlagen\"",
+  "workflowUpdated": "Workflow aktualisiert",
+  "workflowDuplicated": "Workflow kopiert",
+  "executionStarted": "Ausführung gestartet",
+  "executionCompleted": "Ausführung abgeschlossen",
+  "executionFailed": "Fehler bei der Ausführung",
   "invitationSent": "Einladung gesendet",
   "memberAdded": "Mitglied hinzugefügt",
   "memberRemoved": "Mitglied entfernt",
   "settingsSaved": "Einstellungen gespeichert",
   "fileUploaded": "Datei hochgeladen",
   "fileDeleted": "Datei gelöscht",
-  "integrationConnected": "\"Integration verbunden\"",
-  "integrationDisconnected": "Integrationsverschlussung",
-  "knowledgeSynced": "Wissensdatenbank synchronisiert"
+  "integrationConnected": "Integration verbunden",
+  "integrationDisconnected": "Integration getrennt",
+  "knowledgeSynced": "Wissensdatenbank gesynchronisiert"
 }

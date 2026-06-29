@@ -18,6 +18,7 @@ interface ShareButtonProps {
 }
 
 export function ShareButton({ url, title }: ShareButtonProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [copied, setCopied] = useState(false)
 
@@ -55,7 +56,7 @@ export function ShareButton({ url, title }: ShareButtonProps) {
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={handleCopyLink}>
           <Duplicate className='h-4 w-4' />
-          {copied ? 'Copied!' : 'Copy link'}
+          {copied ? 'Copied!' : tI18n('copy_link')}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareTwitter}>
           <XIcon className='h-4 w-4' />

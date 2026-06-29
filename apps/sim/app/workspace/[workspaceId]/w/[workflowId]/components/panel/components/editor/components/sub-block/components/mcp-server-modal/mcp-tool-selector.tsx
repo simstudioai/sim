@@ -10,6 +10,7 @@ import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[wor
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import { useTranslations } from 'next-intl'
 
 interface McpToolSelectorProps {
   blockId: string
@@ -28,6 +29,7 @@ export function McpToolSelector({
   previewValue,
   previewContextValues,
 }: McpToolSelectorProps) {
+  const tI18n = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -126,7 +128,7 @@ export function McpToolSelector({
       selectedValue={selectedToolId}
       onChange={handleComboboxChange}
       onOpenChange={handleOpenChange}
-      placeholder={serverValue ? label : 'Select server first'}
+      placeholder={serverValue ? label : tI18n('select_server_first')}
       disabled={isDisabled}
       editable={true}
       filterOptions={true}

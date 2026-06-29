@@ -5,6 +5,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { useTranslations } from 'next-intl'
 
 interface TimeInputProps {
   blockId: string
@@ -38,6 +39,7 @@ export function TimeInput({
   className,
   disabled = false,
 }: TimeInputProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
 
@@ -60,7 +62,7 @@ export function TimeInput({
     <TimePicker
       value={value || undefined}
       onChange={handleChange}
-      placeholder={placeholder || 'Select time'}
+      placeholder={placeholder || t('select_time')}
       disabled={isPreview || disabled}
       className={className}
       overlayContent={

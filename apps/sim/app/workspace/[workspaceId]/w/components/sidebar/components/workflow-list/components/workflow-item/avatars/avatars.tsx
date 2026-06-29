@@ -39,6 +39,7 @@ interface UserAvatarProps {
  * Falls back to colored circle with initials if image fails to load.
  */
 function UserAvatar({ user, index }: UserAvatarProps) {
+  const tI18n = useTranslations('auto')
   const color = getUserColor(user.userId)
   const initials = user.userName ? user.userName.charAt(0).toUpperCase() : '?'
 
@@ -47,7 +48,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
       {user.avatarUrl && (
         <AvatarImage
           src={user.avatarUrl}
-          alt={user.userName ? `${user.userName}'s avatar` : 'User avatar'}
+          alt={user.userName ? `${user.userName}'s avatar` : tI18n('user_avatar')}
           referrerPolicy='no-referrer'
         />
       )}

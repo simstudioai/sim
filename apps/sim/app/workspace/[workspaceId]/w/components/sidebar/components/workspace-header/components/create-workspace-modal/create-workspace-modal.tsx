@@ -27,6 +27,7 @@ export function CreateWorkspaceModal({
   onConfirm,
   isCreating,
 }: CreateWorkspaceModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [name, setName] = useState('')
 
@@ -50,7 +51,7 @@ export function CreateWorkspaceModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create workspace'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('create_workspace')}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{t('create_workspace')}</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField

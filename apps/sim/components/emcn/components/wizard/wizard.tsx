@@ -12,6 +12,7 @@ import {
   ModalHeader,
   type ModalSize,
 } from '../modal/modal'
+import { useTranslations } from 'next-intl'
 
 /**
  * A multi-step modal wizard primitive.
@@ -129,6 +130,7 @@ const WizardRoot: React.FC<WizardProps> = ({
   doneLabel = 'Done',
   description,
 }) => {
+  const t = useTranslations('auto')
   const steps = React.Children.toArray(children).filter(isStepElement)
   const total = steps.length
   const clamped = Math.min(Math.max(0, currentStep), Math.max(0, total - 1))
@@ -175,7 +177,7 @@ const WizardRoot: React.FC<WizardProps> = ({
 
         <ModalBody>
           <ModalDescription className='sr-only'>
-            {description ?? 'Multi-step wizard'}
+            {description ?? t('multi_step_wizard')}
           </ModalDescription>
           {activeStep}
         </ModalBody>

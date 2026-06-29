@@ -35,9 +35,11 @@ import {
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
+import { getBillingPortalLabelKey, isLagoBillingClient } from '@/lib/billing/client/provider'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
+import { WalletSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/wallet-section/wallet-section'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -94,6 +96,7 @@ function formatInvoiceAmount(amountMinor: number, currency: string): string {
 }
 
 export function Billing() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
@@ -128,6 +131,8 @@ export function Billing() {
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
   const openBillingPortal = useOpenBillingPortal()
+  const isLagoBilling = isLagoBillingClient()
+  const billingPortalLabelKey = getBillingPortalLabelKey()
 
   const upgradeHref = buildUpgradeHref(workspaceId)
 
@@ -439,6 +444,12 @@ export function Billing() {
           ))}
       </div>
 
+      <WalletSection
+        creditBalance={subscriptionData.data.creditBalance ?? 0}
+        canManage={canManageBilling}
+        organizationId={subscription.isOrgScoped ? (billingOrganizationId ?? undefined) : undefined}
+      />
+
       {showUsageLimit && (
         <UsageLimitField
           currentLimit={usageLimitCurrent}
@@ -494,7 +505,7 @@ export function Billing() {
             {periodEnd && (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
+                  {isCancelledAtPeriodEnd ? tI18n('access_until') : tI18n('next_billing_date')}
                 </span>
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}
@@ -509,35 +520,43 @@ export function Billing() {
                 disabled={!canManageBilling || openBillingPortal.isPending}
                 onClick={handleOpenBillingPortal}
               >
-                {t('manage_in_stripe')}
+                {t(billingPortalLabelKey)}
               </Chip>
             </div>
 
-            {!subscription.isEnterprise && (
-              <div className='flex items-center justify-between'>
-                <span className='text-[var(--text-body)] text-small'>
-                  {isCancelledAtPeriodEnd ? 'Subscription canceled' : 'Cancel subscription'}
-                </span>
-                {isCancelledAtPeriodEnd ? (
-                  <Chip
-                    variant='primary'
-                    flush
-                    disabled={!canManageBilling}
-                    onClick={handleRestoreSubscription}
-                  >
-                    {t('restore')}
-                  </Chip>
-                ) : (
-                  <Chip
-                    variant='destructive'
-                    flush
-                    disabled={!canManageBilling}
-                    onClick={handleCancelSubscription}
-                  >
-                    {t('cancel')}
-                  </Chip>
-                )}
-              </div>
+            {isLagoBilling ? (
+              <p className='text-[var(--text-muted)] text-xs'>
+                {t('subscription_manage_in_aacbilling')}
+              </p>
+            ) : (
+              !subscription.isEnterprise && (
+                <div className='flex items-center justify-between'>
+                  <span className='text-[var(--text-body)] text-small'>
+                    {isCancelledAtPeriodEnd
+                      ? tI18n('subscription_canceled')
+                      : tI18n('cancel_subscription')}
+                  </span>
+                  {isCancelledAtPeriodEnd ? (
+                    <Chip
+                      variant='primary'
+                      flush
+                      disabled={!canManageBilling}
+                      onClick={handleRestoreSubscription}
+                    >
+                      {t('restore')}
+                    </Chip>
+                  ) : (
+                    <Chip
+                      variant='destructive'
+                      flush
+                      disabled={!canManageBilling}
+                      onClick={handleCancelSubscription}
+                    >
+                      {t('cancel')}
+                    </Chip>
+                  )}
+                </div>
+              )
             )}
           </div>
         </SettingsSection>

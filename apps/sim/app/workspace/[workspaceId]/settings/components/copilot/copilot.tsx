@@ -32,6 +32,7 @@ const logger = createLogger('CopilotSettings')
  * Provides functionality to create, view, and delete copilot API keys.
  */
 export function Copilot() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data: keys = [], isLoading } = useCopilotKeys()
   const generateKey = useGenerateCopilotKey()
@@ -136,7 +137,7 @@ export function Copilot() {
                 <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                   <div className='flex items-center gap-1.5'>
                     <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
-                      {key.name || 'Unnamed Key'}
+                      {key.name || tI18n('unnamed_key')}
                     </span>
                     <span className='text-[var(--text-secondary)] text-sm'>
                       {t('last_used')} {formatLastUsed(key.lastUsed).toLowerCase()})
@@ -168,7 +169,7 @@ export function Copilot() {
       <ChipModal
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
-        srTitle='Create new API key'
+        srTitle={tI18n('create_new_api_key')}
       >
         <ChipModalHeader onClose={() => setIsCreateDialogOpen(false)}>
           {t('create_new_api_key')}
@@ -212,7 +213,7 @@ export function Copilot() {
             setNewKey(null)
           }
         }}
-        srTitle='Your API key has been created'
+        srTitle={tI18n('your_api_key_has_been_created')}
       >
         <ChipModalHeader
           onClose={() => {
@@ -250,7 +251,7 @@ export function Copilot() {
             setDeleteKey(null)
           }
         }}
-        srTitle='Delete API key'
+        srTitle={tI18n('delete_api_key')}
         title={t('delete_api_key')}
         text={[
           'Deleting ',

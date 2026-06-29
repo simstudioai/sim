@@ -93,6 +93,7 @@ function ColumnConfigBody({
   tableId,
   onColumnRename,
 }: ColumnConfigBodyProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
@@ -197,7 +198,9 @@ function ColumnConfigBody({
             error={Boolean((showValidation && !trimmedName) || nameError)}
             aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
           />
-          {showValidation && !trimmedName && <FieldError message='Column name is required' />}
+          {showValidation && !trimmedName && (
+            <FieldError message={tI18n('column_name_is_required')} />
+          )}
           {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
         </div>
 
@@ -239,7 +242,7 @@ function ColumnConfigBody({
           {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
-          {saveDisabled ? 'Saving…' : 'Save'}
+          {saveDisabled ? 'Saving…' : tI18n('save')}
         </Button>
       </div>
     </div>

@@ -20,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { Loader } from '../../icons'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
+import { useTranslations } from 'next-intl'
 
 const comboboxVariants = cva(
   'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
@@ -573,7 +574,7 @@ const Combobox = memo(
                     )}
                     <button
                       type='button'
-                      aria-label={open ? 'Close options' : 'Open options'}
+                      aria-label={open ? t('close_options') : t('open_options')}
                       className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0'
                       onMouseDown={handleChevronClick}
                     >
@@ -719,8 +720,8 @@ const Combobox = memo(
                     <div className='py-3.5 text-center text-[var(--text-muted)] text-caption'>
                       {emptyMessage ||
                         (searchQuery || (editable && value)
-                          ? 'No matching options found'
-                          : 'No options available')}
+                          ? t('no_matching_options_found')
+                          : t('no_options_available'))}
                     </div>
                   ) : filteredGroups ? (
                     // Render grouped options with section headers

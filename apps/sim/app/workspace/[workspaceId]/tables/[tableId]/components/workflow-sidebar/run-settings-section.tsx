@@ -28,6 +28,7 @@ export function RunSettingsSection({
   onChangeDeps,
   error,
 }: RunSettingsSectionProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const options = depOptions.map((c) => ({ label: c.name, value: getColumnId(c) }))
 
@@ -50,7 +51,7 @@ export function RunSettingsSection({
         onMultiSelectChange={onChangeDeps}
         overlayContent={
           <span className='truncate text-[var(--text-tertiary)]'>
-            {deps.length === 0 ? 'Select at least one column' : `${deps.length} selected`}
+            {deps.length === 0 ? tI18n('select_at_least_one_column') : `${deps.length} selected`}
           </span>
         }
       />

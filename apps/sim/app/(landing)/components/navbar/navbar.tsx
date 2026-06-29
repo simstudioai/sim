@@ -34,7 +34,13 @@ interface NavLink {
 }
 
 // Navigation link keys - labels will be fetched via useTranslations
-const NAV_LINK_KEYS: Array<{ key: string; href: string; external?: boolean; icon?: 'chevron'; dropdown?: 'docs' | 'blog' }> = [
+const NAV_LINK_KEYS: Array<{
+  key: string
+  href: string
+  external?: boolean
+  icon?: 'chevron'
+  dropdown?: 'docs' | 'blog'
+}> = [
   { key: 'docs', href: 'https://docs.sim.ai', external: true, icon: 'chevron', dropdown: 'docs' },
   { key: 'blog', href: '/blog', icon: 'chevron', dropdown: 'blog' },
   { key: 'integrations', href: '/integrations' },
@@ -57,6 +63,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS }: NavbarProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const brand = getBrandConfig()
   const sessionCtx = useContext(SessionContext)
@@ -299,7 +306,7 @@ export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS 
               type='button'
               className='flex size-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               onClick={() => setMobileMenuOpen((prev) => !prev)}
-              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-label={mobileMenuOpen ? tI18n('close_menu') : tI18n('open_menu')}
               aria-expanded={mobileMenuOpen}
             >
               <MobileMenuIcon open={mobileMenuOpen} />

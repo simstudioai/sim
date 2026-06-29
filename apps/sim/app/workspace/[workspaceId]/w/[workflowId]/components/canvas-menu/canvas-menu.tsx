@@ -76,6 +76,7 @@ export function CanvasMenu({
   allBlocksLocked = false,
   hasBlocks = false,
 }: CanvasMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <Popover
@@ -150,7 +151,7 @@ export function CanvasMenu({
             onAutoLayout()
             onClose()
           }}
-          title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
+          title={hasLockedBlocks ? tI18n('unlock_blocks_to_use_auto_layout') : undefined}
         >
           <span>{t('auto_layout')}</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>{t('l')}</span>
@@ -163,7 +164,7 @@ export function CanvasMenu({
               onClose()
             }}
           >
-            <span>{allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}</span>
+            <span>{allBlocksLocked ? tI18n('unlock_workflow') : tI18n('lock_workflow')}</span>
           </PopoverItem>
         )}
         <PopoverItem
@@ -203,7 +204,7 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          {isVariablesOpen ? 'Close Variables' : 'Open Variables'}
+          {isVariablesOpen ? tI18n('close_variables') : tI18n('open_variables')}
         </PopoverItem>
         <PopoverItem
           onClick={() => {
@@ -211,7 +212,7 @@ export function CanvasMenu({
             onClose()
           }}
         >
-          {isChatOpen ? 'Close Chat' : 'Open Chat'}
+          {isChatOpen ? tI18n('close_chat') : tI18n('open_chat')}
         </PopoverItem>
       </PopoverContent>
     </Popover>

@@ -262,6 +262,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   runStartMs: number
   runTotalMs: number
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { span, depth, parentDuration } = entry
   const id = getSpanId(span)
@@ -319,7 +320,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
               e.stopPropagation()
               onToggleExpand(id)
             }}
-            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+            aria-label={isExpanded ? tI18n('collapse') : tI18n('expand')}
           >
             <ChevronDown
               className={cn(
@@ -405,6 +406,7 @@ function DetailCodeSection({
   isError?: boolean
   defaultOpen?: boolean
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
@@ -513,7 +515,9 @@ function DetailCodeSection({
                       )}
                     </Button>
                   </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                  <Tooltip.Content side='top'>
+                    {copied ? tI18n('copied') : tI18n('copy')}
+                  </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -647,6 +651,7 @@ function MetaRow({ label, value }: { label: string; value: string }) {
  * the selected span: metadata, input, output, thinking, tool calls, error.
  */
 const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpan | null }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   if (!span) {
     return (
@@ -759,7 +764,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       {span.output !== undefined && span.output !== null && (
         <DetailCodeSection
           key={isDirectError ? 'error' : 'output'}
-          label={isDirectError ? 'Error' : 'Output'}
+          label={isDirectError ? tI18n('error') : tI18n('output')}
           data={span.output}
           isError={isDirectError}
         />
@@ -800,6 +805,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * follow block-by-block and segment-by-segment what happened and why.
  */
 export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const treeRef = useRef<HTMLDivElement>(null)
   const { copied: traceCopied, copy: copyTrace } = useCopyToClipboard()
@@ -991,7 +997,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           size='sm'
           className='flex-shrink-0'
         >
-          {runStatus === 'error' ? 'Error' : 'Success'}
+          {runStatus === 'error' ? tI18n('error') : tI18n('success')}
         </Badge>
         {firstErrorId && (
           <Button
@@ -1043,7 +1049,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {traceCopied ? 'Copied' : 'Copy raw trace'}
+              {traceCopied ? tI18n('copied') : tI18n('copy_raw_trace')}
             </Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>

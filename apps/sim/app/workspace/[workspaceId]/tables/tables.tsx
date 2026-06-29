@@ -67,6 +67,7 @@ const COLUMNS: ResourceColumn[] = [
 ]
 
 export function Tables() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -375,7 +376,7 @@ export function Tables() {
                 <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
               }
               searchable
-              searchPlaceholder='Search members...'
+              searchPlaceholder={tI18n('search_members')}
               showAllOption
               allOptionLabel='All'
               className='w-full'
@@ -720,7 +721,7 @@ export function Tables() {
           setIsDeleteDialogOpen(open)
           if (!open) setActiveTable(null)
         }}
-        srTitle='Delete Table'
+        srTitle={tI18n('delete_table')}
         title={t('delete_table')}
         text={[
           'Are you sure you want to delete ',

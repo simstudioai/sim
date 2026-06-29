@@ -152,6 +152,7 @@ function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): b
 }
 
 export function RecentlyDeleted() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -448,7 +449,7 @@ export function RecentlyDeleted() {
       {error ? (
         <div className='flex h-full flex-col items-center justify-center gap-2'>
           <p className='text-[var(--text-error)] text-sm leading-tight'>
-            {toError(error).message || 'Failed to load deleted items'}
+            {toError(error).message || tI18n('failed_to_load_deleted_items')}
           </p>
         </div>
       ) : isLoading ? null : filtered.length === 0 ? (

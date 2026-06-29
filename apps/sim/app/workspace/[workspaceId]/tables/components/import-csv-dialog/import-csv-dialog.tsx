@@ -126,6 +126,7 @@ export function ImportCsvDialog({
   table,
   onImported,
 }: ImportCsvDialogProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [parsed, setParsed] = useState<ParsedCsv | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -385,7 +386,7 @@ export function ImportCsvDialog({
             accept='.csv,.tsv'
             disabled={parsing}
             onChange={handleFilesSelected}
-            label={parsing ? 'Parsing...' : 'Drop CSV or TSV here or click to browse'}
+            label={parsing ? 'Parsing...' : tI18n('drop_csv_or_tsv_here_or')}
             description={t('map_columns_to_append_or_replace')}
             error={parseError ?? undefined}
           />

@@ -132,6 +132,7 @@ export function TaskModal({
   onSubmit,
   onRequestDelete,
 }: TaskModalProps) {
+  const tI18n = useTranslations('auto')
   const [submitting, setSubmitting] = useState(false)
 
   /**
@@ -157,7 +158,7 @@ export function TaskModal({
       open={open}
       onOpenChange={handleOpenChange}
       size='lg'
-      srTitle={edit ? 'Edit scheduled task' : 'New scheduled task'}
+      srTitle={edit ? tI18n('edit_scheduled_task') : tI18n('new_scheduled_task')}
     >
       <TaskModalContent
         onOpenChange={handleOpenChange}
@@ -194,6 +195,7 @@ function TaskModalContent({
   submitting,
   setSubmitting,
 }: TaskModalContentProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const source = edit ?? prefill
@@ -322,7 +324,7 @@ function TaskModalContent({
   return (
     <>
       <ChipModalHeader icon={Calendar} onClose={close}>
-        {edit ? 'Edit scheduled task' : 'New scheduled task'}
+        {edit ? tI18n('edit_scheduled_task') : tI18n('new_scheduled_task')}
       </ChipModalHeader>
       <ChipModalPromptBody>
         <PromptEditor

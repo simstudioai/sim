@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { Button } from '@/components/emcn'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
+import { useTranslations } from 'next-intl'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -22,6 +23,7 @@ export function SocialLoginButtons({
   isProduction,
   children,
 }: SocialLoginButtonsProps) {
+  const t = useTranslations('auto')
   const [isGithubLoading, setIsGithubLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
@@ -103,7 +105,7 @@ export function SocialLoginButtons({
       onClick={signInWithGithub}
     >
       <GithubIcon className='!h-[18px] !w-[18px] mr-1' />
-      {isGithubLoading ? 'Connecting...' : 'GitHub'}
+      {isGithubLoading ? 'Connecting...' : t('github')}
     </Button>
   )
 
@@ -115,7 +117,7 @@ export function SocialLoginButtons({
       onClick={signInWithGoogle}
     >
       <GoogleIcon className='!h-[18px] !w-[18px] mr-1' />
-      {isGoogleLoading ? 'Connecting...' : 'Google'}
+      {isGoogleLoading ? 'Connecting...' : t('google')}
     </Button>
   )
 
@@ -127,7 +129,7 @@ export function SocialLoginButtons({
       onClick={signInWithMicrosoft}
     >
       <MicrosoftIcon className='!h-[18px] !w-[18px] mr-1' />
-      {isMicrosoftLoading ? 'Connecting...' : 'Microsoft'}
+      {isMicrosoftLoading ? 'Connecting...' : t('microsoft')}
     </Button>
   )
 

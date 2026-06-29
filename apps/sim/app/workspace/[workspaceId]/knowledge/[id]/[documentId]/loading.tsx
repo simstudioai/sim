@@ -8,6 +8,7 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { useTranslations } from 'next-intl'
 
 const noop = () => {}
 
@@ -27,13 +28,14 @@ const BREADCRUMBS: BreadcrumbItem[] = [
 ]
 
 export default function DocumentLoading() {
+  const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
       icon={FileText}
       breadcrumbs={BREADCRUMBS}
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder='Search chunks...'
+      searchPlaceholder={t('search_chunks')}
       hasSort
       hasFilter
     />

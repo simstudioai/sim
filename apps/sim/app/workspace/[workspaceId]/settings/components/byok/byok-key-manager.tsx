@@ -126,6 +126,7 @@ const NO_KEYS: BYOKManagerKey[] = []
  * the page chrome (background, scroll container, and `max-w` centering).
  */
 export function BYOKKeyManager(props: BYOKKeyManagerProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const {
     providers,
@@ -370,12 +371,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         onOpenChange={(open) => {
           if (!open) closeEditModal()
         }}
-        srTitle='Add/Update API Key'
+        srTitle={tI18n('add_update_api_key')}
       >
         <ChipModalHeader onClose={closeEditModal}>
           {editingMeta && (
             <>
-              {isUpdatingExistingKey ? 'Update' : 'Add'} {editingMeta.name} {t('api_key')}
+              {isUpdatingExistingKey ? tI18n('update') : tI18n('add')} {editingMeta.name}{' '}
+              {t('api_key')}
             </>
           )}
         </ChipModalHeader>
@@ -423,7 +425,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
                 variant='quiet'
                 className='size-[18px] shrink-0 rounded-sm p-0'
                 onClick={() => setShowApiKey(!showApiKey)}
-                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                aria-label={showApiKey ? tI18n('hide_api_key') : tI18n('show_api_key')}
               >
                 {showApiKey ? <EyeOff className='size-[13px]' /> : <Eye className='size-[13px]' />}
               </Button>
@@ -458,7 +460,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         onOpenChange={(open) => {
           if (!open) setDeleteConfirm(null)
         }}
-        srTitle='Delete API Key'
+        srTitle={tI18n('delete_api_key')}
         title={t('delete_api_key')}
         text={[
           'Are you sure you want to delete the ',

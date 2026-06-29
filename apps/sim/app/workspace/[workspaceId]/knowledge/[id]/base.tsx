@@ -217,6 +217,7 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
   workspaceId: propWorkspaceId,
 }: KnowledgeBaseProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
@@ -1235,7 +1236,7 @@ export function KnowledgeBase({
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        srTitle='Delete Knowledge Base'
+        srTitle={tI18n('delete_knowledge_base')}
         title={t('delete_knowledge_base')}
         text={[
           'Are you sure you want to delete ',
@@ -1261,7 +1262,7 @@ export function KnowledgeBase({
           setShowDeleteDocumentModal(open)
           if (!open) setDocumentToDelete(null)
         }}
-        srTitle='Delete Document'
+        srTitle={tI18n('delete_document')}
         title={t('delete_document')}
         text={(() => {
           const docToDelete = documents.find((doc) => doc.id === documentToDelete)
@@ -1293,7 +1294,7 @@ export function KnowledgeBase({
       <ChipConfirmModal
         open={showBulkDeleteModal}
         onOpenChange={setShowBulkDeleteModal}
-        srTitle='Delete Documents'
+        srTitle={tI18n('delete_documents')}
         title={t('delete_documents')}
         text={[
           `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
@@ -1341,7 +1342,7 @@ export function KnowledgeBase({
       <ChipModal
         open={showConnectorsModal}
         onOpenChange={setShowConnectorsModal}
-        srTitle='Connected Sources'
+        srTitle={tI18n('connected_sources')}
       >
         <ChipModalHeader onClose={() => setShowConnectorsModal(false)}>
           {t('connected_sources')}
@@ -1488,6 +1489,7 @@ interface TagFilterValueControlProps {
  * Renders the value input for a knowledge base tag filter row.
  */
 function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isBetween = entry.operator === 'between'
 
@@ -1549,10 +1551,10 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
       onChange={(event) => onChange({ value: event.target.value })}
       placeholder={
         entry.fieldType === 'boolean'
-          ? 'true or false'
+          ? tI18n('true_or_false')
           : entry.fieldType === 'number'
-            ? 'Enter number'
-            : 'Enter value'
+            ? tI18n('enter_number')
+            : tI18n('enter_value')
       }
     />
   )
@@ -1562,6 +1564,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
  * Tag filter section rendered inside the combined filter popover.
  */
 function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectionProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length
 
@@ -1667,7 +1670,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     placeholder={t('select_tag')}
                     align='start'
                     matchTriggerWidth={false}
-                    contentClassName='max-h-[240px] overflow-y-auto'
+                    contentClassName={tI18n('max_h_240px_overflow_y_auto')}
                     className='max-w-[150px]'
                     flush
                   />

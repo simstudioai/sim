@@ -15,6 +15,7 @@ import {
 } from '@/app/(landing)/models/utils'
 
 export function ModelDirectory() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [query, setQuery] = useState('')
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null)
@@ -159,7 +160,7 @@ export function ModelDirectory() {
                 <ProviderIcon
                   provider={provider}
                   className='size-8 rounded-[5px]'
-                  iconClassName='h-4 w-4'
+                  iconClassName={tI18n('h_4_w_4')}
                 />
                 <div className='min-w-0 flex-1'>
                   <h2
@@ -211,7 +212,7 @@ export function ModelDirectory() {
                     <ProviderIcon
                       provider={provider}
                       className='size-8 rounded-[5px]'
-                      iconClassName='h-4 w-4'
+                      iconClassName={tI18n('h_4_w_4')}
                     />
                     <div className='min-w-0 flex-1'>
                       <h3 className='text-[14px] text-white leading-snug'>{provider.name}</h3>
@@ -231,6 +232,7 @@ export function ModelDirectory() {
 }
 
 function ModelRow({ provider, model }: { provider: CatalogProvider; model: CatalogModel }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <>
@@ -242,7 +244,7 @@ function ModelRow({ provider, model }: { provider: CatalogProvider; model: Catal
         <ProviderIcon
           provider={provider}
           className='size-8 shrink-0 rounded-[5px]'
-          iconClassName='h-4 w-4'
+          iconClassName={tI18n('h_4_w_4')}
         />
 
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>

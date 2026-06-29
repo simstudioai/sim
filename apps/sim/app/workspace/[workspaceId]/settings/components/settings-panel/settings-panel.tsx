@@ -82,10 +82,12 @@ export function SettingsPanel({
   search,
 }: SettingsPanelProps) {
   const t = useTranslations('auto')
+  const ts = useTranslations('settings')
   const section = useSettingsSection()
   const meta = section ? getSettingsSectionMeta(section) : null
-  const resolvedTitle = title ?? meta?.label
-  const resolvedDescription = description ?? meta?.description
+  const resolvedTitle = title ?? (meta && section ? ts(`nav_${section}_label`) : meta?.label)
+  const resolvedDescription =
+    description ?? (meta && section ? ts(`nav_${section}_desc`) : meta?.description)
   const resolvedDocsLink = docsLink ?? meta?.docsLink
 
   return (

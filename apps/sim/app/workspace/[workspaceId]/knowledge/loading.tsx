@@ -21,6 +21,7 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New base', icon: Plus, variant: 'primary' }]
 
 export default function KnowledgeLoading() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
@@ -28,7 +29,7 @@ export default function KnowledgeLoading() {
       title={t('knowledge_base')}
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder='Search knowledge bases...'
+      searchPlaceholder={tI18n('search_knowledge_bases')}
       hasSort
       hasFilter
     />

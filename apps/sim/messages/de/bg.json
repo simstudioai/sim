@@ -1,7 +1,7 @@
 {
-  "free1": "kostenlos/1",
-  "gmail2": "Gmail 2 fehlt erforderliche Felder: Etikett",
-  "unablet": "Es konnte keine Rechnungsstelle für diese Erneuerung aufgelöst werden.",
-  "cancelle": "Abgesagt",
-  "ratelim": "Ichmeldepunkt überschritten – bitte versuchen Sie später noch einmal."
+  "free1": "frei/1",
+  "gmail2": "Gmail 2 enthält keine erforderlichen Felder: label",
+  "unablet": "Kann für diese Top-Up die Rechnungsstellung nicht bereinigt werden.",
+  "cancelle": "Abgelaufen",
+  "ratelim": "Anfrage-Limit überschritten - bitte versuche es später erneut."
 }

@@ -69,6 +69,7 @@ export function KnowledgeTagFilters({
   previewValue,
   previewContextValues,
 }: KnowledgeTagFiltersProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
@@ -230,7 +231,7 @@ export function KnowledgeTagFilters({
       <div className='space-y-1'>
         <Label className='font-medium text-muted-foreground text-xs'>{t('tag_filters')}</Label>
         <div className='text-muted-foreground text-sm'>
-          {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : 'No filters'}
+          {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : tI18n('no_filters')}
         </div>
       </div>
     )
@@ -257,7 +258,7 @@ export function KnowledgeTagFilters({
         </span>
         {filter.collapsed && filter.tagName && (
           <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
+            {FIELD_TYPE_LABELS[filter.fieldType] || tI18n('text')}
           </Badge>
         )}
       </div>

@@ -64,15 +64,16 @@ interface UnsavedChangesModalProps {
 }
 
 function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ChipConfirmModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle='Unsaved Changes'
+      srTitle={tI18n('unsaved_changes')}
       title={t('unsaved_changes')}
-      text='You have unsaved changes. Are you sure you want to discard them?'
-      dismissLabel='Keep editing'
+      text={tI18n('you_have_unsaved_changes_are_you')}
+      dismissLabel={tI18n('keep_editing')}
       confirm={{ label: 'Discard Changes', onClick: onDiscard }}
     />
   )
@@ -126,6 +127,7 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workspaceId } = useParams()
   const router = useRouter()
@@ -885,11 +887,12 @@ export function Document({
                   <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
                     {documentData?.processingStatus === 'pending' &&
-                      'Document processing pending...'}
+                      tI18n('document_processing_pending')}
                     {documentData?.processingStatus === 'processing' &&
-                      'Document processing in progress...'}
-                    {documentData?.processingStatus === 'failed' && 'Document processing failed'}
-                    {!documentData?.processingStatus && 'Document not ready'}
+                      tI18n('document_processing_in_progress')}
+                    {documentData?.processingStatus === 'failed' &&
+                      tI18n('document_processing_failed')}
+                    {!documentData?.processingStatus && tI18n('document_not_ready')}
                   </span>
                 </div>
               ),
@@ -932,7 +935,7 @@ export function Document({
           status: {
             content: (
               <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
-                {chunk.enabled ? 'Enabled' : 'Disabled'}
+                {chunk.enabled ? tI18n('enabled') : tI18n('disabled')}
               </Badge>
             ),
           },
@@ -1207,7 +1210,7 @@ export function Document({
       <ChipConfirmModal
         open={showDeleteDocumentDialog}
         onOpenChange={setShowDeleteDocumentDialog}
-        srTitle='Delete Document'
+        srTitle={tI18n('delete_document')}
         title={t('delete_document')}
         text={[
           'Are you sure you want to delete ',

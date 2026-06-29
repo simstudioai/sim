@@ -53,6 +53,7 @@ export function ConnectedCredentialDetail({
   workspaceId,
   credentialId,
 }: ConnectedCredentialDetailProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const integrationsHref = `/workspace/${workspaceId}/integrations`
@@ -214,7 +215,7 @@ export function ConnectedCredentialDetail({
           {t('disconnect')}
         </Chip>
         <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
-          {form.isSaving ? 'Saving...' : 'Save'}
+          {form.isSaving ? 'Saving...' : tI18n('save')}
         </Chip>
       </>
     ) : null
@@ -259,11 +260,15 @@ export function ConnectedCredentialDetail({
             )
           }
           title={serviceLabel}
-          subtitle={serviceConfig?.description || 'Connected service'}
+          subtitle={serviceConfig?.description || tI18n('connected_service')}
         />
 
         <DetailSection title={t('credential_id')}>
-          <ChipCopyInput id='credential-id' value={credential.id} copyLabel='Copy credential ID' />
+          <ChipCopyInput
+            id='credential-id'
+            value={credential.id}
+            copyLabel={tI18n('copy_credential_id')}
+          />
         </DetailSection>
 
         <DetailSection title={t('display_name')}>
@@ -297,7 +302,7 @@ export function ConnectedCredentialDetail({
       <ChipConfirmModal
         open={showDeleteConfirmDialog}
         onOpenChange={setShowDeleteConfirmDialog}
-        srTitle='Disconnect Integration'
+        srTitle={tI18n('disconnect_integration')}
         title={t('disconnect_integration')}
         text={[
           'Are you sure you want to disconnect ',

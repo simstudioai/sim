@@ -317,6 +317,7 @@ function NewWorkspaceVariableRow({
 }
 
 export function SecretsManager() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -885,7 +886,7 @@ export function SecretsManager() {
           onPaste={(e) => handlePaste(e, originalIndex)}
           unmasked={isConflicted}
           readOnly={isConflicted}
-          placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
+          placeholder={isConflicted ? tI18n('workspace_override_active') : tI18n('enter_value')}
           name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
           className={cn(isConflicted && 'cursor-not-allowed opacity-50')}
         />
@@ -978,7 +979,7 @@ export function SecretsManager() {
               </Tooltip.Root>
             ) : (
               <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
-                {isListSaving ? 'Saving...' : 'Save'}
+                {isListSaving ? 'Saving...' : tI18n('save')}
               </Chip>
             )}
           </>

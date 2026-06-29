@@ -34,6 +34,7 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isMulti = Boolean(field.multi)
 
@@ -94,7 +95,7 @@ export function ConnectorSelectorField({
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
         placeholder={
           !credentialId
-            ? 'Connect an account first'
+            ? tI18n('connect_an_account_first')
             : !depsResolved
               ? `Select ${getDependencyLabel(field, configFields)} first`
               : field.placeholder || `Select ${field.title.toLowerCase()}`
@@ -115,7 +116,7 @@ export function ConnectorSelectorField({
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
-          ? 'Connect an account first'
+          ? tI18n('connect_an_account_first')
           : !depsResolved
             ? `Select ${getDependencyLabel(field, configFields)} first`
             : field.placeholder || `Select ${field.title.toLowerCase()}`

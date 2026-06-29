@@ -95,6 +95,7 @@ function WorkspaceHeaderImpl({
   isCollapsed = false,
   onExpandSidebar,
 }: WorkspaceHeaderProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -286,7 +287,7 @@ function WorkspaceHeaderImpl({
                 {activeWorkspaceFull.logoUrl ? (
                   <img
                     src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || 'Workspace logo'}
+                    alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
                     className='size-[16px] rounded-sm object-cover group-hover:invisible'
                   />
                 ) : (
@@ -336,7 +337,7 @@ function WorkspaceHeaderImpl({
                 activeWorkspaceFull.logoUrl ? (
                   <img
                     src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || 'Workspace logo'}
+                    alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
                     className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                   />
                 ) : (
@@ -395,7 +396,7 @@ function WorkspaceHeaderImpl({
                             {workspace.logoUrl ? (
                               <img
                                 src={workspace.logoUrl}
-                                alt={workspace.name || 'Workspace logo'}
+                                alt={workspace.name || tI18n('workspace_logo')}
                                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                               />
                             ) : (
@@ -487,7 +488,7 @@ function WorkspaceHeaderImpl({
                             {workspace.logoUrl ? (
                               <img
                                 src={workspace.logoUrl}
-                                alt={workspace.name || 'Workspace logo'}
+                                alt={workspace.name || tI18n('workspace_logo')}
                                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
                               />
                             ) : (
@@ -607,7 +608,7 @@ function WorkspaceHeaderImpl({
             activeWorkspaceFull.logoUrl ? (
               <img
                 src={activeWorkspaceFull.logoUrl}
-                alt={activeWorkspaceFull.name || 'Workspace logo'}
+                alt={activeWorkspaceFull.name || tI18n('workspace_logo')}
                 className='size-[16px] flex-shrink-0 rounded-sm object-cover'
               />
             ) : (
@@ -686,7 +687,7 @@ function WorkspaceHeaderImpl({
       <ChipConfirmModal
         open={isLeaveModalOpen}
         onOpenChange={() => setIsLeaveModalOpen(false)}
-        srTitle='Leave workspace'
+        srTitle={tI18n('leave_workspace')}
         title={t('leave_workspace')}
         text={[
           'Are you sure you want to leave ',

@@ -540,6 +540,7 @@ const tableViewTransition = {
 } as const
 
 export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesProps = {}) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [openTableId, setOpenTableId] = useState<string | null>(null)
 
@@ -571,8 +572,8 @@ export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesPr
             <LandingPreviewResource
               icon={Table}
               title={t('tables')}
-              createLabel='New table'
-              searchPlaceholder='Search tables...'
+              createLabel={tI18n('new_table')}
+              searchPlaceholder={tI18n('search_tables')}
               columns={LIST_COLUMNS}
               rows={LIST_ROWS}
               onRowClick={(id) => setOpenTableId(id)}

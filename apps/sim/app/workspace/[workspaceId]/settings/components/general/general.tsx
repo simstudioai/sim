@@ -70,6 +70,7 @@ function getInitials(name: string | undefined | null): string {
 }
 
 export function General() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const brandConfig = useBrandConfig()
@@ -307,7 +308,7 @@ export function General() {
                       return (
                         <Image
                           src={imageUrl}
-                          alt={profile?.name || 'User'}
+                          alt={profile?.name || tI18n('user')}
                           width={36}
                           height={36}
                           unoptimized
@@ -431,7 +432,7 @@ export function General() {
                   align='start'
                   dropdownWidth={240}
                   searchable
-                  searchPlaceholder='Search timezones'
+                  searchPlaceholder={tI18n('search_timezones')}
                   value={settings?.timezone ?? getBrowserTimezone()}
                   onChange={handleTimezoneChange}
                   placeholder={t('select_timezone')}
@@ -558,7 +559,7 @@ export function General() {
       <ChipModal
         open={showResetPasswordModal}
         onOpenChange={setShowResetPasswordModal}
-        srTitle='Reset Password'
+        srTitle={tI18n('reset_password')}
       >
         <ChipModalHeader onClose={() => setShowResetPasswordModal(false)}>
           {t('reset_password_2')}

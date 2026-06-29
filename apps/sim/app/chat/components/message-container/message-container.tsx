@@ -29,6 +29,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
   scrollToMessage,
   chatConfig,
 }: ChatMessageContainerProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <div className='relative flex flex-1 flex-col overflow-hidden'>
@@ -45,7 +46,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
                   {t('how_can_i_help_you_today')}
                 </h3>
                 <p className='text-[var(--landing-text-muted)] text-sm'>
-                  {chatConfig?.description || 'Ask me anything.'}
+                  {chatConfig?.description || tI18n('ask_me_anything')}
                 </p>
               </div>
             </div>

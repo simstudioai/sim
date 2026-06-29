@@ -92,6 +92,7 @@ export function OrganizationMemberLists({
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [query, setQuery] = useState('')
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
@@ -394,7 +395,7 @@ export function OrganizationMemberLists({
         <MemberSection
           label={`Members (${orgRowCount})`}
           isEmpty={!isLoadingRoster && filteredOrgMembers.length + filteredOrgPending.length === 0}
-          emptyText={isActiveSearch ? `No members matching “${query}”` : 'No members yet'}
+          emptyText={isActiveSearch ? `No members matching “${query}”` : tI18n('no_members_yet')}
         >
           {filteredOrgMembers.map(renderOrgMemberRow)}
           {filteredOrgPending.map(renderOrgInviteRow)}
@@ -439,7 +440,9 @@ export function OrganizationMemberLists({
             label={`${workspace.name} (${totalCount})`}
             isEmpty={visibleMembers.length + visibleInvites.length === 0}
             emptyText={
-              isActiveSearch ? `No members matching “${query}”` : 'No members in this workspace'
+              isActiveSearch
+                ? `No members matching “${query}”`
+                : tI18n('no_members_in_this_workspace')
             }
           >
             {visibleMembers.map(({ member, access }) =>

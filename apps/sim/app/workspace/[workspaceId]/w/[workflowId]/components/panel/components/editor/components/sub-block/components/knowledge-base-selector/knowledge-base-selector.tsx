@@ -14,6 +14,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { useTranslations } from 'next-intl'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string
@@ -32,6 +33,7 @@ export function KnowledgeBaseSelector({
   isPreview = false,
   previewValue,
 }: KnowledgeBaseSelectorProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -210,7 +212,7 @@ export function KnowledgeBaseSelector({
         isLoading={isKnowledgeBasesLoading}
         error={error}
         searchable
-        searchPlaceholder='Search knowledge bases...'
+        searchPlaceholder={t('search_knowledge_bases')}
         overlayContent={
           !isMultiSelect && selectedKnowledgeBases[0]
             ? (() => {

@@ -12,7 +12,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { isBillingEnabled, isInboxEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
@@ -32,7 +32,14 @@ export function Inbox() {
     return null
   }
 
-  if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {
+  // Mirror the server's `hasInboxAccess`: the `NEXT_PUBLIC_INBOX_ENABLED`
+  // self-hosted override grants access regardless of plan, and Max/enterprise
+  // plans qualify via `hasUsableMaxAccess`. Without honoring the override here,
+  // self-hosted deployments saw the "requires Max" gate even though the server
+  // allowed inbox usage.
+  const inboxEntitled = isInboxEnabled || subscriptionAccess.hasUsableMaxAccess
+
+  if (isBillingEnabled && !inboxEntitled) {
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>

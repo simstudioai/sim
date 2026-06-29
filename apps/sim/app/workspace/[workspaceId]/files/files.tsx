@@ -170,6 +170,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 }
 
 export function Files() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
@@ -1813,7 +1814,7 @@ export function Files() {
                 </span>
               }
               searchable
-              searchPlaceholder='Search members...'
+              searchPlaceholder={tI18n('search_members')}
               showAllOption
               allOptionLabel='All'
               className='w-full'
@@ -1909,10 +1910,10 @@ export function Files() {
           <ChipConfirmModal
             open={showUnsavedChangesAlert}
             onOpenChange={setShowUnsavedChangesAlert}
-            srTitle='Unsaved Changes'
+            srTitle={tI18n('unsaved_changes')}
             title={t('unsaved_changes')}
-            text='You have unsaved changes. Are you sure you want to discard them?'
-            dismissLabel='Keep editing'
+            text={tI18n('you_have_unsaved_changes_are_you')}
+            dismissLabel={tI18n('keep_editing')}
             confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
           />
         </Resource>

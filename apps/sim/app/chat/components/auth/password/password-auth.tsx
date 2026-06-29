@@ -20,6 +20,7 @@ interface PasswordAuthProps {
 }
 
 export default function PasswordAuth({ identifier }: PasswordAuthProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -104,7 +105,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                         type='button'
                         onClick={() => setShowPassword(!showPassword)}
                         className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -140,7 +141,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                       {t('authenticating')}
                     </span>
                   ) : (
-                    'Continue'
+                    tI18n('continue')
                   )}
                 </button>
               </form>

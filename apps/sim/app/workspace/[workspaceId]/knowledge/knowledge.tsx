@@ -122,6 +122,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 }
 
 export function Knowledge() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -519,7 +520,7 @@ export function Knowledge() {
               onChange={setOwnerFilter}
               allLabel='All'
               searchable
-              searchPlaceholder='Search members...'
+              searchPlaceholder={tI18n('search_members')}
               align='start'
               fullWidth
               flush

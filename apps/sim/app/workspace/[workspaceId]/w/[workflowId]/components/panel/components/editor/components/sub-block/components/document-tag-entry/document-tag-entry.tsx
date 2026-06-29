@@ -65,6 +65,7 @@ export function DocumentTagEntry({
   previewValue,
   previewContextValues,
 }: DocumentTagEntryProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
@@ -222,7 +223,7 @@ export function DocumentTagEntry({
       <div className='space-y-1'>
         <Label className='font-medium text-muted-foreground text-xs'>{t('document_tags')}</Label>
         <div className='text-muted-foreground text-sm'>
-          {tagCount > 0 ? `${tagCount} tag(s) configured` : 'No tags'}
+          {tagCount > 0 ? `${tagCount} tag(s) configured` : tI18n('no_tags')}
         </div>
       </div>
     )
@@ -264,7 +265,7 @@ export function DocumentTagEntry({
         </span>
         {tag.collapsed && tag.tagName && (
           <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+            {FIELD_TYPE_LABELS[tag.fieldType] || tI18n('text')}
           </Badge>
         )}
       </div>

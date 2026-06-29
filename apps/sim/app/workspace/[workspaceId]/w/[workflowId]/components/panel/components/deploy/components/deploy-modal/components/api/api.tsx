@@ -66,6 +66,7 @@ export function ApiDeploy({
   selectedStreamingOutputs,
   onSelectedStreamingOutputsChange,
 }: ApiDeployProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [asyncExampleType, setAsyncExampleType] = useState<AsyncExampleType>('execute')
   const [language, setLanguage] = useState<CodeLanguage>('curl')
@@ -459,7 +460,7 @@ console.log(limits);`
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <span>{copied.sync ? 'Copied' : 'Copy'}</span>
+              <span>{copied.sync ? tI18n('copied') : tI18n('copy')}</span>
             </Tooltip.Content>
           </Tooltip.Root>
         </div>
@@ -489,7 +490,7 @@ console.log(limits);`
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{copied.stream ? 'Copied' : 'Copy'}</span>
+                <span>{copied.stream ? tI18n('copied') : tI18n('copy')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
             <OutputSelect
@@ -528,7 +529,7 @@ console.log(limits);`
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{copied.async ? 'Copied' : 'Copy'}</span>
+                <span>{copied.async ? tI18n('copied') : tI18n('copy')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
             <Combobox

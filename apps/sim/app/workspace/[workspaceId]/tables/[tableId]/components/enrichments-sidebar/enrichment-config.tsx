@@ -67,6 +67,7 @@ export function EnrichmentConfig({
   onClose,
   existingGroup,
 }: EnrichmentConfigProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
@@ -272,7 +273,7 @@ export function EnrichmentConfig({
                   <Label className='text-small'>{t('column')}</Label>
                   <ChipCombobox
                     searchable
-                    searchPlaceholder='Search columns…'
+                    searchPlaceholder={tI18n('search_columns')}
                     className='w-full'
                     dropdownWidth='trigger'
                     maxHeight={240}
@@ -286,7 +287,7 @@ export function EnrichmentConfig({
                     }
                   />
                   {showValidation && input.required && !inputMappings[input.id] && (
-                    <FieldError message='Required' />
+                    <FieldError message={tI18n('required')} />
                   )}
                 </CollapsibleCard>
               ))}
@@ -352,7 +353,9 @@ export function EnrichmentConfig({
               depOptions={allColumns}
               deps={deps}
               onChangeDeps={setDeps}
-              error={showValidation && deps.length === 0 ? 'Select at least one column' : null}
+              error={
+                showValidation && deps.length === 0 ? tI18n('select_at_least_one_column') : null
+              }
             />
           </>
         )}
@@ -363,7 +366,7 @@ export function EnrichmentConfig({
           {t('cancel')}
         </Button>
         <Button variant='primary' size='sm' onClick={handleSave} disabled={saveDisabled}>
-          {isEditing ? 'Update' : 'Save'}
+          {isEditing ? tI18n('update') : tI18n('save')}
         </Button>
       </div>
     </div>

@@ -1,16 +1,16 @@
 {
-  "create": "\"Arbeitsbereich erstellen\"",
-  "name": "Arbeitsbereichsname",
+  "create": "Erstelle Arbeitsbereich",
+  "name": "Name des Arbeitsbereichs",
   "members": "Mitglieder",
-  "invite": "Einladen",
-  "noWorkflows": "Keine Workflows noch.",
-  "createFirst": "Erstellen Sie Ihren ersten Workflow.",
-  "switch": "Wechseln Sie ins Arbeitsbereich",
-  "leave": "\"Nutzerwerkumgebung verlassen\"",
-  "delete": "\"Löschen Sie das Arbeitsbereich\"",
-  "owner": "Besitzer",
-  "admin": "\"Administrator\"",
-  "member": "Mitglied",
+  "invite": "Sie einladen",
+  "noWorkflows": "Es gibt noch keine Workflows",
+  "createFirst": "Erstellen Sie Ihren ersten Workflow",
+  "switch": "Wechsle Arbeitsbereich",
+  "leave": "Verlasse Arbeitsbereich",
+  "delete": "Lösche Arbeitsbereich",
+  "owner": "Eigentümer",
+  "admin": "Administrator",
+  "member": "Mitwirkender",
   "role": "Rolle",
-  "transferOwnership": "Übertragung der Eigentumsverschiebung"
+  "transferOwnership": "Übertragen Sie die Eigentümerrechte"
 }

@@ -46,6 +46,7 @@ interface TaskDetailsModalProps {
  * Status and the run time as copy fields, the prompt as a view-only chip editor.
  */
 export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
+  const tI18n = useTranslations('auto')
   return (
     <ChipModal
       open={task !== null}
@@ -53,7 +54,7 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
         if (!open) onClose()
       }}
       size='md'
-      srTitle='Scheduled task'
+      srTitle={tI18n('scheduled_task')}
     >
       {/* Key by the occurrence id so switching tasks while the modal stays open
           remounts the content — the editor seeds prompt + contexts on mount, so

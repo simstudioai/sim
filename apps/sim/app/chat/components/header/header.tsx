@@ -20,6 +20,7 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const brand = useBrandConfig()
   const primaryColor = chatConfig?.customizations?.primaryColor || 'var(--brand)'
@@ -43,7 +44,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             />
           )}
           <h2 className='font-medium text-[var(--landing-text)] text-lg'>
-            {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
+            {chatConfig?.customizations?.headerText || chatConfig?.title || tI18n('chat')}
           </h2>
         </div>
       </div>

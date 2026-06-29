@@ -162,6 +162,7 @@ function codeFromApiClientError(error: ApiClientError): string {
 }
 
 export default function Invite() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams()
@@ -280,8 +281,8 @@ export default function Invite() {
           title={t('you_ve_been_invited')}
           description={
             isNewUser
-              ? 'Create an account to join this workspace on Sim'
-              : 'Sign in to your account to accept this invitation'
+              ? tI18n('create_an_account_to_join_this')
+              : tI18n('sign_in_to_your_account_to')
           }
           icon='userPlus'
           actions={[
@@ -440,7 +441,7 @@ export default function Invite() {
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
-        title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
+        title={isOrg ? tI18n('organization_invitation') : tI18n('workspace_invitation')}
         description={`You've been invited to join ${displayName}. Click accept below to join.`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[

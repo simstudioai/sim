@@ -16,6 +16,7 @@ import { integrationRequestContract } from '@/lib/api/contracts/common'
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 export function RequestIntegrationModal() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<SubmitStatus>('idle')
@@ -72,7 +73,11 @@ export function RequestIntegrationModal() {
         {t('request_an_integration')}
       </button>
 
-      <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='Request an Integration'>
+      <ChipModal
+        open={open}
+        onOpenChange={handleOpenChange}
+        srTitle={tI18n('request_an_integration')}
+      >
         <ChipModalHeader onClose={() => handleOpenChange(false)}>
           {t('request_an_integration_2')}
         </ChipModalHeader>

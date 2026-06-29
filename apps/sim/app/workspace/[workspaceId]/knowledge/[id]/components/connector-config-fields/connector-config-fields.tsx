@@ -9,6 +9,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { SelectorKey } from '@/hooks/selectors/types'
+import { useTranslations } from 'next-intl'
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */
@@ -48,6 +49,7 @@ export function ConnectorConfigFields({
   onToggleCanonicalMode,
   disabled,
 }: ConnectorConfigFieldsProps) {
+  const t = useTranslations('auto')
   return (
     <>
       {connectorConfig.configFields.map((field) => {
@@ -106,7 +108,9 @@ export function ConnectorConfigFields({
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
-                      {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
+                      {field.mode === 'basic'
+                        ? t('switch_to_manual_input')
+                        : t('switch_to_selector')}
                     </Tooltip.Content>
                   </Tooltip.Root>
                 )}

@@ -405,6 +405,7 @@ interface DocumentsTabProps {
 }
 
 function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [filter, setFilter] = useState<'active' | 'excluded'>('active')
 
@@ -449,7 +450,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
       <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
         {documents.length === 0 ? (
           <p className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
-            {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
+            {filter === 'excluded' ? tI18n('no_excluded_documents') : tI18n('no_documents_yet')}
           </p>
         ) : (
           <div className='flex flex-col gap-0.5 pr-1'>
@@ -495,7 +496,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                       {t('restore')}
                     </>
                   ) : (
-                    'Exclude'
+                    tI18n('exclude')
                   )}
                 </Button>
               </div>

@@ -121,6 +121,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   open,
   onOpenChange,
 }: CreateBaseModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -291,7 +292,12 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
+    <ChipModal
+      open={open}
+      onOpenChange={handleClose}
+      srTitle={tI18n('create_knowledge_base')}
+      size='lg'
+    >
       <ChipModalHeader onClose={() => handleClose(false)}>
         {t('create_knowledge_base')}
       </ChipModalHeader>

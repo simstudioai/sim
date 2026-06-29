@@ -62,6 +62,7 @@ export const MessageActions = memo(function MessageActions({
   requestId,
   messageId,
 }: MessageActionsProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
@@ -183,7 +184,7 @@ export const MessageActions = memo(function MessageActions({
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {copied ? 'Copied message' : 'Copy message'}
+              {copied ? tI18n('copied_message') : tI18n('copy_message')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -238,7 +239,7 @@ export const MessageActions = memo(function MessageActions({
       <ChipModal
         open={pendingFeedback !== null}
         onOpenChange={handleModalClose}
-        srTitle='Give feedback'
+        srTitle={tI18n('give_feedback')}
       >
         <ChipModalHeader onClose={() => handleModalClose(false)}>
           {t('give_feedback')}
@@ -246,7 +247,9 @@ export const MessageActions = memo(function MessageActions({
         <ChipModalBody>
           <div className='flex items-start justify-between gap-2 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>
-              {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
+              {pendingFeedback === 'up'
+                ? tI18n('what_did_you_like')
+                : tI18n('what_could_be_improved')}
             </p>
             {pendingFeedback === 'down' && requestId && (
               <Tooltip.Root>
@@ -265,7 +268,7 @@ export const MessageActions = memo(function MessageActions({
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
-                  {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
+                  {copiedRequestId ? tI18n('copied_request_id') : tI18n('copy_request_id')}
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -280,8 +283,8 @@ export const MessageActions = memo(function MessageActions({
             resizable
             placeholder={
               pendingFeedback === 'up'
-                ? 'Tell us what was helpful...'
-                : 'Tell us what went wrong...'
+                ? tI18n('tell_us_what_was_helpful')
+                : tI18n('tell_us_what_went_wrong')
             }
           />
         </ChipModalBody>

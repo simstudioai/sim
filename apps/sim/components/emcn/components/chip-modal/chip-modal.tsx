@@ -812,6 +812,7 @@ function ChipModalFileControl({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedby,
 }: ChipModalFileFieldProps & { id: string } & React.AriaAttributes) {
+  const tI18n = useTranslations('auto')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = React.useState(false)
   const isInteractive = !disabled && !loading
@@ -873,7 +874,7 @@ function ChipModalFileControl({
       />
       {loading ? <Loader animate className='size-[14px] text-[var(--text-tertiary)]' /> : null}
       <span className='text-[var(--text-primary)] text-caption'>
-        {isDragging ? 'Drop files here' : label}
+        {isDragging ? tI18n('drop_files_here') : label}
       </span>
       {description ? (
         <span className='text-[var(--text-tertiary)] text-xs'>{description}</span>

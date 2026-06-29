@@ -51,6 +51,7 @@ export function CredentialSelector({
   previewValue,
   previewContextValues,
 }: CredentialSelectorProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -435,7 +436,7 @@ export function CredentialSelector({
         onChange={handleComboboxChange}
         onOpenChange={handleOpenChange}
         placeholder={
-          hasDependencies && !depsSatisfied ? 'Fill in required fields above first' : label
+          hasDependencies && !depsSatisfied ? tI18n('fill_in_required_fields_above_first') : label
         }
         disabled={effectiveDisabled}
         editable={true}

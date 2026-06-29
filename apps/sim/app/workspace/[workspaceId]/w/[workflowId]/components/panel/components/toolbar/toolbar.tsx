@@ -14,6 +14,7 @@ import {
 import clsx from 'clsx'
 import { ChevronDown, Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
+import { useTranslations } from 'next-intl'
 import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
@@ -339,6 +340,7 @@ interface ToolbarRef {
  */
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
+    const t = useTranslations('auto')
     const rootRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])

@@ -57,6 +57,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
@@ -90,7 +91,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <>
             <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
               <Redo />
-              {isRetryPending ? 'Retrying...' : 'Retry'}
+              {isRetryPending ? 'Retrying...' : tI18n('retry')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

@@ -145,6 +145,7 @@ function FormattedInput({
   onChange,
   onScroll,
 }: FormattedInputProps) {
+  const tI18n = useTranslations('auto')
   const handleScroll = (e: { currentTarget: HTMLInputElement }) => {
     onScroll(e.currentTarget.scrollLeft)
   }
@@ -158,7 +159,7 @@ function FormattedInput({
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        inputClassName='text-transparent caret-[var(--text-primary)]'
+        inputClassName={tI18n('text_transparent_caret_var_text_primary')}
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
@@ -312,6 +313,7 @@ export function McpServerFormModal({
   availableEnvVars,
   allowedMcpDomains,
 }: McpServerFormModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -702,7 +704,7 @@ export function McpServerFormModal({
             <ChipModalField
               type='custom'
               title={t('server_url')}
-              error={isDomainBlocked ? 'Domain not permitted by server policy' : undefined}
+              error={isDomainBlocked ? tI18n('domain_not_permitted_by_server_policy') : undefined}
             >
               <FormattedInput
                 ref={urlInputRef}

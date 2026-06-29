@@ -88,6 +88,7 @@ function SignupFormContent({
   isProduction,
   emailSignupEnabled,
 }: SignupFormProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -497,7 +498,7 @@ function SignupFormContent({
                     type='button'
                     onClick={() => setShowPassword(!showPassword)}
                     className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -544,7 +545,7 @@ function SignupFormContent({
                 {t('creating_account')}
               </span>
             ) : (
-              'Create account'
+              tI18n('create_account')
             )}
           </button>
         </form>

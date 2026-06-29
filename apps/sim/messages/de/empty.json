@@ -1,14 +1,14 @@
 {
   "noResults": "Keine Ergebnisse gefunden",
-  "noData": "Keine Daten bis jetzt",
-  "noItems": "Keine Elemente",
-  "emptyState": "\"Nichts hier noch.\"",
-  "createFirst": "Erstellen Sie Ihren ersten Eintrag.",
-  "checkBack": "\"Bitte spüren Sie es später noch einmal.\"",
-  "startBuilding": "Beginnen Sie mit der Erstellung.",
-  "allCaughtUp": "\"Ich habe mich aufgehalten.\"",
-  "nothingToShow": "\"Nichts zu zeigen\"",
-  "tryDifferentSearch": "Versuchen Sie eine andere Suche.",
+  "noData": "Noch keine Daten vorhanden",
+  "noItems": "Keine Items verfügbar",
+  "emptyState": "Hier gibt es nichts noch",
+  "createFirst": "Erstelle dein erstes Item",
+  "checkBack": "Mach später再来一次",
+  "startBuilding": "Beginn der Erstellung",
+  "allCaughtUp": "Sie sind aktuell auf dem neuesten Stand.",
+  "nothingToShow": "Nichts zu zeigen.",
+  "tryDifferentSearch": "Möchten Sie eine andere Suche versuchen?",
   "tryDifferentFilter": "Versuchen Sie verschiedene Filter.",
-  "clearFilters": "\"Filter löschen\""
+  "clearFilters": "Löschen Sie die Filter."
 }

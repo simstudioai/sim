@@ -385,6 +385,7 @@ function OverviewTab({
 }
 
 function LicensesTab({ environment }: { environment: MothershipEnv }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data, isLoading, refetch } = useMothershipLicenses(environment)
   const generateLicense = useGenerateLicense(environment)
@@ -445,7 +446,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           onClick={handleGenerate}
           disabled={generateLicense.isPending || !newName.trim()}
         >
-          {generateLicense.isPending ? 'Generating...' : 'Generate'}
+          {generateLicense.isPending ? 'Generating...' : tI18n('generate')}
         </Button>
       </div>
 
@@ -503,7 +504,7 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
                   {lic.count}
                 </span>
                 <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
-                  {lic.expiration_date ? formatDate(lic.expiration_date) : 'Never'}
+                  {lic.expiration_date ? formatDate(lic.expiration_date) : tI18n('never')}
                 </span>
                 <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
                   {formatDate(lic.created_at)}

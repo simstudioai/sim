@@ -34,6 +34,7 @@ export function RenameDocumentModal({
   initialName,
   onSave,
 }: RenameDocumentModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -84,7 +85,7 @@ export function RenameDocumentModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Rename Document'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('rename_document')}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{t('rename_document')}</ChipModalHeader>
       <ChipModalBody onKeyDown={handleKeyDown}>
         <ChipModalField

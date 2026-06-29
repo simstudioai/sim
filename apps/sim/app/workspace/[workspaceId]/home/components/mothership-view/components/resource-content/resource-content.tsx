@@ -325,6 +325,7 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
@@ -389,7 +390,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
             onClick={() => void handleRun()}
             disabled={isRunButtonDisabled}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
+            aria-label={isExecuting ? tI18n('stop_workflow') : tI18n('run_workflow')}
           >
             {isExecuting ? (
               <Square className={RESOURCE_TAB_ICON_CLASS} />
@@ -399,7 +400,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
-          <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
+          <p>{isExecuting ? tI18n('stop') : tI18n('run_workflow')}</p>
         </Tooltip.Content>
       </Tooltip.Root>
     </>

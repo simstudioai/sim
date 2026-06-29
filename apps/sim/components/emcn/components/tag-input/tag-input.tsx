@@ -229,6 +229,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     },
     ref
   ) => {
+    const tI18n = useTranslations('auto')
     const t = useTranslations('auto')
     const effectiveMaxHeight = maxHeight ?? (variant === 'block' ? 'max-h-48' : 'max-h-32')
     const [inputValue, setInputValue] = React.useState('')
@@ -490,13 +491,13 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   fileInputRef.current?.click()
                 }}
                 className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
+                aria-label={fileInputOptions?.tooltip ?? tI18n('upload_file')}
               >
                 <FileIcon className='size-3.5' strokeWidth={2} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {fileInputOptions?.tooltip ?? 'Upload file'}
+              {fileInputOptions?.tooltip ?? tI18n('upload_file')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}

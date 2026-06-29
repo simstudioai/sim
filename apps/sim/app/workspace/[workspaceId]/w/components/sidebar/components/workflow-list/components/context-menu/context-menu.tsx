@@ -120,6 +120,7 @@ export function ContextMenu({
   showUploadLogo = false,
   disableUploadLogo = false,
 }: ContextMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasStatusSection =
@@ -203,7 +204,7 @@ export function ContextMenu({
             }}
           >
             {isPinned ? <PinOff className='size-[14px]' /> : <Pin className='size-[14px]' />}
-            {isPinned ? 'Unpin' : 'Pin'}
+            {isPinned ? tI18n('unpin') : tI18n('pin')}
           </DropdownMenuItem>
         )}
         {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
@@ -265,7 +266,7 @@ export function ContextMenu({
             }}
           >
             {isLocked ? <Unlock /> : <Lock />}
-            {isLocked ? 'Unlock' : 'Lock'}
+            {isLocked ? tI18n('unlock') : tI18n('lock')}
           </DropdownMenuItem>
         )}
 

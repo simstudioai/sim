@@ -255,6 +255,7 @@ function buildBottomWallStyle(config: DepthConfig) {
 const TEMPLATES_PANEL_ID = 'templates-panel'
 
 export default function Templates() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [activeIndex, setActiveIndex] = useState(0)
   const [isPreparingTemplate, setIsPreparingTemplate] = useState(false)
@@ -448,7 +449,7 @@ export default function Templates() {
                                   disabled={isPreparingTemplate}
                                   className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-white bg-white font-[430] font-season text-black text-sm transition-colors active:bg-[#E0E0E0]'
                                 >
-                                  {isPreparingTemplate ? 'Preparing...' : 'Use template'}
+                                  {isPreparingTemplate ? 'Preparing...' : tI18n('use_template')}
                                 </button>
                               </div>
                             </m.div>
@@ -479,7 +480,7 @@ export default function Templates() {
                     disabled={isPreparingTemplate}
                     className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                   >
-                    {isPreparingTemplate ? 'Preparing...' : 'Use template'}
+                    {isPreparingTemplate ? 'Preparing...' : tI18n('use_template')}
                     <svg
                       className='size-[10px] shrink-0'
                       viewBox='0 0 10 10'

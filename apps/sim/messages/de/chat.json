@@ -1,14 +1,14 @@
 {
   "newChat": "Neuer Chat",
   "sendMessage": "Nachricht senden",
-  "typeMessage": "Gib eine Nachricht ein...",
-  "thinking": "Denke...",
-  "generating": "\"Generiere…\"",
-  "attachFile": "Anhängen Sie die Datei",
-  "clearChat": "Clare Chat",
-  "regenerate": "Neu generieren",
-  "stopGenerating": "Stopp die Erstellung",
-  "copiedToClipboard": "In die Zwischenablage kopiert",
-  "noMessages": "Keine Nachrichten",
-  "startConversation": "\"Beginnen Sie eine Konversation\""
+  "typeMessage": "Typen Sie eine Nachricht...",
+  "thinking": "Denkenden...",
+  "generating": "Erstelle...",
+  "attachFile": "Datei anhängen",
+  "clearChat": "Lösche Chat",
+  "regenerate": "Neue Generierung starte",
+  "stopGenerating": "Generiere stoppe",
+  "copiedToClipboard": "Zu Clipboard kopiert",
+  "noMessages": "Keine Nachrichten vorhanden",
+  "startConversation": "Eine Konversation beginne"
 }

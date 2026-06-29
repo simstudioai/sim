@@ -49,6 +49,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   canEdit,
   selectedCount,
 }: FileRowContextMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
@@ -77,7 +78,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
-            {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
+            {isMultiSelect ? `Download ${selectedCount} items` : tI18n('download')}
           </DropdownMenuItem>
         )}
         {canEdit && (
@@ -99,7 +100,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderInput />
-                  {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
+                  {isMultiSelect ? `Move ${selectedCount} items` : tI18n('move_to')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
@@ -113,7 +114,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             )}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
-              {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
+              {isMultiSelect ? `Delete ${selectedCount} items` : tI18n('delete')}
             </DropdownMenuItem>
           </>
         )}

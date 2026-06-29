@@ -117,6 +117,7 @@ async function submitHelpRequest({ data, images, workflowId, workspaceId }: Subm
 }
 
 export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const imagesRef = useRef<ImageWithPreview[]>([])
@@ -252,7 +253,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & support' size='md'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('help_support')} size='md'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{t('help_amp_support')}</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>

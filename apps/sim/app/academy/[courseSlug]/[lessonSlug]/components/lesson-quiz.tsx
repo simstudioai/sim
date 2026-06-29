@@ -50,6 +50,7 @@ const optionBase =
  * Scoring is performed entirely client-side.
  */
 export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [answers, setAnswers] = useState<Answers>({})
   const [result, setResult] = useState<QuizResult | null>(null)
@@ -225,7 +226,9 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
               : 'border-[#3A2A2A] bg-[#2A1F1F] text-[#f44336]'
           )}
         >
-          <p className='font-[430] text-[15px]'>{result.passed ? 'Passed!' : 'Keep trying!'}</p>
+          <p className='font-[430] text-[15px]'>
+            {result.passed ? 'Passed!' : tI18n('keep_trying')}
+          </p>
           <p className='mt-1 text-[13px] opacity-80'>
             {t('score_2')} {result.score}
             {t('passing')} {quizConfig.passingScore}%)

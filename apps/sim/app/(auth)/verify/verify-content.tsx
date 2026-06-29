@@ -23,6 +23,7 @@ function VerificationForm({
   isProduction: boolean
   isEmailVerificationEnabled: boolean
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const {
     otp,
@@ -65,18 +66,18 @@ function VerificationForm({
     <>
       <div className='space-y-1 text-center'>
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-          {isVerified ? 'Email Verified!' : 'Verify Your Email'}
+          {isVerified ? tI18n('email_verified') : tI18n('verify_your_email')}
         </h1>
         <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           {isVerified
-            ? 'Your email has been verified. Redirecting to dashboard...'
+            ? tI18n('your_email_has_been_verified_redirecting')
             : !isEmailVerificationEnabled
-              ? 'Email verification is disabled. Redirecting to dashboard...'
+              ? tI18n('email_verification_is_disabled_redirecting_to')
               : hasEmailService
                 ? `A verification code has been sent to ${email || 'your email'}`
                 : !isProduction
-                  ? 'Development mode: Check your console logs for the verification code'
-                  : 'Error: Email verification is enabled but no email service is configured'}
+                  ? tI18n('development_mode_check_your_console_logs')
+                  : tI18n('error_email_verification_is_enabled_but')}
         </p>
       </div>
 
@@ -85,7 +86,7 @@ function VerificationForm({
           <div className='space-y-6'>
             <p className='text-center text-[var(--landing-text-muted)] text-sm'>
               {t('enter_the_6_digit_code_to')}
-              {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
+              {hasEmailService ? tI18n('if_you_don_t_see_it') : ''}
             </p>
 
             <div className='flex justify-center'>
@@ -126,7 +127,7 @@ function VerificationForm({
                 {t('verifying')}
               </span>
             ) : (
-              'Verify Email'
+              tI18n('verify_email')
             )}
           </button>
 

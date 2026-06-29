@@ -117,6 +117,7 @@ interface PanelProps {
 }
 
 export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const params = useParams()
@@ -665,7 +666,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     disabled={
                       isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
                     }
-                    title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
+                    title={hasLockedBlocks ? tI18n('unlock_blocks_to_use_auto_layout') : undefined}
                   >
                     <Layout animate={isAutoLayouting} variant='clockwise' />
                     {t('auto_layout')}
@@ -678,14 +679,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     <DropdownMenuItem
                       onSelect={handleToggleWorkflowLock}
                       disabled={!hasBlocks || workflowLocked}
-                      title={
-                        workflowLocked
-                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
-                          : undefined
-                      }
+                      title={workflowLocked ? tI18n('workflow_is_locked_at_the_row') : undefined}
                     >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
-                      {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
+                      {allBlocksLocked ? tI18n('unlock_workflow') : tI18n('lock_workflow')}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
@@ -740,7 +737,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 ) : (
                   <Play className='h-[11.5px] w-[11.5px]' />
                 )}
-                {isExecuting ? 'Stop' : 'Run'}
+                {isExecuting ? tI18n('stop') : tI18n('run')}
               </Button>
             </div>
           </div>
@@ -805,7 +802,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 {/* Copilot Header */}
                 <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                    {copilotChatTitle || 'New Chat'}
+                    {copilotChatTitle || tI18n('new_chat')}
                   </h2>
                   <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
@@ -839,7 +836,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                     onClick={() => handleCopilotSelectChat(chat)}
                                   >
                                     <ConversationListItem
-                                      title={chat.title || 'New Chat'}
+                                      title={chat.title || tI18n('new_chat')}
                                       isActive={Boolean(chat.activeStreamId)}
                                       titleClassName='text-[13px]'
                                       actions={
@@ -932,7 +929,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       <ChipConfirmModal
         open={isDeleteModalOpen}
         onOpenChange={setIsDeleteModalOpen}
-        srTitle='Delete Workflow'
+        srTitle={tI18n('delete_workflow')}
         title={t('delete_workflow_2')}
         text={[
           'Are you sure you want to delete ',

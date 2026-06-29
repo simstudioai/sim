@@ -36,12 +36,13 @@ export function BYOKProviderKeysModal({
   onUpdateKey,
   onDeleteKey,
 }: BYOKProviderKeysModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const close = () => onOpenChange(false)
   const atCapacity = keys.length >= maxKeys
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Manage API Keys'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('manage_api_keys')}>
       <ChipModalHeader onClose={close}>{provider && `${provider.name} API Keys`}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
@@ -52,7 +53,7 @@ export function BYOKProviderKeysModal({
             <div key={key.id} className='flex items-center justify-between gap-2.5'>
               <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                 <span className='truncate text-[14px] text-[var(--text-body)]'>
-                  {key.name ?? 'Unnamed key'}
+                  {key.name ?? tI18n('unnamed_key')}
                 </span>
                 <span className='truncate font-mono text-[12px] text-[var(--text-muted)]'>
                   {key.maskedKey}

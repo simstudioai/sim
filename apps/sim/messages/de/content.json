@@ -1,10 +1,10 @@
 {
-  "thisdoc": "Dieses Dokument wird noch vorbereitet. Bitte versuchen Sie es später noch einmal.",
-  "simfoun": "Grundlagen von Sim",
-  "thecanv": "Das Canvas",
-  "theagen": "Der Agentenblock",
+  "thisdoc": "Dieser Dokument ist noch nicht fertiggestellt. Bitte versuchen Sie es später erneut.",
+  "simfoun": "Sim Grundlagen",
+  "thecanv": "Kanvas",
+  "theagen": "Agent-Block",
   "howagen": "Wie Agenten funktionieren",
-  "tools": "Tools & Integrations",
-  "agentma": "Kompetenzprüfung des Agента",
+  "tools": "Artefakte und Integrationen",
+  "agentma": "Steuerung des Agents' Fertigkeiten",
   "dataflo": "Datenfluss und Variablen"
 }

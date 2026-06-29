@@ -35,6 +35,7 @@ const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] 
 ]
 
 export function Admin() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -217,7 +218,7 @@ export function Admin() {
             onClick={handleImport}
             disabled={importWorkflow.isPending || !workflowId.trim()}
           >
-            {importWorkflow.isPending ? 'Importing...' : 'Import'}
+            {importWorkflow.isPending ? 'Importing...' : tI18n('import')}
           </Button>
         </div>
         {importWorkflow.error && (
@@ -245,7 +246,7 @@ export function Admin() {
             className='min-w-0 flex-1'
           />
           <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
-            {usersLoading ? 'Searching...' : 'Search'}
+            {usersLoading ? 'Searching...' : tI18n('search')}
           </Button>
         </div>
 
@@ -264,7 +265,7 @@ export function Admin() {
             {impersonationGuardError ||
               (setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
                 ?.message ||
-              'Action failed. Please try again.'}
+              tI18n('action_failed_please_try_again')}
           </p>
         )}
 
@@ -322,7 +323,7 @@ export function Admin() {
                               (impersonateUser.variables as { userId?: string } | undefined)
                                 ?.userId === u.id)
                               ? 'Switching...'
-                              : 'Impersonate'}
+                              : tI18n('impersonate')}
                           </Button>
                           <Button
                             variant='active'
@@ -336,7 +337,7 @@ export function Admin() {
                             }}
                             disabled={pendingUserIds.has(u.id)}
                           >
-                            {u.role === 'admin' ? 'Demote' : 'Promote'}
+                            {u.role === 'admin' ? tI18n('demote') : tI18n('promote')}
                           </Button>
                           {u.banned ? (
                             <Button
@@ -370,7 +371,7 @@ export function Admin() {
                               }}
                               disabled={pendingUserIds.has(u.id)}
                             >
-                              {banUserId === u.id ? 'Cancel' : 'Ban'}
+                              {banUserId === u.id ? tI18n('cancel') : tI18n('ban')}
                             </Button>
                           )}
                         </>

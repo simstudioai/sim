@@ -20,6 +20,7 @@ export function DeleteChunkModal({
   isOpen,
   onClose,
 }: DeleteChunkModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { mutate: deleteChunk, isPending: isDeleting } = useDeleteChunk()
 
@@ -35,9 +36,9 @@ export function DeleteChunkModal({
     <ChipConfirmModal
       open={isOpen}
       onOpenChange={onClose}
-      srTitle='Delete Chunk'
+      srTitle={tI18n('delete_chunk')}
       title={t('delete_chunk')}
-      text='Are you sure you want to delete this chunk? This action cannot be undone.'
+      text={tI18n('are_you_sure_you_want_to')}
       confirm={{
         label: 'Delete',
         onClick: handleDeleteChunk,

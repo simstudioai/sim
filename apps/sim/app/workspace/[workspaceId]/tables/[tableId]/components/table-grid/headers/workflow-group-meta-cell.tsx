@@ -102,6 +102,7 @@ export function ColumnOptionsMenu({
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
@@ -171,7 +172,7 @@ export function ColumnOptionsMenu({
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
-            {isPinned ? 'Unpin column' : 'Pin column'}
+            {isPinned ? tI18n('unpin_column') : tI18n('pin_column')}
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
@@ -188,7 +189,7 @@ export function ColumnOptionsMenu({
           onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
         >
           {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
-          {deleteLabel ?? 'Delete column'}
+          {deleteLabel ?? tI18n('delete_column')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

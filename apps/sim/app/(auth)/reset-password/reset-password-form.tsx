@@ -26,6 +26,7 @@ export function RequestResetForm({
   statusMessage,
   className,
 }: RequestResetFormProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,7 +74,7 @@ export function RequestResetForm({
             {t('sending')}
           </span>
         ) : (
-          'Send Reset Link'
+          tI18n('send_reset_link')
         )}
       </button>
     </form>
@@ -97,6 +98,7 @@ export function SetNewPasswordForm({
   statusMessage,
   className,
 }: SetNewPasswordFormProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -174,7 +176,7 @@ export function SetNewPasswordForm({
               type='button'
               onClick={() => setShowPassword(!showPassword)}
               className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -205,7 +207,7 @@ export function SetNewPasswordForm({
               type='button'
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              aria-label={showConfirmPassword ? tI18n('hide_password') : tI18n('show_password')}
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -239,7 +241,7 @@ export function SetNewPasswordForm({
             {t('resetting')}
           </span>
         ) : (
-          'Reset Password'
+          tI18n('reset_password')
         )}
       </button>
     </form>

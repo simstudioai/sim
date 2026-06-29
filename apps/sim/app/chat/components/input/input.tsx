@@ -40,6 +40,7 @@ export const ChatInput: React.FC<{
   voiceOnly = false,
   sttAvailable = false,
 }) => {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -267,7 +268,7 @@ export const ChatInput: React.FC<{
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
+              placeholder={isDragOver ? tI18n('drop_files_here') : tI18n('enter_a_message')}
               rows={1}
               className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--landing-text)] leading-[24px] caret-[var(--landing-text)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
             />

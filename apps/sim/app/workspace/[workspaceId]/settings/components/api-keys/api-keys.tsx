@@ -57,6 +57,7 @@ function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuPro
 }
 
 export function ApiKeys() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -344,7 +345,7 @@ export function ApiKeys() {
             setDeleteKey(null)
           }
         }}
-        srTitle='Delete API key'
+        srTitle={tI18n('delete_api_key')}
         title={t('delete_api_key')}
         text={[
           'Deleting ',

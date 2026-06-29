@@ -1,8 +1,8 @@
 {
-  "niceto": "Gern dich kennenzulernen, John!",
-  "fixinc": "Bug in Chat",
+  "niceto": "Es freut mich, Sie kennenzulernen, John!",
+  "fixinc": "Fehlerkorrektur",
   "openai": "OpenAI",
   "falai": "Fal.ai (Multi-Modell)",
-  "hiddenp": "Versteckter Dienstleister",
-  "hiddenm": "Versteckter Modell"
+  "hiddenp": "Versteckter Anbieter",
+  "hiddenm": "Verstecktes Modell"
 }

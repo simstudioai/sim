@@ -664,6 +664,7 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
  * Terminal component with resizable height that persists across page refreshes.
  */
 export const Terminal = memo(function Terminal() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const terminalRef = useRef<HTMLElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
@@ -1370,7 +1371,7 @@ export const Terminal = memo(function Terminal() {
                         <Button
                           variant='ghost'
                           onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
+                          aria-label={isTraining ? tI18n('stop_training') : tI18n('train_sim')}
                           className={clsx(
                             '!p-1.5 -m-1.5',
                             isTraining && 'text-orange-600 dark:text-orange-400'
@@ -1384,7 +1385,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
+                        <span>{isTraining ? tI18n('stop_training_2') : tI18n('train_sim')}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

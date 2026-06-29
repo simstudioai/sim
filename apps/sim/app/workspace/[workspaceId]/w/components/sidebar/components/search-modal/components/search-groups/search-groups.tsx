@@ -29,6 +29,7 @@ import type {
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
+import { useTranslations } from 'next-intl'
 
 export const ActionsGroup = memo(function ActionsGroup({
   items,
@@ -39,9 +40,10 @@ export const ActionsGroup = memo(function ActionsGroup({
   onSelect: (action: ActionItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Actions' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('actions')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((action) => (
         <MemoizedActionItem
           key={action.id}
@@ -66,9 +68,10 @@ export const BlocksGroup = memo(function BlocksGroup({
   onSelect: (block: SearchBlockItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Blocks' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('blocks')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((block) => (
         <MemoizedCommandItem
           key={block.id}
@@ -94,9 +97,10 @@ export const ToolsGroup = memo(function ToolsGroup({
   onSelect: (tool: SearchBlockItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tools' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('tools')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((tool) => (
         <MemoizedCommandItem
           key={tool.id}
@@ -122,9 +126,10 @@ export const TriggersGroup = memo(function TriggersGroup({
   onSelect: (trigger: SearchBlockItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Triggers' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('triggers')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((trigger) => (
         <MemoizedCommandItem
           key={trigger.id}
@@ -150,9 +155,10 @@ export const ToolOpsGroup = memo(function ToolOpsGroup({
   onSelect: (op: SearchToolOperationItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tool operations' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('tool_operations')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((op) => (
         <MemoizedCommandItem
           key={op.id}
@@ -178,9 +184,10 @@ export const DocsGroup = memo(function DocsGroup({
   onSelect: (doc: SearchDocItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Docs' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('docs')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((doc) => (
         <MemoizedCommandItem
           key={doc.id}
@@ -206,9 +213,10 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
   onSelect: (workflow: WorkflowItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Workflows' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('workflows')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((workflow) => (
         <MemoizedWorkflowItem
           key={workflow.id}
@@ -233,9 +241,10 @@ export const ChatsGroup = memo(function ChatsGroup({
   onSelect: (task: TaskItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Chats' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('chats')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((task) => (
         <MemoizedTaskItem
           key={task.id}
@@ -258,9 +267,10 @@ export const WorkspacesGroup = memo(function WorkspacesGroup({
   onSelect: (workspace: WorkspaceItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Workspaces' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('workspaces')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((workspace) => (
         <MemoizedWorkspaceItem
           key={workspace.id}
@@ -284,9 +294,10 @@ export const PagesGroup = memo(function PagesGroup({
   onSelect: (page: PageItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Pages' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('pages')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((page) => (
         <MemoizedPageItem
           key={page.id}
@@ -317,9 +328,10 @@ export const FilesGroup = memo(function FilesGroup({
   onSelect: (file: FileItem) => void
   query?: string
 }) {
+  const t = useTranslations('auto')
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Files' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={t('files')} className={GROUP_HEADING_CLASSNAME}>
       {items.map((file) => (
         <MemoizedFileItem
           key={file.id}

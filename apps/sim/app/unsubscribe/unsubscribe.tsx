@@ -11,6 +11,7 @@ import { InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
 function UnsubscribeContent() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
@@ -142,9 +143,9 @@ function UnsubscribeContent() {
               {t('unsubscribing')}
             </span>
           ) : isAlreadyUnsubscribedFromAll ? (
-            'Unsubscribed from All Emails'
+            tI18n('unsubscribed_from_all_emails')
           ) : (
-            'Unsubscribe from All Marketing Emails'
+            tI18n('unsubscribe_from_all_marketing_emails')
           )}
         </button>
 
@@ -164,8 +165,8 @@ function UnsubscribeContent() {
           className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeMarketing
-            ? 'Unsubscribed from Marketing'
-            : 'Unsubscribe from Marketing Emails'}
+            ? tI18n('unsubscribed_from_marketing')
+            : tI18n('unsubscribe_from_marketing_emails')}
         </button>
 
         <button
@@ -178,8 +179,8 @@ function UnsubscribeContent() {
           className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeUpdates
-            ? 'Unsubscribed from Updates'
-            : 'Unsubscribe from Product Updates'}
+            ? tI18n('unsubscribed_from_updates')
+            : tI18n('unsubscribe_from_product_updates')}
         </button>
 
         <button
@@ -192,8 +193,8 @@ function UnsubscribeContent() {
           className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeNotifications
-            ? 'Unsubscribed from Notifications'
-            : 'Unsubscribe from Notifications'}
+            ? tI18n('unsubscribed_from_notifications')
+            : tI18n('unsubscribe_from_notifications')}
         </button>
       </div>
 

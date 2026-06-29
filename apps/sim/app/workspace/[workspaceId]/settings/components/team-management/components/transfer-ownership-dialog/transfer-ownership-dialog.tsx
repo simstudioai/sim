@@ -14,6 +14,7 @@ import {
   Skeleton,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { getBillingPortalLabelKey } from '@/lib/billing/client/provider'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
 
@@ -46,7 +47,9 @@ export function TransferOwnershipDialog({
   onConfirm,
   onOpenBillingPortal,
 }: TransferOwnershipDialogProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
+  const billingPortalLabelKey = getBillingPortalLabelKey()
   const [search, setSearch] = useState('')
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
@@ -87,7 +90,7 @@ export function TransferOwnershipDialog({
     <ChipConfirmModal
       open={open}
       onOpenChange={handleClose}
-      srTitle='Leave organization'
+      srTitle={tI18n('leave_organization')}
       title={t('leave_organization')}
       confirm={{
         label: 'Transfer & leave',
@@ -123,7 +126,9 @@ export function TransferOwnershipDialog({
                 variant='default'
                 className='rounded-md px-3 py-2'
                 textClassName='text-[var(--text-primary)]'
-                actionLabel={isOpeningBillingPortal ? 'Opening...' : 'Open Stripe billing portal'}
+                actionLabel={
+                  isOpeningBillingPortal ? t('opening_billing_portal') : t(billingPortalLabelKey)
+                }
                 actionDisabled={isOpeningBillingPortal}
                 onAction={onOpenBillingPortal}
                 text={

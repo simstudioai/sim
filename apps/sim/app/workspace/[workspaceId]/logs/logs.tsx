@@ -1179,6 +1179,7 @@ interface LogsFilterPanelProps {
 }
 
 function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelProps) {
+  const tAuto = useTranslations('auto')
   const tI18n = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -1350,7 +1351,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             </span>
           }
           showAllOption
-          allOptionLabel='All statuses'
+          allOptionLabel={tAuto('all_statuses')}
           className='w-full'
         />
       </div>
@@ -1372,9 +1373,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             </span>
           }
           searchable
-          searchPlaceholder='Search workflows...'
+          searchPlaceholder={tAuto('search_workflows')}
           showAllOption
-          allOptionLabel='All workflows'
+          allOptionLabel={tAuto('all_workflows')}
           className='w-full'
         />
       </div>
@@ -1391,9 +1392,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
           }
           searchable
-          searchPlaceholder='Search folders...'
+          searchPlaceholder={tAuto('search_folders')}
           showAllOption
-          allOptionLabel='All folders'
+          allOptionLabel={tAuto('all_folders')}
           className='w-full'
         />
       </div>
@@ -1410,9 +1411,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
           }
           searchable
-          searchPlaceholder='Search triggers...'
+          searchPlaceholder={tAuto('search_triggers')}
           showAllOption
-          allOptionLabel='All triggers'
+          allOptionLabel={tAuto('all_triggers')}
           className='w-full'
         />
       </div>

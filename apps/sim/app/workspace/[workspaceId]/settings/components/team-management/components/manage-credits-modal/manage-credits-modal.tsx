@@ -42,6 +42,7 @@ export function ManageCreditsModal({
   organizationId,
   member,
 }: ManageCreditsModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const userId = member?.userId
   const { data, isLoading } = useOrganizationMemberUsageLimit(organizationId, userId, open)
@@ -95,16 +96,16 @@ export function ManageCreditsModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Manage credits'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('manage_credits')}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>
-        {member ? `Manage credits — ${member.name || member.email}` : 'Manage credits'}
+        {member ? `Manage credits — ${member.name || member.email}` : tI18n('manage_credits')}
       </ChipModalHeader>
       <ChipModalBody>
         <ChipModalField
           type='copy'
           title={creditsUsedTitle}
           value={isLoading ? 'Loading…' : creditsUsed}
-          copyLabel='Copy credits used'
+          copyLabel={tI18n('copy_credits_used')}
         />
         <ChipModalField
           type='input'
@@ -112,11 +113,7 @@ export function ManageCreditsModal({
           title={
             <span className='inline-flex items-center gap-1.5'>
               {t('credit_limit')}
-              <Info side='top'>
-                {
-                  "Set in credits — Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
-                }
-              </Info>
+              <Info side='top'>{tI18n('set_in_credits_sim_s_usage')}</Info>
             </span>
           }
           value={draft}

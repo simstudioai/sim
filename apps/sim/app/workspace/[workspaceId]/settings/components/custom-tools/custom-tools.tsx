@@ -16,6 +16,7 @@ import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tool
 const logger = createLogger('CustomToolsSettings')
 
 export function CustomTools() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -122,7 +123,7 @@ export function CustomTools() {
               <div key={tool.id} className='flex items-center justify-between gap-3'>
                 <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                   <span className='truncate text-[14px] text-[var(--text-body)]'>
-                    {tool.title || 'Unnamed Tool'}
+                    {tool.title || tI18n('unnamed_tool')}
                   </span>
                   {tool.schema?.function?.description && (
                     <p className='truncate text-[12px] text-[var(--text-muted)]'>
@@ -184,7 +185,7 @@ export function CustomTools() {
         onOpenChange={(open) => {
           if (!open) setShowDeleteDialog(false)
         }}
-        srTitle='Delete Custom Tool'
+        srTitle={tI18n('delete_custom_tool')}
         title={t('delete_custom_tool')}
         text={[
           'Are you sure you want to delete ',

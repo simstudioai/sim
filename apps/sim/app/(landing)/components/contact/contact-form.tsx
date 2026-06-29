@@ -62,6 +62,7 @@ async function submitContactRequest(payload: SubmitContactBody) {
 }
 
 export function ContactForm() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const turnstileRef = useRef<TurnstileInstance>(null)
 
@@ -307,7 +308,7 @@ export function ContactForm() {
       ) : null}
 
       <button type='submit' disabled={isBusy} className={LANDING_SUBMIT}>
-        {isBusy ? 'Sending...' : 'Send message'}
+        {isBusy ? 'Sending...' : tI18n('send_message')}
       </button>
 
       <p className='text-center font-season text-[12px] text-[var(--landing-text-muted)] leading-[1.6]'>

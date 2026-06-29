@@ -48,6 +48,7 @@ export function CreateApiKeyModal({
   source = 'settings',
   onKeyCreated,
 }: CreateApiKeyModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
@@ -109,7 +110,7 @@ export function CreateApiKeyModal({
   return (
     <>
       {/* Create API Key Dialog */}
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('create_new_api_key')}>
         <ChipModalHeader onClose={handleClose}>{t('create_new_api_key')}</ChipModalHeader>
         <ChipModalBody>
           {canManageWorkspaceKeys && (
@@ -178,7 +179,7 @@ export function CreateApiKeyModal({
             setNewKey(null)
           }
         }}
-        srTitle='Your API key has been created'
+        srTitle={tI18n('your_api_key_has_been_created')}
       >
         <ChipModalHeader onClose={() => setShowNewKeyDialog(false)}>
           {t('your_api_key_has_been_created')}

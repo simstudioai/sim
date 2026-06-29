@@ -33,6 +33,7 @@ const STATUS_BADGES: Record<
 }
 
 export function InboxTaskList() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -99,7 +100,7 @@ export function InboxTaskList() {
             <SettingsEmptyState>
               {config?.address
                 ? `No email tasks yet. Send an email to ${config.address} to get started.`
-                : 'No email tasks yet.'}
+                : tI18n('no_email_tasks_yet')}
             </SettingsEmptyState>
           )
         ) : (

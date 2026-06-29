@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,7 @@ export const PlusMenuDropdown = React.memo(
     { availableResources, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
     ref
   ) {
+    const t = useTranslations('auto')
     const [open, setOpen] = useState(false)
     const [isMention, setIsMention] = useState(false)
     const [search, setSearch] = useState('')

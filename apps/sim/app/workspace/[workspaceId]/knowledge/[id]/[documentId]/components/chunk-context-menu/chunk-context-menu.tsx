@@ -58,6 +58,7 @@ export function ChunkContextMenu({
   enabledCount = 0,
   disabledCount = 0,
 }: ChunkContextMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isMultiSelect = selectedCount > 1
 
@@ -112,7 +113,7 @@ export function ChunkContextMenu({
             {!isMultiSelect && onEdit && (
               <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
                 <Pencil />
-                {isConnectorDocument ? 'View' : 'Edit'}
+                {isConnectorDocument ? tI18n('view') : tI18n('edit')}
               </DropdownMenuItem>
             )}
             {!isMultiSelect && onCopyContent && (

@@ -2,86 +2,108 @@
   "nav": {
     "product": "Produkt",
     "docs": "Dokumentation",
-    "pricing": "Preisgestaltung",
+    "pricing": "Preise",
     "blog": "Blog",
-    "contact": "Kontaktieren Sie uns.",
+    "contact": "Kontakt",
     "signIn": "Anmelden",
-    "startBuilding": "\"Bauteilen beginnen\"",
-    "integrations": "Integration",
-    "templates": "\"Vorlagen\""
+    "startBuilding": "Beginn der Konstruktion",
+    "integrations": "Integrierungen",
+    "templates": "Vorlagen"
   },
   "hero": {
-    "title": "Der AI-Arbeitsbereich, in dem Teams bauen, bereitstellen und verwalten können.",
-    "subtitle": "Konstruieren Sie kreativ, visuell oder mit Code. Verbinden Sie 1.000+ Integratoren und jede wichtige LLM, um echte Arbeit zu automatisieren.",
-    "cta": "\"Loslegen Sie kostenlos\"",
-    "watchDemo": "\"Achten Sie auf die Demonstration.\"",
-    "trustedBy": "Vertraut von Teams bei"
+    "title": "Das AI-Rabowortraum, Wo Teams Agenten Bauen, Bereitstellen und Verwalten",
+    "subtitle": "Bauen Sie konversationell, visuell oder mit Code. Verbinden Sie 1.000+ Integrierungen und jede Haupt-LLM, um echte Arbeit automatisch zu verarbeiten.",
+    "cta": "Starten Sie kostenlos",
+    "watchDemo": "Siehe Demo",
+    "trustedBy": "Gelten Sie von Teams an"
   },
   "features": {
-    "title": "Alles, was Sie benötigen, um AI-Agents zu bauen.",
-    "subtitle": "Eins Arbeitsbereich. Jede Fähigkeit. Keine Wechselwerkzeuge.",
+    "title": "Alles, Was Sie Brauchen, um AI-Agenten zu bauen",
+    "subtitle": "Ein Arbeitsbereich. Jede Fähigkeit. Keine Wechsel der Werkzeuge.",
     "chat": {
       "title": "Bauen Sie im Chat",
-      "description": "Beschreiben Sie was Sie möchten, auf einfache Weise. Sim kennt Ihr gesamtes Arbeitsumfeld und reagiert darauf."
+      "description": "Beschreiben Sie, was Sie haben möchten, in einfachem Sprachgebrauch. Sim kennt Ihr gesamtes Arbeitsfeld und nimmt Maßnahmen ein."
     },
     "workflows": {
-      "title": "\"Visuelle Workflows\"",
-      "description": "Entwerfen Sie Agents schrittweise auf einem visuellen Leinwand mit voller Kontrolle über jeden Schritt."
+      "title": "Visuelle Workflowen",
+      "description": "Bauen Sie Agenten blockweise auf einer visuellen Leinwand und haben vollständige Kontrolle über jede Schritt."
     },
     "knowledge": {
       "title": "Wissensdatenbanken",
-      "description": "Bodenagenten in Ihren Dokumenten platzieren. Uploader-PDFs, Websites und mehr für RAG."
+      "description": "Agenten auf dem Boden in Ihren Dokumenten. PDFs, Websites und mehr hochladen für RAG."
     },
     "tables": {
-      "title": "G estrukturierte Tabellen",
-      "description": "\"Eine Datenbank wurde erstellt. Speichern, abfragen und strukturierte Daten in Agentenläufe verbinden.\""
+      "title": "Strukturierte Tabellen",
+      "description": "Ein Datenbankmodul enthalten. Daten speichern, abfragen und mit Agent-Runs verbinden."
     },
     "files": {
       "title": "Dateien generieren",
-      "description": "Erstellen Sie Dokumente, Berichte und Präsentationen mit einem einzigen Eingabeaufforderung."
+      "description": "Erstelle Dokumente, Berichte und Präsentationen aus einer einzigen Anfrage."
     },
     "deploy": {
-      "title": "\"Stellen Sie auf jedem Ort bereit.\"",
-      "description": "Versenden Sie als API, Chat-Widget, MCP-Server oder geplante Automatisierung."
+      "title": "Woher auch immer deployen",
+      "description": "Verschicke als API, Chat-Widget, MCP-Dienst oder vorgeschaltete Automation."
     }
   },
-  "pricing": "Preise",
+  "pricing": {
+    "title": "Einfache und Transparante Preisgestaltung.",
+    "subtitle": "Melden Sie sich kostenlos an und wachsen Sie mit Ihrem Wachstum. Keine geheimen Gebühren.",
+    "free": {
+      "name": "Frei",
+      "price": "€0",
+      "period": "/Monat",
+      "description": "Für Individuen, die sich mit der AI-Unterstützung befassen",
+      "cta": "Start Frei"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "$20",
+      "period": "pro Monatspreis",
+      "description": "Für Berufe, die Produktagenten bauen",
+      "cta": "Anbieter Start-Pro"
+    },
+    "team": {
+      "name": "Team",
+      "price": "$50",
+      "period": "/seat/mouth",
+      "description": "Für Teams, die sich auf AI-Workflow-Kooperationen konzentrieren.",
+      "cta": "Anmelde"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "Benutzerdefiniert",
+      "period": "",
+      "description": "Für Organisationen mit fortschrittlichen Sicherheitsanforderungen.",
+      "cta": "Kontaktieren Sie die Vertriebsstelle."
+    }
+  },
   "testimonials": {
-    "title": "Liebt von Bauern",
-    "subtitle": "\"Siehe, welche Teams mit Sim bauen.\""
+    "title": "Verliebt in Entwickler.",
+    "subtitle": "Sehen Sie, was Teams mit Sim bauen."
   },
   "templates": {
-    "title": "\"Beginnen Sie mit einem Vorlage.\"",
-    "subtitle": "Vordefinierte Workflows für häufige Anwendungsfälle. In Minuten bereitstellen."
+    "title": "Starten Sie mit einer Vorlage.",
+    "subtitle": "Vordefinierte Workflow-Ströme für häufige Anwendungsfall. Bereitstellen in Minuten."
   },
   "collaboration": {
-    "title": "Gesucht für Teams",
-    "subtitle": "Kollabrieren Sie mit Workflows, teilen Sie Wissen und stellen Sie gemeinsam bereit."
+    "title": "Baut für Teams",
+    "subtitle": "Arbeitet zusammen mit Worfkloeven, Kenntnissen teilt und einrichtet."
   },
   "footer": {
-    "copyright": "© 2026 Sim Technologien GmbH",
+    "copyright": "© 2026 Sim Technologien GmbH & Co. KG",
     "product": "Produkt",
     "resources": "Ressourcen",
-    "company": "Unternehmen",
-    "legal": "Gesetzlich",
+    "company": "Firma",
+    "legal": "Rechtliche Bestimmungen",
     "status": "Status",
-    "privacy": "Datenschutzerklärung",
-    "terms": "Geschäftsbedingungen"
+    "privacy": "Datenschutzerklärungen",
+    "terms": "Servicebedingungen"
   },
   "faq": {
-    "title": "\"Häufig gestellte Fragen\""
+    "title": "häufig gestellte Fragen"
   },
   "contact": {
-    "title": "Kontaktieren Sie uns",
-    "subtitle": "\"Haben Sie Fragen? Wir helfen Ihnen gerne.\""
-  },
-  "docs": "Dokumentation",
-  "blog": "Blog",
-  "integrations": "Integrationen",
-  "models": "Modelle",
-  "returntoho": "Zurück zur Startseite",
-  "thepageyou": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
-  "login": "Anmelden",
-  "getstarted": "Loslegen",
-  "gotoapp": "Zur App"
+    "title": "Kontakt Sie",
+    "subtitle": "Haben Sie Fragen? Wir stehen Ihnen hier zur Verfügung."
+  }
 }

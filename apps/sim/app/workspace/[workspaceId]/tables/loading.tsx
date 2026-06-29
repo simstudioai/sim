@@ -23,6 +23,7 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function TablesLoading() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
@@ -30,7 +31,7 @@ export default function TablesLoading() {
       title={t('tables')}
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder='Search tables...'
+      searchPlaceholder={tI18n('search_tables')}
       hasSort
       hasFilter
     />

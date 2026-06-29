@@ -43,6 +43,7 @@ export function InviteModal({
   inviteDisabledReason = null,
   organizationId = null,
 }: InviteModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [emails, setEmails] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<PermissionType>('admin')
@@ -185,8 +186,8 @@ export function InviteModal({
           hint={fieldHint}
           placeholder={
             !canInviteMembers
-              ? inviteDisabledReason || 'Only administrators can invite new teammates'
-              : 'Enter emails'
+              ? inviteDisabledReason || tI18n('only_administrators_can_invite_new_teammates')
+              : tI18n('enter_emails')
           }
           disabled={isSubmitting || !canInviteMembers}
         />

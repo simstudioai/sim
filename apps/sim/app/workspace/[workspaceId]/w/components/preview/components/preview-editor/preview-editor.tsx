@@ -278,6 +278,7 @@ function ConnectionsSection({
   onResizeMouseDown,
   onToggleCollapsed,
 }: ConnectionsSectionProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   /** Stable string of connection IDs to prevent guard from running on every render */
   const connectionIds = useMemo(() => connections.map((c) => c.blockId).join(','), [connections])
@@ -346,7 +347,7 @@ function ConnectionsSection({
         }}
         role='button'
         tabIndex={0}
-        aria-label={isAtMinHeight ? 'Expand connections' : 'Collapse connections'}
+        aria-label={isAtMinHeight ? tI18n('expand_connections') : tI18n('collapse_connections')}
       >
         <ChevronUp
           className={cn('size-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
@@ -594,6 +595,7 @@ interface SubflowConfigDisplayProps {
  * Matches the exact UI structure of SubflowEditor.
  */
 function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isLoop = block.type === 'loop'
   const config = isLoop ? SUBFLOW_CONFIG.loop : SUBFLOW_CONFIG.parallel
@@ -648,7 +650,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
       {/* Type Selection - matches SubflowEditor */}
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-          {isLoop ? 'Loop Type' : 'Parallel Type'}
+          {isLoop ? tI18n('loop_type') : tI18n('parallel_type')}
         </Label>
         <Combobox
           options={typeOptions}
@@ -686,7 +688,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
             <Code.Container>
               <Code.Content>
                 <Code.Placeholder gutterWidth={0} show={editorValue.length === 0}>
-                  {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                  {isConditionMode ? '<counter.value> < 10' : tI18n('item1_item2_item3')}
                 </Code.Placeholder>
                 <div
                   className='min-h-[24px] whitespace-pre-wrap break-all px-3 py-2 font-mono text-[var(--text-secondary)] text-small'
@@ -694,7 +696,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
                 >
                   {editorValue || (
                     <span className='text-[var(--text-tertiary)]'>
-                      {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                      {isConditionMode ? '<counter.value> < 10' : tI18n('item1_item2_item3')}
                     </span>
                   )}
                 </div>
@@ -768,6 +770,7 @@ function PreviewEditorContent({
   onClose,
   onDrillDown,
 }: PreviewEditorProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const normalizedWorkflowVariables = useMemo(() => {
     if (!workflowVariables) return []
@@ -1144,7 +1147,7 @@ function PreviewEditorContent({
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='font-medium text-[var(--text-primary)] text-sm'>
-            {block.name || 'Unknown Block'}
+            {block.name || tI18n('unknown_block')}
           </span>
         </div>
         <div className='p-3'>
@@ -1297,7 +1300,7 @@ function PreviewEditorContent({
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
-                          {copiedSection === 'input' ? 'Copied' : 'Copy'}
+                          {copiedSection === 'input' ? tI18n('copied') : tI18n('copy')}
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -1325,7 +1328,7 @@ function PreviewEditorContent({
             {/* Output Section - Collapsible, expanded by default */}
             {executionData?.output !== undefined && (
               <CollapsibleSection
-                title={executionData.status === 'error' ? 'Error' : 'Output'}
+                title={executionData.status === 'error' ? tI18n('error') : tI18n('output')}
                 defaultExpanded={true}
                 isEmpty={
                   formatValueAsJson(executionData.output) === '—' ||
@@ -1369,7 +1372,7 @@ function PreviewEditorContent({
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
-                          {copiedSection === 'output' ? 'Copied' : 'Copy'}
+                          {copiedSection === 'output' ? tI18n('copied') : tI18n('copy')}
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -1444,7 +1447,9 @@ function PreviewEditorContent({
                             </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content side='top'>
-                            {isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'}
+                            {isExecutionMode && onDrillDown
+                              ? tI18n('expand_workflow')
+                              : tI18n('open_in_new_tab')}
                           </Tooltip.Content>
                         </Tooltip.Root>
                       </>
@@ -1452,10 +1457,10 @@ function PreviewEditorContent({
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[var(--text-tertiary)] text-small'>
                           {isBlockNotExecuted
-                            ? 'Not Executed'
+                            ? tI18n('not_executed')
                             : isMissingChildWorkflow
                               ? DELETED_WORKFLOW_LABEL
-                              : 'Unable to load preview'}
+                              : tI18n('unable_to_load_preview')}
                         </span>
                       </div>
                     )}

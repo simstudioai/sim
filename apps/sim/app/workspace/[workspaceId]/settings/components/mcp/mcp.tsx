@@ -89,6 +89,7 @@ function ServerListItem({
   onRemove,
   onViewDetails,
 }: ServerListItemProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const transportLabel = formatTransportLabel(server.transport || 'http')
   const toolsLabel = formatToolsLabel(tools, server.connectionStatus)
@@ -99,7 +100,7 @@ function ServerListItem({
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-1.5'>
           <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
-            {server.name || 'Unnamed Server'}
+            {server.name || tI18n('unnamed_server')}
           </span>
           <span className='text-[12px] text-[var(--text-muted)]'>({transportLabel})</span>
         </div>
@@ -149,6 +150,7 @@ function buildEditInitialData(server: McpServer) {
 }
 
 export function MCP() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -411,7 +413,7 @@ export function MCP() {
                 <div className='flex flex-col gap-2'>
                   <span className='text-[12px] text-[var(--text-muted)]'>{t('server_name')}</span>
                   <p className='text-[14px] text-[var(--text-body)]'>
-                    {server.name || 'Unnamed Server'}
+                    {server.name || tI18n('unnamed_server')}
                   </p>
                 </div>
 
@@ -431,7 +433,7 @@ export function MCP() {
                   <div className='flex flex-col gap-2'>
                     <span className='text-[12px] text-[var(--text-muted)]'>{t('status')}</span>
                     <p className='text-[14px] text-[var(--text-error)]'>
-                      {server.lastError || 'Unable to connect'}
+                      {server.lastError || tI18n('unable_to_connect')}
                     </p>
                   </div>
                 )}
@@ -451,7 +453,7 @@ export function MCP() {
                       >
                         {connectingOauthServers.has(server.id)
                           ? 'Connecting…'
-                          : 'Connect with OAuth'}
+                          : tI18n('connect_with_oauth')}
                       </Chip>
                     </div>
                   </div>
@@ -691,7 +693,7 @@ export function MCP() {
         onOpenChange={(open) => {
           if (!open) setServerToDeleteId(null)
         }}
-        srTitle='Delete MCP Server'
+        srTitle={tI18n('delete_mcp_server')}
         title={t('delete_mcp_server')}
         text={[
           'Are you sure you want to delete ',

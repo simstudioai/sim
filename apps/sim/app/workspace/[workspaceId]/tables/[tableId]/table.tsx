@@ -135,6 +135,7 @@ export function Table({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
 }: TableProps = {}) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const router = useRouter()
@@ -873,7 +874,7 @@ export function Table({
         onOpenChange={(open) => {
           if (!open) setDeletingAll(null)
         }}
-        srTitle='Delete rows'
+        srTitle={tI18n('delete_rows')}
         title={t('delete_rows')}
         text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
@@ -908,12 +909,12 @@ export function Table({
         srTitle={
           deletingColumns && deletingColumns.length > 1
             ? `Delete ${deletingColumns.length} Columns`
-            : 'Delete Column'
+            : tI18n('delete_column')
         }
         title={
           deletingColumns && deletingColumns.length > 1
             ? `Delete ${deletingColumns.length} Columns`
-            : 'Delete Column'
+            : tI18n('delete_column')
         }
         text={[
           'Are you sure you want to delete ',
@@ -943,7 +944,7 @@ export function Table({
         <ChipConfirmModal
           open={showDeleteTableConfirm}
           onOpenChange={setShowDeleteTableConfirm}
-          srTitle='Delete Table'
+          srTitle={tI18n('delete_table')}
           title={t('delete_table')}
           text={[
             'Are you sure you want to delete ',

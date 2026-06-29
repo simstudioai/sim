@@ -38,6 +38,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
@@ -106,7 +107,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   const isDirty = name !== initialName || description !== initialDescription
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('edit_knowledge_base')}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>
         {t('edit_knowledge_base')}
       </ChipModalHeader>

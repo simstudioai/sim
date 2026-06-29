@@ -69,6 +69,7 @@ function buildInviteLink(invitationId: string, token: string) {
 }
 
 export function Teammates() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -189,7 +190,9 @@ export function Teammates() {
           label={`Teammates (${teammates.length})`}
           isEmpty={showNoResults}
           emptyText={
-            searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
+            searchTerm.trim()
+              ? `No teammates found matching “${searchTerm}”`
+              : tI18n('no_teammates_yet')
           }
         >
           {filteredTeammates.map((teammate) => (

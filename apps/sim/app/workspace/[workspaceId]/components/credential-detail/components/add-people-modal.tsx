@@ -36,6 +36,7 @@ interface AddPeopleModalProps {
  * failures keep only the people that still need adding.
  */
 export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workspacePermissions } = useWorkspacePermissionsContext()
   const { data: members = [] } = useWorkspaceCredentialMembers(credentialId)
@@ -134,7 +135,7 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
       onOpenChange={(next) => {
         if (!next) handleClose()
       }}
-      srTitle='Add people'
+      srTitle={tI18n('add_people')}
     >
       <ChipModalHeader onClose={handleClose}>{t('add_people')}</ChipModalHeader>
       <ChipModalBody>

@@ -136,6 +136,7 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -293,7 +294,7 @@ export function Integrations() {
       <IntegrationTabsHeader active='integrations' workspaceId={workspaceId} />
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
-          <ShowcaseWithExplore prompt='Explain the integrations in Sim and what I should connect.' />
+          <ShowcaseWithExplore prompt={tI18n('explain_the_integrations_in_sim_and')} />
           <div className='flex items-center gap-2'>
             <ChipInput
               icon={Search}
@@ -364,7 +365,7 @@ export function Integrations() {
               <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                 {urlSearchTerm.trim()
                   ? `No integrations found matching “${urlSearchTerm}”`
-                  : 'No integrations in this category'}
+                  : tI18n('no_integrations_in_this_category')}
               </div>
             )}
           </div>

@@ -8,6 +8,7 @@ import {
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
+import { useTranslations } from 'next-intl'
 
 export interface ChatAttachment {
   id: string
@@ -83,6 +84,7 @@ function openAttachmentPreview(name: string, dataUrl: string): void {
 
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
+    const t = useTranslations('auto')
     const [isCopied, setIsCopied] = useState(false)
 
     const isJsonObject = typeof message.content === 'object' && message.content !== null
@@ -260,7 +262,7 @@ export const ClientChatMessage = memo(
                         </button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top' align='center' sideOffset={5}>
-                        {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                        {isCopied ? 'Copied!' : t('copy_to_clipboard')}
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

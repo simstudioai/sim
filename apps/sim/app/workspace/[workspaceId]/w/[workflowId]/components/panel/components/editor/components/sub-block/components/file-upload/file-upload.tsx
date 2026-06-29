@@ -28,6 +28,7 @@ import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useTranslations } from 'next-intl'
 
 const logger = createLogger('FileUpload')
 
@@ -86,6 +87,7 @@ function SingleFileSelector({
   isDeleting,
   workflowSearchHighlight,
 }: SingleFileSelectorProps) {
+  const tI18n = useTranslations('auto')
   const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
   const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -118,7 +120,7 @@ function SingleFileSelector({
           }
           onOpenChange(open)
         }}
-        placeholder={isLoading ? 'Loading files...' : 'Select or upload file'}
+        placeholder={isLoading ? tI18n('loading_files') : tI18n('select_or_upload_file')}
         disabled={disabled || isDeleting}
         editable={true}
         filterOptions={isEditing}
@@ -167,6 +169,7 @@ export function FileUpload({
   previewValue,
   disabled = false,
 }: FileUploadProps) {
+  const tI18n = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [modelValue] = useSubBlockValue(blockId, 'model')
@@ -694,7 +697,7 @@ export function FileUpload({
                   indicatorClassName='bg-foreground'
                 />
                 <div className='mt-1 text-center text-muted-foreground text-xs'>
-                  {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
+                  {uploadProgress < 100 ? 'Uploading...' : tI18n('upload_complete')}
                 </div>
               </div>
             </>
@@ -711,7 +714,7 @@ export function FileUpload({
           onOpenChange={(open) => {
             if (open) void refetchWorkspaceFiles()
           }}
-          placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
+          placeholder={loadingWorkspaceFiles ? tI18n('loading_files') : tI18n('add_more')}
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}
           filterOptions={true}
@@ -755,7 +758,9 @@ export function FileUpload({
           onOpenChange={(open) => {
             if (open) void refetchWorkspaceFiles()
           }}
-          placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
+          placeholder={
+            loadingWorkspaceFiles ? tI18n('loading_files') : tI18n('select_or_upload_file')
+          }
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}
           filterOptions={true}

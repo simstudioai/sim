@@ -100,6 +100,7 @@ export function ChatDeploy({
   onDeployed,
   onVersionActivated,
 }: ChatDeployProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
@@ -414,7 +415,7 @@ export function ChatDeploy({
       <ChipConfirmModal
         open={showDeleteConfirmation}
         onOpenChange={setShowDeleteConfirmation}
-        srTitle='Delete Chat'
+        srTitle={tI18n('delete_chat')}
         title={t('delete_chat')}
         text={[
           'Are you sure you want to delete ',
@@ -490,6 +491,7 @@ function IdentifierInput({
   onValidationChange,
   isEditingExisting = false,
 }: IdentifierInputProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { isChecking, error, isValid } = useIdentifierValidation(
     value,
@@ -576,7 +578,7 @@ function IdentifierInput({
             </a>
           </>
         ) : (
-          'The unique URL path where your chat will be accessible'
+          tI18n('the_unique_url_path_where_your')
         )}
       </p>
     </div>
@@ -613,6 +615,7 @@ function AuthSelector({
   hasExistingPassword = false,
   error,
 }: AuthSelectorProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [emailError, setEmailError] = useState('')
   const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
@@ -719,14 +722,14 @@ function AuthSelector({
       {(authType === 'email' || authType === 'sso') && (
         <div>
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
+            {authType === 'email' ? tI18n('allowed_emails') : tI18n('allowed_sso_emails')}
           </Label>
           <TagInput
             items={emailItems}
             onAdd={(value) => addEmail(value)}
             onRemove={handleRemoveEmailItem}
             placeholder={t('enter_emails_or_domains_example_com')}
-            placeholderWithTags='Add email'
+            placeholderWithTags={tI18n('add_email')}
             disabled={disabled}
           />
           {emailError && (
@@ -734,8 +737,8 @@ function AuthSelector({
           )}
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {authType === 'email'
-              ? 'Add specific emails or entire domains (@example.com)'
-              : 'Add emails or domains that can access via SSO'}
+              ? tI18n('add_specific_emails_or_entire_domains')
+              : tI18n('add_emails_or_domains_that_can')}
           </p>
         </div>
       )}

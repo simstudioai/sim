@@ -58,6 +58,7 @@ import { useSubscriptionData } from '@/hooks/queries/subscription'
 const logger = createLogger('EmailPolling')
 
 export function CredentialSets() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data: session } = useSession()
   const { data: organizationsData } = useOrganizations()
@@ -463,7 +464,7 @@ export function CredentialSets() {
                     onAdd={(value) => addEmail(value)}
                     onRemove={removeEmailItem}
                     placeholder={t('enter_email_addresses')}
-                    placeholderWithTags='Add another email'
+                    placeholderWithTags={tI18n('add_another_email')}
                     disabled={createInvitation.isPending}
                     fileInputOptions={fileInputOptions}
                     className='flex-1'
@@ -472,7 +473,7 @@ export function CredentialSets() {
                     onClick={handleInviteMembers}
                     disabled={createInvitation.isPending || validEmails.length === 0}
                   >
-                    {createInvitation.isPending ? 'Sending...' : 'Invite'}
+                    {createInvitation.isPending ? 'Sending...' : tI18n('invite')}
                   </Chip>
                 </div>
                 {emailError && <p className='text-[var(--text-error)] text-small'>{emailError}</p>}
@@ -661,7 +662,7 @@ export function CredentialSets() {
                           onClick={() => handleAcceptInvitation(invitation.token)}
                           disabled={acceptInvitation.isPending}
                         >
-                          {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
+                          {acceptInvitation.isPending ? 'Accepting...' : tI18n('accept')}
                         </Chip>
                       </div>
                     ))}
@@ -762,7 +763,7 @@ export function CredentialSets() {
       <ChipModal
         open={showCreateModal}
         onOpenChange={handleCloseCreateModal}
-        srTitle='Create Polling Group'
+        srTitle={tI18n('create_polling_group')}
       >
         <ChipModalHeader onClose={handleCloseCreateModal}>
           {t('create_polling_group')}
@@ -816,7 +817,7 @@ export function CredentialSets() {
         onOpenChange={(open) => {
           if (!open) setLeavingMembership(null)
         }}
-        srTitle='Leave Polling Group'
+        srTitle={tI18n('leave_polling_group')}
         title={t('leave_polling_group')}
         text={[
           'Are you sure you want to leave ',
@@ -836,7 +837,7 @@ export function CredentialSets() {
         onOpenChange={(open) => {
           if (!open) setDeletingSet(null)
         }}
-        srTitle='Delete Polling Group'
+        srTitle={tI18n('delete_polling_group')}
         title={t('delete_polling_group')}
         text={[
           'Are you sure you want to delete ',

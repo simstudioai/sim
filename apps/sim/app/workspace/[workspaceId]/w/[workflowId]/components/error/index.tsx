@@ -131,6 +131,7 @@ export function NextGlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   useEffect(() => {
     logger.error('Global workspace error:', { error })
@@ -141,7 +142,7 @@ export function NextGlobalError({
       <body>
         <ErrorUI
           title={t('application_error')}
-          message='Something went wrong with the application. Please try again later.'
+          message={tI18n('something_went_wrong_with_the_application')}
           onReset={reset}
           fullScreen={true}
         />

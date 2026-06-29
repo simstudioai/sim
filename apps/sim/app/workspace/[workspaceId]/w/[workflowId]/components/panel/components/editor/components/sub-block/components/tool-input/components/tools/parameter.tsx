@@ -45,6 +45,7 @@ export function ParameterWithLabel({
   isPreview,
   children,
 }: ParameterWithLabelProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -157,8 +158,8 @@ export function ParameterWithLabel({
                   disabled={canonicalToggle.disabled || disabled}
                   aria-label={
                     canonicalToggle.mode === 'advanced'
-                      ? 'Switch to selector'
-                      : 'Switch to manual ID'
+                      ? tI18n('switch_to_selector')
+                      : tI18n('switch_to_manual_id')
                   }
                 >
                   <ArrowLeftRight
@@ -174,8 +175,8 @@ export function ParameterWithLabel({
               <Tooltip.Content side='top'>
                 <p>
                   {canonicalToggle.mode === 'advanced'
-                    ? 'Switch to selector'
-                    : 'Switch to manual ID'}
+                    ? tI18n('switch_to_selector')
+                    : tI18n('switch_to_manual_id')}
                 </p>
               </Tooltip.Content>
             </Tooltip.Root>

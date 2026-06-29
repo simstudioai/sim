@@ -38,12 +38,13 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isDeleting,
   knowledgeBaseName,
 }: DeleteKnowledgeBaseModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ChipConfirmModal
       open={isOpen}
       onOpenChange={onClose}
-      srTitle='Delete Knowledge Base'
+      srTitle={tI18n('delete_knowledge_base')}
       title={t('delete_knowledge_base')}
       text={
         knowledgeBaseName

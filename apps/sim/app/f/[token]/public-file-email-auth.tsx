@@ -21,6 +21,7 @@ interface PublicFileEmailAuthProps {
  * `file_auth_{shareId}` cookie and the page re-renders the viewer.
  */
 export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const requestOtp = usePublicFileOtpRequest(token)
@@ -80,7 +81,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     return (
       <PublicFileAuthShell
         title={t('email_verification')}
-        subtitle='This file requires email verification'
+        subtitle={tI18n('this_file_requires_email_verification')}
       >
         <form
           onSubmit={(e) => {
@@ -121,7 +122,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 {t('sending_code')}
               </span>
             ) : (
-              'Continue'
+              tI18n('continue')
             )}
           </button>
         </form>
@@ -176,7 +177,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
               {t('verifying')}
             </span>
           ) : (
-            'Verify Email'
+            tI18n('verify_email')
           )}
         </button>
 

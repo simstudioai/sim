@@ -109,6 +109,7 @@ function createActiveSearchTarget(
 }
 
 export function WorkflowSearchReplace() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
@@ -569,7 +570,9 @@ export function WorkflowSearchReplace() {
         <Button
           variant='ghost'
           className='size-8 p-0'
-          aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
+          aria-label={
+            isReplaceExpanded ? tI18n('hide_replace_controls') : tI18n('show_replace_controls')
+          }
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
           <ChevronRight

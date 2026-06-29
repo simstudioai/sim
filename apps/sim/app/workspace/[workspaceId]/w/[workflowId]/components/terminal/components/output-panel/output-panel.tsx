@@ -130,6 +130,7 @@ export const OutputPanel = React.memo(function OutputPanel({
   outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
@@ -397,7 +398,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   <Button
                     variant='ghost'
                     onClick={handleTrainingClick}
-                    aria-label={isTraining ? 'Stop training' : 'Train Sim'}
+                    aria-label={isTraining ? tI18n('stop_training') : tI18n('train_sim')}
                     className={clsx(
                       '!p-1.5 -m-1.5',
                       isTraining && 'text-orange-600 dark:text-orange-400'
@@ -411,7 +412,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
+                  <span>{isTraining ? tI18n('stop_training_2') : tI18n('train_sim')}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -432,7 +433,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
+                <span>{showCopySuccess ? tI18n('copied') : tI18n('copy_output')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
             {hasEntries && (
@@ -534,7 +535,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
             >
-              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
+              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : tI18n('no_results')}
             </span>
             <Button
               variant='ghost'

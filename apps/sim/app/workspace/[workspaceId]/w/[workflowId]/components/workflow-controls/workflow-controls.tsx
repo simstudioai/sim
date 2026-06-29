@@ -36,6 +36,7 @@ const logger = createLogger('WorkflowControls')
  * Floating controls for canvas mode, undo/redo, and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
@@ -120,7 +121,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 </Button>
               </div>
             </PopoverTrigger>
-            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {mode === 'hand' ? tI18n('mover') : tI18n('pointer')}
+            </Tooltip.Content>
           </Tooltip.Root>
           <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
             <PopoverItem

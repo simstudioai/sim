@@ -31,6 +31,7 @@ function isAcceptedFile(file: File): boolean {
 }
 
 export function SkillImport({ onImport }: SkillImportProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [githubUrl, setGithubUrl] = useState('')
   const [githubState, setGithubState] = useState<ImportState>('idle')
@@ -130,7 +131,11 @@ export function SkillImport({ onImport }: SkillImportProps) {
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}
           >
-            {githubState === 'loading' ? <Loader className='size-[14px]' animate /> : 'Fetch'}
+            {githubState === 'loading' ? (
+              <Loader className='size-[14px]' animate />
+            ) : (
+              tI18n('fetch')
+            )}
           </Chip>
         </div>
       </ChipModalField>

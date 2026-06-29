@@ -29,6 +29,7 @@ export function QueuedMessages({
   onEdit,
   onCancelEdit,
 }: QueuedMessagesProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [isExpanded, setIsExpanded] = useState(true)
   const [isNarrow, setIsNarrow] = useState(false)
@@ -152,7 +153,7 @@ export function QueuedMessages({
                           </button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top' sideOffset={4}>
-                          {isDispatching ? 'Sending now' : 'Edit queued message'}
+                          {isDispatching ? tI18n('sending_now') : tI18n('edit_queued_message')}
                         </Tooltip.Content>
                       </Tooltip.Root>
 

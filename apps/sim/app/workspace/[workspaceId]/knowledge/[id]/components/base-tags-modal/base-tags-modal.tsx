@@ -88,6 +88,7 @@ interface BaseTagsModalProps {
 }
 
 export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { tagDefinitions: kbTagDefinitions } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
@@ -327,7 +328,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     type='custom'
                     title={t('tag_name')}
                     flush
-                    error={tagNameConflict ? 'A tag with this name already exists' : undefined}
+                    error={tagNameConflict ? tI18n('a_tag_with_this_name_already') : undefined}
                   >
                     <ChipInput
                       value={createTagForm.displayName}
@@ -355,7 +356,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     flush
                     error={
                       !hasAvailableSlots(createTagForm.fieldType)
-                        ? 'No available slots for this type. Choose a different type.'
+                        ? tI18n('no_available_slots_for_this_type')
                         : undefined
                     }
                   >
@@ -381,7 +382,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         !hasAvailableSlots(createTagForm.fieldType)
                       }
                     >
-                      {createTagMutation.isPending ? 'Creating...' : 'Create Tag'}
+                      {createTagMutation.isPending ? 'Creating...' : tI18n('create_tag')}
                     </Button>
                   </div>
                 </div>
@@ -406,7 +407,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             closeDeleteTagDialog()
           }
         }}
-        srTitle='Delete Tag'
+        srTitle={tI18n('delete_tag')}
         title={t('delete_tag')}
         text={[
           'Are you sure you want to delete the ',
@@ -450,7 +451,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           <div className='flex flex-col gap-2 px-2'>
             <p className='text-[var(--text-secondary)]'>
               {selectedTagUsage?.documentCount || 0} {t('document')}
-              {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'}{' '}
+              {selectedTagUsage?.documentCount !== 1 ? tI18n('s_are') : ' is'}{' '}
               {t('currently_using_this_tag_definition')}
             </p>
 

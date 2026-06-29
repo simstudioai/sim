@@ -97,6 +97,7 @@ export function BlockMenu({
   onToggleLocked,
   canAdmin = false,
 }: BlockMenuProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isSingleBlock = selectedBlocks.length === 1
 
@@ -212,7 +213,7 @@ export function BlockMenu({
               }
             }}
           >
-            {hasBlockWithDisabledParent ? 'Parent is disabled' : getToggleEnabledLabel()}
+            {hasBlockWithDisabledParent ? tI18n('parent_is_disabled') : getToggleEnabledLabel()}
           </PopoverItem>
         )}
         {!allNoteBlocks && !isSubflow && (
@@ -247,7 +248,7 @@ export function BlockMenu({
               }
             }}
           >
-            {hasBlockWithLockedParent ? 'Parent is locked' : getToggleLockedLabel()}
+            {hasBlockWithLockedParent ? tI18n('parent_is_locked') : getToggleLockedLabel()}
           </PopoverItem>
         )}
 

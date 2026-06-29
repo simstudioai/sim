@@ -57,6 +57,7 @@ export function SkillModal({
   onDelete,
   initialValues,
 }: SkillModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -181,11 +182,11 @@ export function SkillModal({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={isEditing ? 'Edit Skill' : 'Add Skill'}
+      srTitle={isEditing ? tI18n('edit_skill') : tI18n('add_skill')}
       size='lg'
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>
-        {isEditing ? 'Edit Skill' : 'Add Skill'}
+        {isEditing ? tI18n('edit_skill') : tI18n('add_skill')}
       </ChipModalHeader>
 
       <ChipModalBody>

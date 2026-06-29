@@ -34,6 +34,7 @@ export function SelectorInput({
   previewContextValues,
   overrides,
 }: SelectorInputProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
@@ -98,7 +99,7 @@ export function SelectorInput({
       disabled={selectorDisabled}
       isPreview={isPreview}
       previewValue={previewValue ?? null}
-      placeholder={subBlock.placeholder || 'Select resource'}
+      placeholder={subBlock.placeholder || tI18n('select_resource')}
       allowSearch={allowSearch}
       onOptionChange={(value) => {
         if (!isPreview) {

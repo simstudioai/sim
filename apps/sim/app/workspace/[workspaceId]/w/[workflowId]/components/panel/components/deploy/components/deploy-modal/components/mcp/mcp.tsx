@@ -133,6 +133,7 @@ export function McpDeploy({
   onSaveDisabledReasonChange,
   onActiveServerChange,
 }: McpDeployProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -559,7 +560,7 @@ export function McpDeploy({
             toolNameError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
           )}
         >
-          {toolNameError ?? 'Use lowercase letters, numbers, and underscores only'}
+          {toolNameError ?? tI18n('use_lowercase_letters_numbers_and_underscores')}
         </p>
       </div>
 
@@ -571,7 +572,7 @@ export function McpDeploy({
           placeholder={
             workflowDescriptionFallback
               ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
-              : 'Describe what this tool does...'
+              : tI18n('describe_what_this_tool_does')
           }
           className='min-h-[100px] resize-none'
           value={toolDescription}
@@ -640,7 +641,7 @@ export function McpDeploy({
           onMultiSelectChange={handleServerSelectionChange}
           placeholder={t('select_servers')}
           searchable
-          searchPlaceholder='Search servers...'
+          searchPlaceholder={tI18n('search_servers')}
           disabled={!toolName.trim() || !!toolNameError || isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>

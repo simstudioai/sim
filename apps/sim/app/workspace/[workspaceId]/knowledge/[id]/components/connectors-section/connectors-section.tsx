@@ -68,6 +68,7 @@ export function ConnectorsSection({
   canEdit,
   className,
 }: ConnectorsSectionProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { mutate: triggerSync } = useTriggerSync()
   const { mutate: updateConnector } = useUpdateConnector()
@@ -238,9 +239,9 @@ export function ConnectorsSection({
         onOpenChange={(open) => {
           if (!open) closeDeleteModal()
         }}
-        srTitle='Remove Connector'
+        srTitle={tI18n('remove_connector')}
         title={t('remove_connector')}
-        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        text={tI18n('this_will_disconnect_the_source_and')}
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,
@@ -293,6 +294,7 @@ function ConnectorCard({
   onTogglePause,
   onDelete,
 }: ConnectorCardProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [expanded, setExpanded] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
@@ -429,7 +431,7 @@ function ConnectorCard({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  {syncCooldown ? 'Sync recently triggered' : 'Sync now'}
+                  {syncCooldown ? tI18n('sync_recently_triggered') : tI18n('sync_now')}
                 </Tooltip.Content>
               </Tooltip.Root>
 
@@ -465,8 +467,8 @@ function ConnectorCard({
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   {connector.status === 'paused' || connector.status === 'disabled'
-                    ? 'Resume'
-                    : 'Pause'}
+                    ? tI18n('resume')
+                    : tI18n('pause')}
                 </Tooltip.Content>
               </Tooltip.Root>
 
@@ -497,7 +499,9 @@ function ConnectorCard({
                 />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content>{expanded ? 'Hide history' : 'Sync history'}</Tooltip.Content>
+            <Tooltip.Content>
+              {expanded ? tI18n('hide_history') : tI18n('sync_history')}
+            </Tooltip.Content>
           </Tooltip.Root>
         </div>
       </div>
@@ -513,8 +517,8 @@ function ConnectorCard({
               {t('syncing_has_been_paused_due_to')} {connector.consecutiveFailures}{' '}
               {t('consecutive_failures')}
               {serviceId
-                ? ' Reconnect your account to resume syncing.'
-                : ' Use the resume button to re-enable syncing.'}
+                ? tI18n('reconnect_your_account_to_resume_syncing')
+                : tI18n('use_the_resume_button_to_re')}
             </p>
             {canEdit && serviceId && providerId && (
               <Button
@@ -629,6 +633,7 @@ interface SyncHistoryProps {
 }
 
 function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   if (isLoading) {
     return (
@@ -700,7 +705,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                         )}
                       </>
                     ) : (
-                      'No changes'
+                      tI18n('no_changes')
                     )}
                   </span>
                 )}

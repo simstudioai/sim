@@ -7,6 +7,7 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useTranslations } from 'next-intl'
 
 interface WorkflowSelectorInputProps {
   blockId: string
@@ -23,6 +24,7 @@ export function WorkflowSelectorInput({
   isPreview = false,
   previewValue,
 }: WorkflowSelectorInputProps) {
+  const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
@@ -43,7 +45,7 @@ export function WorkflowSelectorInput({
       disabled={disabled}
       isPreview={isPreview}
       previewValue={previewValue}
-      placeholder={subBlock.placeholder || 'Select workflow...'}
+      placeholder={subBlock.placeholder || t('select_workflow')}
       missingOptionLabel={DELETED_WORKFLOW_LABEL}
     />
   )

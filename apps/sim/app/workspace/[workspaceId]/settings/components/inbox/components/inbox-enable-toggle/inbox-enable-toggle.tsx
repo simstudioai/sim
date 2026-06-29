@@ -18,6 +18,7 @@ import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 const logger = createLogger('InboxEnableToggle')
 
 export function InboxEnableToggle() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -79,7 +80,11 @@ export function InboxEnableToggle() {
         />
       </div>
 
-      <ChipModal open={isEnableOpen} onOpenChange={setIsEnableOpen} srTitle='Enable email inbox'>
+      <ChipModal
+        open={isEnableOpen}
+        onOpenChange={setIsEnableOpen}
+        srTitle={tI18n('enable_email_inbox')}
+      >
         <ChipModalHeader onClose={() => setIsEnableOpen(false)}>
           {t('enable_email_inbox')}
         </ChipModalHeader>
@@ -111,7 +116,7 @@ export function InboxEnableToggle() {
       <ChipConfirmModal
         open={isDisableOpen}
         onOpenChange={setIsDisableOpen}
-        srTitle='Disable email inbox'
+        srTitle={tI18n('disable_email_inbox')}
         title={t('disable_email_inbox')}
         text={[
           'Are you sure you want to disable the inbox',

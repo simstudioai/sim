@@ -217,6 +217,7 @@ interface StartInputFormatField {
  * position across sessions using the floating chat store.
  */
 export function Chat() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -1090,7 +1091,7 @@ export function Chat() {
                   setHistoryIndex(-1)
                 }}
                 onKeyDown={handleKeyPress}
-                placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
+                placeholder={isDragOver ? tI18n('drop_files_here') : tI18n('type_a_message')}
                 className='w-full border-0 bg-transparent pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 disabled={!activeWorkflowId}
               />

@@ -5,6 +5,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
+import { useTranslations } from 'next-intl'
 
 type Props = { initialEntries: ChangelogEntry[] }
 
@@ -54,6 +55,7 @@ function extractMentions(body: string): string[] {
 }
 
 export default function ChangelogList({ initialEntries }: Props) {
+  const t = useTranslations('auto')
   const [entries, setEntries] = React.useState<ChangelogEntry[]>(initialEntries)
   const [page, setPage] = React.useState<number>(1)
   const [loading, setLoading] = React.useState<boolean>(false)
@@ -224,7 +226,7 @@ export default function ChangelogList({ initialEntries }: Props) {
             disabled={loading}
             className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1.5 text-[var(--landing-text)] text-small transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-60'
           >
-            {loading ? 'Loading…' : 'Show more'}
+            {loading ? 'Loading…' : t('show_more')}
           </button>
         </div>
       )}

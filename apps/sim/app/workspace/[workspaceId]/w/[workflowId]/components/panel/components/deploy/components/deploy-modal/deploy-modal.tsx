@@ -123,6 +123,7 @@ export function DeployModal({
   deployReadiness,
   isDeploymentSettling,
 }: DeployModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const queryClient = useQueryClient()
   const params = useParams()
@@ -757,15 +758,15 @@ export function DeployModal({
                 >
                   {chatSuccess
                     ? chatExists
-                      ? 'Updated'
-                      : 'Launched'
+                      ? tI18n('updated')
+                      : tI18n('launched')
                     : chatSubmitting
                       ? chatExists
                         ? 'Updating...'
                         : 'Launching...'
                       : chatExists
-                        ? 'Update'
-                        : 'Launch Chat'}
+                        ? tI18n('update')
+                        : tI18n('launch_chat')}
                 </Button>
               </div>
             </ModalFooter>
@@ -795,7 +796,7 @@ export function DeployModal({
                         onClick={handleMcpToolFormSubmit}
                         disabled={mcpToolSubmitting || !mcpToolCanSave}
                       >
-                        {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
+                        {mcpToolSubmitting ? 'Saving...' : tI18n('save_tool')}
                       </Button>
                     </span>
                   </Tooltip.Trigger>
@@ -811,7 +812,7 @@ export function DeployModal({
               {hasA2aAgent ? (
                 isA2aPublished ? (
                   <Badge variant={a2aNeedsRepublish ? 'amber' : 'green'} size='lg' dot>
-                    {a2aNeedsRepublish ? 'Update deployment' : 'Live'}
+                    {a2aNeedsRepublish ? tI18n('update_deployment') : tI18n('live')}
                   </Badge>
                 ) : (
                   <Badge variant='red' size='lg' dot>
@@ -829,7 +830,7 @@ export function DeployModal({
                     onClick={handleA2aPublishNew}
                     disabled={a2aSubmitting || !a2aCanSave}
                   >
-                    {a2aSubmitting ? 'Publishing...' : 'Publish Agent'}
+                    {a2aSubmitting ? 'Publishing...' : tI18n('publish_agent')}
                   </Button>
                 )}
 
@@ -849,7 +850,7 @@ export function DeployModal({
                       onClick={handleA2aUpdateRepublish}
                       disabled={a2aSubmitting || !a2aCanSave || !a2aNeedsRepublish}
                     >
-                      {a2aSubmitting ? 'Updating...' : 'Update'}
+                      {a2aSubmitting ? 'Updating...' : tI18n('update')}
                     </Button>
                   </>
                 )}
@@ -870,7 +871,7 @@ export function DeployModal({
                       onClick={handleA2aPublish}
                       disabled={a2aSubmitting || !a2aCanSave}
                     >
-                      {a2aSubmitting ? 'Publishing...' : 'Publish'}
+                      {a2aSubmitting ? 'Publishing...' : tI18n('publish')}
                     </Button>
                   </>
                 )}
@@ -885,7 +886,7 @@ export function DeployModal({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
-        srTitle='Undeploy API'
+        srTitle={tI18n('undeploy_api')}
         title={t('undeploy_api')}
         text={[
           'Are you sure you want to undeploy this workflow? ',
@@ -905,7 +906,7 @@ export function DeployModal({
       <ChipConfirmModal
         open={showA2aDeleteConfirm}
         onOpenChange={setShowA2aDeleteConfirm}
-        srTitle='Delete A2A Agent'
+        srTitle={tI18n('delete_a2a_agent')}
         title={t('delete_a2a_agent')}
         text={[
           'Are you sure you want to delete ',
@@ -980,6 +981,7 @@ function GeneralFooter({
   onRedeploy,
   onUndeploy,
 }: GeneralFooterProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
@@ -1013,7 +1015,7 @@ function GeneralFooter({
       </div>
       <div className='flex items-center gap-2'>
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
-          {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+          {isUndeploying ? 'Undeploying...' : tI18n('undeploy')}
         </Button>
         {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>

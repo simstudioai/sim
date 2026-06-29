@@ -3,6 +3,7 @@
 import React from 'react'
 import { Mic, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useTranslations } from 'next-intl'
 
 interface MicButtonProps {
   isListening: boolean
@@ -10,13 +11,14 @@ interface MicButtonProps {
 }
 
 export const MicButton = React.memo(function MicButton({ isListening, onToggle }: MicButtonProps) {
+  const t = useTranslations('auto')
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <button
           type='button'
           onClick={onToggle}
-          aria-label={isListening ? 'Stop listening' : 'Voice input'}
+          aria-label={isListening ? t('stop_listening') : t('voice_input')}
           className={cn(
             'flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors',
             isListening
@@ -27,7 +29,9 @@ export const MicButton = React.memo(function MicButton({ isListening, onToggle }
           <Mic className='h-[16px] w-[16px]' />
         </button>
       </Tooltip.Trigger>
-      <Tooltip.Content side='top'>{isListening ? 'Stop listening' : 'Voice input'}</Tooltip.Content>
+      <Tooltip.Content side='top'>
+        {isListening ? t('stop_listening') : t('voice_input')}
+      </Tooltip.Content>
     </Tooltip.Root>
   )
 })

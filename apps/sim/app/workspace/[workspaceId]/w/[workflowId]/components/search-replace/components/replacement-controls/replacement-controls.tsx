@@ -31,6 +31,7 @@ export function ReplacementControls({
   onReplaceActive,
   onReplaceAll,
 }: ReplacementControlsProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <div className='space-y-2'>
@@ -44,7 +45,7 @@ export function ReplacementControls({
           onChange={onReplacementChange}
           placeholder={t('choose_replacement')}
           searchable
-          searchPlaceholder='Search resources...'
+          searchPlaceholder={tI18n('search_resources')}
           emptyMessage={t('no_valid_replacements_available')}
           disabled={disabled || compatibleResourceOptions.length === 0}
         />
@@ -77,7 +78,7 @@ export function ReplacementControls({
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}
           >
-            {isApplying ? 'Replacing...' : 'Replace All'}
+            {isApplying ? 'Replacing...' : tI18n('replace_all')}
           </Button>
         </div>
       </div>

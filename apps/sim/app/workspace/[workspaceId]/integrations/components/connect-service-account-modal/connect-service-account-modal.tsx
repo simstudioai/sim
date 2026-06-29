@@ -143,6 +143,7 @@ function GoogleServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
 }: ProviderModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
@@ -261,7 +262,7 @@ function GoogleServiceAccountModal({
           label={
             uploadedFileName
               ? `Uploaded ${uploadedFileName} — click or drop to replace`
-              : 'Drag & drop a .json file, or click to browse'
+              : tI18n('drag_drop_a_json_file_or')
           }
           onChange={handleFileUpload}
         />
@@ -318,6 +319,7 @@ function AtlassianServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
 }: ProviderModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
@@ -402,11 +404,7 @@ function AtlassianServiceAccountModal({
           placeholder={t('your_team_atlassian_net')}
           autoComplete='off'
           required
-          error={
-            showDomainHint
-              ? 'Atlassian sites usually look like your-team.atlassian.net.'
-              : undefined
-          }
+          error={showDomainHint ? tI18n('atlassian_sites_usually_look_like_your') : undefined}
         />
 
         <ChipModalField

@@ -17,8 +17,8 @@
  *   bun run scripts/i18n-migrate/extract.ts <glob-or-dir> [--write] [--limit N]
  *   (dry-run by default; --write applies edits)
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
@@ -37,12 +37,98 @@ const TARGET_ATTRS = new Set([
   'emptyMessage',
   'helperText',
   'hint',
+  'subtitle',
+  'heading',
+  'subheading',
+  'message',
+  'text',
+  'caption',
+  'confirmText',
+  'cancelText',
+  'submitText',
+  'buttonText',
+  'placeholderText',
+  'emptyText',
+  'errorMessage',
+  'successMessage',
+  'noResultsMessage',
+  'loadingText',
+])
+
+/**
+ * Attributes whose string value is NEVER human-facing text (CSS, ids, routing,
+ * enum/union props, MIME, etc.). Non-whitelisted attributes are only extracted
+ * when the value is a multi-word phrase AND the name isn't in this deny-list.
+ */
+const DENY_ATTRS = new Set([
+  'className',
+  'class',
+  'id',
+  'key',
+  'href',
+  'src',
+  'srcSet',
+  'to',
+  'type',
+  'name',
+  'value',
+  'defaultValue',
+  'htmlFor',
+  'rel',
+  'target',
+  'role',
+  'slot',
+  'style',
+  'accept',
+  'autoComplete',
+  'inputMode',
+  'enterKeyHint',
+  'method',
+  'encType',
+  'form',
+  'list',
+  'pattern',
+  'dir',
+  'lang',
+  'charSet',
+  'content',
+  'property',
+  'httpEquiv',
+  'sizes',
+  'media',
+  'as',
+  'crossOrigin',
+  'referrerPolicy',
+  'color',
+  'fill',
+  'stroke',
+  'viewBox',
+  'd',
+  'points',
+  'transform',
+  'xmlns',
+  'variant',
+  'size',
+  'align',
+  'side',
+  'position',
+  'mode',
+  'status',
+  'kind',
+  'layout',
+  'orientation',
+  'direction',
+  'placement',
+  'anchor',
+  'sticky',
+  'testId',
+  'data-testid',
 ])
 
 const argv = process.argv.slice(2)
 const WRITE = argv.includes('--write')
 const limitIdx = argv.indexOf('--limit')
-const LIMIT = limitIdx >= 0 ? Number(argv[limitIdx + 1]) : Infinity
+const LIMIT = limitIdx >= 0 ? Number(argv[limitIdx + 1]) : Number.POSITIVE_INFINITY
 const targetPath = argv.find((a) => !a.startsWith('--') && a !== String(LIMIT)) || 'apps/sim/app'
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -86,6 +172,75 @@ function isTranslatableText(raw: string): boolean {
   return true
 }
 
+/**
+ * Stricter test for STRING LITERALS (attribute values + JSX-expression literals),
+ * which — unlike bare JSX text — are frequently non-UI (CSS classes, ids, routes,
+ * enum/union props, MIME types, identifiers). Multi-word phrases are almost always
+ * UI text; single tokens are only accepted when Capitalized (a label like "Cancel").
+ */
+function isUiText(raw: string): boolean {
+  const t = raw.trim()
+  if (t.length < 2 || !hasLetters(t)) return false
+  if (/^[A-Z0-9_]+$/.test(t)) return false // ALL_CAPS constant
+  if (/^https?:\/\//i.test(t)) return false // URL
+  if (/^[./#@]/.test(t)) return false // ./path, /route, #anchor, @handle
+  if (/^\$?\{/.test(t)) return false // template/placeholder fragment
+  if (/[<>]/.test(t)) return false // HTML/JSX fragment
+  if (/\s/.test(t)) return true // multi-word phrase → UI text
+  if (/^[a-z0-9]+([-_:.][a-z0-9]+)+$/i.test(t)) return false // kebab/snake/dotted identifier or css
+  if (/^[a-z][a-zA-Z0-9]*$/.test(t)) return false // single lower/camel token → enum-ish
+  if (/^[A-Z][a-zA-Z]+$/.test(t)) return true // Capitalized single word → label
+  return false
+}
+
+const AMP_AMP = ts.SyntaxKind.AmpersandAmpersandToken
+const BAR_BAR = ts.SyntaxKind.BarBarToken
+const QQ = ts.SyntaxKind.QuestionQuestionToken
+
+/**
+ * Decide whether a string literal sits in a RENDERED JSX position and, if so,
+ * whether it's an attribute value (and which attribute) or a child expression.
+ * Climbs render-transparent wrappers (parens, `? :`, `&&`, `||`, `??`) but stops
+ * at comparisons / calls / object literals so we never grab `x === 'edit'`.
+ */
+function classifyJsxString(
+  node: ts.StringLiteral
+): { kind: 'attr'; attrName: string; inExpr: boolean } | { kind: 'child' } | { kind: 'none' } {
+  // Direct attribute value: attr="..."
+  if (ts.isJsxAttribute(node.parent) && node.parent.initializer === node) {
+    return { kind: 'attr', attrName: node.parent.name.getText(), inExpr: false }
+  }
+  let prev: ts.Node = node
+  let n: ts.Node | undefined = node.parent
+  while (n) {
+    if (ts.isParenthesizedExpression(n)) {
+      prev = n
+      n = n.parent
+      continue
+    }
+    if (ts.isConditionalExpression(n) && (n.whenTrue === prev || n.whenFalse === prev)) {
+      prev = n
+      n = n.parent
+      continue
+    }
+    if (
+      ts.isBinaryExpression(n) &&
+      (n.operatorToken.kind === AMP_AMP || n.operatorToken.kind === BAR_BAR || n.operatorToken.kind === QQ)
+    ) {
+      prev = n
+      n = n.parent
+      continue
+    }
+    break
+  }
+  if (n && ts.isJsxExpression(n)) {
+    const p = n.parent
+    if (ts.isJsxElement(p) || ts.isJsxFragment(p)) return { kind: 'child' }
+    if (ts.isJsxAttribute(p)) return { kind: 'attr', attrName: p.name.getText(), inExpr: true }
+  }
+  return { kind: 'none' }
+}
+
 interface Edit {
   start: number
   end: number
@@ -97,37 +252,40 @@ interface Edit {
 function processFile(file: string): { changed: boolean; keys: Record<string, string> } {
   const src = readFileSync(file, 'utf-8')
   if (!/^['"]use client['"]/m.test(src)) return { changed: false, keys: {} } // client only
-  if (src.includes('useTranslations(')) return { changed: false, keys: {} } // already migrated
 
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const edits: Edit[] = []
   const keys: Record<string, string> = {}
   const used = new Set<string>()
 
-  // Pick a hook variable name that isn't already bound in the file (avoids the
-  // `{ toast: t }` collision). Also find where imports end (AST, not regex) so we
-  // never splice into a multi-line import.
-  let tIsTaken = false
+  // Pick a hook variable name that isn't already bound anywhere in the file. This
+  // both avoids the `{ toast: t }` collision AND makes partially-migrated files
+  // safe: rather than reuse an existing `t` that may be bound to a different
+  // namespace, we always introduce a fresh, collision-free variable bound to the
+  // `auto` namespace (a redundant second `auto` hook is harmless; a wrong-namespace
+  // reuse would silently break resolution). Also find where imports end (AST, not
+  // regex) so we never splice into a multi-line import.
+  const boundNames = new Set<string>()
   let lastImportEnd = -1
   const scan = (node: ts.Node) => {
     if (ts.isImportDeclaration(node)) lastImportEnd = Math.max(lastImportEnd, node.getEnd())
     if (
       (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 't'
+      ts.isIdentifier(node.name)
     ) {
-      tIsTaken = true
+      boundNames.add(node.name.text)
     }
-    if ((ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && node.name?.text === 't') {
-      tIsTaken = true
+    if ((ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && node.name?.text) {
+      boundNames.add(node.name.text)
     }
     ts.forEachChild(node, scan)
   }
   scan(sf)
-  const tname = tIsTaken ? 'tI18n' : 't'
+  const tname =
+    ['t', 'tI18n', 'tAuto', 'tAutoMsg', 'tAutoI18n'].find((n) => !boundNames.has(n)) || 'tAutoLabel'
 
   const makeKey = (text: string) => {
-    let base = slug(text) || 'label'
+    const base = slug(text) || 'label'
     let k = base
     let n = 2
     while (used.has(k) && keys[k] !== text) k = `${base}_${n++}`
@@ -137,7 +295,7 @@ function processFile(file: string): { changed: boolean; keys: Record<string, str
   }
 
   const visit = (node: ts.Node) => {
-    // JSX text
+    // JSX text between tags
     if (ts.isJsxText(node)) {
       const raw = node.getText(sf)
       if (isTranslatableText(raw)) {
@@ -150,19 +308,31 @@ function processFile(file: string): { changed: boolean; keys: Record<string, str
         edits.push({ start, end, replacement: `{${tname}('${key}')}`, key, text })
       }
     }
-    // Whitelisted string attributes: attr="..."
-    if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer)) {
-      const name = node.name.getText(sf)
-      const val = node.initializer.text
-      if (TARGET_ATTRS.has(name) && isTranslatableText(val)) {
+    // String literals in rendered JSX positions: attr="...", attr={cond ? 'a' : 'b'},
+    // {'text'}, {cond && 'text'}, {cond ? 'a' : 'b'}.
+    if (ts.isStringLiteral(node)) {
+      const cls = classifyJsxString(node)
+      const val = node.text
+      let ok = false
+      let inExpr = false
+      if (cls.kind === 'child') {
+        // A string literal child always sits inside an existing `{…}` expression
+        // (`{'x'}`, `{cond ? 'a' : 'b'}`), so the replacement must be braceless.
+        ok = isUiText(val)
+        inExpr = true
+      } else if (cls.kind === 'attr') {
+        inExpr = cls.inExpr
+        if (!DENY_ATTRS.has(cls.attrName)) {
+          // Whitelisted attrs accept single Capitalized labels; others need a phrase.
+          ok = TARGET_ATTRS.has(cls.attrName)
+            ? isUiText(val)
+            : isUiText(val) && /\s/.test(val.trim())
+        }
+      }
+      if (ok) {
         const key = makeKey(val)
-        edits.push({
-          start: node.initializer.getStart(sf),
-          end: node.initializer.getEnd(),
-          replacement: `{${tname}('${key}')}`,
-          key,
-          text: val,
-        })
+        const replacement = inExpr ? `${tname}('${key}')` : `{${tname}('${key}')}`
+        edits.push({ start: node.getStart(sf), end: node.getEnd(), replacement, key, text: val })
       }
     }
     ts.forEachChild(node, visit)
@@ -179,7 +349,9 @@ function processFile(file: string): { changed: boolean; keys: Record<string, str
   // Add the next-intl import after the last COMPLETE import (AST offset on the
   // original source). The JSX edits above all sit after the imports, so they
   // never shifted any offset <= lastImportEnd — the splice point stays valid.
-  if (!/from ['"]next-intl['"]/.test(out) && lastImportEnd > 0) {
+  const hasUseTranslationsImport =
+    /import\s+(?:type\s+)?\{[^}]*\buseTranslations\b[^}]*\}\s*from\s*['"]next-intl['"]/.test(out)
+  if (!hasUseTranslationsImport && lastImportEnd > 0) {
     out = `${out.slice(0, lastImportEnd)}\nimport { useTranslations } from 'next-intl'${out.slice(lastImportEnd)}`
   }
 
@@ -220,7 +392,11 @@ function insertHooks(code: string, tname: string): string {
 
   const considerFn = (node: ts.Node | undefined) => {
     if (!node) return
-    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) {
+    if (
+      ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node) ||
+      ts.isFunctionDeclaration(node)
+    ) {
       considerBody(node.body)
     }
   }
@@ -230,7 +406,9 @@ function insertHooks(code: string, tname: string): string {
       ts.canHaveModifiers(node) &&
       ts
         .getModifiers(node)
-        ?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword || m.kind === ts.SyntaxKind.ExportKeyword)
+        ?.some(
+          (m) => m.kind === ts.SyntaxKind.DefaultKeyword || m.kind === ts.SyntaxKind.ExportKeyword
+        )
 
     // function Component() {}  /  export default function [Name]() {}
     if (ts.isFunctionDeclaration(node) && (isPascal(node.name?.getText(sf)) || isDefaultExport)) {
@@ -243,7 +421,8 @@ function insertHooks(code: string, tname: string): string {
           // direct arrow/fn, or wrapped in memo/forwardRef/observer
           if (decl.initializer && ts.isCallExpression(decl.initializer)) {
             const callee = decl.initializer.expression.getText(sf)
-            if (WRAPPERS.has(callee.split('.').pop() || '')) considerFn(decl.initializer.arguments[0])
+            if (WRAPPERS.has(callee.split('.').pop() || ''))
+              considerFn(decl.initializer.arguments[0])
           } else {
             considerFn(decl.initializer)
           }
@@ -253,7 +432,7 @@ function insertHooks(code: string, tname: string): string {
     // export default () => {} / export default memo(() => {}) / export default <expr>
     if (ts.isExportAssignment(node)) {
       const e = node.expression
-      if (ts.isCallExpression(e) && WRAPPERS.has((e.expression.getText(sf).split('.').pop() || ''))) {
+      if (ts.isCallExpression(e) && WRAPPERS.has(e.expression.getText(sf).split('.').pop() || '')) {
         considerFn(e.arguments[0])
       } else {
         considerFn(e)
@@ -265,7 +444,8 @@ function insertHooks(code: string, tname: string): string {
 
   inserts.sort((a, b) => b - a)
   let out = code
-  for (const at of inserts) out = `${out.slice(0, at)}\n  const ${tname} = useTranslations('auto')${out.slice(at)}`
+  for (const at of inserts)
+    out = `${out.slice(0, at)}\n  const ${tname} = useTranslations('auto')${out.slice(at)}`
   return out
 }
 
@@ -295,4 +475,6 @@ if (WRITE && Object.keys(allKeys).length) {
   writeFileSync(MANIFEST, `${JSON.stringify({ ...prevManifest, ...manifest }, null, 2)}\n`, 'utf-8')
 }
 
-console.log(`\n[i18n-migrate] files=${files.length} changed=${changed} newKeys=${Object.keys(allKeys).length} write=${WRITE}`)
+console.log(
+  `\n[i18n-migrate] files=${files.length} changed=${changed} newKeys=${Object.keys(allKeys).length} write=${WRITE}`
+)

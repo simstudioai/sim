@@ -62,6 +62,7 @@ export function ShareModal({
   fileName,
   initialShare,
 }: ShareModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data: share, isFetched } = useFileShare(workspaceId, fileId, { enabled: open })
   const { config: permissionConfig } = usePermissionConfig()
@@ -225,14 +226,14 @@ export function ShareModal({
             title={t('password')}
             hint={
               saved?.hasPassword
-                ? 'Leave blank to keep the current password.'
-                : 'Anyone with the link must enter this password.'
+                ? tI18n('leave_blank_to_keep_the_current')
+                : tI18n('anyone_with_the_link_must_enter')
             }
           >
             <GeneratedPasswordInput
               value={draftPassword}
               onChange={setDraftPassword}
-              placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
+              placeholder={saved?.hasPassword ? '••••••••' : tI18n('enter_a_password')}
             />
           </ChipModalField>
         ) : null}
@@ -247,12 +248,17 @@ export function ShareModal({
               onAdd={addEmail}
               onRemove={removeEmail}
               placeholder={t('enter_emails_or_domains')}
-              placeholderWithTags='Add email'
+              placeholderWithTags={tI18n('add_email')}
             />
           </ChipModalField>
         ) : null}
         {effectiveMode !== 'private' && shareUrl ? (
-          <ChipModalField type='copy' title={t('link')} value={shareUrl} copyLabel='Copy link' />
+          <ChipModalField
+            type='copy'
+            title={t('link')}
+            value={shareUrl}
+            copyLabel={tI18n('copy_link')}
+          />
         ) : null}
       </ChipModalBody>
       <ChipModalFooter

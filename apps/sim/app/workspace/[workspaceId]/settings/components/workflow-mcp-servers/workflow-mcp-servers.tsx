@@ -62,6 +62,7 @@ interface ServerDetailViewProps {
 type McpClientType = 'sim' | 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
 
 function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
@@ -454,7 +455,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                                 {tool.toolName}
                               </span>
                               <p className='truncate text-[12px] text-[var(--text-muted)]'>
-                                {tool.toolDescription || 'No description'}
+                                {tool.toolDescription || tI18n('no_description')}
                               </p>
                             </div>
                             <div className='flex flex-shrink-0 items-center gap-1'>
@@ -506,7 +507,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                           {t('access')}
                         </span>
                         <p className='text-[var(--text-secondary)] text-base'>
-                          {server.isPublic ? 'Public' : 'API Key'}
+                          {server.isPublic ? tI18n('public') : tI18n('api_key')}
                         </p>
                       </div>
                     </div>
@@ -601,7 +602,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                           </Button>
                           {addToWorkspaceMutation.isError && (
                             <p className='text-[var(--text-error)] text-xs'>
-                              {addToWorkspaceMutation.error?.message || 'Failed to add server'}
+                              {addToWorkspaceMutation.error?.message ||
+                                tI18n('failed_to_add_server')}
                             </p>
                           )}
                         </div>
@@ -669,7 +671,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       <ChipConfirmModal
         open={!!toolToDelete}
         onOpenChange={(open) => !open && setToolToDelete(null)}
-        srTitle='Remove Workflow'
+        srTitle={tI18n('remove_workflow')}
         title={t('remove_workflow')}
         text={[
           'Are you sure you want to remove ',
@@ -693,7 +695,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             setEditingParameterDescriptions({})
           }
         }}
-        srTitle={toolToView?.toolName ?? 'Edit Tool'}
+        srTitle={toolToView?.toolName ?? tI18n('edit_tool')}
       >
         <ChipModalHeader onClose={() => setToolToView(null)}>
           {toolToView?.toolName}
@@ -776,7 +778,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             setSelectedWorkflowId(null)
           }
         }}
-        srTitle='Add Workflow'
+        srTitle={tI18n('add_workflow')}
       >
         <ChipModalHeader
           onClose={() => {
@@ -797,7 +799,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               onChange={(value: string) => setSelectedWorkflowId(value)}
               placeholder={t('select_a_workflow')}
               searchable
-              searchPlaceholder='Search workflows...'
+              searchPlaceholder={tI18n('search_workflows')}
               disabled={addToolMutation.isPending}
               fullWidth
               dropdownWidth='trigger'
@@ -807,7 +809,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </ChipModalField>
           <ChipModalError>
             {addToolMutation.isError
-              ? addToolMutation.error?.message || 'Failed to add workflow'
+              ? addToolMutation.error?.message || tI18n('failed_to_add_workflow')
               : null}
           </ChipModalError>
         </ChipModalBody>
@@ -831,7 +833,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             setShowEditServer(false)
           }
         }}
-        srTitle='Edit Server'
+        srTitle={tI18n('edit_server')}
       >
         <ChipModalHeader onClose={() => setShowEditServer(false)}>
           {t('edit_server')}
@@ -864,8 +866,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               </ButtonGroup>
               <p className='text-[var(--text-muted)] text-xs'>
                 {editServerIsPublic
-                  ? 'Anyone with the URL can call this server without authentication'
-                  : 'Requests must include your Sim API key in the X-API-Key header'}
+                  ? tI18n('anyone_with_the_url_can_call')
+                  : tI18n('requests_must_include_your_sim_api')}
               </p>
             </div>
           </ChipModalField>
@@ -903,6 +905,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
  * Allows users to create and manage MCP servers that expose workflows as tools.
  */
 export function WorkflowMcpServers() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -1057,7 +1060,7 @@ export function WorkflowMcpServers() {
       <ChipConfirmModal
         open={!!serverToDelete}
         onOpenChange={(open) => !open && setServerToDelete(null)}
-        srTitle='Delete MCP Server'
+        srTitle={tI18n('delete_mcp_server')}
         title={t('delete_mcp_server')}
         text={[
           'Are you sure you want to delete ',

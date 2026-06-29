@@ -40,6 +40,7 @@ export function CreateWorkflowMcpServerModal({
   workflowOptions,
   isLoadingWorkflows = false,
 }: CreateWorkflowMcpServerModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const createServerMutation = useCreateWorkflowMcpServer()
 
@@ -75,7 +76,7 @@ export function CreateWorkflowMcpServerModal({
   const showWorkflows = workflowOptions !== undefined
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Add New MCP Server'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={tI18n('add_new_mcp_server')}>
       <ChipModalHeader onClose={() => onOpenChange(false)}>
         {t('add_new_mcp_server')}
       </ChipModalHeader>
@@ -104,7 +105,7 @@ export function CreateWorkflowMcpServerModal({
               onMultiSelectChange={setSelectedWorkflowIds}
               placeholder={t('select_workflows')}
               searchable
-              searchPlaceholder='Search workflows...'
+              searchPlaceholder={tI18n('search_workflows')}
               disabled={createServerMutation.isPending}
               fullWidth
               dropdownWidth='trigger'

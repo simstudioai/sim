@@ -23,6 +23,7 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function FilesLoading() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
@@ -30,7 +31,7 @@ export default function FilesLoading() {
       title={t('files')}
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder='Search files...'
+      searchPlaceholder={tI18n('search_files')}
       hasSort
       hasFilter
     />

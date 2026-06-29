@@ -359,6 +359,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -1440,7 +1441,9 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                     'text-[var(--text-muted)] text-small'
                                   )}
                                 >
-                                  {chats.length > visibleChatCount ? 'See more' : 'See less'}
+                                  {chats.length > visibleChatCount
+                                    ? tI18n('see_more')
+                                    : tI18n('see_less')}
                                 </button>
                               )}
                             </>
@@ -1507,14 +1510,16 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                                   disabled={!canEdit || isImporting}
                                 >
                                   <Upload />
-                                  {isImporting ? 'Importing...' : 'Import workflow'}
+                                  {isImporting ? 'Importing...' : tI18n('import_workflow')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onSelect={handleCreateFolder}
                                   disabled={!canEdit || isCreatingFolder}
                                 >
                                   <FolderPlus />
-                                  {isCreatingFolder ? 'Creating folder...' : 'Create folder'}
+                                  {isCreatingFolder
+                                    ? tI18n('creating_folder')
+                                    : tI18n('create_folder')}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1729,7 +1734,7 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           role={isCollapsed ? 'button' : 'separator'}
           tabIndex={0}
           aria-orientation={isCollapsed ? undefined : 'vertical'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
+          aria-label={isCollapsed ? tI18n('expand_sidebar') : tI18n('resize_sidebar')}
         />
       </div>
 

@@ -32,6 +32,7 @@ export function TaskDeleteDialog({
   onDeleteOccurrence,
   onDeleteSeries,
 }: TaskDeleteDialogProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   if (task && !task.recurring) {
     return (
@@ -41,7 +42,7 @@ export function TaskDeleteDialog({
           if (!open) onClose()
         }}
         title={t('delete_scheduled_task')}
-        text='This task will be removed from the calendar and will not run.'
+        text={tI18n('this_task_will_be_removed_from')}
         confirm={{
           label: 'Delete',
           onClick: () => {
@@ -60,7 +61,7 @@ export function TaskDeleteDialog({
         if (!open) onClose()
       }}
       size='sm'
-      srTitle='Delete recurring task'
+      srTitle={tI18n('delete_recurring_task')}
     >
       {task && (
         <>

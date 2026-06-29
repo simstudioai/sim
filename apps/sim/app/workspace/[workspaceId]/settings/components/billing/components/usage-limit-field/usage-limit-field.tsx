@@ -41,6 +41,7 @@ export function UsageLimitField({
   context,
   organizationId,
 }: UsageLimitFieldProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { mutate: saveUserLimit } = useUpdateUsageLimit()
   const { mutate: saveOrgLimit } = useUpdateOrganizationUsageLimit()
@@ -117,9 +118,7 @@ export function UsageLimitField({
       label={t('usage_limit')}
       headerAccessory={
         <Info side='top' className='text-[var(--text-muted)]'>
-          {
-            "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond."
-          }
+          {tI18n('max_usage_to_consume_per_month')}
         </Info>
       }
     >
@@ -131,13 +130,13 @@ export function UsageLimitField({
         onChange={(e) => setDraft(e.target.value)}
         placeholder={
           currentLimit == null
-            ? 'Enter monthly usage limit'
+            ? tI18n('enter_monthly_usage_limit')
             : currentLimit >= ON_DEMAND_UNLIMITED
-              ? 'No Usage Limit'
+              ? tI18n('no_usage_limit')
               : String(dollarsToCredits(currentLimit))
         }
         disabled={!canEdit}
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+        inputClassName={tI18n('appearance_textfield_webkit_inner_spin_button')}
       />
     </SettingsSection>
   )

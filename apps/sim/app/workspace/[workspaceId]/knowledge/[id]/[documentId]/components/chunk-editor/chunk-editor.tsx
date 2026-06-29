@@ -50,6 +50,7 @@ export function ChunkEditor({
   saveRef,
   onCreated,
 }: ChunkEditorProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const tokenizedScrollRef = useRef<HTMLDivElement>(null)
@@ -240,12 +241,12 @@ export function ChunkEditor({
             onChange={(e) => setEditedContent(e.target.value)}
             placeholder={
               isCreateMode
-                ? 'Enter the content for this chunk...'
+                ? tI18n('enter_the_content_for_this_chunk')
                 : canEdit
-                  ? 'Enter chunk content...'
+                  ? tI18n('enter_chunk_content')
                   : isConnectorDocument
-                    ? 'This chunk is synced from a connector and cannot be edited'
-                    : 'Read-only view'
+                    ? tI18n('this_chunk_is_synced_from_a')
+                    : tI18n('read_only_view')
             }
             className='min-h-0 flex-1 resize-none border-0 bg-transparent p-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}

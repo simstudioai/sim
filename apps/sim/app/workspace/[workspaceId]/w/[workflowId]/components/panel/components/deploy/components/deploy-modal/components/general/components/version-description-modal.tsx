@@ -51,6 +51,7 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -126,7 +127,7 @@ export function VersionDescriptionModal({
       <ChipModal
         open={open}
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
-        srTitle='Version Description'
+        srTitle={tI18n('version_description')}
       >
         <ChipModalHeader onClose={() => handleCloseAttempt()}>
           {t('version_description')}
@@ -136,7 +137,7 @@ export function VersionDescriptionModal({
             type='custom'
             title={
               <span>
-                {currentDescription ? 'Edit the' : 'Add a'} {t('description_for')}{' '}
+                {currentDescription ? tI18n('edit_the') : tI18n('add_a')} {t('description_for')}{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
@@ -178,10 +179,10 @@ export function VersionDescriptionModal({
       <ChipConfirmModal
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
-        srTitle='Unsaved Changes'
+        srTitle={tI18n('unsaved_changes')}
         title={t('unsaved_changes')}
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
+        text={tI18n('you_have_unsaved_changes_are_you')}
+        dismissLabel={tI18n('keep_editing')}
         confirm={{
           label: 'Discard Changes',
           onClick: handleDiscardChanges,

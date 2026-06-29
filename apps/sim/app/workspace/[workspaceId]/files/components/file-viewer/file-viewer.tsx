@@ -401,6 +401,7 @@ const UnsupportedPreview = memo(function UnsupportedPreview({
 }: {
   file: WorkspaceFileRecord
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const ext = getFileExtension(file.name)
 
@@ -408,7 +409,7 @@ const UnsupportedPreview = memo(function UnsupportedPreview({
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
       <p className='font-medium text-[14px] text-[var(--text-primary)]'>
         {t('preview_not_available')}
-        {ext ? ` for .${ext} files` : ' for this file'}
+        {ext ? ` for .${ext} files` : tI18n('for_this_file')}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>{t('use_the_download_button_to_view')}</p>
     </div>

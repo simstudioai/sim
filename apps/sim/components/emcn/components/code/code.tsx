@@ -14,6 +14,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import './code.css'
+import { useTranslations } from 'next-intl'
 
 /**
  * Shape of the lazily-loaded Prism module (`./prism`), narrowed to the two
@@ -411,12 +412,13 @@ interface CollapseButtonProps {
  * Rotates chevron based on collapse state.
  */
 const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: CollapseButtonProps) {
+  const t = useTranslations('auto')
   return (
     <button
       type='button'
       onClick={onClick}
       className='relative flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] before:absolute before:inset-[-10px] before:content-[""] hover-hover:text-[var(--text-secondary)]'
-      aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+      aria-label={isCollapsed ? t('expand') : t('collapse')}
     >
       <ChevronRight
         className={cn(

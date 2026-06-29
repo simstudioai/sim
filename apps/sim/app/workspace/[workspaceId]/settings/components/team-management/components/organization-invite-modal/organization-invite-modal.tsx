@@ -57,6 +57,7 @@ export function OrganizationInviteModal({
   externalEmails = [],
   pendingEmails = [],
 }: OrganizationInviteModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
@@ -185,7 +186,7 @@ export function OrganizationInviteModal({
     <ChipModal
       open={open}
       onOpenChange={handleOpenChange}
-      srTitle='Invite teammates to organization'
+      srTitle={tI18n('invite_teammates_to_organization')}
     >
       <ChipModalHeader onClose={() => handleOpenChange(false)}>
         {t('invite_teammates')}
@@ -207,10 +208,10 @@ export function OrganizationInviteModal({
             value={selectedWorkspaceIds}
             onChange={setSelectedWorkspaceIds}
             options={workspaceOptions}
-            allLabel='Select workspaces'
+            allLabel={tI18n('select_workspaces')}
             showAllOption={false}
             searchable
-            searchPlaceholder='Search workspaces...'
+            searchPlaceholder={tI18n('search_workspaces')}
             fullWidth
             flush
             disabled={isSubmitting || workspaceOptions.length === 0}

@@ -62,6 +62,7 @@ function SkillSection({ label, children }: SkillSectionProps) {
 }
 
 export function Skills() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -139,7 +140,7 @@ export function Skills() {
       <IntegrationTabsHeader active='skills' workspaceId={workspaceId} rightSlot={addButton} />
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
-          <ShowcaseWithExplore prompt='Explain the skills in Sim and which ones I should add to my agents.' />
+          <ShowcaseWithExplore prompt={tI18n('explain_the_skills_in_sim_and')} />
           <div className='flex items-center gap-2'>
             <ChipInput
               icon={Search}
@@ -196,7 +197,7 @@ export function Skills() {
       <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        srTitle='Delete Skill'
+        srTitle={tI18n('delete_skill')}
         title={t('delete_skill')}
         text={[
           'Are you sure you want to delete ',

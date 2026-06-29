@@ -87,6 +87,7 @@ export default function LoginPage({
   microsoftAvailable: boolean
   isProduction: boolean
 }) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -429,7 +430,7 @@ export default function LoginPage({
                   type='button'
                   onClick={() => setShowPassword(!showPassword)}
                   className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? tI18n('hide_password') : tI18n('show_password')}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -463,7 +464,7 @@ export default function LoginPage({
                 {t('signing_in')}
               </span>
             ) : (
-              'Sign in'
+              tI18n('sign_in')
             )}
           </button>
         </form>
@@ -536,7 +537,7 @@ export default function LoginPage({
       <ChipModal
         open={forgotPasswordOpen}
         onOpenChange={setForgotPasswordOpen}
-        srTitle='Reset Password'
+        srTitle={tI18n('reset_password')}
       >
         <ChipModalHeader onClose={() => setForgotPasswordOpen(false)}>
           {t('reset_password')}

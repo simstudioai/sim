@@ -93,6 +93,7 @@ export function DocumentTagsModal({
   documentData,
   onDocumentUpdate,
 }: DocumentTagsModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
@@ -384,7 +385,7 @@ export function DocumentTagsModal({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={handleClose} srTitle='Document Tags' size='sm'>
+    <ChipModal open={open} onOpenChange={handleClose} srTitle={tI18n('document_tags')} size='sm'>
       <ChipModalHeader onClose={() => handleClose(false)}>
         <div className='flex items-center justify-between'>
           <span>{t('document_tags')}</span>
@@ -734,7 +735,7 @@ export function DocumentTagsModal({
                         ))
                     }
                   >
-                    {isSavingTag ? 'Creating...' : 'Create Tag'}
+                    {isSavingTag ? 'Creating...' : tI18n('create_tag')}
                   </Button>
                 </div>
               </div>

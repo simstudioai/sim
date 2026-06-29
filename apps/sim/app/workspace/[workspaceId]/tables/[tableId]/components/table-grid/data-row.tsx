@@ -19,6 +19,7 @@ import {
 } from './constants'
 import type { DisplayColumn } from './types'
 import { type NormalizedSelection, resolveCellExec } from './utils'
+import { useTranslations } from 'next-intl'
 
 export interface DataRowProps {
   row: TableRowType
@@ -180,6 +181,7 @@ export const DataRow = React.memo(function DataRow({
   pinnedOffsets,
   lastPinnedColKey,
 }: DataRowProps) {
+  const t = useTranslations('auto')
   const sel = normalizedSelection
   /**
    * Per-row "Waiting on …" labels keyed by group id. A group has labels iff
@@ -271,8 +273,8 @@ export const DataRow = React.memo(function DataRow({
               type='button'
               variant='ghost'
               size='sm'
-              aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
+              aria-label={runningCount > 0 ? `Stop ${runningCount} running` : t('run_row')}
+              title={runningCount > 0 ? `Stop ${runningCount} running` : t('run_row')}
               className='size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {

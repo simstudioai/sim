@@ -21,6 +21,7 @@ interface CourseProgressProps {
 }
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const completedIdsSnapshot = useSyncExternalStore(
     subscribeToCompletedLessons,
@@ -133,9 +134,9 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     <p className='text-[#666] text-[13px]'>
                       {session
                         ? error
-                          ? 'Something went wrong. Try again.'
-                          : 'Claim your certificate of completion.'
-                        : 'Sign in to claim your certificate.'}
+                          ? tI18n('something_went_wrong_try_again')
+                          : tI18n('claim_your_certificate_of_completion')
+                        : tI18n('sign_in_to_claim_your_certificate')}
                     </p>
                   </div>
                 </div>
@@ -152,7 +153,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     className='flex items-center gap-2 rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white disabled:opacity-50'
                   >
                     {isPending && <Loader className='size-3.5' animate />}
-                    {isPending ? 'Issuing…' : 'Get certificate'}
+                    {isPending ? 'Issuing…' : tI18n('get_certificate')}
                   </button>
                 ) : (
                   <Link

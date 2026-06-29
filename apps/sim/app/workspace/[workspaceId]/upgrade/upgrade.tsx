@@ -51,6 +51,7 @@ export interface UpgradeProps {
  * Billing settings page.
  */
 export function Upgrade({ workspaceId }: UpgradeProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const state = useUpgradeState()
   const router = useRouter()
@@ -181,7 +182,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   price={`$${proPrice}`}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
-                  segmentLabel='For growing teams'
+                  segmentLabel={tI18n('for_growing_teams')}
                   credits={PRO_PLAN_CREDITS.credits}
                   refresh={PRO_PLAN_CREDITS.refresh}
                   features={PRO_PLAN_FEATURES}
@@ -197,7 +198,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   price={`$${maxPrice}`}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
-                  segmentLabel='For scaling businesses'
+                  segmentLabel={tI18n('for_scaling_businesses')}
                   credits={MAX_PLAN_CREDITS.credits}
                   refresh={MAX_PLAN_CREDITS.refresh}
                   features={MAX_PLAN_FEATURES}
@@ -211,7 +212,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                 <UpgradePlanCard
                   name='Enterprise'
                   price='Custom'
-                  segmentLabel='For large organizations'
+                  segmentLabel={tI18n('for_large_organizations')}
                   credits={ENTERPRISE_PLAN_CREDITS.credits}
                   refresh={ENTERPRISE_PLAN_CREDITS.refresh}
                   features={ENTERPRISE_PLAN_FEATURES}
@@ -228,7 +229,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   onClick={() => setShowAllFeatures((prev) => !prev)}
                   aria-expanded={showAllFeatures}
                 >
-                  {showAllFeatures ? 'Hide all features' : 'Show all features'}
+                  {showAllFeatures ? tI18n('hide_all_features') : tI18n('show_all_features')}
                 </Chip>
 
                 {showAllFeatures && (

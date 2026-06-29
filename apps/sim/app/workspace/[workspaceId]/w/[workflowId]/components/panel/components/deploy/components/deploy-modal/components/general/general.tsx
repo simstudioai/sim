@@ -60,6 +60,7 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
@@ -202,7 +203,7 @@ export function GeneralDeploy({
             <Label className='block truncate pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
+                : tI18n('live_workflow')}
             </Label>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
               <ButtonGroup
@@ -282,7 +283,7 @@ export function GeneralDeploy({
       <ChipConfirmModal
         open={showLoadDialog}
         onOpenChange={setShowLoadDialog}
-        srTitle='Load Deployment'
+        srTitle={tI18n('load_deployment')}
         title={t('load_deployment')}
         text={[
           'Are you sure you want to load ',
@@ -308,7 +309,7 @@ export function GeneralDeploy({
       <ChipConfirmModal
         open={showPromoteDialog}
         onOpenChange={setShowPromoteDialog}
-        srTitle='Promote to live'
+        srTitle={tI18n('promote_to_live')}
         title={t('promote_to_live')}
         text={[
           'Are you sure you want to promote ',
@@ -334,7 +335,7 @@ export function GeneralDeploy({
             <ModalHeader>
               {previewMode === 'selected' && selectedVersionInfo
                 ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
+                : tI18n('live_workflow')}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
               <ModalDescription className='sr-only'>

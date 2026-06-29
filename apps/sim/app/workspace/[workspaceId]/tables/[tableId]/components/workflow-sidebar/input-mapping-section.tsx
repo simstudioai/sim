@@ -29,6 +29,7 @@ export function InputMappingSection({
   value,
   onChange,
 }: InputMappingSectionProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const namedFields = inputFields.filter((f): f is InputFormatField & { name: string } =>
     Boolean(f.name?.trim())
@@ -66,7 +67,7 @@ export function InputMappingSection({
               <Label className='text-small'>{t('column')}</Label>
               <ChipCombobox
                 searchable
-                searchPlaceholder='Search columns…'
+                searchPlaceholder={tI18n('search_columns')}
                 className='w-full'
                 dropdownWidth='trigger'
                 maxHeight={240}

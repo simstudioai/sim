@@ -1,0 +1,20 @@
+{
+  "writing": "Record file.",
+  "spawning": "Research creation.",
+  "consider": "Considering chances.",
+  "teamana": "Team analysis.",
+  "stopped": "Stopped by user.",
+  "runwas": "Launch cancelled.",
+  "goodbye": "Goodbye world.",
+  "noworkf": "Workflow identifier is missing.",
+  "upgrade": "Update",
+  "blockis": "Block is blocked.",
+  "blockna": "Block name cannot be empty.",
+  "servera": "Server A: Search",
+  "launchp": "Launch Plan",
+  "taskhis": "History of Tasks",
+  "alphawo": "Alpha Workflows",
+  "bravowo": "Braavo Workflows",
+  "createda": "Created at",
+  "updateda": "Updated in"
+}

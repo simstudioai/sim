@@ -37,6 +37,7 @@ interface ApiInfoModalProps {
 }
 
 export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -209,7 +210,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       <ChipModal
         open={open}
         onOpenChange={(openState) => !openState && handleCloseAttempt()}
-        srTitle='Edit API Info'
+        srTitle={tI18n('edit_api_info')}
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>{t('edit_api_info')}</ChipModalHeader>
         <ChipModalBody>
@@ -233,8 +234,8 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
               </ButtonGroup>
               <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                 {accessMode === 'public'
-                  ? 'Anyone can call this API without authentication. You will be billed for all usage.'
-                  : 'Requires a valid API key to call this endpoint.'}
+                  ? tI18n('anyone_can_call_this_api_without')
+                  : tI18n('requires_a_valid_api_key_to')}
               </p>
             </ChipModalField>
           )}
@@ -289,10 +290,10 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       <ChipConfirmModal
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
-        srTitle='Unsaved Changes'
+        srTitle={tI18n('unsaved_changes')}
         title={t('unsaved_changes')}
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
+        text={tI18n('you_have_unsaved_changes_are_you')}
+        dismissLabel={tI18n('keep_editing')}
         confirm={{
           label: 'Discard Changes',
           onClick: handleDiscardChanges,

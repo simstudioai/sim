@@ -82,6 +82,7 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
     usePanelEditorStore(
@@ -437,10 +438,10 @@ export function Editor() {
                 <Tooltip.Content side='top'>
                   <p>
                     {isAncestorLocked
-                      ? 'Ancestor container is locked'
+                      ? tI18n('ancestor_container_is_locked')
                       : userPermissions.canAdmin && currentBlock.locked
-                        ? 'Unlock block'
-                        : 'Block is locked'}
+                        ? tI18n('unlock_block')
+                        : tI18n('block_is_locked')}
                   </p>
                 </Tooltip.Content>
               </Tooltip.Root>
@@ -454,7 +455,7 @@ export function Editor() {
                     className='p-0'
                     onClick={isRenaming ? handleSaveRename : handleStartRename}
                     disabled={!canEditBlock}
-                    aria-label={isRenaming ? 'Save name' : 'Rename block'}
+                    aria-label={isRenaming ? tI18n('save_name') : tI18n('rename_block')}
                   >
                     {isRenaming ? (
                       <Check className='size-[14px]' />
@@ -464,7 +465,7 @@ export function Editor() {
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
-                  <p>{isRenaming ? 'Save name' : 'Rename block'}</p>
+                  <p>{isRenaming ? tI18n('save_name') : tI18n('rename_block')}</p>
                 </Tooltip.Content>
               </Tooltip.Root>
             )}
@@ -660,8 +661,8 @@ export function Editor() {
                           className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
-                            ? 'Hide additional fields'
-                            : 'Show additional fields'}
+                            ? tI18n('hide_additional_fields')
+                            : tI18n('show_additional_fields')}
                           <ChevronDown
                             className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                           />
@@ -745,7 +746,9 @@ export function Editor() {
                   role='button'
                   tabIndex={0}
                   aria-label={
-                    isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'
+                    isConnectionsAtMinHeight
+                      ? tI18n('expand_connections')
+                      : tI18n('collapse_connections')
                   }
                 >
                   <ChevronUp

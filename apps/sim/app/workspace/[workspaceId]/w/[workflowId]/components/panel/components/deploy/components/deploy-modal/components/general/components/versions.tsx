@@ -56,6 +56,7 @@ export function Versions({
   onPromoteToLive,
   onLoadDeployment,
 }: VersionsProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -237,7 +238,7 @@ export function Versions({
                       'size-[6px] shrink-0 rounded-xs',
                       v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
                     )}
-                    title={v.isActive ? 'Live' : 'Inactive'}
+                    title={v.isActive ? tI18n('live') : tI18n('inactive')}
                   />
                   {editingVersion === v.version ? (
                     <Input
@@ -286,7 +287,7 @@ export function Versions({
 
               <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
                 <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
-                  {v.deployedBy || 'Unknown'}
+                  {v.deployedBy || tI18n('unknown')}
                 </span>
               </div>
 
@@ -349,7 +350,9 @@ export function Versions({
                     </PopoverItem>
                     <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
                       <FileText className='size-3' />
-                      <span>{v.description ? 'Edit description' : 'Add description'}</span>
+                      <span>
+                        {v.description ? tI18n('edit_description') : tI18n('add_description')}
+                      </span>
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>

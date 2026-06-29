@@ -265,6 +265,7 @@ interface StepCreateProps {
 }
 
 function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [copied, setCopied] = useState<boolean>(false)
   const [copyFailed, setCopyFailed] = useState<boolean>(false)
@@ -298,7 +299,7 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
             )}
           >
             <span className='font-medium text-[var(--text-secondary)] text-sm'>
-              {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
+              {canCopy ? tI18n('click_to_copy_manifest') : tI18n('deploy_once_to_lock_in_the')}
             </span>
             {canCopy &&
               (copied ? (

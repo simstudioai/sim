@@ -27,6 +27,7 @@ import {
 } from '@/hooks/queries/inbox'
 
 export function InboxSettingsTab() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -125,7 +126,7 @@ export function InboxSettingsTab() {
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
-                      <p>{copiedAddress ? 'Copied!' : 'Copy'}</p>
+                      <p>{copiedAddress ? 'Copied!' : tI18n('copy')}</p>
                     </Tooltip.Content>
                   </Tooltip.Root>
                   <Tooltip.Root>
@@ -152,7 +153,7 @@ export function InboxSettingsTab() {
               <ChipInput
                 value={config.address}
                 readOnly
-                inputClassName='cursor-default font-mono text-small'
+                inputClassName={tI18n('cursor_default_font_mono_text_small')}
               />
             </div>
           </SettingsSection>
@@ -238,7 +239,7 @@ export function InboxSettingsTab() {
       <ChipModal
         open={isAddSenderOpen}
         onOpenChange={setIsAddSenderOpen}
-        srTitle='Add allowed sender'
+        srTitle={tI18n('add_allowed_sender')}
       >
         <ChipModalHeader onClose={() => setIsAddSenderOpen(false)}>
           {t('add_allowed_sender')}
@@ -277,7 +278,7 @@ export function InboxSettingsTab() {
       <ChipModal
         open={isEditAddressOpen}
         onOpenChange={setIsEditAddressOpen}
-        srTitle='Change email address'
+        srTitle={tI18n('change_email_address')}
       >
         <ChipModalHeader onClose={() => setIsEditAddressOpen(false)}>
           {t('change_email_address')}

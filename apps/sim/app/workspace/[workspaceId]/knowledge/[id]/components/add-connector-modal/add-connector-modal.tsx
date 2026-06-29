@@ -63,6 +63,7 @@ export function AddConnectorModal({
   knowledgeBaseId,
   initialConnectorType,
 }: AddConnectorModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
@@ -225,7 +226,9 @@ export function AddConnectorModal({
       <ChipModal
         open={open}
         onOpenChange={(val) => !isCreating && onOpenChange(val)}
-        srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
+        srTitle={
+          step === 'select-type' ? tI18n('connect_source') : `Configure ${connectorConfig?.name}`
+        }
         size='md'
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
@@ -244,7 +247,7 @@ export function AddConnectorModal({
               {`Configure ${connectorConfig?.name}`}
             </span>
           ) : (
-            'Connect Source'
+            tI18n('connect_source')
           )}
         </ChipModalHeader>
 
@@ -272,7 +275,7 @@ export function AddConnectorModal({
                   {filteredEntries.length === 0 && (
                     <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
                       {CONNECTOR_ENTRIES.length === 0
-                        ? 'No connectors available.'
+                        ? tI18n('no_connectors_available')
                         : `No sources found matching "${searchTerm}"`}
                     </div>
                   )}
@@ -287,7 +290,7 @@ export function AddConnectorModal({
                   title={
                     connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
                       ? connectorConfig.auth.label
-                      : 'API Key'
+                      : tI18n('api_key')
                   }
                 >
                   <ChipInput
@@ -300,7 +303,7 @@ export function AddConnectorModal({
                     placeholder={
                       connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
                         ? connectorConfig.auth.placeholder
-                        : 'Enter API key'
+                        : tI18n('enter_api_key')
                     }
                   />
                 </ChipModalField>

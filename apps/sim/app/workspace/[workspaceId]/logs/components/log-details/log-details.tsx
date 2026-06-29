@@ -66,6 +66,7 @@ function creditLabel(credits: number, dollars: number): string {
 
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
+    const tI18n = useTranslations('auto')
     const t = useTranslations('auto')
     const contentRef = useRef<HTMLDivElement>(null)
     const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
@@ -139,7 +140,9 @@ export const WorkflowOutputSection = memo(
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                <Tooltip.Content side='top'>
+                  {copied ? tI18n('copied') : tI18n('copy')}
+                </Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -268,6 +271,7 @@ interface LogDetailsContentProps {
 }
 
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
@@ -415,15 +419,15 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 </div>
                 <div className='flex min-w-0 flex-col gap-0.5'>
                   <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
+                    {log.trigger === 'mothership' ? tI18n('job') : tI18n('workflow')}
                   </span>
                   <div className='flex min-w-0 items-center gap-1.5'>
                     <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                     <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
                       {log.trigger === 'mothership'
-                        ? log.jobTitle || 'Untitled Job'
+                        ? log.jobTitle || tI18n('untitled_job')
                         : log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : tI18n('unknown'))}
                     </span>
                   </div>
                 </div>

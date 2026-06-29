@@ -4,253 +4,54 @@
     "return_to_workspace": "Return to Workspace"
   },
   "apps/sim/app/chat/components/auth/password/password-auth.tsx": {
-    "password_required": "Password Required",
-    "this_chat_is_password_protected": "This chat is password-protected",
-    "password": "Password",
-    "enter_password": "Enter password",
-    "authenticating": "Authenticating…"
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "continue": "Continue"
   },
   "apps/sim/app/chat/components/auth/email/email-auth.tsx": {
-    "email": "Email",
-    "enter_your_email": "Enter your email",
-    "sending_code": "Sending Code…",
-    "enter_the_6_digit_code_to": "Enter the 6-digit code to verify your account. If you don't see it in your\n                      inbox, check your spam folder.",
-    "verifying": "Verifying…",
-    "didn_t_receive_a_code": "Didn't receive a code?",
-    "resend_in": "Resend in",
-    "resend": "Resend",
-    "change_email": "Change email"
+    "verify_your_email": "Verify Your Email",
+    "email_verification": "Email Verification",
+    "this_chat_requires_email_verification": "This chat requires email verification",
+    "continue": "Continue",
+    "verify_email": "Verify Email"
   },
   "apps/sim/app/chat/components/input/voice-input.tsx": {
     "start_voice_conversation": "Start voice conversation"
   },
   "apps/sim/app/chat/components/input/input.tsx": {
-    "start_voice_conversation": "Start voice conversation",
-    "chat_message_input": "Chat message input",
-    "attach_files": "Attach files",
-    "stop_generation": "Stop generation"
+    "drop_files_here": "Drop files here...",
+    "enter_a_message": "Enter a message..."
   },
   "apps/sim/app/chat/components/message-container/message-container.tsx": {
-    "how_can_i_help_you_today": "How can I help you today?",
-    "scroll_to_bottom": "Scroll to bottom"
+    "ask_me_anything": "Ask me anything."
   },
   "apps/sim/app/chat/components/voice-interface/voice-interface.tsx": {
     "muted": "(Muted)"
   },
   "apps/sim/app/chat/components/header/header.tsx": {
-    "chat_navigation": "Chat navigation",
-    "sim_home": "Sim home",
-    "sim": "Sim"
+    "chat": "Chat"
   },
   "apps/sim/app/playground/page.tsx": {
-    "go_back": "Go back",
-    "emcn_component_playground": "EMCN Component Playground",
-    "all_emcn_ui_components_and_their": "All emcn UI components and their variants",
-    "toast": "Toast",
-    "default": "default",
-    "show": "Show",
-    "info": "info",
-    "success": "success",
-    "warning": "warning",
-    "error": "error",
-    "error_action": "error + action",
-    "success_action": "success + action",
-    "stacking": "stacking",
-    "show_3": "Show 3",
-    "dismiss_all": "Dismiss all",
-    "button": "Button",
-    "default_2": "Default",
-    "active": "active",
-    "active_2": "Active",
-    "3d": "3d",
-    "outline": "outline",
-    "outline_2": "Outline",
-    "primary": "primary",
-    "primary_2": "Primary",
-    "destructive": "destructive",
-    "destructive_2": "Destructive",
-    "secondary": "secondary",
-    "secondary_2": "Secondary",
-    "tertiary": "tertiary",
-    "tertiary_2": "Tertiary",
-    "ghost": "ghost",
-    "ghost_2": "Ghost",
-    "ghost_secondary": "ghost-secondary",
-    "ghost_secondary_2": "Ghost Secondary",
-    "disabled": "disabled",
-    "disabled_2": "Disabled",
-    "size_sm": "size sm",
-    "small": "Small",
-    "small_primary": "Small Primary",
-    "size_md": "size md",
-    "medium": "Medium",
-    "medium_primary": "Medium Primary",
-    "buttongroup": "ButtonGroup",
-    "curl": "cURL",
-    "python": "Python",
-    "javascript": "JavaScript",
-    "gap_none": "gap none",
-    "option_1": "Option 1",
-    "option_2": "Option 2",
-    "gap_sm": "gap sm",
-    "single_item": "single item",
-    "only_option": "Only Option",
-    "badge": "Badge",
-    "type": "type",
-    "type_2": "Type",
-    "green": "green",
-    "green_2": "Green",
-    "with_dot": "With Dot",
-    "red": "red",
-    "red_2": "Red",
-    "blue": "blue",
-    "blue_2": "Blue",
-    "blue_secondary": "blue-secondary",
-    "blue_secondary_2": "Blue Secondary",
-    "purple": "purple",
-    "purple_2": "Purple",
-    "orange": "orange",
-    "orange_2": "Orange",
-    "amber": "amber",
-    "amber_2": "Amber",
-    "teal": "teal",
-    "teal_2": "Teal",
-    "cyan": "cyan",
-    "cyan_2": "Cyan",
-    "gray": "gray",
-    "gray_2": "Gray",
-    "gray_secondary": "gray-secondary",
-    "gray_secondary_2": "Gray Secondary",
-    "sizes": "sizes",
-    "large": "Large",
-    "input": "Input",
-    "enter_text": "Enter text...",
-    "taginput": "TagInput",
-    "enter_emails": "Enter emails...",
-    "secondary_variant": "secondary variant",
-    "add_tags": "Add tags",
-    "disabled_input": "Disabled input",
-    "textarea": "Textarea",
-    "enter_your_message": "Enter your message...",
-    "label": "Label",
-    "label_text": "Label Text",
-    "input_with_label": "Input with label",
-    "switch": "Switch",
-    "checkbox": "Checkbox",
-    "small_14px": "Small (14px)",
-    "medium_16px": "Medium (16px)",
-    "size_lg": "size lg",
-    "large_20px": "Large (20px)",
-    "slider": "Slider",
-    "avatar": "Avatar",
-    "with_image": "with image",
-    "user": "User",
-    "status_online": "status online",
-    "status_offline": "status offline",
-    "status_busy": "status busy",
-    "status_away": "status away",
-    "all_sizes_with_status": "all sizes with status",
-    "table": "Table",
-    "name": "Name",
-    "status": "Status",
-    "role": "Role",
-    "alice": "Alice",
-    "admin": "Admin",
-    "bob": "Bob",
-    "pending": "Pending",
-    "charlie": "Charlie",
-    "with_footer": "with footer",
-    "item": "Item",
-    "price": "Price",
-    "product_a": "Product A",
-    "product_b": "Product B",
-    "total": "Total",
-    "with_caption": "with caption",
-    "a_list_of_team_members": "A list of team members",
-    "department": "Department",
-    "engineering": "Engineering",
-    "design": "Design",
-    "combobox": "Combobox",
-    "select_option": "Select option...",
-    "small_size": "Small size",
-    "searchable": "searchable",
-    "with_search": "With search",
-    "editable": "editable",
-    "type_or_select": "Type or select...",
-    "multiselect": "multiSelect",
-    "select_multiple": "Select multiple...",
-    "timepicker": "TimePicker",
-    "select_time": "Select time",
-    "no_value": "no value",
-    "select_time_2": "Select time...",
-    "chipdatepicker": "ChipDatePicker",
-    "single_date": "single date",
-    "select_date": "Select date",
-    "range_mode": "range mode",
-    "select_date_range": "Select date range",
-    "range_mode_with_time": "range mode (with time)",
-    "tooltip": "Tooltip",
-    "hover_me": "Hover me",
-    "tooltip_content": "Tooltip content",
-    "with_shortcut": "with shortcut",
-    "clear_console": "Clear console",
-    "shortcut_only": "shortcut only",
-    "save": "Save",
-    "popover": "Popover",
-    "open_popover": "Open Popover",
-    "section_title": "Section Title",
-    "item_1": "Item 1",
-    "item_2": "Item 2",
-    "active_item": "Active Item",
-    "secondary_popover": "Secondary Popover",
-    "with_search_2": "with search",
-    "searchable_popover": "Searchable Popover",
-    "search_items": "Search items...",
-    "apple": "Apple",
-    "banana": "Banana",
-    "cherry": "Cherry",
-    "date": "Date",
-    "elderberry": "Elderberry",
-    "with_folders": "with folders",
-    "folder_navigation": "Folder Navigation",
-    "root_item": "Root Item",
-    "folder_1": "Folder 1",
-    "nested_item_1": "Nested Item 1",
-    "nested_item_2": "Nested Item 2",
-    "folder_2": "Folder 2",
-    "another_nested_item": "Another Nested Item",
-    "modal": "Modal",
-    "this_is_a": "This is a",
-    "sized_modal": "sized modal.",
-    "cancel": "Cancel",
-    "with_tabs": "with tabs",
-    "modal_with_tabs": "Modal with Tabs",
-    "settings": "Settings",
-    "general": "General",
-    "advanced": "Advanced",
-    "modal_settings_with_general_and_advanced": "Modal settings with general and advanced tabs",
-    "general_settings_content": "General settings content",
-    "advanced_settings_content": "Advanced settings content",
-    "code": "Code",
-    "javascript_2": "javascript",
-    "json": "json",
-    "python_2": "python",
-    "no_gutter": "no gutter",
-    "wrap_text": "wrap text",
-    "icons": "Icons"
+    "light_mode": "Light mode",
+    "dark_mode": "Dark mode",
+    "add_another": "Add another",
+    "on": "On",
+    "off": "Off",
+    "checked": "Checked",
+    "unchecked": "Unchecked",
+    "no_date": "No date",
+    "const_longline_this_is_a_very": "const longLine = 'This is a very long line that should wrap when wrapText is enabled to demonstrate the text wrapping functionality';"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/[section]/error.tsx": {
     "something_went_wrong": "Something went wrong",
     "an_unexpected_error_occurred_please_try": "An unexpected error occurred. Please try again or refresh the page."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/secrets/[credentialId]/secret-detail.tsx": {
-    "secrets": "Secrets",
-    "share": "Share",
-    "loading": "Loading…",
-    "secret_not_found": "Secret not found.",
-    "key": "Key",
-    "value": "Value",
-    "enter_value": "Enter value"
+    "save": "Save",
+    "overridden_by_a_workspace_variable": "Overridden by a workspace variable",
+    "personal_secret": "Personal secret",
+    "workspace_secret": "Workspace secret",
+    "copy_key": "Copy key"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/inbox/inbox.tsx": {
     "sim_mailer_requires_an_active_max": "Sim Mailer requires an active Max plan",
@@ -260,389 +61,136 @@
     "email_tasks_received_by_this_workspace": "Email tasks received by this workspace."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/inbox/components/inbox-task-list/inbox-task-list.tsx": {
-    "search_tasks": "Search tasks..."
+    "no_email_tasks_yet": "No email tasks yet."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/inbox/components/inbox-enable-toggle/inbox-enable-toggle.tsx": {
     "enable_email_inbox": "Enable email inbox",
-    "allow_this_workspace_to_receive_tasks": "Allow this workspace to receive tasks via email",
-    "an_email_address_will_be_created": "An email address will be created for this workspace. Anyone in the allowed senders list\n            can email it to create tasks.",
-    "email_prefix": "Email prefix",
-    "optional_leave_blank_to_auto_generate": "Optional — leave blank to auto-generate",
-    "leave_blank_for_an_auto_generated": "Leave blank for an auto-generated address.",
-    "disable_email_inbox": "Disable email inbox",
-    "your_existing_conversations_and_task_history": "Your existing conversations and task history will be preserved."
+    "disable_email_inbox": "Disable email inbox"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/inbox/components/inbox-settings-tab/inbox-settings-tab.tsx": {
-    "sim_s_email": "Sim's email",
-    "send_emails_here_to_create_tasks": "Send emails here to create tasks.",
-    "copy_address": "Copy address",
-    "edit_address": "Edit address",
-    "edit": "Edit",
-    "allowed_senders": "Allowed senders",
-    "only_emails_from_these_addresses_can": "Only emails from these addresses can create tasks.",
-    "member": "member",
-    "remove_sender": "Remove sender",
-    "no_allowed_senders_configured": "No allowed senders configured.",
-    "add_sender": "Add sender",
+    "copy": "Copy",
+    "cursor_default_font_mono_text_small": "cursor-default font-mono text-small",
     "add_allowed_sender": "Add allowed sender",
-    "email_address": "Email address",
-    "user_example_com": "user@example.com",
-    "label": "Label",
-    "e_g_john_from_marketing": "e.g., John from Marketing",
-    "change_email_address": "Change email address",
-    "changing_your_email_address_will_create": "Changing your email address will create a new inbox.",
-    "the_old_address_will_stop_receiving": "The old address will stop receiving emails immediately.",
-    "new_email_prefix": "New email prefix",
-    "e_g_new_acme": "e.g., new-acme"
+    "change_email_address": "Change email address"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools.tsx": {
-    "add_tool": "Add Tool",
-    "click_add_tool_above_to_get": "Click \"Add Tool\" above to get started",
-    "tool_actions": "Tool actions",
-    "no_tools_found_matching": "No tools found matching \"",
+    "unnamed_tool": "Unnamed Tool",
     "delete_custom_tool": "Delete Custom Tool"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal/create-workflow-mcp-server-modal.tsx": {
     "add_new_mcp_server": "Add New MCP Server",
-    "server_name": "Server Name",
-    "e_g_my_mcp_server": "e.g., My MCP Server",
-    "description": "Description",
-    "describe_what_this_mcp_server_does": "Describe what this MCP server does (optional)",
-    "workflows": "Workflows",
-    "select_workflows": "Select workflows...",
-    "access": "Access",
-    "api_key": "API Key",
-    "public": "Public",
-    "no_authentication_required": "No authentication required"
+    "search_workflows": "Search workflows..."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers.tsx": {
-    "mcp_servers": "MCP Servers",
-    "failed_to_load_server_details": "Failed to load server details",
-    "edit_server": "Edit Server",
-    "add_workflows": "Add Workflows",
-    "all_deployed_workflows_have_been_added": "All deployed workflows have been added to this server.",
-    "workflows": "Workflows",
-    "no_workflows_added_yet_click_quot": "No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed\n                        workflow.",
-    "tool_actions": "Tool actions",
-    "deploy_a_workflow_first_to_add": "Deploy a workflow first to add it to this server.",
-    "server_name": "Server Name",
-    "transport": "Transport",
-    "streamable_http": "Streamable-HTTP",
-    "access": "Access",
-    "description": "Description",
-    "mcp_client": "MCP Client",
-    "cursor": "Cursor",
-    "claude_code": "Claude Code",
-    "claude_desktop": "Claude Desktop",
-    "vs_code": "VS Code",
-    "sim": "Sim",
-    "add_this_mcp_server_to_your": "Add this MCP server to your workspace so you can use its tools in other\n                            workflows via the MCP block.",
-    "added_to_workspace": "Added to Workspace",
-    "add_to_workspace": "Add to Workspace",
-    "configuration": "Configuration",
-    "add_to_cursor": "Add to Cursor",
-    "replace_sim_api_key_with_your": "Replace $SIM_API_KEY with your API key, or",
-    "create_one_now": "create one now",
-    "remove_workflow": "Remove Workflow",
-    "describe_what_this_tool_does": "Describe what this tool does...",
-    "parameters": "Parameters",
-    "no_inputs_configured_for_this_workflow": "No inputs configured for this workflow.",
-    "add_workflow": "Add Workflow",
-    "select_a_deployed_workflow_to_add": "Select a deployed workflow to add to this MCP server. The workflow will be available as\n            a tool.",
-    "select_workflow": "Select Workflow",
-    "select_a_workflow": "Select a workflow...",
-    "server_name_2": "Server name",
-    "e_g_my_mcp_server": "e.g., My MCP Server",
-    "describe_what_this_mcp_server_does": "Describe what this MCP server does (optional)",
-    "api_key": "API Key",
+    "no_description": "No description",
     "public": "Public",
-    "add_server": "Add Server",
-    "click_quot_add_server_quot_above": "Click &quot;Add Server&quot; above to get started",
-    "server_actions": "Server actions",
-    "no_servers_found_matching": "No servers found matching \"",
+    "api_key": "API Key",
+    "failed_to_add_server": "Failed to add server",
+    "remove_workflow": "Remove Workflow",
+    "edit_tool": "Edit Tool",
+    "add_workflow": "Add Workflow",
+    "search_workflows": "Search workflows...",
+    "failed_to_add_workflow": "Failed to add workflow",
+    "edit_server": "Edit Server",
+    "anyone_with_the_url_can_call": "Anyone with the URL can call this server without authentication",
+    "requests_must_include_your_sim_api": "Requests must include your Sim API key in the X-API-Key header",
     "delete_mcp_server": "Delete MCP Server"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/copilot/copilot.tsx": {
-    "create_api_key": "Create API Key",
-    "click_create_api_key_above_to": "Click \"Create API Key\" above to get started",
-    "last_used": "(last used:",
-    "delete": "Delete",
-    "no_api_keys_found_matching": "No API keys found matching \"",
+    "unnamed_key": "Unnamed Key",
     "create_new_api_key": "Create new API key",
-    "this_key_will_allow_access_to": "This key will allow access to Chat features. Make sure to copy it after creation as you\n            won't be able to see it again.",
-    "key_name": "Key name",
-    "e_g_development_production": "e.g., Development, Production",
     "your_api_key_has_been_created": "Your API key has been created",
-    "copy_it_now_it_won_t": "Copy it now — it won't be shown again",
     "delete_api_key": "Delete API key"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/general/general.tsx": {
-    "home_page": "Home Page",
-    "sign_out": "Sign out",
-    "reset_password": "Reset password",
-    "profile": "Profile",
-    "save_name": "Save name",
-    "edit_name": "Edit name",
-    "preferences": "Preferences",
-    "theme": "Theme",
-    "select_theme": "Select theme",
-    "timezone": "Timezone",
-    "select_timezone": "Select timezone",
-    "auto_connect_on_drop": "Auto-connect on drop",
-    "automatically_connect_blocks_when_dropped_near": "Automatically connect blocks when dropped near each other",
-    "auto_connect_on_drop_example": "Auto-connect on drop example",
-    "canvas_error_notifications": "Canvas error notifications",
-    "show_error_popups_on_blocks_when": "Show error popups on blocks when a workflow run fails",
-    "canvas_error_notification_example": "Canvas error notification example",
-    "snap_to_grid": "Snap to grid",
-    "select_size": "Select size",
-    "show_canvas_controls": "Show canvas controls",
-    "language": "Language",
-    "training_controls": "Training controls",
-    "privacy": "Privacy",
-    "allow_anonymous_telemetry": "Allow anonymous telemetry",
-    "we_use_opentelemetry_to_collect_anonymous": "We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out\n              at any time.",
-    "reset_password_2": "Reset Password",
-    "a_password_reset_link_will_be": "A password reset link will be sent to",
-    "click_the_link_in_the_email": ". Click\n            the link in the email to create a new password."
+    "user": "User",
+    "search_timezones": "Search timezones",
+    "reset_password": "Reset Password"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/secrets/components/secrets-manager/secrets-manager.tsx": {
-    "secret_actions": "Secret actions",
+    "workspace_override_active": "Workspace override active",
     "enter_value": "Enter value",
-    "workspace_variable_with_the_same_name": "Workspace variable with the same name overrides this. Rename your personal key to use\n            it.",
-    "discard": "Discard",
-    "save": "Save",
-    "resolve_all_conflicts_before_saving": "Resolve all conflicts before saving",
-    "fix_invalid_variable_names_before_saving": "Fix invalid variable names before saving",
-    "workspace": "Workspace",
-    "personal": "Personal",
-    "no_secrets_found_matching_ldquo": "No secrets found matching &ldquo;",
-    "rdquo": "&rdquo;"
+    "save": "Save"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": {
-    "search_deleted_items": "Search deleted items...",
-    "no_deleted_items": "No deleted items",
-    "deleted": "Deleted",
-    "restoring": "Restoring...",
-    "restored": "Restored",
-    "view": "View",
-    "restore": "Restore"
+    "failed_to_load_deleted_items": "Failed to load deleted items"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/admin/admin.tsx": {
-    "super_admin_mode": "Super admin mode",
-    "mothership_environment": "Mothership Environment",
-    "default_uses_the_configured_sim_agent": "Default uses the configured Sim agent URL.",
-    "select_environment": "Select environment",
-    "import_a_workflow_by_id_along": "Import a workflow by ID along with its associated copilot chats.",
-    "enter_workflow_id": "Enter workflow ID",
-    "workflow_imported_successfully_new_id": "Workflow imported successfully (new ID:",
-    "copilot_chats_imported": "copilot chats imported)",
-    "user_management": "User Management",
-    "search_by_email_or_paste_a": "Search by email or paste a user ID...",
-    "name": "Name",
-    "email": "Email",
-    "role": "Role",
-    "status": "Status",
-    "actions": "Actions",
-    "no_users_found": "No users found.",
-    "banned": "Banned",
-    "active": "Active",
-    "unban": "Unban",
-    "reason_optional": "Reason (optional)",
-    "confirm_ban": "Confirm Ban",
-    "page": "Page",
-    "of": "of",
-    "users": "users)",
-    "previous": "Previous",
-    "next": "Next"
+    "import": "Import",
+    "search": "Search",
+    "action_failed_please_try_again": "Action failed. Please try again.",
+    "impersonate": "Impersonate",
+    "demote": "Demote",
+    "promote": "Promote",
+    "cancel": "Cancel",
+    "ban": "Ban"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/api-keys/components/create-api-key-modal/create-api-key-modal.tsx": {
     "create_new_api_key": "Create new API key",
-    "api_key_type": "API Key Type",
-    "personal": "Personal",
-    "workspace": "Workspace",
-    "enter_a_name_for_your_api": "Enter a name for your API key to help you identify it later.",
-    "e_g_development_production": "e.g., Development, Production",
-    "your_api_key_has_been_created": "Your API key has been created",
-    "copy_it_now_it_won_t": "Copy it now — it won't be shown again"
+    "your_api_key_has_been_created": "Your API key has been created"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/api-keys/api-keys.tsx": {
-    "api_key_actions": "API key actions",
-    "create_api_key": "Create API Key",
-    "click_create_api_key_above_to": "Click \"Create API Key\" above to get started",
-    "workspace": "Workspace",
-    "no_workspace_api_keys_yet": "No workspace API keys yet",
-    "last_used": "(last used:",
-    "personal": "Personal",
-    "workspace_api_key_with_the_same": "Workspace API key with the same name overrides this. Rename your\n                            personal key to use it.",
-    "no_api_keys_found_matching": "No API keys found matching \"",
-    "permissions": "Permissions",
-    "allow_personal_api_keys": "Allow personal API keys",
-    "allow_collaborators_to_create_and_use": "Allow collaborators to create and use their own keys with billing charged to\n                      them.",
     "delete_api_key": "Delete API key"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal.tsx": {
-    "name": "Name",
-    "value": "Value",
-    "configuration": "Configuration",
-    "server_name": "Server Name",
-    "e_g_my_mcp_server": "e.g., My MCP Server",
-    "server_url": "Server URL",
-    "https_mcp_server_dev_sse": "https://mcp.server.dev/{{YOUR_API_KEY}}/sse",
-    "headers": "Headers",
-    "advanced_settings": "Advanced settings",
-    "client_id": "Client ID",
-    "oauth_client_id_optional": "OAuth Client ID (optional)",
-    "client_secret": "Client Secret",
-    "only_needed_for_servers_that_don": "Only needed for servers that don't support automatic client registration.",
-    "oauth_client_secret_optional": "OAuth Client Secret (optional)"
+    "text_transparent_caret_var_text_primary": "text-transparent caret-[var(--text-primary)]",
+    "domain_not_permitted_by_server_policy": "Domain not permitted by server policy"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/mcp/mcp.tsx": {
-    "server_actions": "Server actions",
-    "mcp_tools": "MCP Tools",
-    "edit": "Edit",
-    "server": "Server",
-    "server_name": "Server Name",
-    "transport": "Transport",
-    "status": "Status",
-    "authentication": "Authentication",
-    "no_tools_available": "No tools available",
-    "update_in": "Update in:",
-    "parameters": "Parameters",
-    "required": "required",
-    "add_server": "Add Server",
-    "click_quot_add_server_quot_above": "Click &quot;Add Server&quot; above to get started",
-    "no_servers_found_matching_quot": "No servers found matching &quot;",
-    "quot": "&quot;",
+    "unnamed_server": "Unnamed Server",
+    "unable_to_connect": "Unable to connect",
+    "connect_with_oauth": "Connect with OAuth",
     "delete_mcp_server": "Delete MCP Server"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets.tsx": {
-    "sim_mailer": "Sim Mailer",
-    "details": "Details",
-    "group_name": "Group Name",
-    "provider": "Provider",
+    "add_another_email": "Add another email",
     "invite": "Invite",
-    "enter_email_addresses": "Enter email addresses",
-    "members": "Members",
-    "no_members_yet_send_invitations_above": "No members yet. Send invitations above.",
-    "disconnected": "Disconnected",
-    "member_actions": "Member actions",
-    "pending": "Pending",
-    "invitation_actions": "Invitation actions",
-    "create_group": "Create Group",
-    "you_re_not_a_member_of": "You're not a member of any polling groups yet. When someone invites you, it will\n              appear here.",
-    "no_results_found_matching": "No results found matching \"",
-    "pending_invitations": "Pending Invitations",
-    "my_memberships": "My Memberships",
-    "leave": "Leave",
-    "manage": "Manage",
-    "no_polling_groups_created_yet": "No polling groups created yet",
-    "member": "member",
-    "group_actions": "Group actions",
+    "accept": "Accept",
     "create_polling_group": "Create Polling Group",
-    "name": "Name",
-    "e_g_marketing_team": "e.g., Marketing Team",
-    "description": "Description",
-    "e_g_poll_emails_for_marketing": "e.g., Poll emails for marketing automations",
-    "email_provider": "Email Provider",
-    "gmail": "Gmail",
-    "outlook": "Outlook",
-    "members_will_connect_their": "Members will connect their",
-    "account": "account",
     "leave_polling_group": "Leave Polling Group",
     "delete_polling_group": "Delete Polling Group"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager.tsx": {
-    "add_key": "Add Key",
-    "manage": "Manage",
+    "add_update_api_key": "Add/Update API Key",
     "update": "Update",
-    "delete": "Delete",
-    "search_providers": "Search providers...",
-    "no_providers_found_matching": "No providers found matching \"",
-    "api_key": "API Key",
-    "name": "Name",
-    "e_g_production_key": "e.g. Production key",
+    "add": "Add",
+    "hide_api_key": "Hide API key",
+    "show_api_key": "Show API key",
     "delete_api_key": "Delete API Key"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal.tsx": {
-    "requests_are_distributed_evenly_across_these": "Requests are distributed evenly across these keys. Your keys are encrypted and stored\n          securely.",
-    "update": "Update",
-    "delete": "Delete",
-    "key_limit_reached": "Key limit reached (",
-    "keys_per_provider": "keys per provider)."
+    "manage_api_keys": "Manage API Keys",
+    "unnamed_key": "Unnamed key"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/team-management/team-management.tsx": {
-    "invite": "Invite"
+    "invitations_are_disabled": "Invitations are disabled"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal/manage-credits-modal.tsx": {
-    "credit_limit": "Credit limit",
-    "no_limit": "No limit",
-    "leave_blank_for_no_limit": "Leave blank for no limit."
+    "manage_credits": "Manage credits",
+    "copy_credits_used": "Copy credits used",
+    "set_in_credits_sim_s_usage": "Set in credits — Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/team-management/components/organization-member-lists/organization-member-lists.tsx": {
-    "member_actions": "Member actions",
-    "search_members": "Search members..."
+    "no_members_yet": "No members yet",
+    "no_members_in_this_workspace": "No members in this workspace"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/team-management/components/transfer-ownership-dialog/transfer-ownership-dialog.tsx": {
-    "leave_organization": "Leave organization",
-    "you_re_the_only_member_of": "You're the only member of this organization. Invite another admin before leaving.",
-    "as_the_owner_you_need_to": "As the owner, you need to hand off the organization before you can leave. Pick a\n              member to become the new owner. They'll inherit billing access, seat management, and\n              all owner-only permissions. You'll lose access to every shared workspace in this\n              organization.",
-    "your_payment_method_stays_on_this": "Your payment method stays on this organization",
-    "future_charges_will_keep_hitting_the": "Future charges will keep hitting the card you added. Open the Stripe billing\n                      portal to remove it before you leave.",
-    "search_members": "Search members...",
-    "no_members_match": "No members match \"",
-    "admin": "Admin"
+    "leave_organization": "Leave organization"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/team-management/components/organization-invite-modal/organization-invite-modal.tsx": {
-    "invite_teammates": "Invite teammates",
-    "emails": "Emails",
-    "enter_emails": "Enter emails",
-    "workspaces": "Workspaces",
-    "invite_as": "Invite as",
-    "select_role": "Select role"
+    "invite_teammates_to_organization": "Invite teammates to organization",
+    "select_workspaces": "Select workspaces",
+    "search_workspaces": "Search workspaces..."
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/teammates/teammates.tsx": {
-    "invite": "Invite",
-    "teammate_actions": "Teammate actions"
+    "no_teammates_yet": "No teammates yet"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/settings-panel/settings-panel.tsx": {
     "docs": "Docs"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/mothership/mothership.tsx": {
-    "environment": "Environment",
-    "select_environment": "Select environment",
-    "from": "From",
-    "to": "To",
-    "store_a_customer_provided_anthropic_or": "Store a customer-provided Anthropic or OpenAI key for this workspace. It is encrypted at rest in the mothership and used only for this workspace's enterprise requests.",
-    "total_requests": "Total Requests",
-    "unique_users": "Unique Users",
-    "total_cost": "Total Cost",
-    "avg_cost_request": "Avg Cost/Request",
-    "user_breakdown": "User Breakdown",
-    "user_id": "User ID",
-    "requests": "Requests",
-    "cost": "Cost",
-    "last_request": "Last Request",
-    "recent_requests": "Recent Requests (",
-    "request_id": "Request ID",
-    "model": "Model",
-    "duration": "Duration",
-    "tools": "Tools",
-    "status": "Status",
-    "time": "Time",
-    "error": "Error",
-    "abort": "Abort",
-    "generate_license": "Generate License",
-    "enterprise_name": "Enterprise Name",
-    "e_g_acme_corp": "e.g. Acme Corp",
-    "expiration_optional": "Expiration (optional)",
-    "license_key_only_shown_once": "License key (only shown once):",
-    "all_licenses": "All Licenses",
-    "name": "Name",
-    "validations": "Validations",
-    "expiration": "Expiration",
-    "created": "Created",
-    "no_licenses_found": "No licenses found."
+    "generate": "Generate",
+    "never": "Never"
   },
   "apps/sim/app/workspace/[workspaceId]/settings/error.tsx": {
     "failed_to_load_settings": "Failed to load settings",
@@ -663,10 +211,8 @@
     "stopped_by_user": "Stopped by user"
   },
   "apps/sim/app/workspace/[workspaceId]/home/components/queued-messages/queued-messages.tsx": {
-    "queued": "Queued",
-    "cancel_edit": "Cancel edit",
-    "send_now": "Send now",
-    "remove_from_queue": "Remove from queue"
+    "sending_now": "Sending now",
+    "edit_queued_message": "Edit queued message"
   },
   "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": {
     "click_above_to_add_a_resource": "Click \"+\" above to add a resource"
@@ -680,31 +226,9 @@
     "files": "Files"
   },
   "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/resource-content.tsx": {
-    "open_workflow": "Open workflow",
-    "open_knowledge_base": "Open knowledge base",
-    "open_table": "Open table",
-    "export_table_as_csv": "Export table as CSV",
-    "export_csv": "Export CSV",
-    "open_in_files": "Open in files",
-    "download_file": "Download file",
-    "download": "Download",
-    "workflow_not_found": "Workflow not found",
-    "this_workflow_may_have_been_deleted": "This workflow may have been deleted or moved",
-    "file_not_found": "File not found",
-    "this_file_may_have_been_deleted": "This file may have been deleted or moved",
-    "folder_not_found": "Folder not found",
-    "this_folder_may_have_been_deleted": "This folder may have been deleted or moved",
-    "no_workflows_in_this_folder": "No workflows in this folder",
-    "status": "Status",
-    "schedule": "Schedule",
-    "next_run": "Next run",
-    "last_run": "Last run",
-    "prompt": "Prompt",
-    "recent_runs": "Recent runs",
-    "open_in_scheduled_tasks": "Open in scheduled tasks",
-    "log_not_found": "Log not found",
-    "this_log_may_have_been_deleted": "This log may have been deleted or is no longer available",
-    "open_in_logs": "Open in logs"
+    "stop_workflow": "Stop workflow",
+    "run_workflow": "Run workflow",
+    "stop": "Stop"
   },
   "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content/generic-resource-content.tsx": {
     "no_results_yet": "No results yet",
@@ -746,17 +270,11 @@
     "something_went_wrong_while_loading_your": "Something went wrong while loading your workspace home. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/enrichments-sidebar/enrichment-config.tsx": {
-    "back_to_enrichments": "Back to enrichments",
-    "close": "Close",
-    "inputs": "Inputs",
-    "this_enrichment_needs_no_inputs": "This enrichment needs no inputs.",
-    "column": "Column",
-    "no_columns": "No columns.",
-    "select_a_column": "Select a column",
-    "output_columns": "Output columns",
-    "column_name": "Column name",
-    "auto_run": "Auto-run",
-    "cancel": "Cancel"
+    "search_columns": "Search columns…",
+    "required": "Required",
+    "select_at_least_one_column": "Select at least one column",
+    "update": "Update",
+    "save": "Save"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/enrichments-sidebar/enrichments-sidebar.tsx": {
     "enrichments": "Enrichments",
@@ -769,30 +287,15 @@
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/row-modal/row-modal.tsx": {
     "edit_row": "Edit Row",
-    "update_values_for": "Update values for",
-    "unique": "(unique)",
-    "label": "{\"key\": \"value\"}",
-    "select_date": "Select date"
+    "true": "True",
+    "false": "False"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/run-status-control/run-status-control.tsx": {
     "running": "running",
     "stop_all": "Stop all"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/enrichment-details/enrichment-details.tsx": {
-    "loading": "Loading…",
-    "no_enrichment_details_for_this_run": "No enrichment details for this run",
-    "timestamp": "Timestamp",
-    "enrichment": "Enrichment",
-    "status": "Status",
-    "duration": "Duration",
-    "total_cost": "Total cost",
-    "matched_provider": "Matched provider",
-    "providers_ran": "Providers ran",
-    "error": "Error",
-    "resize_enrichment_details_panel": "Resize enrichment details panel",
-    "enrichment_details_sidebar": "Enrichment details sidebar",
-    "enrichment_details": "Enrichment Details",
-    "close": "Close"
+    "enrichment": "Enrichment"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/new-column-dropdown/new-column-dropdown.tsx": {
     "new_column": "New column",
@@ -809,16 +312,11 @@
     "remove_filter": "Remove filter"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar/column-config-sidebar.tsx": {
-    "configure_column": "Configure column",
-    "close": "Close",
-    "column_name": "Column name",
-    "type": "Type",
-    "select_type": "Select type",
-    "unique": "Unique",
-    "cancel": "Cancel"
+    "column_name_is_required": "Column name is required",
+    "save": "Save"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-action-bar/table-action-bar.tsx": {
-    "view_execution": "View execution"
+    "selected_1_workflow_cell": "Selected 1 workflow cell"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/expanded-cell-popover.tsx": {
     "empty": "(empty)",
@@ -850,14 +348,9 @@
     "this_column_s_source_block_no": "This column's source block no longer exists in the workflow."
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/workflow-group-meta-cell.tsx": {
-    "run": "Run",
-    "run_all_rows": "Run all rows",
-    "run_empty_rows": "Run empty rows",
-    "view_workflow": "View workflow",
-    "edit_column": "Edit column",
-    "insert_column_left": "Insert column left",
-    "insert_column_right": "Insert column right",
-    "run_group": "Run group"
+    "unpin_column": "Unpin column",
+    "pin_column": "Pin column",
+    "delete_column": "Delete column"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/column-header-menu.tsx": {
     "column_options": "Column options"
@@ -872,34 +365,27 @@
     "close_esc": "Close (Esc)"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/workflow-sidebar/run-settings-section.tsx": {
-    "run_after": "Run after",
-    "no_upstream_columns": "No upstream columns."
+    "select_at_least_one_column": "Select at least one column"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/workflow-sidebar/workflow-sidebar.tsx": {
-    "configure_workflow": "Configure workflow",
-    "back_to_enrichments": "Back to enrichments",
-    "close": "Close",
-    "column_name": "Column name",
-    "workflow_preview": "Workflow preview",
-    "adds": "Adds",
-    "to_the_workflow_s_start_block": "to the workflow's Start block",
-    "open_workflow": "Open workflow",
-    "unable_to_load_preview": "Unable to load preview",
-    "workflow": "Workflow",
+    "column_name_is_required": "Column name is required",
+    "search_workflows": "Search workflows...",
     "select_a_workflow": "Select a workflow",
-    "no_manual_triggers_configured": "No manual triggers configured",
-    "auto_run_workflow": "Auto-run workflow",
-    "workflow_version": "Workflow version",
-    "live": "Live",
-    "deployed": "Deployed",
-    "cancel": "Cancel"
+    "output": "Output",
+    "output_columns": "Output columns",
+    "search_outputs": "Search outputs…",
+    "loading_workflow": "Loading workflow…",
+    "no_outputs_found": "No outputs found.",
+    "select_outputs": "Select outputs",
+    "pick_an_output": "Pick an output",
+    "pick_at_least_one_output_column": "Pick at least one output column",
+    "select_at_least_one_column": "Select at least one column",
+    "hide_additional_fields": "Hide additional fields",
+    "show_additional_fields": "Show additional fields",
+    "save": "Save"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/workflow-sidebar/input-mapping-section.tsx": {
-    "workflow_inputs": "Workflow inputs",
-    "this_workflow_has_no_start_block": "This workflow has no Start block inputs.",
-    "column": "Column",
-    "no_columns": "No columns.",
-    "select_a_column": "Select a column"
+    "search_columns": "Search columns…"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/error.tsx": {
     "failed_to_load_table": "Failed to load table",
@@ -908,30 +394,11 @@
   },
   "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/table.tsx": {
     "delete_rows": "Delete rows",
+    "delete_column": "Delete Column",
     "delete_table": "Delete Table"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/components/import-csv-dialog/import-csv-dialog.tsx": {
-    "import_csv_into": "Import CSV into",
-    "import_csv": "Import CSV",
-    "map_columns_to_append_or_replace": "Map columns to append or replace rows in this table",
-    "file": "File",
-    "columns": "columns",
-    "change_file": "Change file",
-    "mode": "Mode",
-    "append": "Append",
-    "replace_all_rows": "Replace all rows",
-    "column_mapping": "Column mapping",
-    "create_columns_for": "Create columns for",
-    "unmapped": "unmapped",
-    "csv_column": "CSV column",
-    "target_column": "Target column",
-    "mapped": "mapped",
-    "skipped": "skipped",
-    "missing_required_column_s": "Missing required column(s):",
-    "multiple_csv_columns_target": "Multiple CSV columns target:",
-    "pick_one": "(pick one)",
-    "replace_will_permanently_delete_the": "Replace will permanently delete the",
-    "existing_row_s_before_inserting_the": "existing\n                row(s) before inserting the new rows."
+    "drop_csv_or_tsv_here_or": "Drop CSV or TSV here or click to browse"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/components/import-progress-menu/import-progress-menu.tsx": {
     "download": "Download"
@@ -949,10 +416,7 @@
     "import_csv": "Import CSV"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/tables.tsx": {
-    "row_count": "Row Count",
-    "owner": "Owner",
-    "clear_all_filters": "Clear all filters",
-    "tables": "Tables",
+    "search_members": "Search members...",
     "delete_table": "Delete Table"
   },
   "apps/sim/app/workspace/[workspaceId]/tables/error.tsx": {
@@ -960,7 +424,7 @@
     "something_went_wrong_while_loading_the": "Something went wrong while loading the tables. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/tables/loading.tsx": {
-    "tables": "Tables"
+    "search_tables": "Search tables..."
   },
   "apps/sim/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle.tsx": {
     "billing_period": "Billing period",
@@ -974,7 +438,11 @@
     "find_the_right_plan_for_you": "Find the right plan for you"
   },
   "apps/sim/app/workspace/[workspaceId]/upgrade/upgrade.tsx": {
-    "back": "Back"
+    "for_growing_teams": "For growing teams",
+    "for_scaling_businesses": "For scaling businesses",
+    "for_large_organizations": "For large organizations",
+    "hide_all_features": "Hide all features",
+    "show_all_features": "Show all features"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-toolbar/calendar-toolbar.tsx": {
     "today": "Today",
@@ -994,15 +462,15 @@
     "number_of_runs": "Number of runs"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal/task-modal.tsx": {
-    "use_and_launch_sim_to": "Use @ and launch Sim to..."
+    "edit_scheduled_task": "Edit scheduled task",
+    "new_scheduled_task": "New scheduled task"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu/schedule-list-context-menu.tsx": {
     "new_scheduled_task": "New scheduled task"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/task-delete-dialog/task-delete-dialog.tsx": {
-    "delete_scheduled_task": "Delete scheduled task",
-    "delete_recurring_task": "Delete recurring task",
-    "this_is_a_recurring_task_delete": "This is a recurring task. Delete only this occurrence, or the entire series?"
+    "this_task_will_be_removed_from": "This task will be removed from the calendar and will not run.",
+    "delete_recurring_task": "Delete recurring task"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/task-context-menu/task-context-menu.tsx": {
     "edit": "Edit",
@@ -1012,9 +480,7 @@
     "delete": "Delete"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/components/task-details-modal/task-details-modal.tsx": {
-    "scheduled_task": "Scheduled task",
-    "status": "Status",
-    "prompt": "Prompt"
+    "scheduled_task": "Scheduled task"
   },
   "apps/sim/app/workspace/[workspaceId]/scheduled-tasks/error.tsx": {
     "failed_to_load_scheduled_tasks": "Failed to load scheduled tasks",
@@ -1031,16 +497,9 @@
     "something_went_wrong_while_loading_this": "Something went wrong while loading this chat. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/connected/[credentialId]/connected-credential-detail.tsx": {
-    "integrations": "Integrations",
-    "reconnect": "Reconnect",
-    "share": "Share",
-    "disconnect": "Disconnect",
-    "loading": "Loading…",
-    "credential_not_found": "Credential not found.",
-    "credential_id": "Credential ID",
-    "display_name": "Display Name",
-    "description": "Description",
-    "add_a_description": "Add a description...",
+    "save": "Save",
+    "connected_service": "Connected service",
+    "copy_credential_id": "Copy credential ID",
     "disconnect_integration": "Disconnect Integration"
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail.tsx": {
@@ -1050,8 +509,7 @@
     "templates": "Templates"
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section.tsx": {
-    "added": "Added",
-    "skills": "Skills"
+    "add": "Add"
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-fallback.tsx": {
     "integrations": "Integrations"
@@ -1060,34 +518,19 @@
     "explore_in_chat": "Explore in chat"
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal.tsx": {
-    "add": "Add",
-    "service_account": "service account",
-    "json_key": "JSON key",
-    "paste_your_service_account_json_key": "Paste your service account JSON key here",
-    "or_upload_a_file": "Or upload a file",
-    "display_name": "Display name",
-    "auto_populated_from_client_email": "Auto-populated from client_email",
-    "description": "Description",
-    "optional_description": "Optional description",
-    "api_token": "API token",
-    "paste_api_token": "Paste API token",
-    "site_domain": "Site domain",
-    "your_team_atlassian_net": "your-team.atlassian.net",
-    "defaults_to_the_account_s_atlassian": "Defaults to the account's Atlassian display name"
+    "drag_drop_a_json_file_or": "Drag & drop a .json file, or click to browse",
+    "atlassian_sites_usually_look_like_your": "Atlassian sites usually look like your-team.atlassian.net."
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/error.tsx": {
     "failed_to_load_integrations": "Failed to load integrations",
     "something_went_wrong_while_loading_your": "Something went wrong while loading your integrations. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/integrations/integrations.tsx": {
-    "search_integrations": "Search integrations..."
+    "explain_the_integrations_in_sim_and": "Explain the integrations in Sim and what I should connect.",
+    "no_integrations_in_this_category": "No integrations in this category"
   },
   "apps/sim/app/workspace/[workspaceId]/components/credential-detail/components/add-people-modal.tsx": {
-    "add_people": "Add people",
-    "emails": "Emails",
-    "enter_emails": "Enter emails",
-    "role": "Role",
-    "select_role": "Select role"
+    "add_people": "Add people"
   },
   "apps/sim/app/workspace/[workspaceId]/components/credential-detail/components/credential-members-section.tsx": {
     "role": "Role",
@@ -1112,53 +555,34 @@
     "refresh": "Refresh"
   },
   "apps/sim/app/workspace/[workspaceId]/components/message-actions/message-actions.tsx": {
+    "copied_message": "Copied message",
     "copy_message": "Copy message",
-    "like": "Like",
-    "good_response": "Good response",
-    "dislike": "Dislike",
-    "bad_response": "Bad response",
-    "fork_from_here": "Fork from here",
     "give_feedback": "Give feedback",
+    "what_did_you_like": "What did you like?",
+    "what_could_be_improved": "What could be improved?",
+    "copied_request_id": "Copied request ID",
     "copy_request_id": "Copy request ID",
-    "feedback": "Feedback"
+    "tell_us_what_was_helpful": "Tell us what was helpful...",
+    "tell_us_what_went_wrong": "Tell us what went wrong..."
   },
   "apps/sim/app/workspace/[workspaceId]/logs/logs.tsx": {
-    "suggested_filters": "SUGGESTED FILTERS",
-    "logs": "Logs",
-    "status": "Status",
     "all_statuses": "All statuses",
-    "workflow": "Workflow",
+    "search_workflows": "Search workflows...",
     "all_workflows": "All workflows",
-    "folder": "Folder",
+    "search_folders": "Search folders...",
     "all_folders": "All folders",
-    "trigger": "Trigger",
-    "all_triggers": "All triggers",
-    "time_range": "Time Range",
-    "all_time": "All time",
-    "clear_all_filters": "Clear All Filters"
+    "search_triggers": "Search triggers...",
+    "all_triggers": "All triggers"
   },
   "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/components/trace-view/trace-view.tsx": {
-    "of_total": "% of total",
-    "search": "Search",
-    "search_2": "Search...",
-    "previous_match": "Previous match",
-    "next_match": "Next match",
-    "close_search": "Close search",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "copied": "Copied",
     "copy": "Copy",
-    "select_a_span_to_see_details": "Select a span to see details.",
-    "input": "Input",
-    "thinking": "Thinking",
-    "tool_calls": "Tool calls",
-    "error_message": "Error message",
-    "started": "Started",
-    "ended": "Ended",
-    "no_trace_data_available": "No trace data available",
-    "jump_to_error": "Jump to error",
-    "filter_spans": "Filter spans",
-    "copy_raw_trace": "Copy raw trace",
-    "expand_all": "Expand all",
-    "collapse_all": "Collapse all",
-    "no_matching_spans": "No matching spans"
+    "error": "Error",
+    "output": "Output",
+    "success": "Success",
+    "copy_raw_trace": "Copy raw trace"
   },
   "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/components/file-download/file-download.tsx": {
     "download": "Download",
@@ -1175,49 +599,15 @@
     "view_the_workflow_state_snapshot_for": "View the workflow state snapshot for this execution"
   },
   "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/log-details.tsx": {
-    "search": "Search",
-    "search_2": "Search...",
-    "previous_match": "Previous match",
-    "next_match": "Next match",
-    "close_search": "Close search",
+    "copied": "Copied",
     "copy": "Copy",
-    "timestamp": "Timestamp",
-    "copy_run_id": "Copy run ID",
-    "run_id": "Run ID",
-    "level": "Level",
-    "trigger": "Trigger",
-    "none": "None",
-    "duration": "Duration",
-    "version": "Version",
-    "snapshot": "Snapshot",
-    "view_snapshot": "View Snapshot",
-    "workflow_input": "Workflow Input",
-    "workflow_output": "Workflow Output",
-    "total": "Total",
-    "tokens": "Tokens",
-    "in": "in ·",
-    "out": "out",
-    "total_includes_a": "Total includes a",
-    "base_charge_plus_model_and_tool": "base charge plus model\n                      and tool usage.",
-    "no_trace_data_available_for_this": "No trace data available for this run",
-    "loading_trace": "Loading trace…",
-    "resize_log_details_panel": "Resize log details panel",
-    "log_details_sidebar": "Log details sidebar",
-    "log_details": "Log Details",
-    "retry_execution": "Retry execution",
-    "retry": "Retry",
-    "previous_log": "Previous log",
-    "next_log": "Next log",
-    "close": "Close"
+    "job": "Job",
+    "workflow": "Workflow",
+    "untitled_job": "Untitled Job",
+    "unknown": "Unknown"
   },
   "apps/sim/app/workspace/[workspaceId]/logs/components/log-row-context-menu/log-row-context-menu.tsx": {
-    "cancel_run": "Cancel Run",
-    "copy_run_id": "Copy Run ID",
-    "copy_link": "Copy Link",
-    "open_workflow": "Open Workflow",
-    "open_snapshot": "Open Snapshot",
-    "filter_by_workflow": "Filter by Workflow",
-    "clear_filters": "Clear Filters"
+    "retry": "Retry"
   },
   "apps/sim/app/workspace/[workspaceId]/logs/components/dashboard/dashboard.tsx": {
     "error_loading_data": "Error loading data",
@@ -1232,39 +622,13 @@
     "something_went_wrong_while_loading_the": "Something went wrong while loading the logs. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/logs/loading.tsx": {
-    "logs": "Logs"
+    "search_logs": "Search logs..."
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": {
-    "connectors": "Connectors",
-    "clear": "Clear",
-    "content": "Content",
-    "owner": "Owner",
-    "knowledge_base": "Knowledge Base"
+    "search_members": "Search members..."
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/components/create-base-modal/create-base-modal.tsx": {
-    "create_knowledge_base": "Create Knowledge Base",
-    "name": "Name",
-    "enter_knowledge_base_name": "Enter knowledge base name",
-    "description": "Description",
-    "describe_this_knowledge_base_optional": "Describe this knowledge base (optional)",
-    "min_chunk_size_characters": "Min Chunk Size (characters)",
-    "max_chunk_size_tokens": "Max Chunk Size (tokens)",
-    "overlap_tokens": "Overlap (tokens)",
-    "1_token_4_characters_max_chunk": "1 token ≈ 4 characters. Max chunk size and overlap are in tokens.",
-    "chunking_strategy": "Chunking Strategy",
-    "auto_detects_the_best_strategy_based": "Auto detects the best strategy based on file content type.",
-    "regex_pattern": "Regex Pattern",
-    "text_will_be_split_at_each": "Text will be split at each match of this regex pattern.",
-    "e_g_n_n_or_s": "e.g. \\\\n\\\\n or (?<=\\\\})\\\\s*(?=\\\\{)",
-    "chunk_boundaries": "Chunk Boundaries",
-    "preserve_boundaries_exactly_recommended_when_eac": "Preserve boundaries exactly. Recommended when each match is a discrete record (e.g. one QA pair per chunk).",
-    "each_match_is_its_own_chunk": "Each match is its own chunk (don&apos;t merge)",
-    "custom_separators_optional": "Custom Separators (optional)",
-    "comma_separated_list_of_delimiters_in": "Comma-separated list of delimiters in priority order. Leave empty for default separators.",
-    "e_g_n_n_n": "e.g. \\n\\n, \\n, . ,  ",
-    "upload_documents": "Upload Documents",
-    "pdf_doc_docx_txt_csv_xls": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)",
-    "selected_files": "Selected Files"
+    "create_knowledge_base": "Create Knowledge Base"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/components/delete-knowledge-base-modal/delete-knowledge-base-modal.tsx": {
     "delete_knowledge_base": "Delete Knowledge Base"
@@ -1276,17 +640,7 @@
     "last_updated": "last updated:"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/components/edit-knowledge-base-modal/edit-knowledge-base-modal.tsx": {
-    "edit_knowledge_base": "Edit Knowledge Base",
-    "name": "Name",
-    "enter_knowledge_base_name": "Enter knowledge base name",
-    "description": "Description",
-    "describe_this_knowledge_base_optional": "Describe this knowledge base (optional)",
-    "chunking_configuration": "Chunking Configuration",
-    "max_size": "Max Size",
-    "tokens": "tokens",
-    "min_size": "Min Size",
-    "chars": "chars",
-    "overlap": "Overlap"
+    "edit_knowledge_base": "Edit Knowledge Base"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/components/knowledge-base-context-menu/knowledge-base-context-menu.tsx": {
     "open_in_new_tab": "Open in new tab",
@@ -1300,85 +654,55 @@
     "something_went_wrong_while_loading_your": "Something went wrong while loading your knowledge bases. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/loading.tsx": {
-    "knowledge_base": "Knowledge Base"
+    "search_knowledge_bases": "Search knowledge bases..."
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document.tsx": {
     "unsaved_changes": "Unsaved Changes",
-    "status": "Status",
-    "clear_all_filters": "Clear all filters",
-    "loading_chunk": "Loading chunk…",
+    "you_have_unsaved_changes_are_you": "You have unsaved changes. Are you sure you want to discard them?",
+    "keep_editing": "Keep editing",
+    "document_processing_pending": "Document processing pending...",
+    "document_processing_in_progress": "Document processing in progress...",
+    "document_processing_failed": "Document processing failed",
+    "document_not_ready": "Document not ready",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "delete_document": "Delete Document"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/document-tags-modal/document-tags-modal.tsx": {
     "document_tags": "Document Tags",
-    "tags": "Tags",
-    "tag_name": "Tag Name",
-    "enter_or_select_tag_name": "Enter or select tag name",
-    "enter_tag_name": "Enter tag name",
-    "a_tag_with_this_name_already": "A tag with this name already exists",
-    "value": "Value",
-    "select_value": "Select value",
-    "enter_number": "Enter number",
-    "select_date": "Select date",
-    "enter_tag_value": "Enter tag value",
-    "cancel": "Cancel",
-    "save_changes": "Save Changes",
-    "add_tag": "Add Tag",
-    "maximum_tag_definitions_reached_you_can": "Maximum tag definitions reached. You can still use existing tag definitions,\n                      but cannot create new ones."
+    "create_tag": "Create Tag"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-context-menu/chunk-context-menu.tsx": {
-    "open_in_new_tab": "Open in new tab",
-    "copy_content": "Copy content",
-    "delete": "Delete",
-    "create_chunk": "Create chunk"
+    "view": "View",
+    "edit": "Edit"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-editor/chunk-editor.tsx": {
-    "chunk_content_editor": "Chunk content editor",
-    "tokens": "tokens",
-    "tokenizer": "Tokenizer",
-    "token": "Token #"
+    "enter_the_content_for_this_chunk": "Enter the content for this chunk...",
+    "enter_chunk_content": "Enter chunk content...",
+    "this_chunk_is_synced_from_a": "This chunk is synced from a connector and cannot be edited",
+    "read_only_view": "Read-only view"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/delete-chunk-modal/delete-chunk-modal.tsx": {
-    "delete_chunk": "Delete Chunk"
+    "delete_chunk": "Delete Chunk",
+    "are_you_sure_you_want_to": "Are you sure you want to delete this chunk? This action cannot be undone."
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/base.tsx": {
-    "pending": "Pending",
-    "processing": "Processing",
-    "failed": "Failed",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
-    "unknown": "Unknown",
-    "status": "Status",
-    "clear": "Clear",
-    "knowledge_base_not_found": "Knowledge base not found",
-    "this_knowledge_base_may_have_been": "This knowledge base may have been deleted or moved",
-    "knowledge_base": "Knowledge Base",
     "delete_knowledge_base": "Delete Knowledge Base",
     "delete_document": "Delete Document",
     "delete_documents": "Delete Documents",
     "connected_sources": "Connected Sources",
-    "from": "From",
-    "to": "to",
-    "to_2": "To",
-    "select_date": "Select date",
-    "filter_by_tags": "Filter by tags",
-    "clear_all": "Clear all",
-    "and": "and",
-    "select_tag": "Select tag",
-    "operator": "Operator",
-    "remove_tag_filter": "Remove tag filter",
-    "add_filter": "Add filter"
+    "true_or_false": "true or false",
+    "enter_number": "Enter number",
+    "enter_value": "Enter value",
+    "max_h_240px_overflow_y_auto": "max-h-[240px] overflow-y-auto"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field.tsx": {
-    "loading": "Loading…"
+    "connect_an_account_first": "Connect an account first"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal.tsx": {
-    "edit": "Edit",
-    "sync_frequency": "Sync Frequency",
-    "active": "Active (",
-    "excluded": "Excluded (",
-    "open_source_document": "Open source document",
-    "restore": "Restore"
+    "no_excluded_documents": "No excluded documents",
+    "no_documents_yet": "No documents yet",
+    "exclude": "Exclude"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/document-context-menu/document-context-menu.tsx": {
     "open_in_new_tab": "Open in new tab",
@@ -1389,60 +713,36 @@
     "add_document": "Add document"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal/base-tags-modal.tsx": {
-    "and": "and",
-    "more_documents": "more documents",
-    "tags": "Tags",
-    "tags_2": "Tags:",
-    "defined": "defined",
-    "no_tag_definitions_yet_create_your": "No tag definitions yet. Create your first tag to organize documents.",
-    "document": "document",
-    "add_tag": "Add Tag",
-    "tag_name": "Tag Name",
-    "enter_tag_name": "Enter tag name",
-    "type": "Type",
-    "select_type": "Select type",
-    "cancel": "Cancel",
+    "a_tag_with_this_name_already": "A tag with this name already exists",
+    "no_available_slots_for_this_type": "No available slots for this type. Choose a different type.",
+    "create_tag": "Create Tag",
     "delete_tag": "Delete Tag",
-    "affected_documents": "Affected documents",
-    "documents_using": "Documents using \"",
-    "currently_using_this_tag_definition": "currently using this tag\n              definition.",
-    "this_tag_definition_is_not_being": "This tag definition is not being used by any documents. You can safely delete it\n                  to free up the tag slot."
+    "s_are": "s are"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/add-documents-modal/add-documents-modal.tsx": {
-    "new_documents": "New Documents",
-    "upload_documents": "Upload Documents",
-    "pdf_doc_docx_txt_csv_xls": "PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)",
-    "selected_files": "Selected Files"
+    "new_documents": "New Documents"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/rename-document-modal/rename-document-modal.tsx": {
-    "rename_document": "Rename Document",
-    "name": "Name",
-    "enter_document_name": "Enter document name"
+    "rename_document": "Rename Document"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/add-connector-modal.tsx": {
-    "search_sources": "Search sources...",
-    "account": "Account",
-    "metadata_tags": "Metadata Tags",
-    "sync_frequency": "Sync Frequency"
+    "connect_source": "Connect Source",
+    "no_connectors_available": "No connectors available.",
+    "api_key": "API Key",
+    "enter_api_key": "Enter API key"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connectors-section.tsx": {
-    "no_connected_sources_yet_connect_an": "No connected sources yet. Connect an external source to automatically sync documents.",
     "remove_connector": "Remove Connector",
-    "also_delete_all_synced_documents": "Also delete all synced documents",
-    "last_sync": "Last sync:",
-    "docs": "docs",
-    "next_sync": "Next sync:",
-    "settings": "Settings",
-    "delete": "Delete",
-    "connector_disabled_after_repeated_sync_failures": "Connector disabled after repeated sync failures",
-    "syncing_has_been_paused_due_to": "Syncing has been paused due to",
-    "consecutive_failures": "consecutive failures.",
-    "reconnect": "Reconnect",
-    "additional_permissions_required": "Additional permissions required",
-    "update_access": "Update access",
-    "loading_sync_history": "Loading sync history…",
-    "no_sync_history_yet": "No sync history yet.",
-    "in_progress": "In progress…"
+    "this_will_disconnect_the_source_and": "This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.",
+    "sync_recently_triggered": "Sync recently triggered",
+    "sync_now": "Sync now",
+    "resume": "Resume",
+    "pause": "Pause",
+    "hide_history": "Hide history",
+    "sync_history": "Sync history",
+    "reconnect_your_account_to_resume_syncing": " Reconnect your account to resume syncing.",
+    "use_the_resume_button_to_re": " Use the resume button to re-enable syncing.",
+    "no_changes": "No changes"
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/error.tsx": {
     "failed_to_load_knowledge_base": "Failed to load knowledge base",
@@ -1453,29 +753,22 @@
     "an_unexpected_error_occurred_please_try": "An unexpected error occurred. Please try again or refresh the page."
   },
   "apps/sim/app/workspace/[workspaceId]/files/files.tsx": {
-    "file_type": "File Type",
-    "size": "Size",
-    "uploaded_by": "Uploaded By",
-    "clear_all_filters": "Clear all filters",
+    "search_members": "Search members...",
     "unsaved_changes": "Unsaved Changes",
-    "files": "Files",
-    "drop_to_upload": "Drop to upload",
-    "release_files_here_to_add_them": "Release files here to add them to this workspace"
+    "you_have_unsaved_changes_are_you": "You have unsaved changes. Are you sure you want to discard them?",
+    "keep_editing": "Keep editing"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-row-context-menu/file-row-context-menu.tsx": {
-    "open": "Open",
-    "rename": "Rename",
-    "share": "Share"
+    "download": "Download",
+    "move_to": "Move to",
+    "delete": "Delete"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/share-modal/share-modal.tsx": {
-    "share_file": "Share file",
-    "access": "Access",
-    "file_access": "File access",
-    "password": "Password",
-    "allowed_emails": "Allowed emails",
-    "add_specific_emails_or_whole_domains": "Add specific emails or whole domains (@example.com).",
-    "enter_emails_or_domains": "Enter emails or domains",
-    "link": "Link"
+    "leave_blank_to_keep_the_current": "Leave blank to keep the current password.",
+    "anyone_with_the_link_must_enter": "Anyone with the link must enter this password.",
+    "enter_a_password": "Enter a password",
+    "add_email": "Add email",
+    "copy_link": "Copy link"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/files-list-context-menu/files-list-context-menu.tsx": {
     "new_file": "New file",
@@ -1492,9 +785,8 @@
     "zoomable_preview": "Zoomable preview"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/preview-panel.tsx": {
-    "html_preview": "HTML Preview",
-    "svg_preview": "SVG preview",
-    "no_data_to_display": "No data to display"
+    "h_full_w_full": "h-full w-full",
+    "h_full_rounded_lg": "h-full rounded-lg"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/csv-table-preview.tsx": {
     "no_data_to_display": "No data to display"
@@ -1512,12 +804,10 @@
     "resize_split": "Resize split"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared.tsx": {
-    "failed_to_preview": "Failed to preview"
+    "an_unexpected_error_occurred": "An unexpected error occurred"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": {
-    "file": "file",
-    "preview_not_available": "Preview not available",
-    "use_the_download_button_to_view": "Use the download button to view this file"
+    "for_this_file": " for this file"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/editor-context-menu.tsx": {
     "cut": "Cut",
@@ -1536,7 +826,7 @@
     "failed_to_load_file_content": "Failed to load file content"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/pdf-viewer.tsx": {
-    "failed_to_preview_pdf": "Failed to preview PDF"
+    "failed_to_load_pdf": "Failed to load PDF"
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/docx-preview.tsx": {
     "document": "document"
@@ -1549,32 +839,21 @@
     "something_went_wrong_while_loading_your": "Something went wrong while loading your files. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/files/loading.tsx": {
-    "files": "Files"
+    "search_files": "Search files..."
   },
   "apps/sim/app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx": {
-    "name": "Name",
-    "my_skill_name": "my-skill-name",
-    "lowercase_letters_numbers_and_hyphens_e": "Lowercase letters, numbers, and hyphens (e.g. my-skill)",
-    "description": "Description",
-    "what_this_skill_does_and_when": "What this skill does and when to use it...",
-    "content": "Content",
-    "skill_instructions_in_markdown": "Skill instructions in markdown..."
+    "edit_skill": "Edit Skill",
+    "add_skill": "Add Skill"
   },
   "apps/sim/app/workspace/[workspaceId]/skills/components/skill-import/skill-import.tsx": {
-    "import_from_github": "Import from GitHub",
-    "https_github_com_owner_repo_blob": "https://github.com/owner/repo/blob/main/SKILL.md",
-    "upload_file": "Upload File",
-    "md_file_with_yaml_frontmatter_or": ".md file with YAML frontmatter, or .zip containing a SKILL.md",
-    "or": "or"
+    "fetch": "Fetch"
   },
   "apps/sim/app/workspace/[workspaceId]/skills/error.tsx": {
     "failed_to_load_skills": "Failed to load skills",
     "something_went_wrong_while_loading_your": "Something went wrong while loading your skills. Please try again."
   },
   "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": {
-    "add_to_sim": "Add to Sim",
-    "search_skills": "Search skills...",
-    "no_skills_found_matching": "No skills found matching “",
+    "explain_the_skills_in_sim_and": "Explain the skills in Sim and which ones I should add to my agents.",
     "delete_skill": "Delete Skill"
   },
   "apps/sim/app/workspace/[workspaceId]/not-found.tsx": {
@@ -1584,123 +863,67 @@
     "return_home": "Return home"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel.tsx": {
-    "workflow_panel": "Workflow panel",
-    "auto_layout": "Auto layout",
-    "variables": "Variables",
-    "export_workflow": "Export workflow",
-    "duplicate_workflow": "Duplicate workflow",
-    "delete_workflow": "Delete workflow",
-    "chat": "Chat",
-    "toolbar": "Toolbar",
-    "editor": "Editor",
-    "no_chats_yet": "No chats yet",
-    "recent": "Recent",
-    "delete_chat": "Delete chat",
-    "resize_panel": "Resize panel",
-    "delete_workflow_2": "Delete Workflow"
+    "unlock_blocks_to_use_auto_layout": "Unlock blocks to use auto-layout",
+    "workflow_is_locked_at_the_row": "Workflow is locked at the row or folder level — release it from the workflow notification or folder menu",
+    "unlock_workflow": "Unlock workflow",
+    "lock_workflow": "Lock workflow",
+    "stop": "Stop",
+    "run": "Run",
+    "new_chat": "New Chat",
+    "delete_workflow": "Delete Workflow"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat/chat.tsx": {
-    "title": "Title",
-    "customer_support_assistant": "Customer Support Assistant",
-    "output": "Output",
-    "select_which_block_outputs_to_use": "Select which block outputs to use",
-    "welcome_message": "Welcome message",
-    "enter_a_welcome_message_for_your": "Enter a welcome message for your chat",
-    "this_message_will_be_displayed_when": "This message will be displayed when users first open the chat",
     "delete_chat": "Delete Chat",
-    "my_chat": "my-chat",
-    "name_is_available": "Name is available",
-    "live_at": "Live at:",
-    "access_control": "Access control",
-    "password": "Password",
-    "enter_emails_or_domains_example_com": "Enter emails or domains (@example.com)"
+    "the_unique_url_path_where_your": "The unique URL path where your chat will be accessible",
+    "allowed_emails": "Allowed emails",
+    "allowed_sso_emails": "Allowed SSO emails",
+    "add_email": "Add email",
+    "add_specific_emails_or_entire_domains": "Add specific emails or entire domains (@example.com)",
+    "add_emails_or_domains_that_can": "Add emails or domains that can access via SSO"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/version-description-modal.tsx": {
     "version_description": "Version Description",
-    "description_for": "description for",
-    "describe_the_changes_in_this_deployment": "Describe the changes in this deployment version...",
-    "unsaved_changes": "Unsaved Changes"
+    "edit_the": "Edit the",
+    "add_a": "Add a",
+    "unsaved_changes": "Unsaved Changes",
+    "you_have_unsaved_changes_are_you": "You have unsaved changes. Are you sure you want to discard them?",
+    "keep_editing": "Keep editing"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/versions.tsx": {
-    "no_deployments_yet": "No deployments yet",
-    "version": "Version",
-    "deployed_by": "Deployed by",
-    "timestamp": "Timestamp",
-    "live": "(live)",
-    "selected": "(selected)",
-    "add_description": "Add description",
-    "rename": "Rename",
-    "promote_to_live": "Promote to live",
-    "load_deployment": "Load deployment"
+    "live": "Live",
+    "inactive": "Inactive",
+    "unknown": "Unknown",
+    "edit_description": "Edit description",
+    "add_description": "Add description"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/api-info-modal.tsx": {
     "edit_api_info": "Edit API Info",
-    "description": "Description",
-    "describe_what_this_workflow_api_does": "Describe what this workflow API does...",
-    "access": "Access",
-    "api_key": "API Key",
-    "public": "Public",
-    "unsaved_changes": "Unsaved Changes"
+    "anyone_can_call_this_api_without": "Anyone can call this API without authentication. You will be billed for all usage.",
+    "requires_a_valid_api_key_to": "Requires a valid API key to call this endpoint.",
+    "unsaved_changes": "Unsaved Changes",
+    "you_have_unsaved_changes_are_you": "You have unsaved changes. Are you sure you want to discard them?",
+    "keep_editing": "Keep editing"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/general.tsx": {
-    "live": "Live",
-    "see_preview": "See preview",
-    "deploy_your_workflow_to_see_a": "Deploy your workflow to see a preview",
-    "versions": "Versions",
+    "live_workflow": "Live Workflow",
     "load_deployment": "Load Deployment",
-    "promote_to_live": "Promote to live",
-    "visual_preview_of_the_selected_workflow": "Visual preview of the selected workflow version."
+    "promote_to_live": "Promote to live"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/a2a/a2a.tsx": {
-    "copy_url": "Copy URL",
-    "api_a2a_serve": "/api/a2a/serve/",
-    "the_a2a_endpoint_url_where_clients": "The A2A endpoint URL where clients can discover and call your agent",
-    "agent_name": "Agent name",
-    "enter_agent_name": "Enter agent name",
-    "human_readable_name_shown_in_the": "Human-readable name shown in the Agent Card",
-    "description": "Description",
-    "describe_what_this_agent_does": "Describe what this agent does...",
-    "access": "Access",
-    "api_key": "API Key",
-    "public": "Public",
-    "capabilities": "Capabilities",
-    "push_notifications_webhooks": "Push notifications (webhooks)",
-    "tags": "Tags",
-    "add_tags": "Add tags",
-    "language": "Language",
-    "send_message": "Send message",
-    "stream": "Stream",
-    "copy_command": "Copy command",
-    "external_a2a_clients_can_discover_and": "External A2A clients can discover and call your agent. TextPart →",
-    "lt_start_input_gt": "&lt;start.input&gt;",
-    "datapart": ", DataPart →",
-    "lt_start_data_gt": "&lt;start.data&gt;",
-    "filepart": ", FilePart →",
-    "lt_start_files_gt": "&lt;start.files&gt;",
-    "add_required_a2a_input_fields_to": "Add required A2A input fields to Start block",
-    "add_inputs": "Add inputs"
+    "copied": "Copied",
+    "copy": "Copy",
+    "anyone_can_call_this_agent_without": "Anyone can call this agent without authentication",
+    "requires_x_api_key_header_or": "Requires X-API-Key header or API key query parameter",
+    "add_another": "Add another"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/mcp/mcp.tsx": {
-    "deploy_your_workflow_first_to_add": "Deploy your workflow first to add it as an MCP tool.",
-    "create_an_mcp_server_to_expose": "Create an MCP Server to expose your workflows as tools.",
-    "create_mcp_server": "Create MCP Server",
-    "tool_name": "Tool name",
-    "e_g_book_flight": "e.g., book_flight",
-    "description": "Description",
-    "parameters": "Parameters (",
-    "descriptions_default_to_your_start_block": "Descriptions default to your Start block inputs; edit to override for this tool.",
-    "servers": "Servers",
-    "select_servers": "Select servers...",
-    "enter_a_tool_name_to_select": "Enter a tool name to select servers",
-    "fix_the_tool_name_to_select": "Fix the tool name to select servers"
+    "use_lowercase_letters_numbers_and_underscores": "Use lowercase letters, numbers, and underscores only",
+    "describe_what_this_tool_does": "Describe what this tool does...",
+    "search_servers": "Search servers..."
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/api/api.tsx": {
-    "language": "Language",
-    "run_workflow": "Run workflow",
-    "copy_command": "Copy command",
-    "run_workflow_stream_response": "Run workflow (stream response)",
-    "select_outputs": "Select outputs",
-    "run_workflow_async": "Run workflow (async)"
+    "copied": "Copied",
+    "copy": "Copy"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/deploy-upgrade-gate/deploy-upgrade-gate.tsx": {
     "deployment_requires_a_paid_plan": "deployment requires a paid plan",
@@ -1708,20 +931,18 @@
     "explore_plans": "Explore plans"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal.tsx": {
-    "workflow_deployment": "Workflow Deployment",
-    "general": "General",
-    "chat": "Chat",
-    "configure_and_manage_workflow_deployment_setting": "Configure and manage workflow deployment settings including API, MCP, A2A, and chat\n                options.",
-    "edit_api_info": "Edit API Info",
-    "generate_api_key": "Generate API Key",
-    "delete": "Delete",
-    "manage": "Manage",
-    "unpublished": "Unpublished",
-    "unpublish": "Unpublish",
+    "updated": "Updated",
+    "launched": "Launched",
+    "update": "Update",
+    "launch_chat": "Launch Chat",
+    "save_tool": "Save Tool",
+    "update_deployment": "Update deployment",
+    "live": "Live",
+    "publish_agent": "Publish Agent",
+    "publish": "Publish",
     "undeploy_api": "Undeploy API",
     "delete_a2a_agent": "Delete A2A Agent",
-    "deploy": "Deploy",
-    "update": "Update"
+    "undeploy": "Undeploy"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/toolbar.tsx": {
     "toolbar": "Toolbar",
@@ -1738,213 +959,95 @@
     "view_documentation": "View documentation"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/editor.tsx": {
+    "ancestor_container_is_locked": "Ancestor container is locked",
     "unlock_block": "Unlock block",
-    "open_documentation": "Open documentation",
-    "open_docs": "Open docs",
-    "select_a_block_to_edit": "Select a block to edit",
-    "workflow_preview": "Workflow Preview",
-    "open_workflow": "Open workflow",
-    "unable_to_load_preview": "Unable to load preview",
-    "this_block_has_no_subblocks": "This block has no subblocks",
-    "additional_fields": "Additional fields",
-    "connections": "Connections"
+    "block_is_locked": "Block is locked",
+    "save_name": "Save name",
+    "rename_block": "Rename block",
+    "hide_additional_fields": "Hide additional fields",
+    "show_additional_fields": "Show additional fields",
+    "expand_connections": "Expand connections",
+    "collapse_connections": "Collapse connections"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/grouped-checkbox-list/grouped-checkbox-list.tsx": {
-    "none_selected": "None selected",
-    "all_selected": "All selected",
-    "selected": "selected",
-    "configure_pii_types": "Configure PII Types",
-    "select_pii_types_to_detect": "Select PII Types to Detect",
-    "pii_types": "PII types",
-    "choose_which_types_of_personally_identifiable": "Choose which types of personally identifiable information to detect and block.",
-    "select_all_entities": "Select all entities",
-    "clear": "Clear"
+    "select_pii_types_to_detect": "Select PII Types to Detect"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/parameter.tsx": {
-    "generate": "Generate",
-    "generate_with_ai": "Generate with AI..."
+    "switch_to_selector": "Switch to selector",
+    "switch_to_manual_id": "Switch to manual ID"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/credential-selector.tsx": {
     "additional_permissions_required": "Additional permissions required",
     "update_access": "Update access"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-input/selector-input.tsx": {
-    "selector_not_supported_for_service": "Selector not supported for service:",
-    "this_selector_is_not_implemented_for": "This selector is not implemented for"
+    "select_resource": "Select resource"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-tag-filters/knowledge-tag-filters.tsx": {
-    "tag_filters": "Tag Filters",
-    "add_filter": "Add Filter",
-    "delete_filter": "Delete Filter",
-    "tag": "Tag",
-    "select_tag": "Select tag",
-    "operator": "Operator",
-    "select_operator": "Select operator",
-    "value": "Value",
-    "to": "to"
+    "no_filters": "No filters",
+    "text": "Text"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sort-builder/sort-builder.tsx": {
     "add_sort": "Add sort"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-tag-entry/document-tag-entry.tsx": {
-    "document_tags": "Document Tags",
-    "no_tags_defined_for_this_knowledge": "No tags defined for this knowledge base",
-    "define_tags_at_the_knowledge_base": "Define tags at the knowledge base level first",
-    "add_tag": "Add Tag",
-    "delete_tag": "Delete Tag",
-    "tag": "Tag",
-    "select_tag": "Select tag",
-    "value": "Value"
+    "no_tags": "No tags",
+    "text": "Text"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/filter-builder/filter-builder.tsx": {
     "add_filter_condition": "Add filter condition"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard.tsx": {
-    "setup_slack_app": "Setup Slack App",
-    "configure_your_bot": "Configure your bot",
-    "create_the_app_in_slack": "Create the app in Slack",
-    "paste_your_signing_secret": "Paste your Signing Secret",
-    "install_and_paste_your_bot_token": "Install and paste your Bot Token",
-    "all_set": "All set",
-    "pick_a_name_and_choose_what": "Pick a name and choose what events should trigger your workflow and what actions your bot\n        can take.",
-    "bot_name": "Bot name",
-    "copy_your_manifest": "Copy your manifest:",
-    "couldn_t_copy_manifest_copy_it": "Couldn't copy manifest — copy it manually from the developer console.",
-    "open_the": "Open the",
-    "slack_apps_page": "Slack Apps page",
-    "click": "Click",
-    "create_new_app": "Create New App",
-    "from_a_manifest": "From a manifest",
-    "and_pick_your_workspace": "and pick your\n          workspace.",
-    "paste_your_manifest_then_click": "Paste your manifest, then click",
-    "next": "Next",
-    "create": "Create",
-    "in_your_new_slack_app_open": "In your new Slack app, open",
-    "basic_information": "Basic Information",
-    "find": "Find",
-    "signing_secret": "Signing Secret",
-    "and_click": "and click",
-    "show": "Show",
-    "then_copy_it": ", then copy it.",
-    "paste_it_into_the_field_below": "Paste it into the field below.",
-    "paste_your_signing_secret_2": "Paste your signing secret",
-    "in_slack_open": "In Slack, open",
-    "install_app": "Install App",
-    "install_to_workspace": "Install to Workspace",
-    "and_authorize": "and\n          authorize.",
-    "copy_the": "Copy the",
-    "bot_user_oauth_token": "Bot User OAuth Token",
-    "starts_with": "(starts with",
-    "xoxb": "xoxb-",
-    "bot_token": "Bot Token",
-    "xoxb_2": "xoxb-...",
-    "your_slack_app_is_set_up": "Your Slack app is set up. Save the workflow and Slack will verify the webhook URL\n        automatically.",
-    "click_done_and_save_this_workflow": "Click Done and save this workflow.",
-    "not_saved_yet": "(not saved yet)"
+    "click_to_copy_manifest": "Click to copy manifest",
+    "deploy_once_to_lock_in_the": "Deploy once to lock in the webhook URL"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/skill-input/skill-input.tsx": {
-    "add_skill": "Add skill...",
-    "no_skills_found": "No skills found",
-    "remove_skill": "Remove skill"
+    "search_skills": "Search skills..."
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/credential-selector.tsx": {
-    "additional_permissions_required": "Additional permissions required",
-    "update_access": "Update access"
+    "fill_in_required_fields_above_first": "Fill in required fields above first"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/subflow-editor/subflow-editor.tsx": {
-    "select_type": "Select type...",
-    "enter_a_whole_number_greater_than": "Enter a whole number greater than 0.",
-    "parallel_batch_size": "Parallel Batch Size",
-    "run_1_to_20_parallel_branches": "Run 1 to 20 parallel branches at a time.",
-    "connections": "Connections"
+    "loop_type": "Loop Type",
+    "parallel_type": "Parallel Type",
+    "while_condition": "While Condition",
+    "item1_item2_item3": "['item1', 'item2', 'item3']",
+    "expand_connections": "Expand connections",
+    "collapse_connections": "Collapse connections"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu/canvas-menu.tsx": {
-    "undo": "Undo",
-    "z": "⌘Z",
-    "redo": "Redo",
-    "z_2": "⌘⇧Z",
-    "paste": "Paste",
-    "v": "⌘V",
-    "add_block": "Add Block",
-    "k": "⌘K",
-    "auto_layout": "Auto-layout",
-    "l": "⇧L",
-    "fit_to_view": "Fit to View",
-    "search_and_replace": "Search and replace",
-    "f": "⌘F",
-    "open_logs": "Open Logs",
-    "l_2": "⌘L"
+    "unlock_blocks_to_use_auto_layout": "Unlock blocks to use auto-layout",
+    "unlock_workflow": "Unlock workflow",
+    "lock_workflow": "Lock workflow",
+    "close_variables": "Close Variables",
+    "open_variables": "Open Variables",
+    "close_chat": "Close Chat",
+    "open_chat": "Open Chat"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat.tsx": {
-    "chat": "Chat",
-    "add_chat_inputs_to_start_block": "Add chat inputs to Start block",
-    "add_inputs": "Add inputs",
-    "outputs": "Outputs",
-    "export": "Export",
-    "clear": "Clear",
-    "no_messages_yet": "No messages yet",
-    "file_upload_error": "File upload error",
-    "attach_file": "Attach file"
+    "drop_files_here": "Drop files here...",
+    "type_a_message": "Type a message..."
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/block-menu/block-menu.tsx": {
-    "copy": "Copy",
-    "c": "⌘C",
-    "cut": "Cut",
-    "x": "⌘X",
-    "paste": "Paste",
-    "v": "⌘V",
-    "duplicate": "Duplicate",
-    "flip_handles": "Flip Handles",
-    "remove_from_subflow": "Remove from Subflow",
-    "rename": "Rename",
-    "open_editor": "Open Editor",
-    "run_from_block": "Run from block",
-    "run_until_block": "Run until block",
-    "delete": "Delete"
+    "parent_is_disabled": "Parent is disabled",
+    "parent_is_locked": "Parent is locked"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls.tsx": {
     "mover": "Mover",
-    "pointer": "Pointer",
-    "undo": "Undo",
-    "redo": "Redo",
-    "fit_to_view": "Fit to View",
-    "hide_canvas_controls": "Hide canvas controls"
+    "pointer": "Pointer"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/terminal.tsx": {
-    "terminal": "Terminal",
-    "resize_terminal": "Resize terminal",
-    "logs": "Logs",
-    "sort_by_timestamp": "Sort by timestamp",
-    "sort_by_time": "Sort by time",
-    "component_playground": "Component Playground",
-    "export_console_csv": "Export console CSV",
-    "export_csv": "Export CSV",
-    "clear_console": "Clear console",
-    "terminal_options": "Terminal options",
-    "open_on_run": "Open on run",
-    "no_logs_yet": "No logs yet"
+    "stop_training": "Stop training",
+    "train_sim": "Train Sim",
+    "stop_training_2": "Stop Training"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/output-panel.tsx": {
-    "resize_output_panel": "Resize output panel",
-    "show_output": "Show output",
-    "output": "Output",
-    "show_input": "Show input",
-    "input": "Input",
-    "close_search": "Close search",
-    "search_in_output": "Search in output",
-    "search": "Search",
-    "component_playground": "Component Playground",
+    "stop_training": "Stop training",
+    "train_sim": "Train Sim",
+    "stop_training_2": "Stop Training",
+    "copied": "Copied",
     "copy_output": "Copy output",
-    "export_console_csv": "Export console CSV",
-    "export_csv": "Export CSV",
-    "clear_console": "Clear console",
-    "terminal_options": "Terminal options",
-    "structured_view": "Structured view",
-    "wrap_text": "Wrap text",
-    "open_on_run": "Open on run",
-    "search_2": "Search...",
-    "previous_match": "Previous match",
-    "next_match": "Next match"
+    "no_results": "No results"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu.tsx": {
     "copy_selection": "Copy Selection",
@@ -1982,14 +1085,12 @@
     "toggle_terminal": "Toggle terminal"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/components/replacement-controls/replacement-controls.tsx": {
-    "choose_replacement": "Choose replacement...",
-    "no_valid_replacements_available": "No valid replacements available",
-    "replace": "Replace",
-    "replaceable_match": "replaceable match"
+    "search_resources": "Search resources...",
+    "replace_all": "Replace All"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace.tsx": {
-    "search_and_replace": "Search and replace",
-    "search": "Search"
+    "hide_replace_controls": "Hide replace controls",
+    "show_replace_controls": "Show replace controls"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables.tsx": {
     "delete_variable": "Delete Variable",
@@ -2001,8 +1102,7 @@
     "sim": "Sim"
   },
   "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/error/index.tsx": {
-    "try_again": "Try again",
-    "application_error": "Application Error"
+    "something_went_wrong_with_the_application": "Something went wrong with the application. Please try again later."
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item.tsx": {
     "folder_is_locked": "Folder is locked",
@@ -2013,24 +1113,17 @@
     "workflow_options": "Workflow options"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars.tsx": {
-    "more_user": "more user"
+    "user_avatar": "User avatar"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu/empty-area-context-menu.tsx": {
     "create_workflow": "Create workflow",
     "create_folder": "Create folder"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu.tsx": {
-    "open_in_new_tab": "Open in new tab",
-    "mark_as_read": "Mark as read",
-    "mark_as_unread": "Mark as unread",
-    "rename": "Rename",
-    "create_workflow": "Create workflow",
-    "create_folder": "Create folder",
-    "upload_logo": "Upload logo",
-    "duplicate": "Duplicate",
-    "export": "Export",
-    "leave": "Leave",
-    "delete": "Delete"
+    "unpin": "Unpin",
+    "pin": "Pin",
+    "unlock": "Unlock",
+    "lock": "Lock"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal.tsx": {
     "type_nbsp": "Type&nbsp;",
@@ -2040,9 +1133,9 @@
     "workflows": "Workflows"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-sidebar.tsx": {
-    "back": "Back",
-    "max": "Max",
-    "unsaved_changes": "Unsaved changes"
+    "unsaved_changes": "Unsaved changes",
+    "you_have_unsaved_changes_are_you": "You have unsaved changes. Are you sure you want to discard them?",
+    "keep_editing": "Keep editing"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/nav-item-context-menu/nav-item-context-menu.tsx": {
     "open_in_new_tab": "Open in new tab",
@@ -2057,55 +1150,27 @@
     "current": "(current)"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/help-modal/help-modal.tsx": {
-    "help_amp_support": "Help &amp; support",
-    "request": "Request",
-    "select_a_request_type": "Select a request type",
-    "subject": "Subject",
-    "brief_description_of_your_request": "Brief description of your request",
-    "message": "Message",
-    "please_provide_details_about_your_request": "Please provide details about your request...",
-    "attach_images_optional": "Attach images (optional)",
-    "drop_images_here_or_click_to": "Drop images here or click to browse",
-    "png_jpeg_webp_gif_max_20mb": "PNG, JPEG, WebP, GIF (max 20MB each)",
-    "uploaded_images": "Uploaded images"
+    "help_support": "Help & support"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/workspace-header.tsx": {
-    "expand_sidebar": "Expand sidebar",
-    "switch_workspace": "Switch workspace",
-    "loading_workspaces": "Loading workspaces...",
-    "workspace_options": "Workspace options",
-    "new_workspace": "New workspace",
-    "invite_teammates": "Invite teammates",
-    "manage_workspace": "Manage workspace",
+    "workspace_logo": "Workspace logo",
     "leave_workspace": "Leave workspace"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/invite-modal.tsx": {
-    "invite_teammates": "Invite teammates",
-    "emails": "Emails",
-    "invite_as": "Invite as",
-    "select_role": "Select role"
+    "only_administrators_can_invite_new_teammates": "Only administrators can invite new teammates",
+    "enter_emails": "Enter emails"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal.tsx": {
-    "create_workspace": "Create workspace",
-    "name": "Name",
-    "workspace_name": "Workspace name"
+    "create_workspace": "Create workspace"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/sidebar.tsx": {
-    "chat_options": "Chat options",
-    "workspace_sidebar": "Workspace sidebar",
-    "collapse_sidebar": "Collapse sidebar",
-    "chats": "Chats",
-    "loading": "Loading...",
-    "no_chats_yet": "No chats yet",
-    "workspace": "Workspace",
-    "workflows": "Workflows",
-    "more_actions": "More actions",
-    "creating_workflow": "Creating workflow...",
-    "new_workflow": "New workflow",
-    "no_workflows_yet": "No workflows yet",
-    "help": "Help",
-    "docs": "Docs",
-    "report_an_issue": "Report an issue"
+    "see_more": "See more",
+    "see_less": "See less",
+    "import_workflow": "Import workflow",
+    "creating_folder": "Creating folder...",
+    "create_folder": "Create folder",
+    "expand_sidebar": "Expand sidebar",
+    "resize_sidebar": "Resize sidebar"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/preview/preview.tsx": {
     "back": "Back",
@@ -2117,23 +1182,20 @@
     "wrap_text": "Wrap Text"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/preview-editor.tsx": {
-    "connections": "Connections",
-    "variables": "Variables",
-    "secrets": "Secrets",
-    "select_type": "Select type...",
-    "enter_a_whole_number_greater_than": "Enter a whole number greater than 0.",
-    "block_configuration_not_found": "Block configuration not found.",
+    "expand_connections": "Expand connections",
+    "collapse_connections": "Collapse connections",
+    "loop_type": "Loop Type",
+    "parallel_type": "Parallel Type",
+    "item1_item2_item3": "['item1', 'item2', 'item3']",
+    "unknown_block": "Unknown Block",
+    "copied": "Copied",
+    "copy": "Copy",
+    "error": "Error",
+    "output": "Output",
+    "expand_workflow": "Expand workflow",
+    "open_in_new_tab": "Open in new tab",
     "not_executed": "Not Executed",
-    "input": "Input",
-    "no_input_data": "No input data",
-    "search": "Search",
-    "no_output_data": "No output data",
-    "workflow_preview": "Workflow Preview",
-    "no_configurable_fields_for_this_block": "No configurable fields for this block.",
-    "search_2": "Search...",
-    "previous_match": "Previous match",
-    "next_match": "Next match",
-    "close_search": "Close search"
+    "unable_to_load_preview": "Unable to load preview"
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.tsx": {
     "logged_state_not_found": "⚠️ Logged State Not Found",
@@ -2148,56 +1210,24 @@
     "error": "error"
   },
   "apps/sim/app/resume/[workflowId]/[executionId]/resume-page-client.tsx": {
-    "not_set": "Not set",
-    "true": "True",
-    "false": "False",
-    "execution_not_found": "Execution Not Found",
-    "this_execution_could_not_be_located": "This execution could not be located or has already completed.",
-    "return_home": "Return Home",
-    "paused_execution": "Paused Execution",
-    "select_a_pause_point_to_review": "Select a pause point to review and resume",
-    "refresh_execution_details": "Refresh execution details",
-    "refresh": "Refresh",
-    "pause_points": "Pause Points",
-    "no_pause_points": "No pause points",
-    "loading": "Loading…",
-    "select_a_pause_point": "Select a pause point",
-    "could_not_load_details": "Could not load details",
-    "paused_at": "Paused at",
-    "queue": "Queue #",
-    "resume_form": "Resume Form",
-    "no_input_data_provided": "No input data provided",
-    "display_data": "Display Data",
-    "field": "Field",
-    "type": "Type",
-    "value": "Value",
-    "no_display_data_configured": "No display data configured",
-    "resume_input_json": "Resume Input (JSON)",
-    "label": "{\"example\": \"value\"}",
-    "need_help": "Need help?",
-    "contact_support": "Contact support"
+    "select_true_or_false": "Select true or false",
+    "enter_a_number": "Enter a number...",
+    "enter_value": "Enter value...",
+    "resume_execution": "Resume Execution"
   },
   "apps/sim/app/unsubscribe/unsubscribe.tsx": {
-    "loading": "Loading",
-    "validating_your_unsubscribe_link": "Validating your unsubscribe link…",
-    "invalid_unsubscribe_link": "Invalid Unsubscribe Link",
-    "go_back": "Go Back",
-    "important_account_emails": "Important Account Emails",
-    "transactional_emails_like_password_resets_accoun": "Transactional emails like password resets, account confirmations, and security alerts\n            cannot be unsubscribed from as they contain essential information for your account.",
-    "close": "Close",
-    "successfully_unsubscribed": "Successfully Unsubscribed",
-    "you_have_been_unsubscribed_from_our": "You have been unsubscribed from our emails. You will stop receiving emails within 48\n            hours.",
-    "email_preferences": "Email Preferences",
-    "choose_which_emails_you_d_like": "Choose which emails you'd like to stop receiving.",
-    "unsubscribing": "Unsubscribing…",
-    "or_choose_specific_types": "or choose specific types",
-    "you_ll_continue_receiving_important_account": "You'll continue receiving important account emails like password resets and security\n          alerts."
+    "unsubscribed_from_all_emails": "Unsubscribed from All Emails",
+    "unsubscribe_from_all_marketing_emails": "Unsubscribe from All Marketing Emails",
+    "unsubscribed_from_marketing": "Unsubscribed from Marketing",
+    "unsubscribe_from_marketing_emails": "Unsubscribe from Marketing Emails",
+    "unsubscribed_from_updates": "Unsubscribed from Updates",
+    "unsubscribe_from_product_updates": "Unsubscribe from Product Updates",
+    "unsubscribed_from_notifications": "Unsubscribed from Notifications",
+    "unsubscribe_from_notifications": "Unsubscribe from Notifications"
   },
   "apps/sim/app/f/[token]/public-file-sso-auth.tsx": {
-    "sso_authentication": "SSO Authentication",
-    "work_email": "Work Email",
-    "enter_your_work_email": "Enter your work email",
-    "redirecting_to_sso": "Redirecting to SSO…"
+    "this_file_requires_sso_authentication": "This file requires SSO authentication",
+    "continue_with_sso": "Continue with SSO"
   },
   "apps/sim/app/f/[token]/public-file-view.tsx": {
     "sim_home": "Sim home",
@@ -2205,32 +1235,18 @@
     "download": "Download"
   },
   "apps/sim/app/f/[token]/public-file-email-auth.tsx": {
-    "email_verification": "Email Verification",
-    "email": "Email",
-    "enter_your_email": "Enter your email",
-    "sending_code": "Sending Code…",
-    "verify_your_email": "Verify Your Email",
-    "enter_the_6_digit_code_to": "Enter the 6-digit code to verify your access. If you don't see it in your inbox, check\n          your spam folder.",
-    "verifying": "Verifying…",
-    "didn_t_receive_a_code": "Didn't receive a code?",
-    "resend_in": "Resend in",
-    "resend": "Resend",
-    "change_email": "Change email"
+    "this_file_requires_email_verification": "This file requires email verification",
+    "continue": "Continue",
+    "verify_email": "Verify Email"
   },
   "apps/sim/app/f/[token]/public-file-auth.tsx": {
-    "password_required": "Password Required",
-    "password": "Password",
-    "enter_password": "Enter password",
-    "authenticating": "Authenticating…"
+    "this_file_is_password_protected": "This file is password-protected",
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "continue": "Continue"
   },
   "apps/sim/app/academy/[courseSlug]/[lessonSlug]/components/lesson-quiz.tsx": {
-    "quiz": "Quiz",
-    "score": "Score",
-    "or_higher_to_pass": "% or higher to pass.",
-    "score_2": "Score:",
-    "passing": "% (passing:",
-    "retry": "Retry",
-    "submit_answers": "Submit answers"
+    "keep_trying": "Keep trying!"
   },
   "apps/sim/app/academy/[courseSlug]/[lessonSlug]/components/exercise-view.tsx": {
     "exercise_complete": "Exercise complete!"
@@ -2245,17 +1261,13 @@
     "next": "Next"
   },
   "apps/sim/app/academy/(catalog)/[courseSlug]/components/course-progress.tsx": {
-    "your_progress": "Your progress",
-    "lessons": "lessons",
-    "module": "Module",
-    "min": "min",
-    "certificate_issued": "Certificate issued!",
-    "view_certificate": "View certificate",
-    "course_complete": "Course Complete!",
-    "sign_in": "Sign in"
+    "something_went_wrong_try_again": "Something went wrong. Try again.",
+    "claim_your_certificate_of_completion": "Claim your certificate of completion.",
+    "sign_in_to_claim_your_certificate": "Sign in to claim your certificate.",
+    "get_certificate": "Get certificate"
   },
   "apps/sim/app/academy/components/lesson-video.tsx": {
-    "video_unavailable": "Video unavailable"
+    "accelerometer_autoplay_clipboard_write_encrypted": "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   },
   "apps/sim/app/academy/components/validation-checklist.tsx": {
     "checklist": "Checklist",
@@ -2273,13 +1285,10 @@
     "request_new_invitation": "Request New Invitation"
   },
   "apps/sim/app/invite/[id]/invite.tsx": {
-    "you_ve_been_invited": "You've been invited!",
-    "loading_invitation": "Loading invitation...",
-    "wrong_account": "Wrong Account",
-    "already_part_of_a_team": "Already Part of a Team",
-    "authentication_required": "Authentication Required",
-    "invitation_error": "Invitation Error",
-    "welcome": "Welcome!"
+    "create_an_account_to_join_this": "Create an account to join this workspace on Sim",
+    "sign_in_to_your_account_to": "Sign in to your account to accept this invitation",
+    "organization_invitation": "Organization Invitation",
+    "workspace_invitation": "Workspace Invitation"
   },
   "apps/sim/app/credential-account/[token]/page.tsx": {
     "loading_invitation": "Loading invitation...",
@@ -2306,43 +1315,19 @@
     "when_each_model_was_first_publicly": "When each model was first publicly available."
   },
   "apps/sim/app/(landing)/models/components/model-directory.tsx": {
-    "search_models_providers_or_capabilities": "Search models, providers, or capabilities…",
-    "search_ai_models": "Search AI models",
-    "all": "All",
-    "no_matches_found": "No matches found",
-    "try_a_provider_name_like_openai": "Try a provider name like OpenAI or Anthropic, or search for capabilities like\n            &nbsp;structured outputs, reasoning, or deep research.",
-    "models_middot": "models &middot;",
-    "dynamic_model_catalogs": "Dynamic model catalogs",
-    "these_providers_load_their_model_lists": "These providers load their model lists dynamically at runtime.",
-    "dynamic_catalog_providers": "Dynamic catalog providers",
-    "middot_input": "&middot; Input",
-    "1m_middot_output": "/1M &middot; Output",
-    "1m": "/1M"
+    "h_4_w_4": "h-4 w-4"
   },
   "apps/sim/app/(landing)/blog/components/lightbox.tsx": {
     "image_viewer": "Image viewer"
   },
   "apps/sim/app/(landing)/blog/[slug]/share-button.tsx": {
-    "share_this_post": "Share this post",
-    "share": "Share",
-    "share_on_x": "Share on X",
-    "share_on_linkedin": "Share on LinkedIn"
+    "copy_link": "Copy link"
   },
   "apps/sim/app/(landing)/blog/[slug]/back-link.tsx": {
     "back_to_blog": "Back to Blog"
   },
   "apps/sim/app/(landing)/integrations/components/request-integration-modal.tsx": {
-    "request_an_integration": "Request an integration",
-    "request_an_integration_2": "Request an Integration",
-    "request_submitted_we_apos_ll_follow": "Request submitted. We&apos;ll follow up at",
-    "integration_name": "Integration name",
-    "e_g_stripe_hubspot_snowflake": "e.g. Stripe, HubSpot, Snowflake",
-    "your_email": "Your email",
-    "you_company_com": "you@company.com",
-    "use_case": "Use case",
-    "optional": "(optional)",
-    "what_would_you_automate_with_this": "What would you automate with this integration?",
-    "something_went_wrong_please_try_again": "Something went wrong. Please try again."
+    "request_an_integration": "Request an Integration"
   },
   "apps/sim/app/(landing)/integrations/components/integration-grid.tsx": {
     "search_integrations_tools_or_triggers": "Search integrations, tools, or triggers…",
@@ -2370,13 +1355,8 @@
     "how_we_built_realtime_collaboration": "How we built realtime collaboration"
   },
   "apps/sim/app/(landing)/components/navbar/navbar.tsx": {
-    "primary_navigation": "Primary navigation",
-    "go_to_app": "Go to app",
-    "go_to_app_2": "Go to App",
-    "log_in": "Log in",
-    "get_started_with_sim": "Get started with Sim",
-    "get_started": "Get started",
-    "github": "GitHub"
+    "close_menu": "Close menu",
+    "open_menu": "Open menu"
   },
   "apps/sim/app/(landing)/components/footer/footer-cta.tsx": {
     "what_should_we_get_done": "What should we get done?",
@@ -2387,24 +1367,7 @@
     "get_started": "Get started"
   },
   "apps/sim/app/(landing)/components/contact/contact-form.tsx": {
-    "message_received": "Message received",
-    "thanks_for_reaching_out_we_ve": "Thanks for reaching out. We've sent a confirmation to your inbox and will get back to you\n          shortly.",
-    "send_another_message": "Send another message",
-    "website": "Website",
-    "name": "Name",
-    "your_name": "Your name",
-    "email": "Email",
-    "you_company_com": "you@company.com",
-    "company": "Company",
-    "company_name": "Company name",
-    "topic": "Topic",
-    "select_a_topic": "Select a topic",
-    "subject": "Subject",
-    "how_can_we_help": "How can we help?",
-    "message": "Message",
-    "share_details_so_we_can_help": "Share details so we can help as quickly as possible",
-    "by_submitting_you_agree_to_our": "By submitting, you agree to our",
-    "privacy_policy": "Privacy Policy"
+    "send_message": "Send message"
   },
   "apps/sim/app/(landing)/components/features/features.tsx": {
     "workspace": "Workspace",
@@ -2432,38 +1395,27 @@
     "my_workspace": "My Workspace"
   },
   "apps/sim/app/(landing)/components/demo-request/demo-request-modal.tsx": {
-    "fill_out_this_form_to_request": "Fill out this form to request a demo and talk to the sales team",
-    "first_name": "First name",
-    "first": "First",
-    "last_name": "Last name",
-    "last": "Last",
-    "company_email": "Company email",
-    "your_work_email": "Your work email",
-    "phone_number": "Phone number",
-    "your_phone_number": "Your phone number",
-    "company_size": "Company size",
-    "select": "Select",
-    "details": "Details",
-    "tell_us_about_your_needs_and": "Tell us about your needs and questions",
-    "our_team_will_be_in_touch": "Our team will be in touch soon. If you have any questions, please email us at",
-    "enterprise_sim_ai": "enterprise@sim.ai"
+    "demo_request_submitted": "Demo request submitted",
+    "talk_to_sales": "Talk to sales",
+    "submit": "Submit"
   },
   "apps/sim/app/(landing)/components/templates/templates.tsx": {
-    "sim_includes": "Sim includes",
-    "pre_built_workflow_templates_covering_ocr": "pre-built workflow templates covering OCR\n          processing, release management, meeting follow-ups, resume scanning, email triage,\n          competitor monitoring, social listening, data enrichment, feedback analysis, code review,\n          and knowledge base Q&amp;A. Each template connects real integrations and LLMs; pick one,\n          customise it, and deploy in minutes.",
-    "templates": "Templates",
-    "ship_your_agent_in_minutes": "Ship your agent in minutes",
-    "pre_built_templates_for_every_use": "Pre-built templates for every use case: pick one, swap",
-    "models_and_tools_to_fit_your": "models and tools to fit your stack, and deploy.",
-    "workflow_templates": "Workflow templates"
+    "use_template": "Use template"
   },
   "apps/sim/app/(landing)/components/auth-modal/auth-modal.tsx": {
-    "close": "Close",
-    "start_building": "Start building.",
-    "sign_in_with_sso": "Sign in with SSO",
-    "or": "Or",
-    "continue_with_email": "Continue with email",
-    "registration_is_disabled": "Registration is disabled"
+    "log_in": "Log in",
+    "create_account": "Create account",
+    "sign_in_to_your_account": "Sign in to your account",
+    "create_a_new_account": "Create a new account",
+    "log_in_to_continue": "Log in to continue",
+    "create_free_account": "Create free account",
+    "continue_with_google": "Continue with Google",
+    "continue_with_microsoft": "Continue with Microsoft",
+    "continue_with_github": "Continue with GitHub",
+    "don_t_have_an_account": "Don't have an account? ",
+    "already_have_an_account": "Already have an account? ",
+    "sign_up": "Sign up",
+    "sign_in": "Sign in"
   },
   "apps/sim/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel.tsx": {
     "deploy": "Deploy",
@@ -2487,7 +1439,8 @@
     "customer_leads": "Customer Leads"
   },
   "apps/sim/app/(landing)/components/landing-preview/components/landing-preview-tables/landing-preview-tables.tsx": {
-    "tables": "Tables"
+    "new_table": "New table",
+    "search_tables": "Search tables..."
   },
   "apps/sim/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource.tsx": {
     "filter": "Filter",
@@ -2525,32 +1478,19 @@
     "sim_pricing_community_plan_is_free": "Sim pricing: Community plan is free with 1,000 credits, 5GB storage, and 1 personal\n            workspace. Pro plan is $25 per month with 6,000 credits, 50GB storage, and up to 3\n            personal workspaces. Max plan is $100 per month with 25,000 credits, 500GB storage, and\n            up to 10 personal workspaces. Enterprise pricing is custom with unlimited shared\n            workspaces, SSO, SCIM, SOC2 compliance, self-hosting, and dedicated support. All plans\n            include CLI, SDK, and MCP access."
   },
   "apps/sim/app/(auth)/verify/verify-content.tsx": {
-    "enter_the_6_digit_code_to": "Enter the 6-digit code to verify your account.",
-    "verifying": "Verifying…",
-    "didn_t_receive_a_code": "Didn't receive a code?",
-    "resend_in": "Resend in",
-    "resend": "Resend",
-    "back_to_signup": "Back to signup"
+    "email_verified": "Email Verified!",
+    "verify_your_email": "Verify Your Email",
+    "your_email_has_been_verified_redirecting": "Your email has been verified. Redirecting to dashboard...",
+    "email_verification_is_disabled_redirecting_to": "Email verification is disabled. Redirecting to dashboard...",
+    "development_mode_check_your_console_logs": "Development mode: Check your console logs for the verification code",
+    "error_email_verification_is_enabled_but": "Error: Email verification is enabled but no email service is configured",
+    "if_you_don_t_see_it": " If you don't see it in your inbox, check your spam folder.",
+    "verify_email": "Verify Email"
   },
   "apps/sim/app/(auth)/signup/signup-form.tsx": {
-    "create_an_account": "Create an account",
-    "create_an_account_or_log_in": "Create an account or log in",
-    "full_name": "Full name",
-    "enter_your_name": "Enter your name",
-    "name_can_only_contain_letters_spaces": "Name can only contain letters, spaces, hyphens, and apostrophes",
-    "email": "Email",
-    "enter_your_email": "Enter your email",
-    "password": "Password",
-    "enter_your_password": "Enter your password",
-    "creating_account": "Creating account…",
-    "or_continue_with": "Or continue with",
-    "already_have_an_account": "Already have an account?",
-    "sign_in": "Sign in",
-    "by_creating_an_account_you_agree": "By creating an account, you agree to our",
-    "terms_of_service": "Terms of Service",
-    "and": "and",
-    "privacy_policy": "Privacy Policy",
-    "loading": "Loading…"
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "create_account": "Create account"
   },
   "apps/sim/app/(auth)/components/sso-login-button.tsx": {
     "sign_in_with_sso": "Sign in with SSO"
@@ -2560,15 +1500,10 @@
     "contact_support": "Contact support"
   },
   "apps/sim/app/(auth)/reset-password/reset-password-form.tsx": {
-    "email": "Email",
-    "enter_your_email": "Enter your email",
-    "we_ll_send_a_password_reset": "We'll send a password reset link to this email address.",
-    "sending": "Sending…",
-    "new_password": "New Password",
-    "enter_new_password": "Enter new password",
-    "confirm_password": "Confirm Password",
-    "confirm_new_password": "Confirm new password",
-    "resetting": "Resetting…"
+    "send_reset_link": "Send Reset Link",
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "reset_password": "Reset Password"
   },
   "apps/sim/app/(auth)/reset-password/reset-password-content.tsx": {
     "reset_your_password": "Reset your password",
@@ -2577,29 +1512,18 @@
     "loading": "Loading…"
   },
   "apps/sim/app/(auth)/login/login-form.tsx": {
+    "hide_password": "Hide password",
+    "show_password": "Show password",
     "sign_in": "Sign in",
-    "enter_your_details": "Enter your details",
-    "email": "Email",
-    "enter_your_email": "Enter your email",
-    "password": "Password",
-    "forgot_password": "Forgot password?",
-    "enter_your_password": "Enter your password",
-    "signing_in": "Signing in…",
-    "or_continue_with": "Or continue with",
-    "don_t_have_an_account": "Don't have an account?",
-    "sign_up": "Sign up",
-    "by_signing_in_you_agree_to": "By signing in, you agree to our",
-    "terms_of_service": "Terms of Service",
-    "and": "and",
-    "privacy_policy": "Privacy Policy",
-    "reset_password": "Reset Password",
-    "enter_your_email_address_and_we": "Enter your email address and we'll send you a link to reset your password if your\n            account exists.",
-    "you_example_com": "you@example.com"
+    "reset_password": "Reset Password"
   },
   "apps/sim/components/ui/generated-password-input.tsx": {
-    "generate_password": "Generate password",
-    "generate": "Generate",
-    "copy_password": "Copy password"
+    "copied": "Copied",
+    "copy": "Copy",
+    "hide_password": "Hide password",
+    "show_password": "Show password",
+    "hide": "Hide",
+    "show": "Show"
   },
   "apps/sim/components/permissions/permission-selector.tsx": {
     "view_only": "View only",
@@ -2633,7 +1557,10 @@
     "notifications": "Notifications"
   },
   "apps/sim/components/emcn/components/combobox/combobox.tsx": {
-    "loading_options": "Loading options..."
+    "close_options": "Close options",
+    "open_options": "Open options",
+    "no_matching_options_found": "No matching options found",
+    "no_options_available": "No options available"
   },
   "apps/sim/components/emcn/components/popover/popover.tsx": {
     "back": "Back"
@@ -2642,9 +1569,7 @@
     "more_information": "More information"
   },
   "apps/sim/components/emcn/components/tag-input/tag-input.tsx": {
-    "tag_input": "Tag input",
-    "drop_file_here": "Drop file here",
-    "add_tag": "Add tag"
+    "upload_file": "Upload file"
   },
   "apps/sim/components/emcn/components/modal/modal.tsx": {
     "close": "Close"
@@ -2653,6 +1578,101 @@
     "copy_to_clipboard": "Copy to clipboard"
   },
   "apps/sim/components/emcn/components/chip-modal/chip-modal.tsx": {
-    "cancel": "Cancel"
+    "drop_files_here": "Drop files here"
+  },
+  "apps/sim/app/chat/components/message/message.tsx": {
+    "copy_to_clipboard": "Copy to clipboard"
+  },
+  "apps/sim/app/changelog/components/timeline-list.tsx": {
+    "show_more": "Show more"
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field.tsx": {
+    "max_usage_to_consume_per_month": "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond.",
+    "enter_monthly_usage_limit": "Enter monthly usage limit",
+    "no_usage_limit": "No Usage Limit",
+    "appearance_textfield_webkit_inner_spin_button": "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/billing/components/wallet-section/wallet-section.tsx": {
+    "appearance_textfield_webkit_inner_spin_button": "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/billing/billing.tsx": {
+    "access_until": "Access until",
+    "next_billing_date": "Next billing date",
+    "subscription_canceled": "Subscription canceled",
+    "cancel_subscription": "Cancel subscription"
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button.tsx": {
+    "stop_listening": "Stop listening",
+    "voice_input": "Voice input"
+  },
+  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/data-row.tsx": {
+    "run_row": "Run row"
+  },
+  "apps/sim/app/workspace/[workspaceId]/components/impersonation-banner/impersonation-banner.tsx": {
+    "text_red_700_dark_text_red": "text-red-700 dark:text-red-300",
+    "stop_impersonating": "Stop impersonating"
+  },
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/loading.tsx": {
+    "search_chunks": "Search chunks..."
+  },
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields.tsx": {
+    "switch_to_manual_input": "Switch to manual input",
+    "switch_to_selector": "Switch to selector"
+  },
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/loading.tsx": {
+    "search_documents": "Search documents..."
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/image-preview.tsx": {
+    "h_full_w_full": "h-full w-full"
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table-selector/table-selector.tsx": {
+    "select_a_table": "Select a table"
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/time-input/time-input.tsx": {
+    "select_time": "Select time"
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-base-selector/knowledge-base-selector.tsx": {
+    "search_knowledge_bases": "Search knowledge bases..."
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload.tsx": {
+    "loading_files": "Loading files...",
+    "select_or_upload_file": "Select or upload file",
+    "upload_complete": "Upload complete!",
+    "add_more": "+ Add More"
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mcp-server-modal/mcp-tool-selector.tsx": {
+    "select_server_first": "Select server first"
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-selector/workflow-selector-input.tsx": {
+    "select_workflow": "Select workflow..."
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups/search-groups.tsx": {
+    "actions": "Actions",
+    "blocks": "Blocks",
+    "tools": "Tools",
+    "triggers": "Triggers",
+    "tool_operations": "Tool operations",
+    "docs": "Docs",
+    "workflows": "Workflows",
+    "chats": "Chats",
+    "workspaces": "Workspaces",
+    "pages": "Pages",
+    "files": "Files"
+  },
+  "apps/sim/app/(auth)/components/social-login-buttons.tsx": {
+    "github": "GitHub",
+    "google": "Google",
+    "microsoft": "Microsoft"
+  },
+  "apps/sim/components/ui/billing-provider-badge.tsx": {
+    "lago": "Lago",
+    "stripe": "Stripe"
+  },
+  "apps/sim/components/emcn/components/wizard/wizard.tsx": {
+    "multi_step_wizard": "Multi-step wizard"
+  },
+  "apps/sim/components/emcn/components/code/code.tsx": {
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }

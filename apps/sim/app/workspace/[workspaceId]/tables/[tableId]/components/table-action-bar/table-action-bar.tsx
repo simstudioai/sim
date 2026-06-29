@@ -66,6 +66,7 @@ export function TableActionBar({
   isLoading = false,
   className,
 }: TableActionBarProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const visible =
     hasWorkflowColumns &&
@@ -95,7 +96,7 @@ export function TableActionBar({
             <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
               <span className='px-1 text-[var(--text-secondary)] text-small'>
                 {selectedCellCount === 1
-                  ? 'Selected 1 workflow cell'
+                  ? tI18n('selected_1_workflow_cell')
                   : `Selected ${selectedCellCount} workflow cells`}
               </span>
 

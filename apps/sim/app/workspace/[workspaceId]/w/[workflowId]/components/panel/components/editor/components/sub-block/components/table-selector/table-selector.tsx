@@ -9,6 +9,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTablesList } from '@/hooks/queries/tables'
+import { useTranslations } from 'next-intl'
 
 interface TableSelectorProps {
   blockId: string
@@ -33,6 +34,7 @@ export function TableSelector({
   isPreview = false,
   previewValue,
 }: TableSelectorProps) {
+  const t = useTranslations('auto')
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -77,7 +79,7 @@ export function TableSelector({
       options={options}
       value={tableId ?? undefined}
       onChange={handleChange}
-      placeholder={subBlock.placeholder || 'Select a table'}
+      placeholder={subBlock.placeholder || t('select_a_table')}
       disabled={disabled || isPreview}
       editable={false}
       isLoading={isLoading}

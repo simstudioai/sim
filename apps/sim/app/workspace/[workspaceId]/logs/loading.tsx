@@ -25,6 +25,7 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 export default function LogsLoading() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   return (
     <ResourceChromeFallback
@@ -32,7 +33,7 @@ export default function LogsLoading() {
       title={t('logs')}
       columns={COLUMNS}
       actions={ACTIONS}
-      searchPlaceholder='Search logs...'
+      searchPlaceholder={tI18n('search_logs')}
       hasSort
       hasFilter
     />

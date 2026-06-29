@@ -22,6 +22,7 @@ interface PublicFileSSOAuthProps {
  * sign-in the page gate authorizes via the Sim session.
  */
 export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -59,7 +60,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
   return (
     <PublicFileAuthShell
       title={t('sso_authentication')}
-      subtitle='This file requires SSO authentication'
+      subtitle={tI18n('this_file_requires_sso_authentication')}
     >
       <form
         onSubmit={(e) => {
@@ -96,7 +97,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
               {t('redirecting_to_sso')}
             </span>
           ) : (
-            'Continue with SSO'
+            tI18n('continue_with_sso')
           )}
         </button>
       </form>

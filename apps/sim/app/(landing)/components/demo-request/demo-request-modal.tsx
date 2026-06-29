@@ -67,6 +67,7 @@ async function submitDemoRequest(payload: DemoRequestPayload) {
 }
 
 export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<DemoRequestFormState>(INITIAL_FORM_STATE)
@@ -140,7 +141,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
         <ModalHeader>
           <span className={submitSuccess ? 'sr-only' : undefined}>
             <span className='font-[430] font-season text-[15px] tracking-[-0.02em]'>
-              {submitSuccess ? 'Demo request submitted' : 'Talk to sales'}
+              {submitSuccess ? tI18n('demo_request_submitted') : tI18n('talk_to_sales')}
             </span>
           </span>
         </ModalHeader>
@@ -261,7 +262,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 disabled={demoMutation.isPending}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] bg-[var(--text-primary)] font-[430] font-season text-[13.5px] text-[var(--bg)] transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
               >
-                {demoMutation.isPending ? 'Submitting...' : 'Submit'}
+                {demoMutation.isPending ? 'Submitting...' : tI18n('submit')}
               </button>
             </ModalFooter>
           </form>

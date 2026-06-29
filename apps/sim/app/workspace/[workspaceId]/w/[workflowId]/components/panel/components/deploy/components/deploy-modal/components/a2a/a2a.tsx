@@ -99,6 +99,7 @@ export function A2aDeploy({
   onNeedsRepublishChange,
   onDeployWorkflow,
 }: A2aDeployProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -646,7 +647,7 @@ console.log(data);`
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
-                <span>{urlCopied ? 'Copied' : 'Copy'}</span>
+                <span>{urlCopied ? tI18n('copied') : tI18n('copy')}</span>
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
@@ -718,8 +719,8 @@ console.log(data);`
         </ButtonGroup>
         <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           {authScheme === 'none'
-            ? 'Anyone can call this agent without authentication'
-            : 'Requires X-API-Key header or API key query parameter'}
+            ? tI18n('anyone_can_call_this_agent_without')
+            : tI18n('requires_x_api_key_header_or')}
         </p>
       </div>
 
@@ -758,7 +759,7 @@ console.log(data);`
             setSkillTags((prev) => prev.filter((_, i) => i !== index))
           }}
           placeholder={t('add_tags')}
-          placeholderWithTags='Add another'
+          placeholderWithTags={tI18n('add_another')}
           triggerKeys={['Enter', ',']}
         />
       </div>
@@ -812,7 +813,7 @@ console.log(data);`
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>{codeCopied ? 'Copied' : 'Copy'}</span>
+                    <span>{codeCopied ? tI18n('copied') : tI18n('copy')}</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
               </div>

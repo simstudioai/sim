@@ -40,7 +40,9 @@ export function SettingsSidebar({
   isCollapsed = false,
   showCollapsedTooltips = false,
 }: SettingsSidebarProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
+  const ts = useTranslations('settings')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
 
@@ -295,7 +297,9 @@ export function SettingsSidebar({
                 )}
               >
                 <div className='px-4 pb-2'>
-                  <div className='text-[var(--text-muted)] text-small'>{title}</div>
+                  <div className='text-[var(--text-muted)] text-small'>
+                    {ts(`nav_section_${key}`)}
+                  </div>
                 </div>
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {sectionItems.map((item) => {
@@ -307,7 +311,7 @@ export function SettingsSidebar({
                       <>
                         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                         <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
-                          {item.label}
+                          {ts(`nav_${item.id}_label`)}
                         </span>
                         {isLocked && (
                           <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
@@ -349,7 +353,7 @@ export function SettingsSidebar({
                     return (
                       <SidebarTooltip
                         key={item.id}
-                        label={item.label}
+                        label={ts(`nav_${item.id}_label`)}
                         enabled={showCollapsedTooltips}
                       >
                         {element}
@@ -365,10 +369,10 @@ export function SettingsSidebar({
       <ChipConfirmModal
         open={showDiscardDialog}
         onOpenChange={(open) => !open && handleCancelDiscard()}
-        srTitle='Unsaved changes'
+        srTitle={tI18n('unsaved_changes')}
         title={t('unsaved_changes')}
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
+        text={tI18n('you_have_unsaved_changes_are_you')}
+        dismissLabel={tI18n('keep_editing')}
         confirm={{
           label: 'Discard changes',
           onClick: handleConfirmDiscard,

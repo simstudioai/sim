@@ -24,6 +24,7 @@ interface SecretDetailProps {
 }
 
 export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const secretsHref = `/workspace/${workspaceId}/settings/secrets`
 
@@ -54,7 +55,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
         )}
         {canEditValue && (
           <Chip onClick={valueField.save} disabled={!valueField.isDirty || valueField.isSaving}>
-            {valueField.isSaving ? 'Saving...' : 'Save'}
+            {valueField.isSaving ? 'Saving...' : tI18n('save')}
           </Chip>
         )}
       </>
@@ -87,14 +88,14 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           subtitle={
             isPersonal
               ? valueField.isConflicted
-                ? 'Overridden by a workspace variable'
-                : 'Personal secret'
-              : 'Workspace secret'
+                ? tI18n('overridden_by_a_workspace_variable')
+                : tI18n('personal_secret')
+              : tI18n('workspace_secret')
           }
         />
 
         <DetailSection title={t('key')}>
-          <ChipCopyInput value={credential.envKey || ''} copyLabel='Copy key' />
+          <ChipCopyInput value={credential.envKey || ''} copyLabel={tI18n('copy_key')} />
         </DetailSection>
 
         <DetailSection title={t('value')}>

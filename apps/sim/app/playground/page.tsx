@@ -136,6 +136,7 @@ const getDarkModeSnapshot = () => document.documentElement.classList.contains('d
 const getServerDarkModeSnapshot = () => false
 
 export default function PlaygroundPage() {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const router = useRouter()
   const [comboboxValue, setComboboxValue] = useState('')
@@ -187,7 +188,9 @@ export default function PlaygroundPage() {
                   {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content>{isDarkMode ? 'Light mode' : 'Dark mode'}</Tooltip.Content>
+              <Tooltip.Content>
+                {isDarkMode ? tI18n('light_mode') : tI18n('dark_mode')}
+              </Tooltip.Content>
             </Tooltip.Root>
           </div>
           <div className='mx-auto max-w-4xl space-y-12'>
@@ -452,7 +455,7 @@ export default function PlaygroundPage() {
                       setTagItems((prev) => prev.filter((_, i) => i !== index))
                     }}
                     placeholder={t('enter_emails')}
-                    placeholderWithTags='Add another'
+                    placeholderWithTags={tI18n('add_another')}
                   />
                 </div>
               </VariantRow>
@@ -466,7 +469,7 @@ export default function PlaygroundPage() {
                     onAdd={() => true}
                     onRemove={() => {}}
                     placeholder={t('add_tags')}
-                    placeholderWithTags='Add another'
+                    placeholderWithTags={tI18n('add_another')}
                     triggerKeys={['Enter', ',']}
                   />
                 </div>
@@ -502,7 +505,7 @@ export default function PlaygroundPage() {
               <VariantRow label={t('default')}>
                 <Switch checked={switchValue} onCheckedChange={setSwitchValue} />
                 <span className='text-[var(--text-secondary)] text-sm'>
-                  {switchValue ? 'On' : 'Off'}
+                  {switchValue ? tI18n('on') : tI18n('off')}
                 </span>
               </VariantRow>
             </Section>
@@ -512,7 +515,7 @@ export default function PlaygroundPage() {
               <VariantRow label={t('default')}>
                 <Checkbox checked={checkboxValue} onCheckedChange={(c) => setCheckboxValue(!!c)} />
                 <span className='text-[var(--text-secondary)] text-sm'>
-                  {checkboxValue ? 'Checked' : 'Unchecked'}
+                  {checkboxValue ? tI18n('checked') : tI18n('unchecked')}
                 </span>
               </VariantRow>
               <VariantRow label={t('size_sm')}>
@@ -790,7 +793,7 @@ export default function PlaygroundPage() {
                   />
                 </div>
                 <span className='text-[var(--text-secondary)] text-sm'>
-                  {dateValue || 'No date'}
+                  {dateValue || tI18n('no_date')}
                 </span>
               </VariantRow>
               <VariantRow label={t('range_mode')}>
@@ -1024,7 +1027,7 @@ export default function PlaygroundPage() {
               <VariantRow label={t('wrap_text')}>
                 <div className='w-full max-w-lg'>
                   <Code.Viewer
-                    code="const longLine = 'This is a very long line that should wrap when wrapText is enabled to demonstrate the text wrapping functionality';"
+                    code={tI18n('const_longline_this_is_a_very')}
                     language='javascript'
                     showGutter
                     wrapText

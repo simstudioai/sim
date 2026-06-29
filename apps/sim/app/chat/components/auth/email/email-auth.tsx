@@ -36,6 +36,7 @@ const validateEmailField = (emailValue: string): string[] => {
 }
 
 export default function EmailAuth({ identifier }: EmailAuthProps) {
+  const tI18n = useTranslations('auto')
   const t = useTranslations('auto')
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
@@ -126,12 +127,12 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
                 <h1 className='text-balance font-[430] font-season text-[40px] text-[var(--landing-text)] leading-[110%] tracking-[-0.02em]'>
-                  {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
+                  {showOtpVerification ? tI18n('verify_your_email') : tI18n('email_verification')}
                 </h1>
                 <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   {showOtpVerification
                     ? `A verification code has been sent to ${email}`
-                    : 'This chat requires email verification'}
+                    : tI18n('this_chat_requires_email_verification')}
                 </p>
               </div>
 
@@ -184,7 +185,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                           {t('sending_code')}
                         </span>
                       ) : (
-                        'Continue'
+                        tI18n('continue')
                       )}
                     </button>
                   </form>
@@ -236,7 +237,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                           {t('verifying')}
                         </span>
                       ) : (
-                        'Verify Email'
+                        tI18n('verify_email')
                       )}
                     </button>
 
