@@ -87,9 +87,7 @@ export const GET = withRouteHandler(
         throw new FileNotFoundError('Not found')
       }
 
-      // Content-truth gate (`sniff`): render only genuine raster image bytes.
-      // Audit only after the bytes are accepted so a sniff rejection does not
-      // record a spurious download.
+      // Content-truth gate (`sniff`): render only genuine raster image bytes; audit after.
       const response = await serveInlineImage(image, { sniff: true })
 
       // Anonymous external access: null actor FK (not the owner), share owner in

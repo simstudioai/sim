@@ -125,23 +125,25 @@ export const GET = withRouteHandler(
         `Admin API: Exporting workspace ${workspaceId} with ${workflowExports.length} workflows and ${folderExports.length} folders`
       )
 
-      recordAudit({
-        workspaceId,
-        actorId: 'admin-api',
-        action: AuditAction.WORKSPACE_EXPORTED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: workspaceId,
-        resourceName: workspaceData.name,
-        description: `Admin API exported workspace "${workspaceData.name}"`,
-        metadata: {
-          format,
-          workflowCount: workflowExports.length,
-          folderCount: folderExports.length,
-        },
-        request,
-      })
+      const auditExport = () =>
+        recordAudit({
+          workspaceId,
+          actorId: 'admin-api',
+          action: AuditAction.WORKSPACE_EXPORTED,
+          resourceType: AuditResourceType.WORKSPACE,
+          resourceId: workspaceId,
+          resourceName: workspaceData.name,
+          description: `Admin API exported workspace "${workspaceData.name}"`,
+          metadata: {
+            format,
+            workflowCount: workflowExports.length,
+            folderCount: folderExports.length,
+          },
+          request,
+        })
 
       if (format === 'json') {
+        auditExport()
         const exportPayload: WorkspaceExportPayload = {
           version: '1.0',
           exportedAt: new Date().toISOString(),
@@ -173,6 +175,7 @@ export const GET = withRouteHandler(
       const sanitizedName = sanitizePathSegment(workspaceData.name)
       const filename = `${sanitizedName}-${new Date().toISOString().split('T')[0]}.zip`
 
+      auditExport()
       return new NextResponse(arrayBuffer, {
         status: 200,
         headers: {

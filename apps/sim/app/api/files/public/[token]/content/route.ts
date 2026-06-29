@@ -77,9 +77,8 @@ export const GET = withRouteHandler(
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 
-      // Anonymous external access: the actor is genuinely unknown, so the actor
-      // FK is null (not the owner — that would read as a self-download) and the
-      // share owner is captured in metadata. ip/user-agent carry the trail.
+      // Anonymous external access: null actor (owner-as-actor would read as a
+      // self-download); share owner in metadata, ip/user-agent carry the trail.
       recordAudit({
         workspaceId: file.workspaceId ?? null,
         actorId: null,
