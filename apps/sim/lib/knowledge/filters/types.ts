@@ -194,6 +194,19 @@ export function getOperatorsForFieldType(fieldType: FilterFieldType): OperatorIn
 const DATE_ONLY_VALUE = /^\d{4}-\d{2}-\d{2}$/
 
 /**
+ * Whether a `YYYY-MM-DD` string is a real calendar date. The format regex alone
+ * still admits impossible dates (`2026-02-30`, `2026-99-99`) that pass the
+ * boundary and then make the document query's `::date` cast throw a 500; this
+ * round-trips the parsed parts to reject them.
+ */
+function isRealCalendarDate(value: string): boolean {
+  if (!DATE_ONLY_VALUE.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
+/**
  * Whether a raw filter value is usable for the given field type. Shared source
  * of truth so the API boundary can reject unusable values (e.g. `"abc"` for a
  * number, `"not-a-date"` for a date) instead of letting them be silently
@@ -208,7 +221,7 @@ export function isValidFilterValue(fieldType: FilterFieldType, value: unknown): 
       if (typeof value === 'number') return Number.isFinite(value)
       return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))
     case 'date':
-      return typeof value === 'string' && DATE_ONLY_VALUE.test(value)
+      return typeof value === 'string' && isRealCalendarDate(value)
     case 'boolean':
       return (
         typeof value === 'boolean' ||

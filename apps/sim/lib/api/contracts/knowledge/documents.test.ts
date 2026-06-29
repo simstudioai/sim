@@ -93,6 +93,14 @@ describe('parseDocumentTagFiltersParam', () => {
         JSON.stringify([{ tagSlot: 'date1', fieldType: 'date', operator: 'eq', value: 'nope' }])
       )
     ).toThrow()
+    // well-formed but impossible calendar dates (would 500 on ::date)
+    for (const value of ['2026-02-30', '2026-99-99', '2026-13-01', '2026-00-10']) {
+      expect(() =>
+        parseDocumentTagFiltersParam(
+          JSON.stringify([{ tagSlot: 'date1', fieldType: 'date', operator: 'eq', value }])
+        )
+      ).toThrow()
+    }
     // non-boolean value on a boolean field
     expect(() =>
       parseDocumentTagFiltersParam(
