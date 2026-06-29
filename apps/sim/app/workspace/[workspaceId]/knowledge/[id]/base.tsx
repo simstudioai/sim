@@ -1466,10 +1466,24 @@ const createEmptyEntry = (): TagFilterEntry => ({
   tagName: '',
   tagSlot: '',
   fieldType: 'text',
-  operator: 'eq',
+  operator: 'contains',
   value: '',
   valueTo: '',
 })
+
+/**
+ * Default operator when a tag is selected. Text filters default to `contains`
+ * so typing part of a value finds matches (exact `equals` stays one click away
+ * in the operator dropdown); other field types keep their first, equality
+ * operator.
+ */
+function getDefaultOperatorForFieldType(
+  fieldType: FilterFieldType,
+  operators: ReturnType<typeof getOperatorsForFieldType>
+): string {
+  if (fieldType === 'text') return 'contains'
+  return operators[0]?.value ?? 'eq'
+}
 
 interface TagFilterSectionProps {
   tagDefinitions: TagDefinition[]
@@ -1601,7 +1615,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
       tagName,
       tagSlot: def?.tagSlot || '',
       fieldType,
-      operator: operators[0]?.value || 'eq',
+      operator: getDefaultOperatorForFieldType(fieldType, operators),
       value: '',
       valueTo: '',
     })
