@@ -2059,30 +2059,41 @@ export async function hardDeleteDocuments(
   }
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
+  const docInfoById = new Map(documentsToDelete.map((doc) => [doc.id, doc]))
 
-  // Sum the billable bytes per owning user. Connector-synced documents are never
-  // metered at ingest (the sync engine inserts them directly), so they must not
-  // be decremented here.
-  const bytesByUser = new Map<string, number>()
+  // Resolve subscriptions for every candidate billed owner before the transaction
+  // (these are reads). Connector-synced documents are never metered at ingest
+  // (the sync engine inserts them directly), so they are excluded here too.
+  const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
     if (doc.connectorId || doc.fileSize <= 0) continue
     const billedUserId = doc.uploadedBy ?? doc.kbUserId
-    if (!billedUserId) continue
-    bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
+    if (billedUserId) candidateUserIds.add(billedUserId)
   }
-
-  // Resolve each owner's subscription before the transaction (these are reads),
-  // then decrement the counters inside the same transaction that deletes the
-  // rows, so a failure of either rolls both back — the billed storage can never
-  // be left inflated once the content is gone.
   const subByUser = new Map<string, HighestPrioritySubscription | null>()
-  for (const billedUserId of bytesByUser.keys()) {
+  for (const billedUserId of candidateUserIds) {
     subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
   }
 
+  // Decrement inside the same transaction that deletes the rows, driven by the
+  // rows THIS transaction actually deleted (`returning()`) — so a concurrent
+  // delete of the same ids removes 0 rows and decrements nothing (no double
+  // decrement), and a rollback leaves the counter untouched (no inflation).
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
-    await tx.delete(document).where(inArray(document.id, existingIds))
+    const deletedRows = await tx
+      .delete(document)
+      .where(inArray(document.id, existingIds))
+      .returning({ id: document.id })
+
+    const bytesByUser = new Map<string, number>()
+    for (const { id } of deletedRows) {
+      const info = docInfoById.get(id)
+      if (!info || info.connectorId || info.fileSize <= 0) continue
+      const billedUserId = info.uploadedBy ?? info.kbUserId
+      if (!billedUserId) continue
+      bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + info.fileSize)
+    }
     for (const [billedUserId, bytes] of bytesByUser) {
       await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
     }
