@@ -11,6 +11,7 @@ import {
 import { useParams } from 'next/navigation'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import { useBlockText } from '@/lib/i18n/use-block-text'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
   CheckboxList,
@@ -235,7 +236,8 @@ const renderLabel = (
     show: boolean
     onClick: () => void
     tooltip: string
-  }
+  },
+  tb: (text: string | undefined | null) => string = (text) => text ?? ''
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -250,7 +252,7 @@ const renderLabel = (
   return (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
-        {config.title}
+        {tb(config.title)}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
         {config.type === 'code' &&
@@ -469,6 +471,7 @@ function SubBlockComponent({
   dependencyContext,
   isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
+  const tb = useBlockText()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -788,7 +791,7 @@ function SubBlockComponent({
           <Switch
             blockId={blockId}
             subBlockId={config.id}
-            title={config.title ?? ''}
+            title={tb(config.title)}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -842,7 +845,7 @@ function SubBlockComponent({
           <GroupedCheckboxList
             blockId={blockId}
             subBlockId={config.id}
-            title={config.title ?? ''}
+            title={tb(config.title)}
             options={config.options as { label: string; id: string; group?: string }[]}
             isPreview={isPreview}
             subBlockValues={subBlockValues ?? {}}
@@ -1207,7 +1210,8 @@ function SubBlockComponent({
         },
         labelSuffix,
         false,
-        externalLink
+        externalLink,
+        tb
       )}
       {renderInput()}
     </div>
