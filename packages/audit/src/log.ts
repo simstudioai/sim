@@ -8,7 +8,13 @@ const logger = createLogger('AuditLog')
 
 interface AuditLogParams {
   workspaceId?: string | null
-  actorId: string
+  /**
+   * The acting user's id (FK to `user.id`). Pass `null` for genuinely
+   * actor-less events such as anonymous public-share access — the row is then
+   * persisted with a null actor and the forensic context (ip/user-agent,
+   * metadata) carries the trail instead.
+   */
+  actorId: string | null
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
