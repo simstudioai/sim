@@ -2,9 +2,9 @@
 
 import { memo } from 'react'
 import { Badge, cn } from '@sim/emcn'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 /** Execution status for subflows in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'

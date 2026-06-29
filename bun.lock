@@ -171,6 +171,7 @@
         "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-persistence": "workspace:*",
+        "@sim/workflow-renderer": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "@t3-oss/env-nextjs": "0.13.4",
         "@tanstack/react-query": "5.90.8",
@@ -525,6 +526,27 @@
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "typescript": "^5.7.3",
+      },
+    },
+    "packages/workflow-renderer": {
+      "name": "@sim/workflow-renderer",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/react": "^19",
+        "lucide-react": "^0.479.0",
+        "react": "19.2.4",
+        "reactflow": "^11.11.4",
+        "remark-breaks": "^4.0.0",
+        "streamdown": "2.5.0",
+        "typescript": "^5.7.3",
+      },
+      "peerDependencies": {
+        "lucide-react": ">=0.479.0",
+        "react": "^19",
+        "reactflow": "^11.11.4",
+        "remark-breaks": "^4.0.0",
+        "streamdown": ">=2.5.0",
       },
     },
     "packages/workflow-types": {
@@ -1543,6 +1565,8 @@
     "@sim/utils": ["@sim/utils@workspace:packages/utils"],
 
     "@sim/workflow-persistence": ["@sim/workflow-persistence@workspace:packages/workflow-persistence"],
+
+    "@sim/workflow-renderer": ["@sim/workflow-renderer@workspace:packages/workflow-renderer"],
 
     "@sim/workflow-types": ["@sim/workflow-types@workspace:packages/workflow-types"],
 

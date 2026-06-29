@@ -172,6 +172,7 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-core',
     '@sim/db',
     '@sim/emcn',
+    '@sim/workflow-renderer',
   ],
   async headers() {
     return [
