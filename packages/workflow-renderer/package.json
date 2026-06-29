@@ -26,6 +26,7 @@
     "format:check": "biome format ."
   },
   "peerDependencies": {
+    "@sim/emcn": "workspace:*",
     "lucide-react": ">=0.479.0",
     "react": "^19",
     "reactflow": "^11.11.4",
@@ -33,6 +34,7 @@
     "streamdown": ">=2.5.0"
   },
   "devDependencies": {
+    "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@types/react": "^19",
     "lucide-react": "^0.479.0",
