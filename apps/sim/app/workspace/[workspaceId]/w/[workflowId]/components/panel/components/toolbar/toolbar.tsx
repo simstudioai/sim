@@ -17,6 +17,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useTranslations } from 'next-intl'
 import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useBlockText } from '@/lib/i18n/use-block-text'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -62,7 +63,9 @@ const ToolbarItem = memo(function ToolbarItem({
   onContextMenu,
   itemRef,
 }: ToolbarItemProps) {
+  const tb = useBlockText()
   const Icon = item.icon
+  const label = tb(item.name)
   const isTriggerCapable = isTrigger && item.config ? hasTriggerCapability(item.config) : false
 
   const handleDragStart = useCallback(
@@ -101,7 +104,7 @@ const ToolbarItem = memo(function ToolbarItem({
     <div
       ref={itemRef}
       role='button'
-      aria-label={`Add ${item.name}`}
+      aria-label={`Add ${label}`}
       tabIndex={-1}
       draggable
       onDragStart={handleDragStart}
@@ -127,7 +130,7 @@ const ToolbarItem = memo(function ToolbarItem({
           />
         )}
       </div>
-      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
+      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{label}</span>
     </div>
   )
 })

@@ -23,6 +23,7 @@ const TRANSLATION_MODULES = [
   'empty',
   'landing',
   'auto',
+  'blocks',
 ] as const
 
 export default getRequestConfig(async () => {
