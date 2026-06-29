@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import {
   checkStorageQuota,
-  decrementStorageUsage,
   incrementStorageUsage,
+  releaseDeletedFileStorage,
 } from '@/lib/billing/storage'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -12,7 +12,7 @@ import {
   generatePresignedUploadUrl,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { deleteFileMetadata, getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
@@ -270,13 +270,14 @@ export async function deleteCopilotFile(key: string): Promise<void> {
 
   if (metadata) {
     try {
-      // Decrement before removing the metadata row: if the decrement fails the
-      // row is preserved (so the counter can still be reconciled) rather than
-      // leaving the quota permanently inflated with nothing to retry from.
-      await decrementStorageUsage(metadata.userId, metadata.size, metadata.workspaceId ?? undefined)
-      await deleteFileMetadata(key)
+      await releaseDeletedFileStorage(
+        key,
+        metadata.userId,
+        metadata.size,
+        metadata.workspaceId ?? undefined
+      )
     } catch (storageError) {
-      logger.error('Failed to update storage tracking:', storageError)
+      logger.error('Failed to release copilot file storage:', storageError)
     }
   }
 

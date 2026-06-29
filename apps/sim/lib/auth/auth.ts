@@ -910,10 +910,12 @@ export const auth = betterAuth({
         const requestEmail = ctx.body?.email?.toLowerCase()
 
         /**
-         * Audit a policy-blocked sign-in. The audit row's `actorId` is a FK to
-         * `user.id`, so it is only written when the email maps to an existing
-         * user (the common sign-in case). Blocked sign-ups for emails with no
-         * account are intentionally skipped to avoid an FK violation.
+         * Audit a policy-blocked authentication attempt. The audit row's
+         * `actorId` is a FK to `user.id`, so it is only written when the email
+         * maps to an existing user (the common sign-in case). Blocked sign-ups
+         * for emails with no account are intentionally skipped to avoid an FK
+         * violation. The action reflects whether the blocked attempt was a
+         * sign-in or a sign-up so account-lifecycle events aren't mislabeled.
          */
         const recordSignInBlocked = async (reason: string) => {
           if (!requestEmail) return
@@ -927,15 +929,15 @@ export const auth = betterAuth({
             recordAudit({
               actorId: blockedUser.id,
               actorEmail: requestEmail,
-              action: AuditAction.USER_SIGNIN_BLOCKED,
+              action: isSignUp ? AuditAction.USER_SIGNUP_BLOCKED : AuditAction.USER_SIGNIN_BLOCKED,
               resourceType: AuditResourceType.SESSION,
               resourceId: blockedUser.id,
-              description: 'Sign-in blocked by access control policy',
+              description: `${isSignUp ? 'Sign-up' : 'Sign-in'} blocked by access control policy`,
               metadata: { reason, email: requestEmail, path: ctx.path },
               request: ctx.headers ? { headers: ctx.headers } : undefined,
             })
           } catch (error) {
-            logger.warn('Failed to record blocked sign-in audit', { error })
+            logger.warn('Failed to record blocked authentication audit', { error })
           }
         }
 

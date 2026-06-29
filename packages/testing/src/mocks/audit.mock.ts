@@ -156,6 +156,7 @@ export const auditMock = {
     USER_LOGIN: 'user.login',
     USER_LOGIN_FAILED: 'user.login_failed',
     USER_SIGNIN_BLOCKED: 'user.signin_blocked',
+    USER_SIGNUP_BLOCKED: 'user.signup_blocked',
     USER_LOGOUT: 'user.logout',
     SESSION_REVOKED: 'session.revoked',
     ACCOUNT_DELETED: 'account.deleted',
