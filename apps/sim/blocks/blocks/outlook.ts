@@ -539,12 +539,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           categories != null &&
           categories !== ''
         ) {
-          const categoryList = Array.isArray(categories)
-            ? categories
-            : String(categories).split(',')
-          rest.categories = categoryList
-            .map((category) => String(category).trim())
-            .filter((category) => category.length > 0)
+          rest.categories = categories
         }
 
         if (rest.operation === 'copy_outlook') {
