@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import 'prismjs/components/prism-json'
 import {
   CODE_LINE_HEIGHT_PX,
   Code,
