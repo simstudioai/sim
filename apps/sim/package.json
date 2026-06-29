@@ -105,6 +105,7 @@
     "@sim/security": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",
+    "@sim/workflow-renderer": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "@t3-oss/env-nextjs": "0.13.4",
     "@tanstack/react-query": "5.90.8",

@@ -1,8 +1,8 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
   getDisplayValue,
   resolveDropdownLabel,
