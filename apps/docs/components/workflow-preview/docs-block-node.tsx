@@ -88,28 +88,12 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
       : []
 
   /**
-   * Replicate the editor's row order so the View's absolute condition/router
-   * handle offsets line up: branch rows first (router adds a leading Context
-   * row); other blocks render their subblock rows, a Tools row, then the error
-   * row when default handles are shown.
+   * Non-branch content only — the View renders condition/router/error rows from
+   * the conditionRows/routerRows it receives, so their order stays locked to its
+   * handle geometry in one place.
    */
   const rows =
-    type === 'condition' ? (
-      (branches ?? []).map((branch) => (
-        <SubBlockRowView key={branch.id} title={branch.label} displayValue={branch.value} />
-      ))
-    ) : type === 'router_v2' ? (
-      <>
-        <SubBlockRowView key='context' title='Context' displayValue='' />
-        {(branches ?? []).map((branch, routeIndex) => (
-          <SubBlockRowView
-            key={branch.id}
-            title={`Route ${routeIndex + 1}`}
-            displayValue={branch.value}
-          />
-        ))}
-      </>
-    ) : (
+    type === 'condition' || type === 'router_v2' ? null : (
       <>
         {dataRows.map((row) => (
           <SubBlockRowView key={row.title} title={row.title} displayValue={row.value} />
@@ -120,7 +104,6 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
             displayValue={tools?.map((tool) => tool.name).join(', ')}
           />
         )}
-        {shouldShowDefaultHandles && <SubBlockRowView title='error' />}
       </>
     )
 
