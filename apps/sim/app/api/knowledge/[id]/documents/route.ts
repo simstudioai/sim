@@ -8,6 +8,7 @@ import {
   bulkKnowledgeDocumentsContract,
   createKnowledgeDocumentsContract,
   listKnowledgeDocumentsQuerySchema,
+  parseDocumentTagFiltersParam,
 } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
@@ -67,6 +68,18 @@ export const GET = withRouteHandler(
       const { enabledFilter, search, limit, offset, sortBy, sortOrder, tagFilters } =
         queryResult.data
 
+      let parsedTagFilters: TagFilterCondition[] | undefined
+      try {
+        parsedTagFilters = parseDocumentTagFiltersParam(tagFilters) as
+          | TagFilterCondition[]
+          | undefined
+      } catch {
+        return NextResponse.json(
+          { error: 'tagFilters must be a valid JSON array' },
+          { status: 400 }
+        )
+      }
+
       const result = await getDocuments(
         knowledgeBaseId,
         {
@@ -76,7 +89,7 @@ export const GET = withRouteHandler(
           offset,
           ...(sortBy && { sortBy }),
           ...(sortOrder && { sortOrder }),
-          tagFilters: tagFilters as TagFilterCondition[] | undefined,
+          tagFilters: parsedTagFilters,
         },
         requestId
       )
