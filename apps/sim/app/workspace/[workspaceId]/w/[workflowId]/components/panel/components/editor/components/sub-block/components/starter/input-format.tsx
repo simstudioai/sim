@@ -1,7 +1,4 @@
 import { useCallback, useRef } from 'react'
-import { Trash } from '@sim/emcn/icons'
-import { Plus } from 'lucide-react'
-import 'prismjs/components/prism-json'
 import {
   Badge,
   Button,
@@ -19,6 +16,8 @@ import {
   Label,
   languages,
 } from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
+import { Plus } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

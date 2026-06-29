@@ -3,6 +3,9 @@
 import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+// prismjs core must load before its language components — they register on the
+// global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
+import 'prismjs'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'

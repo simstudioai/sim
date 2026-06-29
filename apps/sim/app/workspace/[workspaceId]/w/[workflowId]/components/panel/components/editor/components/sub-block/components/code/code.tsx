@@ -1,8 +1,5 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Check, Wand2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import 'prismjs/components/prism-python'
 import {
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
@@ -14,6 +11,8 @@ import {
   languages,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { Check, Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import { CodeLanguage } from '@/lib/execution/languages'
