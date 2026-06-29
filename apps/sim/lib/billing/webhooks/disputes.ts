@@ -147,23 +147,17 @@ export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
 export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
   const dispute = event.data.object as Stripe.Dispute
 
-  // Only unblock if we won or the warning was closed without a full dispute
-  const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
-
-  if (!shouldUnblock) {
-    logger.info('Dispute resolved against us, user remains blocked', {
-      disputeId: dispute.id,
-      status: dispute.status,
-    })
-    return
-  }
-
   const customerId = await getCustomerIdFromDispute(dispute)
   if (!customerId) {
     return
   }
 
-  // Find and unblock user (Pro plans) - only if blocked for dispute, not other reasons
+  // Unblock only when we won or the warning closed without a full dispute; a
+  // 'lost' dispute keeps the customer blocked (they owe us). The close is
+  // audited in every case so the chargeback trail is complete — `dispute.status`
+  // in the metadata distinguishes the outcome.
+  const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
+
   const users = await db
     .select({ id: user.id })
     .from(user)
@@ -171,15 +165,19 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     .limit(1)
 
   if (users.length > 0) {
-    await db
-      .update(userStats)
-      .set({ billingBlocked: false, billingBlockedReason: null })
-      .where(and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute')))
-
-    logger.info('Unblocked user after dispute resolved in our favor', {
+    if (shouldUnblock) {
+      await db
+        .update(userStats)
+        .set({ billingBlocked: false, billingBlockedReason: null })
+        .where(
+          and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute'))
+        )
+    }
+    logger.info('Dispute closed for user', {
       disputeId: dispute.id,
       userId: users[0].id,
       status: dispute.status,
+      unblocked: shouldUnblock,
     })
 
     recordDisputeInstrumentation('closed', dispute, customerId, users[0].id, {
@@ -189,7 +187,6 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     return
   }
 
-  // Find and unblock all org members (Team/Enterprise) - consistent with payment success
   const subs = await db
     .select({ referenceId: subscription.referenceId })
     .from(subscription)
@@ -198,13 +195,14 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
 
   if (subs.length > 0) {
     const orgId = subs[0].referenceId
-    const memberCount = await unblockOrgMembers(orgId, 'dispute')
-
-    logger.info('Unblocked all org members after dispute resolved in our favor', {
+    if (shouldUnblock) {
+      await unblockOrgMembers(orgId, 'dispute')
+    }
+    logger.info('Dispute closed for organization', {
       disputeId: dispute.id,
       organizationId: orgId,
-      memberCount,
       status: dispute.status,
+      unblocked: shouldUnblock,
     })
 
     const actorId = (await getOrganizationOwnerId(orgId)) ?? orgId
