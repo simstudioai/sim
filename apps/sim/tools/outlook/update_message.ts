@@ -66,7 +66,7 @@ export const outlookUpdateMessageTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of category names to assign to the message (replaces existing categories)',
+        'Array of category names to assign to the message (replaces existing categories; pass an empty array to clear all)',
     },
     flagStatus: {
       type: 'string',
@@ -97,9 +97,11 @@ export const outlookUpdateMessageTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
 
-      const categories = normalizeCategories(params.categories)
-      if (categories.length > 0) {
-        body.categories = categories
+      const rawCategories: unknown = params.categories
+      if (Array.isArray(rawCategories)) {
+        body.categories = normalizeCategories(rawCategories)
+      } else if (typeof rawCategories === 'string' && rawCategories.trim() !== '') {
+        body.categories = normalizeCategories(rawCategories)
       }
 
       if (params.flagStatus) {
