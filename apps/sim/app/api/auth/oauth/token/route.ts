@@ -332,32 +332,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const actorId = authz.requesterUserId
-    if (actorId) {
-      const workspaceId = authz.workspaceId ?? null
-      recordAudit({
-        workspaceId,
-        actorId,
-        action: AuditAction.CREDENTIAL_ACCESSED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: resolvedCredentialId,
-        description: `Accessed OAuth credential for provider ${credential.providerId}`,
-        metadata: {
-          provider: credential.providerId,
-          credentialType: 'oauth',
-        },
-        request,
-      })
-      captureServerEvent(
-        actorId,
-        'credential_used',
-        {
-          credential_type: 'oauth',
-          provider_id: credential.providerId,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
-        },
-        workspaceId ? { groups: { workspace: workspaceId } } : undefined
-      )
-    }
+    const workspaceId = authz.workspaceId ?? null
 
     try {
       const { accessToken } = await refreshTokenIfNeeded(
@@ -365,6 +340,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         credential,
         resolvedCredentialId
       )
+
+      // Emitted only after the token is successfully resolved, so a failed
+      // refresh never records a spurious credential access.
+      if (actorId) {
+        recordAudit({
+          workspaceId,
+          actorId,
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: resolvedCredentialId,
+          description: `Accessed OAuth credential for provider ${credential.providerId}`,
+          metadata: {
+            provider: credential.providerId,
+            credentialType: 'oauth',
+          },
+          request,
+        })
+        captureServerEvent(
+          actorId,
+          'credential_used',
+          {
+            credential_type: 'oauth',
+            provider_id: credential.providerId,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
+          workspaceId ? { groups: { workspace: workspaceId } } : undefined
+        )
+      }
 
       // For Salesforce, extract instanceUrl from the scope field
       let instanceUrl: string | undefined
