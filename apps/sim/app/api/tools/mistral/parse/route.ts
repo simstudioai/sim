@@ -12,9 +12,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
-  downloadFileFromStorage,
+  downloadServableFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -124,8 +125,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (!base64) {
         const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
         if (denied) return denied
-        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+        const { buffer, contentType } = await downloadServableFileFromStorage(
+          userFile,
+          requestId,
+          logger
+        )
         base64 = buffer.toString('base64')
+        // Prefer the resolved content type (e.g. the compiled PDF for a generated
+        // document) over the file-derived guess, but keep the extension-based
+        // fallback when storage only reports a generic octet-stream.
+        if (contentType && contentType !== 'application/octet-stream') {
+          mimeType = contentType
+        }
       }
       const base64Payload = base64.startsWith('data:')
         ? base64
@@ -265,6 +276,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: mistralData,
     })
   } catch (error) {
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
+
     logger.error(`[${requestId}] Error in Mistral parse:`, error)
 
     return NextResponse.json(

@@ -8,7 +8,8 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
@@ -87,7 +88,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
       logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
 
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      let buffer: Buffer
+      let downloadedContentType = ''
+      try {
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        buffer = result.buffer
+        downloadedContentType = result.contentType
+      } catch (error) {
+        const notReady = docNotReadyResponse(error)
+        if (notReady) return notReady
+        throw error
+      }
 
       const fileName = validatedData.fileName || userFile.name
       const folderPath = validatedData.folderPath?.trim() || ''
@@ -135,7 +146,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${validatedData.accessToken}`,
-            'Content-Type': userFile.type || 'application/octet-stream',
+            'Content-Type': downloadedContentType || userFile.type || 'application/octet-stream',
           },
           body: buffer,
         },
@@ -156,7 +167,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               method: 'PUT',
               headers: {
                 Authorization: `Bearer ${validatedData.accessToken}`,
-                'Content-Type': userFile.type || 'application/octet-stream',
+                'Content-Type':
+                  downloadedContentType || userFile.type || 'application/octet-stream',
               },
               body: buffer,
             },

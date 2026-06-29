@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   createSftpConnection,
@@ -107,7 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )
-            const buffer = await downloadFileFromStorage(file, requestId, logger)
+            const { buffer } = await downloadServableFileFromStorage(file, requestId, logger)
 
             const safeFileName = sanitizeFileName(file.name)
             const fullRemotePath = remotePath.endsWith('/')
@@ -142,6 +143,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
             logger.info(`[${requestId}] Uploaded ${safeFileName} to ${sanitizedRemotePath}`)
           } catch (error) {
+            const notReady = docNotReadyResponse(error)
+            if (notReady) return notReady
             logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
             throw new Error(
               `Failed to upload file "${file.name}": ${getErrorMessage(error, 'Unknown error')}`

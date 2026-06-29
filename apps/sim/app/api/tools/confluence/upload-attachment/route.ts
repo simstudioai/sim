@@ -7,7 +7,8 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -91,9 +92,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (denied) return denied
 
     let fileBuffer: Buffer
+    let resolvedContentType: string
     try {
-      fileBuffer = await downloadFileFromStorage(userFile, 'confluence-upload', logger)
+      const servable = await downloadServableFileFromStorage(userFile, 'confluence-upload', logger)
+      fileBuffer = servable.buffer
+      resolvedContentType = servable.contentType
     } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
       logger.error('Failed to download file from storage:', error)
       return NextResponse.json(
         {
@@ -104,7 +110,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const uploadFileName = fileName || userFile.name || 'attachment'
-    const mimeType = userFile.type || 'application/octet-stream'
+    const mimeType = resolvedContentType || userFile.type || 'application/octet-stream'
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/${pageId}/child/attachment`
 

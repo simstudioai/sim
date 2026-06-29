@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -106,26 +107,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const denied = accessResults.find((r) => r !== null)
         if (denied) return denied
 
-        const buffers = await Promise.all(
-          userFiles.map(async (file) => {
-            try {
+        let resolved: Array<{ buffer: Buffer; contentType: string }>
+        try {
+          resolved = await Promise.all(
+            userFiles.map(async (file) => {
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
-              return await downloadFileFromStorage(file, requestId, logger)
-            } catch (error) {
-              logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
-              throw new Error(
-                `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
-              )
-            }
-          })
-        )
+              return await downloadServableFileFromStorage(file, requestId, logger)
+            })
+          )
+        } catch (error) {
+          const notReady = docNotReadyResponse(error)
+          if (notReady) return notReady
+          logger.error(`[${requestId}] Failed to download an attachment:`, error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Failed to download attachment: ${getErrorMessage(error, 'Unknown error')}`,
+            },
+            { status: 500 }
+          )
+        }
 
         const sendGridAttachments = userFiles.map((file, i) => ({
-          content: buffers[i].toString('base64'),
+          content: resolved[i].buffer.toString('base64'),
           filename: file.name,
-          type: file.type || 'application/octet-stream',
+          type: resolved[i].contentType || file.type || 'application/octet-stream',
           disposition: 'attachment',
         }))
 
