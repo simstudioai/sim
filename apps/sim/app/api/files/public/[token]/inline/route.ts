@@ -11,7 +11,6 @@ import {
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -93,22 +92,23 @@ export const GET = withRouteHandler(
       // record a spurious download.
       const response = await serveInlineImage(image, { sniff: true })
 
+      // Anonymous external access: null actor FK (not the owner), share owner in
+      // metadata, ip/user-agent carry the trail.
       recordAudit({
         workspaceId: doc.workspaceId,
-        actorId: doc.userId,
+        actorId: null,
         action: AuditAction.FILE_DOWNLOADED,
         resourceType: AuditResourceType.FILE,
         resourceName: image.filename,
         description: `Public share inline image "${image.filename}"`,
-        metadata: { access: 'public_share', anonymous: true, inline: true },
+        metadata: {
+          access: 'public_share',
+          anonymous: true,
+          inline: true,
+          sharedByUserId: doc.userId,
+        },
         request,
       })
-      captureServerEvent(
-        doc.userId,
-        'file_downloaded',
-        { workspace_id: doc.workspaceId, is_bulk: false, file_count: 1 },
-        { groups: { workspace: doc.workspaceId } }
-      )
 
       return response
     } catch (error) {
