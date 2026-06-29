@@ -87,7 +87,12 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
         actorId = null
       }
     } catch (error) {
+      // The lookup couldn't confirm the user exists, so null the FK to guarantee
+      // the insert can't violate it (e.g. a system actor like 'admin-api', or a
+      // since-deleted user). The label still identifies the actor.
       logger.warn('Failed to resolve actor info', { error, actorId })
+      actorName = actorId === 'admin-api' ? 'Admin API' : 'System'
+      actorId = null
     }
   }
 

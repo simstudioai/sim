@@ -318,12 +318,12 @@ describe('recordAudit', () => {
       )
     })
 
-    it('inserts without actor info when lookup fails', async () => {
+    it('nulls the actor FK when the lookup throws so the insert cannot FK-violate', async () => {
       dbChainMockFns.limit.mockRejectedValue(new Error('DB down'))
 
       recordAudit({
         workspaceId: 'ws-1',
-        actorId: 'user-1',
+        actorId: 'admin-api',
         action: AuditAction.KNOWLEDGE_BASE_CREATED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
       })
@@ -333,8 +333,8 @@ describe('recordAudit', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
       expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
-          actorId: 'user-1',
-          actorName: undefined,
+          actorId: null,
+          actorName: 'Admin API',
           actorEmail: undefined,
         })
       )
