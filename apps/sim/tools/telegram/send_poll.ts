@@ -7,6 +7,27 @@ import type {
 import { telegramApiUrl } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Normalize poll options into a trimmed string array. Accepts an array, a JSON
+ * array string, or a newline-separated string (the `json`-typed param can arrive
+ * in any of these forms from block inputs or agent tool-calls).
+ */
+function normalizePollOptions(value: unknown): string[] {
+  let items: unknown[] = []
+  if (Array.isArray(value)) {
+    items = value
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim()
+    try {
+      const parsed = JSON.parse(trimmed)
+      items = Array.isArray(parsed) ? parsed : trimmed.split('\n')
+    } catch {
+      items = trimmed.split('\n')
+    }
+  }
+  return items.map((item) => String(item).trim()).filter(Boolean)
+}
+
 export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSendMessageResponse> =
   {
     id: 'telegram_send_poll',
@@ -61,10 +82,14 @@ export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSe
         'Content-Type': 'application/json',
       }),
       body: (params) => {
+        const optionList = normalizePollOptions(params.options)
+        if (optionList.length < 2) {
+          throw new Error('A poll requires at least 2 options')
+        }
         const body: Record<string, unknown> = {
           chat_id: params.chatId,
           question: params.question,
-          options: (params.options ?? []).map((option) => ({ text: option })),
+          options: optionList.map((text) => ({ text })),
         }
         if (params.isAnonymous !== undefined) body.is_anonymous = params.isAnonymous
         if (params.allowsMultipleAnswers !== undefined) {
