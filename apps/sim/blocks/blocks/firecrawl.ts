@@ -23,12 +23,18 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Scrape', id: 'scrape' },
+        { label: 'Batch Scrape', id: 'batch_scrape' },
+        { label: 'Batch Scrape Status', id: 'batch_scrape_status' },
         { label: 'Search', id: 'search' },
         { label: 'Crawl', id: 'crawl' },
+        { label: 'Crawl Status', id: 'crawl_status' },
+        { label: 'Cancel Crawl', id: 'cancel_crawl' },
         { label: 'Map', id: 'map' },
         { label: 'Extract', id: 'extract' },
+        { label: 'Extract Status', id: 'extract_status' },
         { label: 'Agent', id: 'agent' },
         { label: 'Parse Document', id: 'parse' },
+        { label: 'Credit Usage', id: 'credit_usage' },
       ],
       value: () => 'scrape',
     },
@@ -79,9 +85,26 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       placeholder: '["https://example.com/page1", "https://example.com/page2"]',
       condition: {
         field: 'operation',
-        value: 'extract',
+        value: ['extract', 'batch_scrape'],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['extract', 'batch_scrape'],
+      },
+    },
+    {
+      id: 'jobId',
+      title: 'Job ID',
+      type: 'short-input',
+      placeholder: 'Enter the job ID',
+      condition: {
+        field: 'operation',
+        value: ['crawl_status', 'cancel_crawl', 'batch_scrape_status', 'extract_status'],
+      },
+      required: {
+        field: 'operation',
+        value: ['crawl_status', 'cancel_crawl', 'batch_scrape_status', 'extract_status'],
+      },
     },
     {
       id: 'prompt',
@@ -210,7 +233,7 @@ Example 2 - Product Data:
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['scrape', 'parse'],
+        value: ['scrape', 'parse', 'batch_scrape'],
       },
     },
     {
@@ -220,7 +243,7 @@ Example 2 - Product Data:
       placeholder: '["markdown", "html"]',
       condition: {
         field: 'operation',
-        value: ['scrape', 'parse'],
+        value: ['scrape', 'parse', 'batch_scrape'],
       },
     },
     {
@@ -380,30 +403,48 @@ Example 2 - Product Data:
   tools: {
     access: [
       'firecrawl_scrape',
+      'firecrawl_batch_scrape',
+      'firecrawl_batch_scrape_status',
       'firecrawl_search',
       'firecrawl_crawl',
+      'firecrawl_crawl_status',
+      'firecrawl_cancel_crawl',
       'firecrawl_map',
       'firecrawl_extract',
+      'firecrawl_extract_status',
       'firecrawl_agent',
       'firecrawl_parse',
+      'firecrawl_credit_usage',
     ],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'scrape':
             return 'firecrawl_scrape'
+          case 'batch_scrape':
+            return 'firecrawl_batch_scrape'
+          case 'batch_scrape_status':
+            return 'firecrawl_batch_scrape_status'
           case 'search':
             return 'firecrawl_search'
           case 'crawl':
             return 'firecrawl_crawl'
+          case 'crawl_status':
+            return 'firecrawl_crawl_status'
+          case 'cancel_crawl':
+            return 'firecrawl_cancel_crawl'
           case 'map':
             return 'firecrawl_map'
           case 'extract':
             return 'firecrawl_extract'
+          case 'extract_status':
+            return 'firecrawl_extract_status'
           case 'agent':
             return 'firecrawl_agent'
           case 'parse':
             return 'firecrawl_parse'
+          case 'credit_usage':
+            return 'firecrawl_credit_usage'
           default:
             return 'firecrawl_scrape'
         }
@@ -427,6 +468,7 @@ Example 2 - Product Data:
           schema,
           maxCredits,
           strictConstrainToURLs,
+          jobId,
         } = params
 
         const result: Record<string, any> = { apiKey }
@@ -575,6 +617,44 @@ Example 2 - Product Data:
             if (maxCredits) result.maxCredits = Number.parseInt(maxCredits)
             if (strictConstrainToURLs != null) result.strictConstrainToURLs = strictConstrainToURLs
             break
+
+          case 'batch_scrape':
+            if (urls) {
+              if (Array.isArray(urls)) {
+                result.urls = urls
+              } else if (typeof urls === 'string') {
+                try {
+                  const parsed = JSON.parse(urls)
+                  result.urls = Array.isArray(parsed) ? parsed : [parsed]
+                } catch {
+                  result.urls = urls
+                }
+              }
+            }
+            if (formats) {
+              if (Array.isArray(formats)) {
+                result.formats = formats
+              } else if (typeof formats === 'string') {
+                try {
+                  const parsed = JSON.parse(formats)
+                  result.formats = Array.isArray(parsed) ? parsed : ['markdown']
+                } catch {
+                  result.formats = ['markdown']
+                }
+              }
+            }
+            if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
+            break
+
+          case 'crawl_status':
+          case 'cancel_crawl':
+          case 'batch_scrape_status':
+          case 'extract_status':
+            if (jobId) result.jobId = jobId
+            break
+
+          case 'credit_usage':
+            break
         }
 
         return result
@@ -585,7 +665,8 @@ Example 2 - Product Data:
     apiKey: { type: 'string', description: 'Firecrawl API key' },
     operation: { type: 'string', description: 'Operation to perform' },
     url: { type: 'string', description: 'Target website URL' },
-    urls: { type: 'json', description: 'Array of URLs for extraction' },
+    urls: { type: 'json', description: 'Array of URLs for extraction or batch scraping' },
+    jobId: { type: 'string', description: 'Job ID for status/cancel operations' },
     query: { type: 'string', description: 'Search query terms' },
     prompt: { type: 'string', description: 'Extraction prompt' },
     limit: { type: 'string', description: 'Result/page limit' },
@@ -641,16 +722,26 @@ Example 2 - Product Data:
     data: { type: 'json', description: 'Search results or extracted data' },
     warning: { type: 'string', description: 'Warning messages' },
     // Crawl output
-    pages: { type: 'json', description: 'Crawled pages data' },
+    pages: { type: 'json', description: 'Crawled or batch-scraped pages data' },
     total: { type: 'number', description: 'Total pages found' },
+    completed: { type: 'number', description: 'Number of pages completed' },
+    creditsUsed: { type: 'number', description: 'Credits consumed by the job' },
+    next: { type: 'string', description: 'URL to retrieve the next page of results' },
+    invalidURLs: { type: 'json', description: 'URLs skipped because they were invalid' },
     // Map output
     success: { type: 'boolean', description: 'Operation success status' },
     links: { type: 'json', description: 'Discovered URLs array' },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
-    // Agent output
-    status: { type: 'string', description: 'Agent job status' },
+    // Status / job output
+    jobId: { type: 'string', description: 'Job ID for the started operation' },
+    status: { type: 'string', description: 'Job status' },
     expiresAt: { type: 'string', description: 'Result expiration timestamp' },
+    // Credit usage output
+    remainingCredits: { type: 'number', description: 'Credits remaining for the team' },
+    planCredits: { type: 'number', description: 'Credits allocated in the current plan' },
+    billingPeriodStart: { type: 'string', description: 'Start of the current billing period' },
+    billingPeriodEnd: { type: 'string', description: 'End of the current billing period' },
     // Parse output
     summary: { type: 'string', description: 'Generated summary of the parsed document' },
     rawHtml: { type: 'string', description: 'Unprocessed raw HTML from the parsed document' },

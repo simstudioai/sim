@@ -559,6 +559,116 @@ export interface ParseResponse extends ToolResponse {
   }
 }
 
+interface CrawledPage {
+  markdown: string
+  html?: string
+  rawHtml?: string
+  links?: string[]
+  screenshot?: string
+  metadata: {
+    title: string
+    description?: string
+    language?: string
+    sourceURL: string
+    statusCode: number
+    ogLocaleAlternate?: string[]
+  }
+}
+
+export interface FirecrawlCrawlStatusParams {
+  apiKey: string
+  jobId: string
+}
+
+export interface FirecrawlCrawlStatusResponse extends ToolResponse {
+  output: {
+    status: string
+    total: number
+    completed: number
+    creditsUsed: number
+    expiresAt?: string | null
+    next?: string | null
+    pages: CrawledPage[]
+  }
+}
+
+export interface FirecrawlCancelCrawlParams {
+  apiKey: string
+  jobId: string
+}
+
+export interface FirecrawlCancelCrawlResponse extends ToolResponse {
+  output: {
+    status: string
+  }
+}
+
+export interface FirecrawlBatchScrapeParams {
+  apiKey: string
+  urls: string[] | string
+  formats?: string[]
+  onlyMainContent?: boolean
+  maxConcurrency?: number
+  ignoreInvalidURLs?: boolean
+  scrapeOptions?: ScrapeOptions
+  zeroDataRetention?: boolean
+}
+
+export interface FirecrawlBatchScrapeResponse extends ToolResponse {
+  output: {
+    jobId?: string
+    invalidURLs?: string[]
+    pages: CrawledPage[]
+    total: number
+    completed: number
+    creditsUsed?: number
+  }
+}
+
+export interface FirecrawlBatchScrapeStatusParams {
+  apiKey: string
+  jobId: string
+}
+
+export interface FirecrawlBatchScrapeStatusResponse extends ToolResponse {
+  output: {
+    status: string
+    total: number
+    completed: number
+    creditsUsed: number
+    expiresAt?: string | null
+    next?: string | null
+    pages: CrawledPage[]
+  }
+}
+
+export interface FirecrawlExtractStatusParams {
+  apiKey: string
+  jobId: string
+}
+
+export interface FirecrawlExtractStatusResponse extends ToolResponse {
+  output: {
+    status: string
+    data: Record<string, any>
+    expiresAt?: string | null
+    sources?: Record<string, any> | string[] | null
+  }
+}
+
+export interface FirecrawlCreditUsageParams {
+  apiKey: string
+}
+
+export interface FirecrawlCreditUsageResponse extends ToolResponse {
+  output: {
+    remainingCredits: number | null
+    planCredits?: number | null
+    billingPeriodStart?: string | null
+    billingPeriodEnd?: string | null
+  }
+}
+
 export type FirecrawlResponse =
   | ScrapeResponse
   | SearchResponse
@@ -567,3 +677,9 @@ export type FirecrawlResponse =
   | ExtractResponse
   | AgentResponse
   | ParseResponse
+  | FirecrawlCrawlStatusResponse
+  | FirecrawlCancelCrawlResponse
+  | FirecrawlBatchScrapeResponse
+  | FirecrawlBatchScrapeStatusResponse
+  | FirecrawlExtractStatusResponse
+  | FirecrawlCreditUsageResponse
