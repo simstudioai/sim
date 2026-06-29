@@ -264,13 +264,20 @@ export function KnowledgeBase({
   const activeTagFilters: DocumentTagFilter[] = useMemo(
     () =>
       tagFilterEntries
-        .filter((f) => f.tagSlot && f.value.trim())
+        .filter((f) => {
+          if (!f.tagSlot || !f.value.trim()) return false
+          // A `between` filter only applies once both bounds are set. Sending it
+          // with just the lower bound would be rejected at the API boundary and
+          // break the whole list while the user is still entering the range.
+          if (f.operator === 'between' && !f.valueTo.trim()) return false
+          return true
+        })
         .map((f) => ({
           tagSlot: f.tagSlot,
           fieldType: f.fieldType,
           operator: f.operator,
           value: f.value,
-          ...(f.operator === 'between' && f.valueTo ? { valueTo: f.valueTo } : {}),
+          ...(f.operator === 'between' ? { valueTo: f.valueTo } : {}),
         })),
     [tagFilterEntries]
   )
