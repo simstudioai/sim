@@ -7,7 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess, FileAccessDeniedError } from '@/app/api/files/authorization'
 import {
   buildPersonaHeaders,
@@ -55,7 +56,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
     if (denied) return denied
 
-    const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    let buffer: Buffer
+    try {
+      const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+      buffer = resolved.buffer
+    } catch (error) {
+      const notReady = docNotReadyResponse(error)
+      if (notReady) return notReady
+      logger.error(`[${requestId}] Failed to download Persona import file:`, error)
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Internal server error') },
+        { status: 500 }
+      )
+    }
 
     logger.info(`[${requestId}] Importing accounts into Persona`, {
       fileName: userFile.name,

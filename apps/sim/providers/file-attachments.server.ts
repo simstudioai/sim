@@ -5,7 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import {
@@ -178,8 +178,15 @@ function groupUploadableFiles(messages: Message[] | undefined): UserFile[][] {
  * object storage works. Bounded by the provider's attachment ceiling.
  */
 async function downloadFileForUpload(file: UserFile, maxBytes: number): Promise<Blob> {
-  const buffer = await downloadFileFromStorage(file, 'provider-file-upload', logger, { maxBytes })
-  return new Blob([new Uint8Array(buffer)], { type: file.type || inferAttachmentMimeType(file) })
+  const { buffer, contentType } = await downloadServableFileFromStorage(
+    file,
+    'provider-file-upload',
+    logger,
+    { maxBytes }
+  )
+  return new Blob([new Uint8Array(buffer)], {
+    type: contentType || file.type || inferAttachmentMimeType(file),
+  })
 }
 
 /**

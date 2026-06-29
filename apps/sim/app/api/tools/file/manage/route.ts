@@ -31,7 +31,11 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import {
+  downloadFileFromStorage,
+  downloadServableFileFromStorage,
+} from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
@@ -306,7 +310,7 @@ const extractUserFileTextContent = async (
   userFile: UserFile,
   requestId: string
 ): Promise<string> => {
-  const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+  const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
     maxBytes: MAX_GET_CONTENT_FILE_BYTES,
   })
 
@@ -1038,6 +1042,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 403 }
       )
     }
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
     if (error instanceof ShareValidationError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }

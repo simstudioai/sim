@@ -1,11 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { executeInE2B, executeShellInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getContentType } from '@/app/api/files/utils'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
@@ -448,4 +453,103 @@ export async function resolveServableDoc(
   if (bufferStartsWith(storedBytes, magic)) return { kind: 'passthrough' }
   const artifact = await loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
   return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
+}
+
+interface CompilableFormat {
+  magic: Buffer
+  taskId: SandboxTaskId
+  contentType: string
+}
+
+const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
+  '.pptx': { magic: ZIP_MAGIC, taskId: 'pptx-generate', contentType: PPTX_MIME },
+  '.docx': { magic: ZIP_MAGIC, taskId: 'docx-generate', contentType: DOCX_MIME },
+  '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
+}
+
+const MAX_COMPILED_DOC_CACHE = 10
+const compiledDocCache = new Map<string, Buffer>()
+
+function compiledCacheSet(key: string, buffer: Buffer): void {
+  if (compiledDocCache.size >= MAX_COMPILED_DOC_CACHE) {
+    compiledDocCache.delete(compiledDocCache.keys().next().value as string)
+  }
+  compiledDocCache.set(key, buffer)
+}
+
+/**
+ * Resolves the bytes a consumer should actually serve/attach for a stored file —
+ * the single source of truth shared by the file-serve route and every tool that
+ * downloads a workspace file (email attachments, uploads, provider file inputs).
+ *
+ * Generated docs (pdf/docx/pptx/xlsx) store their GENERATION SOURCE as the primary
+ * file; the rendered binary lives in a separate content-addressed artifact store.
+ * A naive raw-byte read therefore hands out source text under a `.pdf` name — the
+ * corruption every non-serve consumer used to ship. The file-serve route and the
+ * attachment download helper share this one function so they resolve identically.
+ * (The public read-only share route uses the non-compiling {@link resolveServableDoc}
+ * variant, which returns `unavailable` instead of throwing.) The swap:
+ *
+ * - Bytes already carry the format magic (`%PDF`/ZIP) → real uploaded/binary file,
+ *   serve as-is.
+ * - Generated-doc source → load the content-addressed compiled artifact.
+ * - Artifact missing in the E2B regime → the doc is still being generated; throw
+ *   {@link DocCompileUserError} so callers signal "not ready / retry" instead of
+ *   shipping source.
+ * - E2B disabled → compile the committed JS source via isolated-vm (cached).
+ * - Non-doc files → pass through with the extension-derived content type.
+ *
+ * It never falls back to attaching the raw source bytes for a generated doc.
+ */
+export async function resolveServableDocBytes(args: {
+  rawBuffer: Buffer
+  fileName: string
+  workspaceId: string | undefined
+  ownerKey?: string
+  signal?: AbortSignal
+}): Promise<{ buffer: Buffer; contentType: string }> {
+  const { rawBuffer, fileName, workspaceId, ownerKey, signal } = args
+  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
+  const extNoDot = ext.replace(/^\./, '')
+  const format = COMPILABLE_FORMATS[ext]
+
+  // xlsx isn't in COMPILABLE_FORMATS (no isolated-vm path), so match its ZIP magic
+  // explicitly alongside the table-driven formats.
+  const magic = format?.magic ?? (extNoDot === 'xlsx' ? ZIP_MAGIC : undefined)
+  if (magic && bufferStartsWith(rawBuffer, magic)) {
+    return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  }
+
+  if (!format && extNoDot !== 'xlsx') {
+    return { buffer: rawBuffer, contentType: getContentType(fileName) }
+  }
+
+  const source = rawBuffer.toString('utf-8')
+
+  if (workspaceId) {
+    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
+    if (stored) {
+      return { buffer: stored.buffer, contentType: stored.contentType }
+    }
+    if (isE2BDocEnabled && (await getE2BDocFormat(fileName))) {
+      throw new DocCompileUserError('Document is still being generated')
+    }
+  }
+
+  // Reaches here only for xlsx, which has no isolated-vm fallback.
+  if (!format) return { buffer: rawBuffer, contentType: getContentType(fileName) }
+
+  const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
+  const cached = compiledDocCache.get(cacheKey)
+  if (cached) {
+    return { buffer: cached, contentType: format.contentType }
+  }
+
+  const compiled = await runSandboxTask(
+    format.taskId,
+    { code: source, workspaceId: workspaceId || '' },
+    { ownerKey, signal }
+  )
+  compiledCacheSet(cacheKey, compiled)
+  return { buffer: compiled, contentType: format.contentType }
 }

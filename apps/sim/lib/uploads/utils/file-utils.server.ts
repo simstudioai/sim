@@ -17,6 +17,8 @@ import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   extractStorageKey,
+  getFileExtension,
+  getMimeTypeFromExtension,
   inferContextFromKey,
   isInternalFileUrl,
   processSingleFileToUserFile,
@@ -299,4 +301,69 @@ export async function downloadFileFromStorage(
   }
 
   return buffer
+}
+
+/**
+ * Result of {@link downloadServableFileFromStorage}: the bytes a consumer should
+ * actually attach/upload, plus the content type that matches those bytes.
+ */
+export interface ServableFile {
+  buffer: Buffer
+  contentType: string
+}
+
+/**
+ * Downloads a workspace file and resolves it to its SERVABLE bytes — the variant
+ * every tool that hands a file to an external service (email attachments, chat
+ * uploads, provider file inputs) should use instead of {@link downloadFileFromStorage}.
+ *
+ * AI-generated docs (pdf/docx/pptx/xlsx) store their generation SOURCE as the
+ * primary file and keep the rendered binary in a separate content-addressed
+ * artifact store. A raw download therefore yields source text under a `.pdf`
+ * name — the file the recipient cannot open. This swaps in the compiled artifact
+ * (and the correct binary content type) via the same resolver the file-serve
+ * route uses, so the serve and attachment paths resolve identically. Non-doc files
+ * and real uploaded binaries pass through unchanged, carrying `userFile.type` when set.
+ *
+ * Throws `DocCompileUserError` when a generated doc's artifact is not ready (still
+ * compiling) — callers should surface a retryable error rather than attach source.
+ */
+export async function downloadServableFileFromStorage(
+  userFile: UserFile,
+  requestId: string,
+  logger: Logger,
+  options: { maxBytes?: number; signal?: AbortSignal; ownerKey?: string } = {}
+): Promise<ServableFile> {
+  const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+    maxBytes: options.maxBytes,
+  })
+
+  // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
+  // import below.
+  const ext = getFileExtension(userFile.name)
+  if (ext !== 'pdf' && ext !== 'docx' && ext !== 'pptx' && ext !== 'xlsx') {
+    return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
+  }
+
+  const { parseWorkspaceFileKey } = await import(
+    '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  )
+  const workspaceId = userFile.key ? (parseWorkspaceFileKey(userFile.key) ?? undefined) : undefined
+
+  const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
+  const resolved = await resolveServableDocBytes({
+    rawBuffer: buffer,
+    fileName: userFile.name,
+    workspaceId,
+    ownerKey: options.ownerKey,
+    signal: options.signal,
+  })
+
+  // Re-check: the raw download enforced maxBytes on the source, but a generated doc
+  // resolves to a larger artifact.
+  if (options.maxBytes !== undefined && resolved.buffer.length > options.maxBytes) {
+    assertKnownSizeWithinLimit(resolved.buffer.length, options.maxBytes, 'servable file download')
+  }
+
+  return resolved
 }

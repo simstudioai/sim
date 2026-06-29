@@ -21,7 +21,7 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
   processFilesToUserFiles: mockProcessFilesToUserFiles,
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mockDownloadFileFromStorage,
+  downloadServableFileFromStorage: mockDownloadFileFromStorage,
 }))
 vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
@@ -65,7 +65,10 @@ beforeEach(() => {
     { key: 'uploads/receipt.pdf', name: 'receipt.pdf', size: 5, type: 'application/pdf' },
   ])
   mockAssertToolFileAccess.mockResolvedValue(null)
-  mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('receipt-bytes'))
+  mockDownloadFileFromStorage.mockResolvedValue({
+    buffer: Buffer.from('receipt-bytes'),
+    contentType: 'application/pdf',
+  })
 })
 
 describe('POST /api/tools/brex/upload-receipt', () => {
@@ -192,7 +195,10 @@ describe('POST /api/tools/brex/upload-receipt', () => {
   })
 
   it('rejects files over the 50 MB limit', async () => {
-    mockDownloadFileFromStorage.mockResolvedValueOnce(Buffer.alloc(50 * 1024 * 1024 + 1))
+    mockDownloadFileFromStorage.mockResolvedValueOnce({
+      buffer: Buffer.alloc(50 * 1024 * 1024 + 1),
+      contentType: 'application/pdf',
+    })
 
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(400)
