@@ -3961,7 +3961,14 @@ import {
   webflowListItemsTool,
   webflowUpdateItemTool,
 } from '@/tools/webflow'
-import { whatsappSendMessageTool } from '@/tools/whatsapp'
+import {
+  whatsappMarkReadTool,
+  whatsappSendInteractiveTool,
+  whatsappSendMediaTool,
+  whatsappSendMessageTool,
+  whatsappSendReactionTool,
+  whatsappSendTemplateTool,
+} from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
   wikipediaPageSummaryTool,
@@ -5196,6 +5203,11 @@ export const tools: Record<string, ToolConfig> = {
   gmail_untrash_thread_v2: gmailUntrashThreadV2Tool,
   gmail_update_label_v2: gmailUpdateLabelV2Tool,
   whatsapp_send_message: whatsappSendMessageTool,
+  whatsapp_send_template: whatsappSendTemplateTool,
+  whatsapp_send_media: whatsappSendMediaTool,
+  whatsapp_send_interactive: whatsappSendInteractiveTool,
+  whatsapp_send_reaction: whatsappSendReactionTool,
+  whatsapp_mark_read: whatsappMarkReadTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,

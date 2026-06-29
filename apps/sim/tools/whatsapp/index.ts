@@ -1,2 +1,7 @@
+export { markReadTool as whatsappMarkReadTool } from '@/tools/whatsapp/mark_read'
+export { sendInteractiveTool as whatsappSendInteractiveTool } from '@/tools/whatsapp/send_interactive'
+export { sendMediaTool as whatsappSendMediaTool } from '@/tools/whatsapp/send_media'
 export { sendMessageTool as whatsappSendMessageTool } from '@/tools/whatsapp/send_message'
+export { sendReactionTool as whatsappSendReactionTool } from '@/tools/whatsapp/send_reaction'
+export { sendTemplateTool as whatsappSendTemplateTool } from '@/tools/whatsapp/send_template'
 export * from '@/tools/whatsapp/types'
