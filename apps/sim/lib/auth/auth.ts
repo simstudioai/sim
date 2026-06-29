@@ -1003,6 +1003,11 @@ export const auth = betterAuth({
        * new login.
        */
       const newSession = ctx.context.newSession
+      // Only genuine sign-in entrypoints count as a login. `/verify-email` is
+      // deliberately excluded: email verification is an account-lifecycle event
+      // that can mint or refresh a session without being a new sign-in, so
+      // treating it as a login would mislabel (or double-count, when the prior
+      // sign-up already recorded one).
       const isLoginPath =
         ctx.path.startsWith('/sign-in') ||
         ctx.path.startsWith('/sign-up') ||
@@ -1010,8 +1015,7 @@ export const auth = betterAuth({
         ctx.path.startsWith('/oauth2/callback') ||
         ctx.path.startsWith('/sso/callback') ||
         ctx.path.startsWith('/magic-link') ||
-        ctx.path.startsWith('/email-otp') ||
-        ctx.path.startsWith('/verify-email')
+        ctx.path.startsWith('/email-otp')
       if (newSession?.user?.id && isLoginPath) {
         recordAudit({
           actorId: newSession.user.id,
