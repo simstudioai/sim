@@ -455,3 +455,329 @@ Immediately revoke access to a Google Play subscription and issue a refund (Goog
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### RevenueCat Cancellation
+
+Trigger workflow when a subscriber cancels a RevenueCat subscription
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+
+
+---
+
+### RevenueCat Expiration
+
+Trigger workflow when a RevenueCat subscription expires
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+
+
+---
+
+### RevenueCat Initial Purchase
+
+Trigger workflow when a subscriber makes their first purchase in RevenueCat
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+
+
+---
+
+### RevenueCat Non-Renewing Purchase
+
+Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+
+
+---
+
+### RevenueCat Product Change
+
+Trigger workflow when a subscriber changes their RevenueCat subscription product
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+
+
+---
+
+### RevenueCat Renewal
+
+Trigger workflow when a RevenueCat subscription renews
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Secret API key with the project_configuration:integrations:read_write permission. Sim uses it to create and remove the webhook in RevenueCat. |
+| `projectId` | string | Yes | RevenueCat project identifier the webhook integration is created in. |
+| `environment` | string | No | Restrict events to a single environment, or receive all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., INITIAL_PURCHASE, RENEWAL\) |
+| `id` | string | Unique event identifier |
+| `app_id` | string | RevenueCat app public identifier |
+| `event_timestamp_ms` | number | Timestamp \(ms since epoch\) when the event was generated |
+| `app_user_id` | string | Current App User ID |
+| `original_app_user_id` | string | First App User ID ever used |
+| `aliases` | json | All App User IDs ever used by the subscriber |
+| `product_id` | string | Product identifier |
+| `new_product_id` | string | Product identifier changed to \(PRODUCT_CHANGE events only\) |
+| `period_type` | string | Period type \(TRIAL, INTRO, NORMAL, PROMOTIONAL, or PREPAID\) |
+| `purchased_at_ms` | number | Purchase timestamp \(ms since epoch\) |
+| `expiration_at_ms` | number | Expiration timestamp \(ms since epoch\), nullable |
+| `environment` | string | Environment \(SANDBOX or PRODUCTION\) |
+| `entitlement_id` | string | Deprecated single entitlement identifier |
+| `entitlement_ids` | json | Associated entitlement identifiers |
+| `presented_offering_id` | string | Identifier of the offering presented to the user |
+| `transaction_id` | string | Store transaction ID |
+| `original_transaction_id` | string | Original subscription transaction ID |
+| `is_family_share` | boolean | Whether the purchase was family shared |
+| `country_code` | string | ISO country code of the subscriber |
+| `currency` | string | ISO 4217 currency code |
+| `price` | number | Price in USD |
+| `price_in_purchased_currency` | number | Price in the currency the purchase was made in |
+| `store` | string | Store the purchase was made on \(e.g., APP_STORE\) |
+| `takehome_percentage` | number | Estimated percentage of the price taken home after store commission |
+| `tax_percentage` | number | Estimated percentage taken as tax |
+| `commission_percentage` | number | Estimated percentage taken by the store as commission |
+| `offer_code` | string | Offer code applied to the purchase, if any |
+| `subscriber_attributes` | json | Subscriber attributes at the time of the event |
+| `experiments` | json | Experiments the subscriber was enrolled in |
+| `cancel_reason` | string | Reason for cancellation \(CANCELLATION events only\) |
+| `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
+| `api_version` | string | RevenueCat webhook API version |
+| `event` | json | Full RevenueCat event object |
+

@@ -47,8 +47,6 @@ export const airtableDeleteRecordsTool: ToolConfig<AirtableDeleteParams, Airtabl
       if (ids.length === 0) {
         throw new Error('At least one record ID is required to delete')
       }
-      // Airtable's batch delete endpoint accepts at most 10 record IDs per request.
-      // Reject larger batches up front so a destructive delete never partially fails.
       if (ids.length > 10) {
         throw new Error(
           `Airtable deletes at most 10 records per request (received ${ids.length}). Split the delete into batches of 10 or fewer.`

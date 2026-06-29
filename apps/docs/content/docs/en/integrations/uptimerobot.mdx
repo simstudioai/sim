@@ -146,7 +146,7 @@ Create a new monitor in UptimeRobot
 | `type` | string | Yes | Monitor type: HTTP, KEYWORD, PING, PORT, HEARTBEAT, DNS, API, or UDP |
 | `url` | string | No | URL or host to monitor \(not required for Heartbeat monitors\) |
 | `interval` | number | Yes | Check interval in seconds \(minimum 30\) |
-| `timeout` | number | No | Check timeout in seconds, 0-60 \(HTTP, Keyword and Port monitors only\) |
+| `checkTimeout` | number | No | Check timeout in seconds, 0-60 \(HTTP, Keyword and Port monitors only\) |
 | `port` | number | No | Port to check, 1-65535 \(required for Port and UDP monitors\) |
 | `keywordType` | string | No | Keyword match type for Keyword monitors: ALERT_EXISTS or ALERT_NOT_EXISTS |
 | `keywordValue` | string | No | Keyword to look for \(Keyword monitors only\) |
@@ -223,7 +223,7 @@ Update an existing UptimeRobot monitor. Only the provided fields are changed.
 | `friendlyName` | string | No | New friendly name |
 | `url` | string | No | New URL or host to monitor |
 | `interval` | number | No | New check interval in seconds \(minimum 30\) |
-| `timeout` | number | No | New check timeout in seconds, 0-60 |
+| `checkTimeout` | number | No | New check timeout in seconds, 0-60 |
 | `port` | number | No | New port, 1-65535 \(Port and UDP monitors\) |
 | `keywordType` | string | No | Keyword match type: ALERT_EXISTS or ALERT_NOT_EXISTS |
 | `keywordValue` | string | No | New keyword to look for |
@@ -583,7 +583,6 @@ Update an existing maintenance window. Only the provided fields are changed.
 | `date` | string | No | Start date in YYYY-MM-DD format |
 | `time` | string | No | Start time in HH:mm:ss format |
 | `duration` | number | No | Duration in minutes \(minimum 1\) |
-| `autoAddMonitors` | boolean | No | Whether to automatically add all monitors to this window |
 | `days` | string | No | Comma-separated days for weekly \(1-7\) or monthly \(day-of-month, -1 for last day\) windows |
 | `monitorIds` | string | No | Comma-separated monitor IDs to assign to the window |
 | `status` | string | No | Set to "active" to enable or "paused" to disable the maintenance window |

@@ -271,3 +271,275 @@ Retrieve a list of contact properties from your Loops account. Returns each prop
 |   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Loops Campaign Email Sent
+
+Trigger workflow when a Loops campaign email is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., campaign.email.sent, loop.email.sent, transactional.email.sent\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `campaignId` | string | Campaign ID, present on campaign.email.sent |
+| `campaignName` | string | Campaign name, present on campaign.email.sent |
+| `loopId` | string | Loop \(workflow\) ID, present on loop.email.sent |
+| `loopName` | string | Loop \(workflow\) name, present on loop.email.sent |
+| `transactionalId` | string | Transactional email ID, present on transactional.email.sent |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+| `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
+
+
+---
+
+### Loops Email Clicked
+
+Trigger workflow when a link in a Loops email is clicked
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., email.delivered, email.opened, email.clicked\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `sourceType` | string | Source of the email: "campaign", "loop", or "transactional" |
+| `campaignId` | string | Campaign ID, present when sourceType is "campaign" |
+| `loopId` | string | Loop \(workflow\) ID, present when sourceType is "loop" |
+| `transactionalId` | string | Transactional email ID, present when sourceType is "transactional" |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+
+
+---
+
+### Loops Email Delivered
+
+Trigger workflow when a Loops email is delivered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., email.delivered, email.opened, email.clicked\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `sourceType` | string | Source of the email: "campaign", "loop", or "transactional" |
+| `campaignId` | string | Campaign ID, present when sourceType is "campaign" |
+| `loopId` | string | Loop \(workflow\) ID, present when sourceType is "loop" |
+| `transactionalId` | string | Transactional email ID, present when sourceType is "transactional" |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+
+
+---
+
+### Loops Email Hard Bounced
+
+Trigger workflow when a Loops email hard bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., email.delivered, email.opened, email.clicked\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `sourceType` | string | Source of the email: "campaign", "loop", or "transactional" |
+| `campaignId` | string | Campaign ID, present when sourceType is "campaign" |
+| `loopId` | string | Loop \(workflow\) ID, present when sourceType is "loop" |
+| `transactionalId` | string | Transactional email ID, present when sourceType is "transactional" |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+
+
+---
+
+### Loops Email Opened
+
+Trigger workflow when a Loops email is opened
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., email.delivered, email.opened, email.clicked\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `sourceType` | string | Source of the email: "campaign", "loop", or "transactional" |
+| `campaignId` | string | Campaign ID, present when sourceType is "campaign" |
+| `loopId` | string | Loop \(workflow\) ID, present when sourceType is "loop" |
+| `transactionalId` | string | Transactional email ID, present when sourceType is "transactional" |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+
+
+---
+
+### Loops Email Soft Bounced
+
+Trigger workflow when a Loops email soft bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., email.delivered, email.opened, email.clicked\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `sourceType` | string | Source of the email: "campaign", "loop", or "transactional" |
+| `campaignId` | string | Campaign ID, present when sourceType is "campaign" |
+| `loopId` | string | Loop \(workflow\) ID, present when sourceType is "loop" |
+| `transactionalId` | string | Transactional email ID, present when sourceType is "transactional" |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+
+
+---
+
+### Loops Loop Email Sent
+
+Trigger workflow when a Loops loop email is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., campaign.email.sent, loop.email.sent, transactional.email.sent\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `campaignId` | string | Campaign ID, present on campaign.email.sent |
+| `campaignName` | string | Campaign name, present on campaign.email.sent |
+| `loopId` | string | Loop \(workflow\) ID, present on loop.email.sent |
+| `loopName` | string | Loop \(workflow\) name, present on loop.email.sent |
+| `transactionalId` | string | Transactional email ID, present on transactional.email.sent |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+| `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
+
+
+---
+
+### Loops Transactional Email Sent
+
+Trigger workflow when a Loops transactional email is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | Required to verify the webhook signature from Loops. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventName` | string | Event type \(e.g., campaign.email.sent, loop.email.sent, transactional.email.sent\) |
+| `eventTime` | number | Unix timestamp \(seconds\) when the event occurred |
+| `webhookSchemaVersion` | string | Webhook schema version \(e.g., "1.0.0"\) |
+| `campaignId` | string | Campaign ID, present on campaign.email.sent |
+| `campaignName` | string | Campaign name, present on campaign.email.sent |
+| `loopId` | string | Loop \(workflow\) ID, present on loop.email.sent |
+| `loopName` | string | Loop \(workflow\) name, present on loop.email.sent |
+| `transactionalId` | string | Transactional email ID, present on transactional.email.sent |
+| `email` | json | Email object from the payload \(id, emailMessageId, subject\) |
+| `emailId` | string | Unique email ID \(payload `email.id`\) |
+| `emailMessageId` | string | Sent email message ID \(payload `email.emailMessageId`\) |
+| `subject` | string | Email subject line \(payload `email.subject`\) |
+| `contactIdentity` | json | Contact identity object from the payload \(id, email, userId\) |
+| `contactId` | string | Contact ID \(payload `contactIdentity.id`\) |
+| `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
+| `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
+| `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
+

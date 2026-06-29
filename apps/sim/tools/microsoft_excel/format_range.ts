@@ -83,8 +83,7 @@ export const formatRangeTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Background fill color as an HTML hex code (e.g., "#FFFF00") or named color (e.g., "yellow").',
+      description: 'Background fill color as an HTML hex code (e.g., "#FFFF00").',
     },
     fontBold: {
       type: 'boolean',
@@ -102,7 +101,7 @@ export const formatRangeTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Font color as an HTML hex code (e.g., "#FF0000") or named color (e.g., "red").',
+      description: 'Font color as an HTML hex code (e.g., "#FF0000").',
     },
     fontSize: {
       type: 'number',
@@ -173,8 +172,6 @@ export const formatRangeTool: ToolConfig<
     if (fontBody) {
       fontResult = await response.json().catch(() => null)
 
-      // When both font and fill were requested, the primary request handled the
-      // font; apply the fill as a follow-up call.
       if (hasFill) {
         const basePath = getItemBasePath(spreadsheetId, driveId)
         const fillUrl = `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/format/fill`
@@ -189,10 +186,6 @@ export const formatRangeTool: ToolConfig<
         if (!fillResp.ok) {
           const errorText = await fillResp.text().catch(() => '')
           const detail = parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText)
-          // Graph has no single endpoint to set font and fill together, so they are
-          // two PATCHes. The font already succeeded here; surface that explicitly so
-          // the partial state is clear. Formatting is idempotent — re-running with only
-          // the fill color safely finishes the operation.
           throw new Error(
             `Font formatting was applied, but the fill color update failed: ${detail}. Re-run with only the fill color to finish.`
           )

@@ -94,7 +94,19 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter document ID',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: ['read', 'write'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'insert_text',
+          'replace_text',
+          'insert_table',
+          'insert_image',
+          'insert_page_break',
+          'update_text_style',
+        ],
+      },
     },
     // Create-specific Fields
     {

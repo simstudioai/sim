@@ -37,7 +37,6 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
       required: true,
       visibility: 'user-or-llm',
       description: 'Array of records to upsert, each with a `fields` object',
-      // Example: [{ fields: { "Name": "Twin Peaks", "Visited": true } }]
     },
     fieldsToMergeOn: {
       type: 'json',
@@ -64,7 +63,6 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
     }),
     body: (params) => {
       const mergeFields = (params.fieldsToMergeOn ?? []).map((f) => f?.trim()).filter(Boolean)
-      // Airtable upsert requires 1–3 merge fields; more than 3 is rejected by the API.
       if (mergeFields.length === 0) {
         throw new Error('At least one field to merge on is required for upsert')
       }
@@ -74,7 +72,6 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
         )
       }
       const records = params.records ?? []
-      // Airtable accepts at most 10 records per upsert request.
       if (records.length > 10) {
         throw new Error(
           `Airtable upserts at most 10 records per request (received ${records.length}). Split the upsert into batches of 10 or fewer.`

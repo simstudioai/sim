@@ -5730,6 +5730,31 @@ export function McpIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function A2AIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 860 860' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='544' cy='307' r='27' fill='currentColor' />
+      <circle cx='154' cy='307' r='27' fill='currentColor' />
+      <circle cx='706' cy='307' r='27' fill='currentColor' />
+      <circle cx='316' cy='307' r='27' fill='currentColor' />
+      <path
+        d='M336.5 191H162C97.66 191 45.5 243.16 45.5 307.5C45.5 371.84 97.64 424 161.99 424C206.55 424 256.29 424 296.5 424C487.5 424 374 191.01 569 191C613.89 191 658.97 191 698.03 191C762.37 191 814.5 243.16 814.5 307.5C814.5 371.84 762.34 424 698 424H523.5'
+        stroke='currentColor'
+        strokeWidth='48'
+        strokeLinecap='round'
+      />
+      <path
+        d='M256 510C270.36 510 282 521.64 282 536C282 550.36 270.36 562 256 562H148C133.64 562 122 550.36 122 536C122 521.64 133.64 510 148 510H256ZM712 510C726.36 510 738 521.64 738 536C738 550.36 726.36 562 712 562H360C345.64 562 334 550.36 334 536C334 521.64 345.64 510 360 510H712Z'
+        fill='currentColor'
+      />
+      <path
+        d='M444 628C458.36 628 470 639.64 470 654C470 668.36 458.36 680 444 680H100C85.64 680 74 668.36 74 654C74 639.64 85.64 628 100 628H444ZM548 628C562.36 628 574 639.64 574 654C574 668.36 562.36 680 548 680C533.64 680 522 668.36 522 654C522 639.64 533.64 628 548 628ZM760 628C774.36 628 786 639.64 786 654C786 668.36 774.36 680 760 680H652C637.64 680 626 668.36 626 654C626 639.64 637.64 628 652 628H760Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function WordpressIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25.93 25.93'>
