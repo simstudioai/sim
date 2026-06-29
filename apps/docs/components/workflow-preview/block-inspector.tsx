@@ -1,8 +1,7 @@
 'use client'
 
 import { BookOpen, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
-import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
-import { BLOCK_ICONS } from '@/components/workflow-preview/block-icons'
+import { resolveIcon } from '@/components/workflow-preview/block-icons'
 
 type FieldKind = 'select' | 'input' | 'textarea' | 'code' | 'slider' | 'toggle'
 
@@ -41,10 +40,6 @@ interface BlockInspectorProps {
   connections?: InspectorConnection[]
   /** Render as a borderless panel filling its parent (the lightbox sidebar). */
   embedded?: boolean
-}
-
-function resolveIcon(type: string) {
-  return BLOCK_ICONS[type] ?? blockTypeToIconMap[type] ?? null
 }
 
 const CONTROL =

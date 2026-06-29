@@ -1,20 +1,20 @@
 'use client'
 
+import { Badge } from '@sim/emcn'
 import { ChevronDown, Clipboard, Download, Search } from 'lucide-react'
-import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
-import { BLOCK_ICONS } from '@/components/workflow-preview/block-icons'
+import { resolveIcon } from '@/components/workflow-preview/block-icons'
 
 type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
 
-/** Dark-theme equivalents of the app's type badges (string=green, number=blue, …). */
-const BADGE_COLORS: Record<ValueType, { bg: string; text: string }> = {
-  string: { bg: 'var(--badge-success-bg)', text: 'var(--badge-success-text)' },
-  number: { bg: 'var(--badge-blue-bg)', text: 'var(--badge-blue-text)' },
-  boolean: { bg: 'var(--badge-orange-bg)', text: 'var(--badge-orange-text)' },
-  array: { bg: 'var(--badge-purple-bg)', text: 'var(--badge-purple-text)' },
-  object: { bg: 'var(--badge-gray-bg)', text: 'var(--badge-gray-text)' },
-  null: { bg: 'var(--badge-gray-bg)', text: 'var(--badge-gray-text)' },
-}
+/** Output value type → emcn Badge color variant. */
+const TYPE_VARIANT = {
+  string: 'green',
+  number: 'blue',
+  boolean: 'orange',
+  array: 'purple',
+  object: 'gray',
+  null: 'gray',
+} as const
 
 interface OutputNode {
   key: string
@@ -49,19 +49,11 @@ interface OutputBundleProps {
   values: OutputNode[]
 }
 
-function resolveIcon(type: string) {
-  return BLOCK_ICONS[type] ?? blockTypeToIconMap[type] ?? null
-}
-
 function TypeBadge({ type }: { type: ValueType }) {
-  const c = BADGE_COLORS[type]
   return (
-    <span
-      className='rounded-[4px] px-[5px] py-px text-[10px] leading-[14px]'
-      style={{ background: c.bg, color: c.text }}
-    >
+    <Badge variant={TYPE_VARIANT[type]} size='sm'>
       {type}
-    </span>
+    </Badge>
   )
 }
 
