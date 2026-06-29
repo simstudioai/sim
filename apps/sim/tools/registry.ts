@@ -2890,9 +2890,15 @@ import {
 } from '@/tools/rootly'
 import {
   s3CopyObjectTool,
+  s3CreateBucketTool,
+  s3DeleteBucketTool,
+  s3DeleteObjectsTool,
   s3DeleteObjectTool,
   s3GetObjectTool,
+  s3HeadObjectTool,
+  s3ListBucketsTool,
   s3ListObjectsTool,
+  s3PresignedUrlTool,
   s3PutObjectTool,
 } from '@/tools/s3'
 import {
@@ -6828,6 +6834,12 @@ export const tools: Record<string, ToolConfig> = {
   s3_list_objects: s3ListObjectsTool,
   s3_delete_object: s3DeleteObjectTool,
   s3_copy_object: s3CopyObjectTool,
+  s3_list_buckets: s3ListBucketsTool,
+  s3_head_object: s3HeadObjectTool,
+  s3_create_bucket: s3CreateBucketTool,
+  s3_delete_bucket: s3DeleteBucketTool,
+  s3_presigned_url: s3PresignedUrlTool,
+  s3_delete_objects: s3DeleteObjectsTool,
   secrets_manager_get_secret: secretsManagerGetSecretTool,
   secrets_manager_list_secrets: secretsManagerListSecretsTool,
   secrets_manager_create_secret: secretsManagerCreateSecretTool,
