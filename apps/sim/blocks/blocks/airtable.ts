@@ -379,7 +379,7 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
               ...baseParams,
               records: parsedRecords,
               fieldsToMergeOn: parsedFieldsToMergeOn,
-              ...(typecast != null ? { typecast: Boolean(typecast) } : {}),
+              ...(typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}),
             }
           case 'delete':
             return { ...baseParams, recordIds: parsedRecordIds }

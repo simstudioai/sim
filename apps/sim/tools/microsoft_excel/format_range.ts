@@ -189,7 +189,13 @@ export const formatRangeTool: ToolConfig<
         if (!fillResp.ok) {
           const errorText = await fillResp.text().catch(() => '')
           const detail = parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText)
-          throw new Error(`Failed to apply fill color: ${detail}`)
+          // Graph has no single endpoint to set font and fill together, so they are
+          // two PATCHes. The font already succeeded here; surface that explicitly so
+          // the partial state is clear. Formatting is idempotent — re-running with only
+          // the fill color safely finishes the operation.
+          throw new Error(
+            `Font formatting was applied, but the fill color update failed: ${detail}. Re-run with only the fill color to finish.`
+          )
         }
         fillApplied = true
       }
