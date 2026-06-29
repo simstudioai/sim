@@ -26,12 +26,9 @@ export interface PreviewBlock {
    * blocks, `router-<routeId>` on Routers.
    */
   branches?: Array<{ id: string; label: string; value?: string }>
-  /** Render an error row with a red source handle (id `error`). */
-  showError?: boolean
   tools?: PreviewTool[]
   position: { x: number; y: number }
   hideTargetHandle?: boolean
-  hideSourceHandle?: boolean
   /** When set, the block renders as a Loop/Parallel container sized to hold its children. */
   size?: { width: number; height: number }
   /** Id of the container block this block sits inside. Its position is relative to the container. */
@@ -101,10 +98,8 @@ export function toReactFlowElements(
         bgColor: block.bgColor,
         rows: block.rows,
         branches: block.branches,
-        showError: block.showError,
         tools: block.tools,
         hideTargetHandle: block.hideTargetHandle,
-        hideSourceHandle: block.hideSourceHandle,
         size: block.size,
         index,
         animate,

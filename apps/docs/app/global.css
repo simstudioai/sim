@@ -43,6 +43,7 @@ body {
  */
 :root {
   --bg: #fefefe;
+  --workflow-edge: #e0e0e0;
   --surface-1: #fbfbfb;
   --surface-2: #ffffff;
   --surface-3: #f7f7f7;
@@ -92,6 +93,7 @@ body {
 
 .dark {
   --bg: #1b1b1b;
+  --workflow-edge: #454545;
   --surface-1: #1e1e1e;
   --surface-2: #232323;
   --surface-3: #242424;

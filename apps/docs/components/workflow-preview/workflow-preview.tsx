@@ -20,8 +20,8 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
+import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
-import { PreviewBlockNode } from '@/components/workflow-preview/preview-block-node'
 import {
   EASE_OUT,
   type PreviewBlock,
@@ -89,7 +89,7 @@ function PreviewEdge({
 }
 
 const NODE_TYPES: NodeTypes = {
-  previewBlock: PreviewBlockNode,
+  previewBlock: DocsBlockNode,
   previewContainer: DocsContainerNode,
 }
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
