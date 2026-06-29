@@ -50,6 +50,8 @@ export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 const EDGE_STYLE = { stroke: 'var(--wp-edge)', strokeWidth: 1.5 } as const
 const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--wp-highlight)', strokeWidth: 2.5 } as const
+/** Edges leaving a block's error port render red, matching the editor. */
+const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 1.5 } as const
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {
@@ -118,6 +120,7 @@ export function toReactFlowElements(
     const sourceIndex = blockIndexMap.get(e.source) ?? 0
     const isEdgeHighlight = highlightEdge === e.id
     const dimmed = hasHighlight && !isEdgeHighlight
+    const isErrorEdge = e.sourceHandle === 'error'
     return {
       id: e.id,
       source: e.source,
@@ -125,7 +128,7 @@ export function toReactFlowElements(
       type: 'previewEdge',
       animated: false,
       style: {
-        ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : EDGE_STYLE),
+        ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : isErrorEdge ? EDGE_STYLE_ERROR : EDGE_STYLE),
         opacity: dimmed ? 0.35 : 1,
       },
       sourceHandle: e.sourceHandle ?? 'source',

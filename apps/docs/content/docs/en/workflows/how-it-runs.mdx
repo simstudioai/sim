@@ -6,7 +6,13 @@ pageType: concept
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Image } from '@/components/ui/image'
+import {
+  COMBINATION_WORKFLOW,
+  CONCURRENCY_WORKFLOW,
+  ERROR_PATH_WORKFLOW,
+  ROUTING_WORKFLOW,
+  WorkflowPreview,
+} from '@/components/workflow-preview'
 
 When you run a workflow, Sim works out the order from the [connections](/workflows/connections): a block runs as soon as the blocks it depends on have finished.
 
@@ -14,7 +20,7 @@ When you run a workflow, Sim works out the order from the [connections](/workflo
 
 Multiple blocks in a workflow can be executing at the same time. A block starts the moment its dependencies finish, and it waits on nothing else.
 
-<Image src="/static/execution/concurrency.png" alt="Two agent blocks running after the Start trigger" width={800} height={500} />
+<WorkflowPreview workflow={CONCURRENCY_WORKFLOW} height={220} />
 
 Here the Customer Support and Deep Researcher agents each depend only on Start, so neither waits for the other.
 
@@ -22,7 +28,7 @@ Here the Customer Support and Deep Researcher agents each depend only on Start, 
 
 When several blocks feed into one, that block waits for every feeder that is going to run, then runs once with each of their outputs available to read. A feeder on a branch that wasn't taken doesn't hold it up. You don't merge the outputs yourself.
 
-<Image src="/static/execution/combination.png" alt="A Function block running after two agent blocks complete" width={800} height={500} />
+<WorkflowPreview workflow={COMBINATION_WORKFLOW} height={220} />
 
 The Function block here runs after both agents complete, with both of their outputs ready.
 
@@ -30,7 +36,7 @@ The Function block here runs after both agents complete, with both of their outp
 
 A workflow can split. A [Condition](/workflows/blocks/condition) block branches on an explicit rule; a [Router](/workflows/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
 
-<Image src="/static/execution/routing.png" alt="A workflow branching by condition and by router" width={800} height={500} />
+<WorkflowPreview workflow={ROUTING_WORKFLOW} height={340} />
 
 To repeat work, a [Loop](/workflows/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/workflows/blocks/parallel) block runs them for several items at once.
 
@@ -42,7 +48,7 @@ A workflow can call other workflows, through a Workflow block, an MCP tool, or a
 
 A block that errors fails the run: blocks already running finish, and nothing new starts. To handle the failure instead, connect the block's **error port** — the run follows the [error path](/workflows/connections) and continues.
 
-<Image src="/static/execution/error-path.png" alt="A Function block whose error port routes to a handler block, with the normal path continuing to a success block" width={800} height={319} />
+<WorkflowPreview workflow={ERROR_PATH_WORKFLOW} height={260} />
 
 Here `throwError` fails, so the run leaves through its red error port to `handleError`; `handleSuccess` on the normal path never runs.
 

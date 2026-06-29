@@ -1746,3 +1746,223 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
     { id: 'score-log', source: 'score', target: 'log' },
   ],
 }
+
+/**
+ * The "Blocks run as soon as they can" diagram on the how-it-runs page: two
+ * agents that each depend only on Start, so they run concurrently.
+ */
+export const CONCURRENCY_WORKFLOW: PreviewWorkflow = {
+  id: 'concurrency',
+  name: 'Run in parallel',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'support',
+      name: 'Customer Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 0 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'research',
+      name: 'Deep Researcher',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 150 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+  ],
+  edges: [
+    { id: 'start-support', source: 'start', target: 'support' },
+    { id: 'start-research', source: 'start', target: 'research' },
+  ],
+}
+
+/**
+ * The "A block waits for all its inputs" diagram: a Function that runs only
+ * after both agents finish, reading both outputs.
+ */
+export const COMBINATION_WORKFLOW: PreviewWorkflow = {
+  id: 'combination',
+  name: 'Wait for all inputs',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'support',
+      name: 'Customer Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 0 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'research',
+      name: 'Deep Researcher',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 150 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'combine',
+      name: 'Combine',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 75 },
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'merge(<support.content>, <research.content>)' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-support', source: 'start', target: 'support' },
+    { id: 'start-research', source: 'start', target: 'research' },
+    { id: 'support-combine', source: 'support', target: 'combine' },
+    { id: 'research-combine', source: 'research', target: 'combine' },
+  ],
+}
+
+/**
+ * The "Branches follow one path" diagram: a Condition splits on an explicit
+ * rule, and on one branch a Router lets a model choose among paths.
+ */
+export const ROUTING_WORKFLOW: PreviewWorkflow = {
+  id: 'routing',
+  name: 'Branch by condition and router',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 140 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Message' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 340, y: 140 },
+      rows: [],
+      branches: [
+        { id: 'condition-if', label: 'If', value: "<start.type> === 'lead'" },
+        { id: 'condition-else', label: 'else' },
+      ],
+    },
+    {
+      id: 'router',
+      name: 'Router',
+      type: 'router',
+      bgColor: '#28C43F',
+      position: { x: 740, y: 0 },
+      rows: [],
+      branches: [
+        { id: 'router-sales', label: 'Sales' },
+        { id: 'router-support', label: 'Support' },
+      ],
+    },
+    {
+      id: 'reply',
+      name: 'Reply',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 740, y: 280 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'sales',
+      name: 'Sales',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 1120, y: -60 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'support',
+      name: 'Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 1120, y: 90 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+  ],
+  edges: [
+    { id: 'start-condition', source: 'start', target: 'condition' },
+    { id: 'condition-router', source: 'condition', target: 'router', sourceHandle: 'condition-if' },
+    { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'condition-else' },
+    { id: 'router-sales', source: 'router', target: 'sales', sourceHandle: 'router-sales' },
+    { id: 'router-support', source: 'router', target: 'support', sourceHandle: 'router-support' },
+  ],
+}
+
+/**
+ * The "When a block fails" diagram: a Function fails and the run leaves through
+ * its red error port to a handler, while the normal-path block never runs.
+ */
+export const ERROR_PATH_WORKFLOW: PreviewWorkflow = {
+  id: 'error-path',
+  name: 'Handle a failure',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Order' }],
+    },
+    {
+      id: 'throwError',
+      name: 'throwError',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 340, y: 80 },
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'throw new Error("failed")' },
+      ],
+    },
+    {
+      id: 'handleSuccess',
+      name: 'handleSuccess',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 0 },
+      rows: [{ title: 'Code', value: 'return ok' }],
+    },
+    {
+      id: 'handleError',
+      name: 'handleError',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 170 },
+      rows: [{ title: 'Code', value: 'return recovered' }],
+    },
+  ],
+  edges: [
+    { id: 'start-throw', source: 'start', target: 'throwError' },
+    { id: 'throw-success', source: 'throwError', target: 'handleSuccess' },
+    { id: 'throw-error', source: 'throwError', target: 'handleError', sourceHandle: 'error' },
+  ],
+}
