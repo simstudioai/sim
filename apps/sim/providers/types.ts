@@ -22,6 +22,7 @@ export type ProviderId =
   | 'vllm'
   | 'litellm'
   | 'bedrock'
+  | 'avian'
 
 export interface ModelPricing {
   input: number // Per 1M tokens
