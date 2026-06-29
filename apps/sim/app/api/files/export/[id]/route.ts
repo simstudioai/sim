@@ -70,9 +70,43 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Records the egress only once the export response is actually produced, so a
+    // mid-export failure never logs a download that never happened. Covers every
+    // exit (redirect to serve, plain markdown, and the bundled zip).
+    const auditExport = (format: 'file' | 'markdown' | 'zip', assetCount: number) => {
+      recordAudit({
+        workspaceId: record.workspaceId ?? null,
+        actorId: userId,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: record.id,
+        resourceName: record.originalName,
+        description: `Exported file "${record.originalName}"`,
+        metadata: {
+          fileId: record.id,
+          fileName: record.originalName,
+          bytes: record.size,
+          format,
+          assetCount,
+        },
+        request,
+      })
+      captureServerEvent(
+        userId,
+        'file_downloaded',
+        {
+          workspace_id: record.workspaceId ?? '',
+          is_bulk: assetCount > 0,
+          file_count: 1 + assetCount,
+        },
+        record.workspaceId ? { groups: { workspace: record.workspaceId } } : undefined
+      )
+    }
+
     if (!isMarkdown(record.originalName, record.contentType)) {
       const storagePrefix = USE_BLOB_STORAGE ? 'blob' : 's3'
       const servePath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(record.key)}`
+      auditExport('file', 0)
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })
     }
 
@@ -86,38 +120,10 @@ export const GET = withRouteHandler(
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
 
-    const exportFormat = imageIds.length === 0 ? 'markdown' : 'zip'
-    recordAudit({
-      workspaceId: record.workspaceId ?? null,
-      actorId: userId,
-      action: AuditAction.FILE_DOWNLOADED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: record.id,
-      resourceName: record.originalName,
-      description: `Exported file "${record.originalName}"`,
-      metadata: {
-        fileId: record.id,
-        fileName: record.originalName,
-        bytes: record.size,
-        format: exportFormat,
-        assetCount: imageIds.length,
-      },
-      request,
-    })
-    captureServerEvent(
-      userId,
-      'file_downloaded',
-      {
-        workspace_id: record.workspaceId ?? '',
-        is_bulk: imageIds.length > 0,
-        file_count: 1 + imageIds.length,
-      },
-      record.workspaceId ? { groups: { workspace: record.workspaceId } } : undefined
-    )
-
     if (imageIds.length === 0) {
       const mdName = safeFilename(record.originalName)
       const mdBytes = Buffer.from(mdContent, 'utf-8')
+      auditExport('markdown', 0)
       return new NextResponse(new Uint8Array(mdBytes), {
         status: 200,
         headers: {
@@ -182,6 +188,7 @@ export const GET = withRouteHandler(
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
     const zipName = safeFilename(`${record.originalName.replace(/\.[^.]+$/, '')}.zip`)
 
+    auditExport('zip', assetMap.size)
     return new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,
       headers: {
