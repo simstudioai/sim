@@ -1,4 +1,10 @@
 import {
+  a2aCancelTaskTool,
+  a2aGetAgentCardTool,
+  a2aGetTaskTool,
+  a2aSendMessageTool,
+} from '@/tools/a2a'
+import {
   agentmailCreateDraftTool,
   agentmailCreateInboxTool,
   agentmailDeleteDraftTool,
@@ -4105,6 +4111,10 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  a2a_cancel_task: a2aCancelTaskTool,
+  a2a_get_agent_card: a2aGetAgentCardTool,
+  a2a_get_task: a2aGetTaskTool,
+  a2a_send_message: a2aSendMessageTool,
   agentmail_create_draft: agentmailCreateDraftTool,
   agentmail_create_inbox: agentmailCreateInboxTool,
   agentmail_delete_draft: agentmailDeleteDraftTool,
