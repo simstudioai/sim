@@ -7,6 +7,28 @@ import type { StorageContext } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
+/**
+ * Meter a copilot file's bytes against the owner's storage quota when its
+ * metadata row is first created or restored. Copilot is the one context metered
+ * here so that every ingest path (tool output, the upload route, presigned
+ * uploads) is symmetric with the decrement on delete. Other contexts are metered
+ * by their own managers (workspace, knowledge-base) or intentionally unmetered
+ * (execution), so they are skipped. Best-effort: never blocks the metadata write.
+ */
+async function meterCopilotIngest(
+  context: StorageContext,
+  userId: string,
+  size: number
+): Promise<void> {
+  if (context !== 'copilot' || size <= 0) return
+  try {
+    const { incrementStorageUsage } = await import('@/lib/billing/storage')
+    await incrementStorageUsage(userId, size)
+  } catch (error) {
+    logger.error('Failed to meter copilot file storage on ingest', { error })
+  }
+}
+
 export type FileMetadataRecord = typeof workspaceFiles.$inferSelect
 
 export interface FileMetadataInsertOptions {
@@ -57,6 +79,7 @@ export async function insertFileMetadata(
       .returning()
 
     if (restored) {
+      await meterCopilotIngest(context, userId, size)
       return restored
     }
   }
@@ -92,6 +115,7 @@ export async function insertFileMetadata(
       })
       .returning()
 
+    await meterCopilotIngest(context, userId, size)
     return inserted
   } catch (error) {
     const code = (error as { code?: string } | null)?.code

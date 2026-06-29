@@ -1,9 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  checkStorageQuota,
-  incrementStorageUsage,
-  releaseDeletedFileStorage,
-} from '@/lib/billing/storage'
+import { checkStorageQuota, releaseDeletedFileStorage } from '@/lib/billing/storage'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   deleteFile,
@@ -148,12 +144,9 @@ export async function uploadCopilotFile(options: {
     userId: options.userId,
   })
 
-  try {
-    await incrementStorageUsage(options.userId, options.buffer.length)
-  } catch (storageError) {
-    logger.error('Failed to update storage tracking:', storageError)
-  }
-
+  // Storage is metered centrally when the copilot metadata row is created
+  // (see insertFileMetadata), so every ingest path stays symmetric — no
+  // per-path increment here.
   return {
     id: fileInfo.key,
     key: fileInfo.key,
