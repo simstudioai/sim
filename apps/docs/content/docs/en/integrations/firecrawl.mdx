@@ -78,6 +78,81 @@ Extract structured content from web pages with comprehensive metadata support. C
 |   ↳ `ogSiteName` | string | Open Graph site name |
 |   ↳ `error` | string | Error message if scrape failed |
 
+### `firecrawl_batch_scrape`
+
+Scrape multiple URLs in a single batch job and retrieve structured content from each page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | json | Yes | Array of URLs to scrape \(e.g., \["https://example.com/page1", "https://example.com/page2"\]\) |
+| `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\]\) |
+| `onlyMainContent` | boolean | No | Extract only main content from pages |
+| `maxConcurrency` | number | No | Maximum number of concurrent scrapes |
+| `ignoreInvalidURLs` | boolean | No | Skip invalid URLs instead of failing the batch \(default: true\) |
+| `scrapeOptions` | json | No | Advanced scraping configuration options |
+| `zeroDataRetention` | boolean | No | Enable zero data retention |
+| `apiKey` | string | Yes | Firecrawl API key |
+| `pricing` | custom | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | Array of scraped pages with their content and metadata |
+|   ↳ `markdown` | string | Page content in markdown format |
+|   ↳ `html` | string | Processed HTML content of the page |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML content |
+|   ↳ `links` | array | Array of links found on the page |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
+| `total` | number | Total number of pages attempted |
+| `completed` | number | Number of pages successfully scraped |
+| `invalidURLs` | array | URLs that were skipped because they were invalid |
+
+### `firecrawl_batch_scrape_status`
+
+Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | The ID of the batch scrape job to check |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current batch scrape status \(scraping, completed, or failed\) |
+| `total` | number | Total number of pages attempted |
+| `completed` | number | Number of pages successfully scraped |
+| `creditsUsed` | number | Credits consumed by the batch scrape |
+| `expiresAt` | string | ISO timestamp when the batch scrape results expire |
+| `next` | string | URL to retrieve the next page of results when present |
+| `pages` | array | Array of scraped pages with their content and metadata |
+|   ↳ `markdown` | string | Page content in markdown format |
+|   ↳ `html` | string | Processed HTML content of the page |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML content |
+|   ↳ `links` | array | Array of links found on the page |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
+
 ### `firecrawl_search`
 
 Search for information on the web using Firecrawl
@@ -149,6 +224,58 @@ Crawl entire websites and extract structured content from all accessible pages
 |     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 | `total` | number | Total number of pages found during crawl |
 
+### `firecrawl_crawl_status`
+
+Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | The ID of the crawl job to check |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current crawl status \(scraping, completed, or failed\) |
+| `total` | number | Total number of pages attempted |
+| `completed` | number | Number of pages successfully crawled |
+| `creditsUsed` | number | Credits consumed by the crawl |
+| `expiresAt` | string | ISO timestamp when the crawl results expire |
+| `next` | string | URL to retrieve the next page of results when present |
+| `pages` | array | Array of crawled pages with their content and metadata |
+|   ↳ `markdown` | string | Page content in markdown format |
+|   ↳ `html` | string | Processed HTML content of the page |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML content |
+|   ↳ `links` | array | Array of links found on the page |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
+
+### `firecrawl_cancel_crawl`
+
+Cancel an in-progress Firecrawl crawl job by its job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | The ID of the crawl job to cancel |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status of the cancelled crawl job \(e.g., "cancelled"\) |
+
 ### `firecrawl_map`
 
 Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.
@@ -203,6 +330,27 @@ Extract structured data from entire webpages using natural language prompts and 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the extraction operation was successful |
 | `data` | object | Extracted structured data according to the schema or prompt |
+
+### `firecrawl_extract_status`
+
+Check the status and retrieve results of a previously started Firecrawl extract job by its job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | The ID of the extract job to check |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current extract status \(processing, completed, failed, or cancelled\) |
+| `data` | json | Extracted structured data according to the schema or prompt |
+| `expiresAt` | string | ISO timestamp when the extract results expire |
+| `creditsUsed` | number | Number of credits used by the extract job |
+| `tokensUsed` | number | Number of tokens used by the extract job |
 
 ### `firecrawl_agent`
 
@@ -273,5 +421,24 @@ Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firec
 |   ↳ `contentType` | string | Document content type |
 |   ↳ `error` | string | Error message if parse failed |
 | `warning` | string | Warning message from the parse operation |
+
+### `firecrawl_credit_usage`
+
+Retrieve the remaining and allocated Firecrawl credits for the team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `remainingCredits` | number | Number of credits remaining for the team |
+| `planCredits` | number | Credits allocated in the current plan |
+| `billingPeriodStart` | string | Start of the current billing period |
+| `billingPeriodEnd` | string | End of the current billing period |
 
 

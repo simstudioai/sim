@@ -43,6 +43,12 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         { label: 'Share File', id: 'share' },
         { label: 'Remove Sharing', id: 'unshare' },
         { label: 'List Permissions', id: 'list_permissions' },
+        { label: 'Export File', id: 'export' },
+        { label: 'List Revisions', id: 'list_revisions' },
+        { label: 'Get Revision', id: 'get_revision' },
+        { label: 'List Comments', id: 'list_comments' },
+        { label: 'Create Comment', id: 'create_comment' },
+        { label: 'Delete Comment', id: 'delete_comment' },
         { label: 'Get Drive Info', id: 'get_about' },
       ],
       value: () => 'list',
@@ -917,6 +923,253 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       condition: { field: 'operation', value: 'untrash' },
       required: true,
     },
+    {
+      id: 'exportFileSelector',
+      title: 'Select File to Export',
+      type: 'file-selector',
+      canonicalParamId: 'exportFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a Google Workspace file to export',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'export' },
+      required: true,
+    },
+    {
+      id: 'exportManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'exportFileId',
+      placeholder: 'Enter file ID to export',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'export' },
+      required: true,
+    },
+    {
+      id: 'exportMimeType',
+      title: 'Export Format',
+      type: 'dropdown',
+      options: [
+        { label: 'PDF (application/pdf)', id: 'application/pdf' },
+        { label: 'Plain Text (text/plain)', id: 'text/plain' },
+        { label: 'HTML (text/html)', id: 'text/html' },
+        {
+          label: 'DOCX (MS Word)',
+          id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {
+          label: 'XLSX (MS Excel)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {
+          label: 'PPTX (MS PowerPoint)',
+          id: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+        { label: 'CSV (text/csv)', id: 'text/csv' },
+        { label: 'PNG (image/png)', id: 'image/png' },
+        { label: 'SVG (image/svg+xml)', id: 'image/svg+xml' },
+      ],
+      placeholder: 'Select the format to export to',
+      condition: { field: 'operation', value: 'export' },
+      required: true,
+    },
+    {
+      id: 'fileName',
+      title: 'File Name Override',
+      type: 'short-input',
+      placeholder: 'Optional: Override the exported filename',
+      condition: { field: 'operation', value: 'export' },
+    },
+    {
+      id: 'listRevisionsFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'listRevisionsFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to list revisions for',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'list_revisions' },
+      required: true,
+    },
+    {
+      id: 'listRevisionsManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'listRevisionsFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_revisions' },
+      required: true,
+    },
+    {
+      id: 'revisionsPageSize',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'Number of revisions (default: 200, max: 1000)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_revisions' },
+    },
+    {
+      id: 'getRevisionFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'getRevisionFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'get_revision' },
+      required: true,
+    },
+    {
+      id: 'getRevisionManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'getRevisionFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_revision' },
+      required: true,
+    },
+    {
+      id: 'revisionId',
+      title: 'Revision ID',
+      type: 'short-input',
+      placeholder: 'Enter the revision ID (use List Revisions to find)',
+      condition: { field: 'operation', value: 'get_revision' },
+      required: true,
+    },
+    {
+      id: 'listCommentsFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'listCommentsFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to list comments for',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'list_comments' },
+      required: true,
+    },
+    {
+      id: 'listCommentsManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'listCommentsFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_comments' },
+      required: true,
+    },
+    {
+      id: 'commentsPageSize',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'Number of comments (default: 20, max: 100)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_comments' },
+    },
+    {
+      id: 'includeDeleted',
+      title: 'Include Deleted Comments',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      placeholder: 'Include deleted comments',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_comments' },
+    },
+    {
+      id: 'createCommentFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'createCommentFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to comment on',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'create_comment' },
+      required: true,
+    },
+    {
+      id: 'createCommentManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'createCommentFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_comment' },
+      required: true,
+    },
+    {
+      id: 'content',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'The text of your comment',
+      condition: { field: 'operation', value: 'create_comment' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a clear, professional comment for a Google Drive file based on the user's input.
+Keep it concise and actionable - typically 1-3 sentences.
+
+Return ONLY the comment text - no explanations, no quotes, no extra formatting.`,
+        placeholder: 'Describe the comment you want to leave...',
+      },
+    },
+    {
+      id: 'anchor',
+      title: 'Anchor',
+      type: 'short-input',
+      placeholder: 'Optional: JSON anchor describing the region the comment refers to',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_comment' },
+    },
+    {
+      id: 'deleteCommentFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'deleteCommentFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select the file the comment belongs to',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'delete_comment' },
+      required: true,
+    },
+    {
+      id: 'deleteCommentManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'deleteCommentFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'delete_comment' },
+      required: true,
+    },
+    {
+      id: 'commentId',
+      title: 'Comment ID',
+      type: 'short-input',
+      placeholder: 'Enter the comment ID to delete (use List Comments to find)',
+      condition: { field: 'operation', value: 'delete_comment' },
+      required: true,
+    },
     // Get Drive Info has no additional fields (just needs credential)
     ...getTrigger('google_drive_poller').subBlocks,
   ],
@@ -938,6 +1191,12 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       'google_drive_share',
       'google_drive_unshare',
       'google_drive_list_permissions',
+      'google_drive_export',
+      'google_drive_list_revisions',
+      'google_drive_get_revision',
+      'google_drive_list_comments',
+      'google_drive_create_comment',
+      'google_drive_delete_comment',
       'google_drive_get_about',
     ],
     config: {
@@ -976,6 +1235,18 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
             return 'google_drive_unshare'
           case 'list_permissions':
             return 'google_drive_list_permissions'
+          case 'export':
+            return 'google_drive_export'
+          case 'list_revisions':
+            return 'google_drive_list_revisions'
+          case 'get_revision':
+            return 'google_drive_get_revision'
+          case 'list_comments':
+            return 'google_drive_list_comments'
+          case 'create_comment':
+            return 'google_drive_create_comment'
+          case 'delete_comment':
+            return 'google_drive_delete_comment'
           case 'get_about':
             return 'google_drive_get_about'
           default:
@@ -1004,6 +1275,12 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
           shareFileId,
           unshareFileId,
           listPermissionsFileId,
+          exportFileId,
+          listRevisionsFileId,
+          getRevisionFileId,
+          listCommentsFileId,
+          createCommentFileId,
+          deleteCommentFileId,
           // File upload
           file,
           mimeType,
@@ -1012,11 +1289,15 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
           sendNotification,
           removeFromCurrent,
           includeRevisions,
+          includeDeleted,
           pageSize,
           query,
           searchQuery,
           searchPageSize,
+          revisionsPageSize,
+          commentsPageSize,
           getContentExportMimeType,
+          exportMimeType,
           ...rest
         } = params
 
@@ -1077,6 +1358,24 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
           case 'list_permissions':
             effectiveFileId = listPermissionsFileId?.trim() || undefined
             break
+          case 'export':
+            effectiveFileId = exportFileId?.trim() || undefined
+            break
+          case 'list_revisions':
+            effectiveFileId = listRevisionsFileId?.trim() || undefined
+            break
+          case 'get_revision':
+            effectiveFileId = getRevisionFileId?.trim() || undefined
+            break
+          case 'list_comments':
+            effectiveFileId = listCommentsFileId?.trim() || undefined
+            break
+          case 'create_comment':
+            effectiveFileId = createCommentFileId?.trim() || undefined
+            break
+          case 'delete_comment':
+            effectiveFileId = deleteCommentFileId?.trim() || undefined
+            break
         }
 
         // Resolve destinationFolderId for copy/move operations
@@ -1102,10 +1401,21 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
         const includeRevisionsValue =
           includeRevisions === 'true' ? true : includeRevisions === 'false' ? false : undefined
 
-        const effectivePageSize = params.operation === 'search' ? searchPageSize : pageSize
+        const includeDeletedValue =
+          includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
+
+        let effectivePageSize: string | undefined = pageSize
+        if (params.operation === 'search') effectivePageSize = searchPageSize
+        else if (params.operation === 'list_revisions') effectivePageSize = revisionsPageSize
+        else if (params.operation === 'list_comments') effectivePageSize = commentsPageSize
+
         const effectiveQuery = params.operation === 'search' ? searchQuery : query
         const effectiveMimeType =
-          params.operation === 'get_content' ? getContentExportMimeType : mimeType
+          params.operation === 'get_content'
+            ? getContentExportMimeType
+            : params.operation === 'export'
+              ? exportMimeType
+              : mimeType
 
         return {
           oauthCredential,
@@ -1123,6 +1433,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
           sendNotification: sendNotificationValue,
           removeFromCurrent: removeFromCurrentValue,
           includeRevisions: includeRevisionsValue,
+          includeDeleted: includeDeletedValue,
           transferOwnership: rest.role === 'owner' ? true : undefined,
           ...rest,
         }
@@ -1151,6 +1462,12 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
     shareFileId: { type: 'string', description: 'File to share' },
     unshareFileId: { type: 'string', description: 'File to unshare' },
     listPermissionsFileId: { type: 'string', description: 'File to list permissions for' },
+    exportFileId: { type: 'string', description: 'File to export' },
+    listRevisionsFileId: { type: 'string', description: 'File to list revisions for' },
+    getRevisionFileId: { type: 'string', description: 'File the revision belongs to' },
+    listCommentsFileId: { type: 'string', description: 'File to list comments for' },
+    createCommentFileId: { type: 'string', description: 'File to comment on' },
+    deleteCommentFileId: { type: 'string', description: 'File the comment belongs to' },
     // Move operation inputs
     removeFromCurrent: {
       type: 'string',
@@ -1183,6 +1500,13 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
     emailMessage: { type: 'string', description: 'Custom notification message' },
     // Unshare operation inputs
     permissionId: { type: 'string', description: 'Permission ID to remove' },
+    exportMimeType: { type: 'string', description: 'Target MIME type to export to' },
+    revisionId: { type: 'string', description: 'Revision ID to retrieve' },
+    revisionsPageSize: { type: 'string', description: 'Results per page for revisions' },
+    commentId: { type: 'string', description: 'Comment ID to delete' },
+    anchor: { type: 'string', description: 'Anchor region for a new comment' },
+    includeDeleted: { type: 'string', description: 'Include deleted comments when listing' },
+    commentsPageSize: { type: 'string', description: 'Results per page for comments' },
   },
   outputs: {
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
@@ -1201,8 +1525,14 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       description: 'Map of Google Workspace MIME types and export formats',
     },
     maxUploadSize: { type: 'string', description: 'Maximum upload size in bytes' },
-    deleted: { type: 'boolean', description: 'Whether file was deleted' },
+    deleted: { type: 'boolean', description: 'Whether file or comment was deleted' },
     removed: { type: 'boolean', description: 'Whether permission was removed' },
+    exportedMimeType: { type: 'string', description: 'MIME type a file was exported to' },
+    revisions: { type: 'json', description: 'List of file revisions' },
+    revision: { type: 'json', description: 'A single file revision' },
+    comments: { type: 'json', description: 'List of file comments' },
+    comment: { type: 'json', description: 'A single file comment' },
+    commentId: { type: 'string', description: 'ID of a deleted comment' },
   },
   triggers: {
     enabled: true,

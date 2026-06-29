@@ -15,6 +15,18 @@ interface PineconeMatchResponse {
   metadata?: Record<string, any>
 }
 
+export interface PineconeIndexModel {
+  name: string
+  dimension?: number | null
+  metric?: string | null
+  host?: string | null
+  vectorType?: string | null
+  deletionProtection?: string | null
+  tags?: Record<string, string> | null
+  spec?: Record<string, any> | null
+  status?: { ready?: boolean; state?: string } | null
+}
+
 export interface PineconeResponse extends ToolResponse {
   output: {
     matches?: PineconeMatchResponse[]
@@ -25,9 +37,18 @@ export interface PineconeResponse extends ToolResponse {
     }>
     model?: string
     vector_type?: 'dense' | 'sparse'
+    namespace?: string | null
     usage?: {
       total_tokens: number
     }
+    indexes?: PineconeIndexModel[]
+    index?: PineconeIndexModel
+    namespaces?: Record<string, { vectorCount: number | null }>
+    dimension?: number | null
+    indexFullness?: number | null
+    totalVectorCount?: number | null
+    vectorIds?: string[]
+    pagination?: { next?: string } | null
   }
 }
 
@@ -158,4 +179,47 @@ export interface PineconeSearchVectorParams extends PineconeBaseParams {
   filter?: Record<string, any> | string
   includeValues?: boolean
   includeMetadata?: boolean
+}
+
+export interface PineconeDeleteVectorsParams {
+  apiKey: string
+  indexHost: string
+  namespace?: string
+  ids?: string[] | string
+  deleteAll?: boolean | string
+  filter?: Record<string, any> | string
+}
+
+export interface PineconeUpdateVectorParams {
+  apiKey: string
+  indexHost: string
+  id: string
+  namespace?: string
+  values?: number[] | string
+  sparseValues?: { indices: number[]; values: number[] } | string
+  setMetadata?: Record<string, any> | string
+}
+
+export interface PineconeDescribeIndexStatsParams {
+  apiKey: string
+  indexHost: string
+  filter?: Record<string, any> | string
+}
+
+export interface PineconeListIndexesParams {
+  apiKey: string
+}
+
+export interface PineconeDescribeIndexParams {
+  apiKey: string
+  indexName: string
+}
+
+export interface PineconeListVectorIdsParams {
+  apiKey: string
+  indexHost: string
+  namespace: string
+  prefix?: string
+  limit?: number | string
+  paginationToken?: string
 }
