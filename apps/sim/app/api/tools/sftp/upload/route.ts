@@ -110,6 +110,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             )
             const { buffer } = await downloadServableFileFromStorage(file, requestId, logger)
 
+            // Re-check size against the RESOLVED bytes: a generated doc stores small
+            // source metadata but resolves to a larger compiled binary, so the source
+            // pre-check above can pass a payload that exceeds the limit.
+            if (buffer.length > maxSize) {
+              const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+              return NextResponse.json(
+                { success: false, error: `Total file size (${sizeMB}MB) exceeds limit of 100MB` },
+                { status: 400 }
+              )
+            }
+
             const safeFileName = sanitizeFileName(file.name)
             const fullRemotePath = remotePath.endsWith('/')
               ? `${remotePath}${safeFileName}`

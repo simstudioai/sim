@@ -131,6 +131,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        // Re-check size against the RESOLVED bytes: a generated doc stores small
+        // source metadata but resolves to a larger compiled binary, so the source
+        // pre-check above can pass a payload that exceeds the limit.
+        const resolvedTotal = resolved.reduce((sum, r) => sum + r.buffer.length, 0)
+        if (resolvedTotal > maxSize) {
+          const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Total attachment size (${sizeMB}MB) exceeds Microsoft Graph API limit of 3MB per request`,
+            },
+            { status: 400 }
+          )
+        }
+
         const attachmentObjects = attachments.map((file, i) => ({
           '@odata.type': '#microsoft.graph.fileAttachment',
           name: file.name,

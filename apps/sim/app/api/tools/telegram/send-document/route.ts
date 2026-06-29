@@ -113,6 +113,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    // Re-check size against the RESOLVED bytes: a generated doc stores small
+    // source metadata but resolves to a larger compiled binary, so the source
+    // pre-check above can pass a payload that exceeds the limit.
+    if (buffer.length > maxSize) {
+      const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `The following files exceed Telegram's 50MB limit: ${userFile.name} (${sizeMB}MB)`,
+        },
+        { status: 400 }
+      )
+    }
+
     const resolvedMimeType = contentType || userFile.type || 'application/octet-stream'
     const filesOutput = [
       {
