@@ -8,10 +8,10 @@ import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   type: 'google_docs',
   name: 'Google Docs',
-  description: 'Read, write, and create documents',
+  description: 'Read, write, create, and edit documents',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Google Docs into the workflow. Can read, write, and create documents.',
+    'Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
   docsLink: 'https://docs.sim.ai/integrations/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -27,6 +27,12 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         { label: 'Read Document', id: 'read' },
         { label: 'Write to Document', id: 'write' },
         { label: 'Create Document', id: 'create' },
+        { label: 'Insert Text', id: 'insert_text' },
+        { label: 'Find & Replace Text', id: 'replace_text' },
+        { label: 'Insert Table', id: 'insert_table' },
+        { label: 'Insert Image', id: 'insert_image' },
+        { label: 'Insert Page Break', id: 'insert_page_break' },
+        { label: 'Apply Text Style', id: 'update_text_style' },
       ],
       value: () => 'read',
     },
@@ -65,7 +71,19 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Select a document',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: ['read', 'write'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'insert_text',
+          'replace_text',
+          'insert_table',
+          'insert_image',
+          'insert_page_break',
+          'update_text_style',
+        ],
+      },
     },
     // Manual document ID input (advanced mode)
     {
@@ -163,9 +181,156 @@ Return ONLY the document content - no explanations, no extra text.`,
       description:
         'Convert headings, bold/italic, lists, tables, links, code, and blockquotes into formatted Google Docs content. When off, content is inserted as plain text.',
     },
+    // Insert Text fields
+    {
+      id: 'text',
+      title: 'Text',
+      type: 'long-input',
+      placeholder: 'Enter text to insert',
+      condition: { field: 'operation', value: 'insert_text' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate text to insert into a Google Doc based on the user's request.
+The text should be well-structured and appropriate for the document.
+
+Return ONLY the text to insert - no explanations, no extra text.`,
+        placeholder: 'Describe the text you want to insert...',
+      },
+    },
+    // Find & Replace fields
+    {
+      id: 'searchText',
+      title: 'Find',
+      type: 'short-input',
+      placeholder: 'Text to find',
+      condition: { field: 'operation', value: 'replace_text' },
+      required: true,
+    },
+    {
+      id: 'replaceText',
+      title: 'Replace With',
+      type: 'short-input',
+      placeholder: 'Replacement text (leave empty to delete matches)',
+      condition: { field: 'operation', value: 'replace_text' },
+    },
+    {
+      id: 'matchCase',
+      title: 'Match Case',
+      type: 'switch',
+      condition: { field: 'operation', value: 'replace_text' },
+      description: 'When on, only case-sensitive matches are replaced.',
+    },
+    // Insert Table fields
+    {
+      id: 'rows',
+      title: 'Rows',
+      type: 'short-input',
+      placeholder: 'e.g., 3',
+      condition: { field: 'operation', value: 'insert_table' },
+      required: true,
+    },
+    {
+      id: 'columns',
+      title: 'Columns',
+      type: 'short-input',
+      placeholder: 'e.g., 2',
+      condition: { field: 'operation', value: 'insert_table' },
+      required: true,
+    },
+    // Insert Image fields
+    {
+      id: 'imageUrl',
+      title: 'Image URL',
+      type: 'short-input',
+      placeholder: 'Public URL of the image to insert',
+      condition: { field: 'operation', value: 'insert_image' },
+      required: true,
+    },
+    {
+      id: 'width',
+      title: 'Width (PT)',
+      type: 'short-input',
+      placeholder: 'Optional width in points',
+      condition: { field: 'operation', value: 'insert_image' },
+      mode: 'advanced',
+    },
+    {
+      id: 'height',
+      title: 'Height (PT)',
+      type: 'short-input',
+      placeholder: 'Optional height in points',
+      condition: { field: 'operation', value: 'insert_image' },
+      mode: 'advanced',
+    },
+    // Apply Text Style fields
+    {
+      id: 'startIndex',
+      title: 'Start Index',
+      type: 'short-input',
+      placeholder: 'Start character index (inclusive)',
+      condition: { field: 'operation', value: 'update_text_style' },
+      required: true,
+    },
+    {
+      id: 'endIndex',
+      title: 'End Index',
+      type: 'short-input',
+      placeholder: 'End character index (exclusive)',
+      condition: { field: 'operation', value: 'update_text_style' },
+      required: true,
+    },
+    {
+      id: 'bold',
+      title: 'Bold',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'italic',
+      title: 'Italic',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'underline',
+      title: 'Underline',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_text_style' },
+    },
+    {
+      id: 'fontSize',
+      title: 'Font Size (PT)',
+      type: 'short-input',
+      placeholder: 'Optional font size in points',
+      condition: { field: 'operation', value: 'update_text_style' },
+      mode: 'advanced',
+    },
+    // Shared insertion index (advanced) for the insert operations
+    {
+      id: 'index',
+      title: 'Insertion Index',
+      type: 'short-input',
+      placeholder: 'Character index (leave empty to append at end)',
+      condition: {
+        field: 'operation',
+        value: ['insert_text', 'insert_table', 'insert_image', 'insert_page_break'],
+      },
+      mode: 'advanced',
+    },
   ],
   tools: {
-    access: ['google_docs_read', 'google_docs_write', 'google_docs_create'],
+    access: [
+      'google_docs_read',
+      'google_docs_write',
+      'google_docs_create',
+      'google_docs_insert_text',
+      'google_docs_replace_text',
+      'google_docs_insert_table',
+      'google_docs_insert_image',
+      'google_docs_insert_page_break',
+      'google_docs_update_text_style',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -175,6 +340,18 @@ Return ONLY the document content - no explanations, no extra text.`,
             return 'google_docs_write'
           case 'create':
             return 'google_docs_create'
+          case 'insert_text':
+            return 'google_docs_insert_text'
+          case 'replace_text':
+            return 'google_docs_replace_text'
+          case 'insert_table':
+            return 'google_docs_insert_table'
+          case 'insert_image':
+            return 'google_docs_insert_image'
+          case 'insert_page_break':
+            return 'google_docs_insert_page_break'
+          case 'update_text_style':
+            return 'google_docs_update_text_style'
           default:
             throw new Error(`Invalid Google Docs operation: ${params.operation}`)
         }
@@ -185,8 +362,34 @@ Return ONLY the document content - no explanations, no extra text.`,
         const effectiveDocumentId = documentId ? String(documentId).trim() : ''
         const effectiveFolderId = folderId ? String(folderId).trim() : ''
 
+        const toNumber = (value: unknown): number | undefined => {
+          if (value === undefined || value === null || value === '') return undefined
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : undefined
+        }
+
+        const numericFields = [
+          'index',
+          'rows',
+          'columns',
+          'width',
+          'height',
+          'startIndex',
+          'endIndex',
+          'fontSize',
+        ] as const
+
+        const coerced: Record<string, unknown> = {}
+        for (const field of numericFields) {
+          const value = (rest as Record<string, unknown>)[field]
+          const num = toNumber(value)
+          if (num !== undefined) coerced[field] = num
+          else delete (rest as Record<string, unknown>)[field]
+        }
+
         return {
           ...rest,
+          ...coerced,
           documentId: effectiveDocumentId || undefined,
           folderId: effectiveFolderId || undefined,
           oauthCredential,
@@ -205,11 +408,32 @@ Return ONLY the document content - no explanations, no extra text.`,
       type: 'boolean',
       description: 'Interpret content as Markdown when creating a document',
     },
+    text: { type: 'string', description: 'Text to insert' },
+    index: { type: 'number', description: 'Insertion character index' },
+    searchText: { type: 'string', description: 'Text to find' },
+    replaceText: { type: 'string', description: 'Replacement text' },
+    matchCase: { type: 'boolean', description: 'Case-sensitive find & replace' },
+    rows: { type: 'number', description: 'Number of table rows' },
+    columns: { type: 'number', description: 'Number of table columns' },
+    imageUrl: { type: 'string', description: 'Public URL of image to insert' },
+    width: { type: 'number', description: 'Image width in points' },
+    height: { type: 'number', description: 'Image height in points' },
+    startIndex: { type: 'number', description: 'Start character index of style range' },
+    endIndex: { type: 'number', description: 'End character index of style range' },
+    bold: { type: 'boolean', description: 'Apply bold styling' },
+    italic: { type: 'boolean', description: 'Apply italic styling' },
+    underline: { type: 'boolean', description: 'Apply underline styling' },
+    fontSize: { type: 'number', description: 'Font size in points' },
   },
   outputs: {
     content: { type: 'string', description: 'Document content' },
     metadata: { type: 'json', description: 'Document metadata' },
     updatedContent: { type: 'boolean', description: 'Content update status' },
+    occurrencesChanged: {
+      type: 'number',
+      description: 'Number of occurrences replaced during find & replace',
+    },
+    objectId: { type: 'string', description: 'ID of an inserted inline image object' },
   },
 }
 

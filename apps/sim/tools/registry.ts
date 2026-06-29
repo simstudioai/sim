@@ -1247,7 +1247,17 @@ import {
   googleContactsSearchTool,
   googleContactsUpdateTool,
 } from '@/tools/google_contacts'
-import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
+import {
+  googleDocsCreateTool,
+  googleDocsInsertImageTool,
+  googleDocsInsertPageBreakTool,
+  googleDocsInsertTableTool,
+  googleDocsInsertTextTool,
+  googleDocsReadTool,
+  googleDocsReplaceTextTool,
+  googleDocsUpdateTextStyleTool,
+  googleDocsWriteTool,
+} from '@/tools/google_docs'
 import {
   googleDriveCopyTool,
   googleDriveCreateFolderTool,
@@ -5936,6 +5946,12 @@ export const tools: Record<string, ToolConfig> = {
   google_docs_read: googleDocsReadTool,
   google_docs_write: googleDocsWriteTool,
   google_docs_create: googleDocsCreateTool,
+  google_docs_insert_text: googleDocsInsertTextTool,
+  google_docs_replace_text: googleDocsReplaceTextTool,
+  google_docs_insert_table: googleDocsInsertTableTool,
+  google_docs_insert_image: googleDocsInsertImageTool,
+  google_docs_insert_page_break: googleDocsInsertPageBreakTool,
+  google_docs_update_text_style: googleDocsUpdateTextStyleTool,
   google_books_volume_search: googleBooksVolumeSearchTool,
   google_books_volume_details: googleBooksVolumeDetailsTool,
   google_maps_air_quality: googleMapsAirQualityTool,
