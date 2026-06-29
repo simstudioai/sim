@@ -585,10 +585,10 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           coercedArchived = archived === true || archived === 'true'
         }
 
-        // Coerce numeric page size for paginated operations
-        let coercedPageSize
+        let coercedPageSize: number | undefined
         if (pageSize !== undefined && pageSize !== null && pageSize !== '') {
-          coercedPageSize = Number(pageSize)
+          const parsedPageSize = Number(pageSize)
+          if (Number.isFinite(parsedPageSize)) coercedPageSize = parsedPageSize
         }
 
         return {
