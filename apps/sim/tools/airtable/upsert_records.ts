@@ -62,7 +62,9 @@ export const airtableUpsertRecordsTool: ToolConfig<AirtableUpsertParams, Airtabl
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const mergeFields = (params.fieldsToMergeOn ?? []).map((f) => f?.trim()).filter(Boolean)
+      const mergeFields = (params.fieldsToMergeOn ?? [])
+        .map((f) => (f == null ? '' : String(f).trim()))
+        .filter(Boolean)
       if (mergeFields.length === 0) {
         throw new Error('At least one field to merge on is required for upsert')
       }
