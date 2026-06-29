@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { ChipTextarea, chipFieldSurfaceClass } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   applyFrontmatter,
@@ -17,7 +16,7 @@ import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
-import '@/components/emcn/components/code/code.css'
+import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
 interface RichMarkdownFieldProps {

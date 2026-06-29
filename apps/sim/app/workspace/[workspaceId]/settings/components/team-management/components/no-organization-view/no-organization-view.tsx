@@ -8,7 +8,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 interface NoOrganizationViewProps {

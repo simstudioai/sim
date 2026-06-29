@@ -1,8 +1,8 @@
 'use client'
 
+import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import {
   InboxEnableToggle,

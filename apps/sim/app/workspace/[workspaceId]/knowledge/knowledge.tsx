@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChipDropdownOption } from '@sim/emcn'
+import { Button, ChipDropdown, Plus, Tooltip } from '@sim/emcn'
+import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import type { ChipDropdownOption } from '@/components/emcn'
-import { Button, ChipDropdown, Plus, Tooltip } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
   FilterTag,

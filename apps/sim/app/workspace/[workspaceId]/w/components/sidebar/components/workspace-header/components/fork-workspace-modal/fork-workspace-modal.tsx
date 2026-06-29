@@ -1,9 +1,6 @@
 'use client'
 
 import { useEffect, useId, useMemo, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Search } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import {
   Checkbox,
   ChevronDown,
@@ -18,14 +15,17 @@ import {
   type ChipModalFooterSlotAction,
   ChipModalHeader,
   ChipModalTabs,
+  cn,
   Tooltip,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import type {
   ForkCopyableResource,
   GetForkResourcesResponse,
 } from '@/lib/api/contracts/workspace-fork'
-import { cn } from '@/lib/core/utils/cn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ForkActivityPanel } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/fork-activity-panel/fork-activity-panel'
 import {

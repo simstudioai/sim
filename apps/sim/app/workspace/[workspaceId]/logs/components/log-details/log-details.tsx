@@ -1,15 +1,12 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
-import { useQueryState } from 'nuqs'
-import { createPortal } from 'react-dom'
 import {
   Button,
   ChipInput,
   ChipModalTabs,
   Code,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -17,16 +14,20 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Eye,
+  handleKeyboardActivation,
   Redo,
   Search as SearchIcon,
   Tooltip,
-} from '@/components/emcn'
-import { Workflow } from '@/components/emcn/icons'
+  useCopyToClipboard,
+} from '@sim/emcn'
+import { Workflow } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { useQueryState } from 'nuqs'
+import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -47,7 +48,6 @@ import {
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'

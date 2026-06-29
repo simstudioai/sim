@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronDown } from '@/components/emcn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import {
   FieldItem,
   type SchemaField,

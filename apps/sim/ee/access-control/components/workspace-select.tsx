@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipDropdown } from '@/components/emcn'
+import { ChipDropdown } from '@sim/emcn'
 
 interface WorkspaceSelectProps {
   workspaceIds: string[]

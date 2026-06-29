@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Chip, ChipConfirmModal, ChipInput, Search } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'

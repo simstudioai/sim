@@ -1,9 +1,8 @@
 'use client'
 
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
-import { ChevronDown } from '@/components/emcn'
+import { ChevronDown, cn } from '@sim/emcn'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
-import { cn } from '@/lib/core/utils/cn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { DependentFieldSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/components/dependent-field-selector'
 import {

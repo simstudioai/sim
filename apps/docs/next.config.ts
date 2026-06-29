@@ -5,6 +5,7 @@ const withMDX = createMDX()
 
 const config: NextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@sim/emcn'],
   images: {
     unoptimized: true,
   },

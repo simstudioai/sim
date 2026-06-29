@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { cn } from '@sim/emcn'
 import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/core/utils/cn'
 
 interface WandPromptBarProps {
   isVisible: boolean

@@ -3,7 +3,7 @@
 import React from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
+import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 
 type Props = { initialEntries: ChangelogEntry[] }

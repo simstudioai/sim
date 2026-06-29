@@ -1,13 +1,13 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { requestJson } from '@/lib/api/client/request'
 import { speechTokenContract } from '@/lib/api/contracts/media/speech'
-import { cn } from '@/lib/core/utils/cn'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
   CHUNK_SEND_INTERVAL_MS,

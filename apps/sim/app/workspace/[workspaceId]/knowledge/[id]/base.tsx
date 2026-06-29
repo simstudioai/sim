@@ -1,14 +1,6 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { format } from 'date-fns'
-import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryState, useQueryStates } from 'nuqs'
-import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -25,13 +17,21 @@ import {
   chipContentGap,
   chipContentLabelClass,
   chipVariants,
+  cn,
   Loader,
   Tooltip,
   Trash,
-} from '@/components/emcn'
-import { Database, DatabaseX } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Database, DatabaseX } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { format } from 'date-fns'
+import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState, useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'

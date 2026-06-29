@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn } from '@sim/emcn'
 import { generateShortId } from '@sim/utils/id'
-import { Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
 export interface LineChartPoint {

@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Chip,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,8 +15,7 @@ import {
   POPOVER_ANIMATION_CLASSES,
   Search,
   X,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (

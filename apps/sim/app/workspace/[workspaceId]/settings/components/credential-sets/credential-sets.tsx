@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { Plus } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -22,8 +19,11 @@ import {
   type FileInputOptions,
   TagInput,
   type TagItem,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { Plus } from 'lucide-react'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'

@@ -1,12 +1,11 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { cn, toast } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
@@ -27,7 +26,7 @@ import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
-import '@/components/emcn/components/code/code.css'
+import '@sim/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
 const EXTENSIONS = createMarkdownEditorExtensions({

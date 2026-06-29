@@ -1,7 +1,7 @@
 import React from 'react'
+import { Badge } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import { format } from 'date-fns'
-import { Badge } from '@/components/emcn'
 import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'

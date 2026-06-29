@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCopyInput, ChipLink, Send } from '@/components/emcn'
-import { ArrowLeft, Key } from '@/components/emcn/icons'
+import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
+import { ArrowLeft, Key } from '@sim/emcn/icons'
 import {
   AddPeopleModal,
   CredentialDetailHeading,

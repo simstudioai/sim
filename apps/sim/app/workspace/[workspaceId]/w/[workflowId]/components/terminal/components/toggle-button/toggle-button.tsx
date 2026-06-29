@@ -2,9 +2,9 @@
 
 import type React from 'react'
 import { memo } from 'react'
+import { Button } from '@sim/emcn'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/emcn'
 
 export interface ToggleButtonProps {
   isExpanded: boolean

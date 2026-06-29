@@ -1,10 +1,9 @@
 'use client'
 
 import { Fragment, useState } from 'react'
+import { ChevronDown, cn, Loader } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
-import { ChevronDown, Loader } from '@/components/emcn'
 import type { BackgroundWorkItem } from '@/lib/api/contracts/workspace-fork'
-import { cn } from '@/lib/core/utils/cn'
 import { useWorkspaceBackgroundWork } from '@/hooks/queries/background-work'
 
 const HEADER_TEXT = 'font-medium text-[var(--text-tertiary)] text-caption'

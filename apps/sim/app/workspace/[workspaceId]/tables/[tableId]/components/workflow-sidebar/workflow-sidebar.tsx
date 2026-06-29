@@ -2,10 +2,6 @@
 
 import type React from 'react'
 import { useMemo, useState } from 'react'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -13,6 +9,7 @@ import {
   ChipCombobox,
   ChipInput,
   type ComboboxOptionGroup,
+  cn,
   DashedDividerLine,
   FieldDivider,
   Label,
@@ -20,8 +17,12 @@ import {
   Switch,
   Tooltip,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft, ChevronDown, X } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -32,7 +33,6 @@ import {
   putWorkflowNormalizedStateContract,
   type WorkflowStateContractInput,
 } from '@/lib/api/contracts/workflows'
-import { cn } from '@/lib/core/utils/cn'
 import type {
   ColumnDefinition,
   WorkflowGroup,

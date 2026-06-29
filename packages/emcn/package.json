@@ -1,0 +1,66 @@
+{
+  "name": "@sim/emcn",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./icons": {
+      "types": "./src/icons/index.ts",
+      "default": "./src/icons/index.ts"
+    },
+    "./*": {
+      "types": "./src/*",
+      "default": "./src/*"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "peerDependencies": {
+    "class-variance-authority": "^0.7.1",
+    "framer-motion": "^12.5.0",
+    "input-otp": "^1.4.2",
+    "lucide-react": ">=0.479.0",
+    "next": ">=15",
+    "prismjs": "^1.30.0",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/prismjs": "^1.26.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "class-variance-authority": "^0.7.1",
+    "framer-motion": "^12.5.0",
+    "input-otp": "^1.4.2",
+    "lucide-react": "^0.479.0",
+    "next": "16.2.6",
+    "prismjs": "^1.30.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.0"
+  }
+}

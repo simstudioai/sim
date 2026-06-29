@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { Badge } from '@sim/emcn'
 import {
   domAnimation,
   LazyMotion,
@@ -11,7 +12,6 @@ import {
 } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import { Badge } from '@/components/emcn'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 

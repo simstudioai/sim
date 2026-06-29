@@ -4,13 +4,13 @@ globs: ["apps/sim/components/emcn/**"]
 ---
 # EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, `Switch`→`ChipSwitch`, date field→`ChipDatePicker`). For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
+Import from `@sim/emcn`, never from subpaths (except CSS files). The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, `Switch`→`ChipSwitch`, date field→`ChipDatePicker`). For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
 
 ## Chip chrome — single source of truth
 
 Never hand-roll the chip pill from raw class strings (they go stale). Compose from the canonical sources:
 
-- **Surface, typography + content tokens:** `chip/chip-chrome.ts` — `chipFilledSurfaceTokens`, `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, and `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells). All are re-exported from the `@/components/emcn` barrel — no subpath import needed.
+- **Surface, typography + content tokens:** `chip/chip-chrome.ts` — `chipFilledSurfaceTokens`, `chipFieldSurfaceClass`, `chipFieldTextClass` (text fields and the dropdown search box build on these), plus the chip-content chrome `chipContentGap`, `chipGeometryClass`, `chipContentIconClass`, `chipContentLabelClass`, and `cellIconNodeClass` (non-chip surfaces that must visually match chip content, e.g. resource table cells). All are re-exported from the `@sim/emcn` barrel — no subpath import needed.
 - **Pill geometry:** `chip/chip.tsx` — `chipVariants` (30px tall, `rounded-lg`, `px-2`, icon↔text `gap-1.5`). Every pill-shaped trigger (`ChipDropdown`, `ChipSelect`, `ChipSwitch`) reuses it for visual parity.
 
 Canonical look: normal font-weight (never `font-medium`/`font-semibold`), value text `--text-body`, icons `--text-icon` at `size-[14px]`, placeholder `--text-muted`, `transition-colors`, **no focus ring** (the caret marks focus). Filled surface is `--surface-5` light / `--surface-4` dark with a `--border-1` border.

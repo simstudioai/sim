@@ -1,9 +1,6 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   Chip,
@@ -11,17 +8,20 @@ import {
   ChipInput,
   ChipSelect,
   ChipTextarea,
+  cn,
   Expandable,
   ExpandableContent,
   Label,
   Switch,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SaveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'

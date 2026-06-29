@@ -1,10 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import {
   Button,
   Chip,
@@ -15,18 +11,22 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
+  handleKeyboardActivation,
   Input,
   Label,
   Switch,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { Camera, Check, Info, Pencil } from 'lucide-react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'

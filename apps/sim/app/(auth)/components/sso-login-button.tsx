@@ -1,9 +1,7 @@
 'use client'
-
+import { Button, cn } from '@sim/emcn'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 interface SSOLoginButtonProps {

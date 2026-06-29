@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { Checkbox } from '@/components/emcn'
+import { Checkbox, cn } from '@sim/emcn'
 import {
   ChevronDown,
   Columns3,
@@ -11,8 +10,8 @@ import {
   TypeBoolean,
   TypeNumber,
   TypeText,
-} from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn/icons'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import type {
   PreviewColumn,
   PreviewRow,

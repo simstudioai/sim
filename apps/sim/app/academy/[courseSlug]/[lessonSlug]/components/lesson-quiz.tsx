@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { cn } from '@sim/emcn'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { QuizDefinition, QuizQuestion } from '@/lib/academy/types'
-import { cn } from '@/lib/core/utils/cn'
 
 interface LessonQuizProps {
   lessonId: string

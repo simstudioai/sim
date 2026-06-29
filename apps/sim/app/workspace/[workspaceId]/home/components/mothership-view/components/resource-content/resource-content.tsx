@@ -1,10 +1,7 @@
 'use client'
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { format } from 'date-fns'
-import { useRouter } from 'next/navigation'
-import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { Button, PlayOutline, Skeleton, Tooltip } from '@sim/emcn'
 import {
   Calendar,
   Download,
@@ -15,7 +12,10 @@ import {
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
   WorkflowX,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { format } from 'date-fns'
+import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {

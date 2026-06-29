@@ -1,9 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
-import { Calendar } from '@/components/emcn/components/calendar/calendar'
-import { cn } from '@/lib/core/utils/cn'
+import { Calendar, cn, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import type { SaveReason } from '../../../types'
 import {

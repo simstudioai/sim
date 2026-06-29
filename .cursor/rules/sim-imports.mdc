@@ -46,7 +46,7 @@ import { CORE_TRIGGER_TYPES } from '@/app/workspace/.../utils'
 
 1. React/core libraries
 2. External libraries
-3. UI components (`@/components/emcn`, `@/components/ui`)
+3. UI components (`@sim/emcn`, `@/components/ui`)
 4. Utilities (`@/lib/...`)
 5. Stores (`@/stores/...`)
 6. Feature imports

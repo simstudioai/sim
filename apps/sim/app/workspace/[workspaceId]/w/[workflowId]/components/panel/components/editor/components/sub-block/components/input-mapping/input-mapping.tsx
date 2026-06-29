@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, CollapsibleCard, Input, Label } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Badge, CollapsibleCard, cn, Input, Label } from '@sim/emcn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

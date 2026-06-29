@@ -1,5 +1,5 @@
+import { Send } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { Send } from '@/components/emcn/icons'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'

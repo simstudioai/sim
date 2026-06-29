@@ -11,9 +11,8 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Badge, ChevronDown, cn } from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Badge, ChevronDown } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
   isLargeArrayManifest,

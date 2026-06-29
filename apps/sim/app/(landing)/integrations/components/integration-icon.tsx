@@ -1,5 +1,5 @@
 import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from 'react'
-import { cn } from '@/lib/core/utils/cn'
+import { cn } from '@sim/emcn'
 
 interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {
   bgColor: string

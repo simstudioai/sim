@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { truncate } from '@sim/utils/string'
 import {
   Button,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -13,9 +13,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Tooltip,
-} from '@/components/emcn'
-import { Folder, Plus, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Folder, Plus, Workflow } from '@sim/emcn/icons'
+import { truncate } from '@sim/utils/string'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import type { Edge } from 'reactflow'
@@ -12,7 +13,6 @@ import type {
   ValidationResult,
 } from '@/lib/academy/types'
 import { validateExercise } from '@/lib/academy/validation'
-import { cn } from '@/lib/core/utils/cn'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'

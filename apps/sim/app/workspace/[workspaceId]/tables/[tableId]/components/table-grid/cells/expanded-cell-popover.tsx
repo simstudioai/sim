@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/emcn'
+import { Button } from '@sim/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
 import type { EditingCell, SaveReason } from '../../../types'
 import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'

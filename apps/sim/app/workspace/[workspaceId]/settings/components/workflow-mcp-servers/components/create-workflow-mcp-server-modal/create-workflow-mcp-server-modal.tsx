@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -13,7 +12,8 @@ import {
   ChipModalHeader,
   ChipSelect,
   type ComboboxOption,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('CreateWorkflowMcpServerModal')

@@ -2,10 +2,9 @@
 
 import type React from 'react'
 import { useMemo } from 'react'
+import { Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,

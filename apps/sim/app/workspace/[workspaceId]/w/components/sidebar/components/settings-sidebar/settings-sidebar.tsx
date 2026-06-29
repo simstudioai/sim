@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, ChipConfirmModal, chipVariants } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {

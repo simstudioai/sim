@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
@@ -9,13 +16,6 @@ import { X } from 'lucide-react'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
-import {
-  ChipModal,
-  ChipModalBody,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@/components/emcn'
 
 const logger = createLogger('HelpModal')
 

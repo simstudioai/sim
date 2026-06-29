@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useLayoutEffect } from 'react'
+import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'

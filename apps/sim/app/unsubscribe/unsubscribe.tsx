@@ -1,9 +1,9 @@
 'use client'
 
 import { Suspense } from 'react'
+import { Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
-import { Loader } from '@/components/emcn'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'

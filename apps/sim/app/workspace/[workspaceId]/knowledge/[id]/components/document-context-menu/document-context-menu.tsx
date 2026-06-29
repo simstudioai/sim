@@ -6,8 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
 
 interface DocumentContextMenuProps {
   isOpen: boolean

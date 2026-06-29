@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Label, Switch } from '@/components/emcn'
+import { handleKeyboardActivation, Label, Switch } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'

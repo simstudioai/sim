@@ -1,11 +1,9 @@
 'use client'
 
 import React from 'react'
-import { Button, Checkbox } from '@/components/emcn'
-import { PlayOutline, Square } from '@/components/emcn/icons'
+import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
+import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { SaveReason } from '../../types'

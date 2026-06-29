@@ -1,9 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { formatDate } from '@sim/utils/formatting'
-import { Plus } from 'lucide-react'
 import {
   Chip,
   ChipConfirmModal,
@@ -14,7 +11,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
+import { Plus } from 'lucide-react'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {

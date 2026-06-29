@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import { createEnvMock } from '@sim/testing'
 import {
   formatDate,
@@ -9,7 +10,6 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { cn } from '@/lib/core/utils/cn'
 import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
 import { getInvalidCharacters, isValidName, validateName } from '@/lib/core/utils/validation'
 

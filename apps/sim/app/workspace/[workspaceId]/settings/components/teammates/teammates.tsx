@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Chip, ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, ChipDropdown, Plus, toast } from '@/components/emcn'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,

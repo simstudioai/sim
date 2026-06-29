@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight } from 'lucide-react'
 import {
   Badge,
   ChipCombobox,
@@ -14,7 +12,9 @@ import {
   type ChipModalFooterSlotAction,
   ChipModalHeader,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { ArrowRight } from 'lucide-react'
 import type {
   ForkDependentReconfig,
   ForkLineageNodeApi,

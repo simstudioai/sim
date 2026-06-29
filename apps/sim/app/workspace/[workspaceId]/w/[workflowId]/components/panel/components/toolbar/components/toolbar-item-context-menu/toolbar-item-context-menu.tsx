@@ -1,6 +1,6 @@
 'use client'
 
-import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@/components/emcn'
+import { Popover, PopoverAnchor, PopoverContent, PopoverItem } from '@sim/emcn'
 
 interface ToolbarItemContextMenuProps {
   /**

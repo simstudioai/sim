@@ -1,5 +1,5 @@
+import { Badge } from '@sim/emcn'
 import Link from 'next/link'
-import { Badge } from '@/components/emcn'
 import {
   type CatalogModel,
   type CatalogProvider,

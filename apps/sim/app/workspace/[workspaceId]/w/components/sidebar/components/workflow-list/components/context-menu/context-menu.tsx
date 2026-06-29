@@ -1,13 +1,12 @@
 'use client'
 
-import { Pin, PinOff } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import {
   Download,
   Duplicate,
@@ -24,7 +23,8 @@ import {
   SquareArrowUpRight,
   Trash,
   Unlock,
-} from '@/components/emcn/icons'
+} from '@sim/emcn/icons'
+import { Pin, PinOff } from 'lucide-react'
 
 interface ContextMenuProps {
   isOpen: boolean

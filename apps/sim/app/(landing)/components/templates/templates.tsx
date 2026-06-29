@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Badge, ChevronDown, cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
-import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(landing)/components/templates/template-workflows'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 

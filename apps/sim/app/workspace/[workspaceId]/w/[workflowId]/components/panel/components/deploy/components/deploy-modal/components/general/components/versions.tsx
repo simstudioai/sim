@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { formatDateTime } from '@sim/utils/formatting'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
   Button,
+  cn,
   Input,
   Popover,
   PopoverContent,
@@ -12,8 +11,9 @@ import {
   PopoverTrigger,
   Skeleton,
   Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { formatDateTime } from '@sim/utils/formatting'
+import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
