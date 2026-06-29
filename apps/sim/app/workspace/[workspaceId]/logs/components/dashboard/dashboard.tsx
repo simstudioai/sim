@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Loader } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { Loader } from '@/components/emcn'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,

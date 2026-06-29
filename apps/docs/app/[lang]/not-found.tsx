@@ -1,5 +1,5 @@
+import { ChipLink } from '@sim/emcn'
 import { DocsPage } from 'fumadocs-ui/page'
-import { ChipLink } from '@/components/ui/chip'
 
 export const metadata = {
   title: 'Page Not Found',

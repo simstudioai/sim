@@ -1,10 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { X } from 'lucide-react'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import {
   Loader,
   Modal,
@@ -13,7 +9,11 @@ import {
   ModalDescription,
   ModalTitle,
   ModalTrigger,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { X } from 'lucide-react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'

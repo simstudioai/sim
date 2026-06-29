@@ -3,7 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/components/emcn', () => ({
+vi.mock('@sim/emcn', () => ({
   Duplicate: () => null,
   Tooltip: {},
 }))

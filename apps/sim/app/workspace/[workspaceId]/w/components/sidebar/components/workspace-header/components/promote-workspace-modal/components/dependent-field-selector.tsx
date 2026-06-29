@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
 

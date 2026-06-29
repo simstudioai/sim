@@ -18,6 +18,7 @@
     "@ai-sdk/openai": "2.0.107",
     "@ai-sdk/react": "2.0.205",
     "@sim/db": "workspace:*",
+    "@sim/emcn": "workspace:*",
     "@vercel/og": "^0.6.5",
     "ai": "5.0.203",
     "class-variance-authority": "^0.7.1",

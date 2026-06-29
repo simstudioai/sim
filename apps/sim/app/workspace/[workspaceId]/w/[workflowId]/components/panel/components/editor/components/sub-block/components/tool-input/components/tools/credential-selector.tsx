@@ -1,9 +1,9 @@
 'use client'
 
 import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { Button, Combobox } from '@sim/emcn'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Combobox } from '@/components/emcn/components'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,

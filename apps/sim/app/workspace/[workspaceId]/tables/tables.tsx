@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { Columns3, Rows3, Table as TableIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { debounce, useQueryStates } from 'nuqs'
-import type { ComboboxOption } from '@/components/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
-import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import type {

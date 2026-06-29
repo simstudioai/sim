@@ -1,6 +1,6 @@
+import { cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
-import { cn } from '@/lib/core/utils/cn'
 
 export interface NavBlogPost {
   slug: string

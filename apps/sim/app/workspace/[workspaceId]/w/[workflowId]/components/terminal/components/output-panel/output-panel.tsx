@@ -1,6 +1,17 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Button,
+  Code,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -16,17 +27,6 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
-import {
-  Button,
-  Code,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-  Tooltip,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import {
   OutputContextMenu,
   StructuredOutput,

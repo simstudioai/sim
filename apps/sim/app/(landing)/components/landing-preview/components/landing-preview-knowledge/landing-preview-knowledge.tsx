@@ -1,4 +1,4 @@
-import { Database } from '@/components/emcn/icons'
+import { Database } from '@sim/emcn/icons'
 import {
   AirtableIcon,
   AsanaIcon,

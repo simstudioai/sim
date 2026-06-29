@@ -1,10 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
-import { toError } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
   Chip,
@@ -16,6 +12,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
+  cn,
   Switch,
   Table,
   TableBody,
@@ -24,10 +21,13 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
+import { toError } from '@sim/utils/errors'
+import { ChevronDown, Plus } from 'lucide-react'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'

@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { RotateCcw, X } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Button,
   ChipModal,
@@ -12,9 +9,12 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  cn,
   Loader,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { RotateCcw, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'

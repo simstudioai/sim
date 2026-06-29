@@ -1,7 +1,7 @@
 'use client'
 
+import { ChipDropdown } from '@sim/emcn'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChipDropdown } from '@/components/ui/chip-dropdown'
 
 const languages = {
   en: { name: 'English', flag: '🇺🇸' },

@@ -1,5 +1,5 @@
+import { Badge } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import {
   blockTypeToIconMap,

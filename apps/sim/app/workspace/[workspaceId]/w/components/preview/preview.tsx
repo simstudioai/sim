@@ -2,10 +2,9 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
 import { ArrowLeft } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
-import { cn } from '@/lib/core/utils/cn'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
 import {
   getLeftmostBlockId,

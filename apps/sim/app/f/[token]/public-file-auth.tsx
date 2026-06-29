@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Input, Label, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileAuth } from '@/hooks/queries/public-shares'

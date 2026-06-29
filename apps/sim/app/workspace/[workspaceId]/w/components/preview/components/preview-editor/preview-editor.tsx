@@ -1,6 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  Code,
+  Combobox,
+  cn,
+  FieldDivider,
+  handleKeyboardActivation,
+  Input,
+  Label,
+  Tooltip,
+} from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
@@ -18,19 +31,6 @@ import {
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  Code,
-  Combobox,
-  FieldDivider,
-  Input,
-  Label,
-  Tooltip,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,

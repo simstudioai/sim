@@ -1,13 +1,10 @@
 'use client'
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
+  cn,
   Input,
   Popover,
   PopoverContent,
@@ -16,10 +13,13 @@ import {
   PopoverTrigger,
   Tooltip,
   Trash,
-} from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,

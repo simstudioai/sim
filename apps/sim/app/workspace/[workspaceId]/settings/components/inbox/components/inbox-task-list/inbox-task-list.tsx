@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'

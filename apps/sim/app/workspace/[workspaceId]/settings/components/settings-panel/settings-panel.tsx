@@ -1,8 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
-import { ChipInput, ChipLink, Search } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ChipInput, ChipLink, cn, Search } from '@sim/emcn'
 import {
   getSettingsSectionMeta,
   type SettingsSection,

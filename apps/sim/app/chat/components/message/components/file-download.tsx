@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, Download, Loader } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { Music } from 'lucide-react'
-import { Button, Download, Loader } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { getBrowserOrigin } from '@/lib/core/utils/urls'
 import type { ChatFile } from '@/app/chat/components/message/message'

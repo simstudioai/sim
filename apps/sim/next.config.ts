@@ -133,6 +133,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
+      '@sim/emcn',
       'lodash',
       'framer-motion',
       'reactflow',
@@ -171,6 +172,7 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
+    '@sim/emcn',
   ],
   async headers() {
     return [

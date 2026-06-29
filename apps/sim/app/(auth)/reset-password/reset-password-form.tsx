@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label, Loader } from '@sim/emcn'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input, Label, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 interface RequestResetFormProps {

@@ -1,11 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ChipModal,
   ChipModalBody,
@@ -13,16 +8,21 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  cn,
   Input,
   Label,
   Loader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Eye, EyeOff } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
-import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'

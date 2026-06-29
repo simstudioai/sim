@@ -1,7 +1,7 @@
 'use client'
 
+import { cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
-import { cn } from '@/lib/core/utils/cn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 const AuthModal = dynamic(

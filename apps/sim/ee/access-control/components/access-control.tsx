@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { ArrowRight, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Checkbox,
   Chip,
@@ -15,7 +12,10 @@ import {
   ChipModalHeader,
   ChipTag,
   Label,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { ArrowRight, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'

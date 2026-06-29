@@ -1,8 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipModal,
   ChipModalBody,
@@ -10,7 +8,9 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('RenameDocumentModal')
 

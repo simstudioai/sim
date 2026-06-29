@@ -1,9 +1,9 @@
 'use client'
 
+import { ChipLink } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChipLink } from '@/components/emcn'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { prefetchUpgradeBillingData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'

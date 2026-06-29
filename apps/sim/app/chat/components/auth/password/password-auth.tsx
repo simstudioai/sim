@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label, Loader } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input, Label, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'

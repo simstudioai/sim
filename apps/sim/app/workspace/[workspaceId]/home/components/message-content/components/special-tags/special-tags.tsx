@@ -1,16 +1,9 @@
 'use client'
 
 import { createElement, useMemo, useState } from 'react'
+import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent, SecretReveal } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import {
-  ArrowRight,
-  ChevronDown,
-  Expandable,
-  ExpandableContent,
-  SecretReveal,
-} from '@/components/emcn'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type {

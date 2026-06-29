@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { toast } from '@sim/emcn'
 import { useShallow } from 'zustand/react/shallow'
-import { toast } from '@/components/emcn'
 import { useTablesList, useWorkspaceExportJobs } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 

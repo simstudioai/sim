@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -18,7 +15,10 @@ import {
   TableRow,
   Textarea,
   Tooltip,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   Select,
   SelectContent,

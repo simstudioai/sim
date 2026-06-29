@@ -2,9 +2,9 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
+import { cn } from '@sim/emcn'
+import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { File, Workflow } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
   COMMAND_ITEM_CLASSNAME,

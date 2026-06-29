@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useSyncExternalStore } from 'react'
+import { Loader } from '@sim/emcn'
 import { CheckCircle2, Circle, ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
-import { Loader } from '@/components/emcn'
 import {
   getCompletedLessonsFromSnapshot,
   getCompletedLessonsSnapshot,

@@ -1,16 +1,16 @@
 import { useRef } from 'react'
-import { Plus } from 'lucide-react'
 import {
   Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  cn,
+  handleKeyboardActivation,
   Input,
   Label,
   Trash,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+} from '@sim/emcn'
+import { Plus } from 'lucide-react'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

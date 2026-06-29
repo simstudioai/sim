@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { AlertCircle, ArrowUp } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -12,6 +8,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  cn,
   Input,
   Label,
   Popover,
@@ -20,8 +17,11 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { AlertCircle, ArrowUp } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

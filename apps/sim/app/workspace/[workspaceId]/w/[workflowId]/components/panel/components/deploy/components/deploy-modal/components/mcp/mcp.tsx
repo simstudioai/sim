@@ -1,20 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
   ChipCombobox,
   ChipInput,
   type ComboboxOption,
+  cn,
   Label,
   Skeleton,
   Textarea,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
-import { cn } from '@/lib/core/utils/cn'
 import {
   extractDescriptionOverrides,
   extractInputFormatFromBlocks,

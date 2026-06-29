@@ -1,9 +1,6 @@
 'use client'
 
 import { type ComponentType, useCallback, useMemo } from 'react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
 import {
   ArrowRight,
   ChevronDown,
@@ -14,7 +11,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Search,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { debounce, useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
   formatIntegrationType,

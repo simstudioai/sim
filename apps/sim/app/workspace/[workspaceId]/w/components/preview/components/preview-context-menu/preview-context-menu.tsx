@@ -1,14 +1,8 @@
 'use client'
 
 import type { RefObject } from 'react'
+import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
 import { createPortal } from 'react-dom'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
-} from '@/components/emcn'
 
 interface PreviewContextMenuProps {
   isOpen: boolean

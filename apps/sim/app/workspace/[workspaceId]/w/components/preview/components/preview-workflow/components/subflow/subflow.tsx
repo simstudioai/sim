@@ -1,10 +1,9 @@
 'use client'
 
 import { memo } from 'react'
+import { Badge, cn } from '@sim/emcn'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { Badge } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 /** Execution status for subflows in preview mode */

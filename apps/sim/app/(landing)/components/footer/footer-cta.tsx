@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { cn, handleKeyboardActivation } from '@sim/emcn'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { cn } from '@/lib/core/utils/cn'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'

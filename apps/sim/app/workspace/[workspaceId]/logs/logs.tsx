@@ -9,30 +9,30 @@ import {
   useRef,
   useState,
 } from 'react'
-import { formatDuration } from '@sim/utils/formatting'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
-import { useQueryState } from 'nuqs'
 import {
   Button,
+  Calendar,
   ChipCombobox,
   type ComboboxOption,
+  cn,
   Library,
   Popover,
   PopoverAnchor,
   PopoverContent,
   RefreshCw,
   toast,
-} from '@/components/emcn'
-import { Calendar } from '@/components/emcn/components/calendar/calendar'
-import { Download, Workflow } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Workflow } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,

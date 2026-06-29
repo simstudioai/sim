@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
 import {
+  cn,
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+} from '@sim/emcn'
+import { Plus } from 'lucide-react'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'

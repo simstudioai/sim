@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@/components/emcn'
+import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@sim/emcn'
 
 interface DeleteModalProps {
   /**

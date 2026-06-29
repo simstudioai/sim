@@ -1,10 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Server } from 'lucide-react'
-import { useParams, useSearchParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -25,8 +21,12 @@ import {
   type ComboboxOption,
   Label,
   Tooltip,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Check, Clipboard, Plus, Server } from 'lucide-react'
+import { useParams, useSearchParams } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'

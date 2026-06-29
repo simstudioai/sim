@@ -8,7 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@/components/emcn'
+} from '@sim/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { integrationRequestContract } from '@/lib/api/contracts/common'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Button } from '@/components/emcn'
+import { Button } from '@sim/emcn'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
 

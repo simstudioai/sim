@@ -1,9 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import {
   Checkbox,
   Chip,
@@ -18,15 +15,18 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   ChipTag,
+  cn,
   Info,
   Search,
   Skeleton,
   Switch,
   toast,
-} from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { ChevronDown, Plus } from 'lucide-react'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { cn } from '@/lib/core/utils/cn'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'

@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
+import { Chip } from '@sim/emcn'
+import { Download } from '@sim/emcn/icons'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Chip } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'

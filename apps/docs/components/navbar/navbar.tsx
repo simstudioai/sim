@@ -1,8 +1,8 @@
 'use client'
 
+import { ChipLink } from '@sim/emcn'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChipLink } from '@/components/ui/chip'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimLogoFull } from '@/components/ui/sim-logo'

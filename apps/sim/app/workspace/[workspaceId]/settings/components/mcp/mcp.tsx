@@ -1,16 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { Badge, Button, Chip, ChipConfirmModal, Tooltip } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
-import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,

@@ -1,4 +1,4 @@
-import { Chip } from '@/components/emcn'
+import { Chip } from '@sim/emcn'
 
 interface SaveDiscardActionsProps {
   /** When false, renders nothing. */

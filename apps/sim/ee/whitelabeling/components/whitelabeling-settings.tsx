@@ -1,18 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, ChipInput, Label, Loader, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import {
   CHIP_FIELD_INPUT,

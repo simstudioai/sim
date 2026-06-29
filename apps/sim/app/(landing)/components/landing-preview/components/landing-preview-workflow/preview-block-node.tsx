@@ -1,10 +1,10 @@
 'use client'
 
 import { memo } from 'react'
+import { Blimp } from '@sim/emcn'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
-import { Blimp } from '@/components/emcn'
 import {
   AgentIcon,
   AnthropicIcon,

@@ -1,11 +1,6 @@
 'use client'
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
-import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   ChipCombobox,
@@ -22,8 +17,13 @@ import {
   Trash,
   toast,
   Upload,
-} from '@/components/emcn'
-import { Download, Send } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Download, Send } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
+import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'

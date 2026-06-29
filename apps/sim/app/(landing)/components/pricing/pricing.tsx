@@ -1,7 +1,7 @@
 'use client'
 
+import { Badge } from '@sim/emcn'
 import dynamic from 'next/dynamic'
-import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 const AuthModal = dynamic(

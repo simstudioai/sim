@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { cn, Input, Label, Loader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { Input, Label, Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
-import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'

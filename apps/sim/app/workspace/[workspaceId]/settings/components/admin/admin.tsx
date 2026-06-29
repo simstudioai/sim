@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import {
   adminParsers,
   adminUrlKeys,

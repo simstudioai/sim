@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
+import { ChipLink } from '@sim/emcn'
 import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { ChipLink } from '@/components/emcn'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { IntegrationBlockDetail } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail'
 

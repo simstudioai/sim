@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useMutation } from '@tanstack/react-query'
 import {
   ChipCombobox,
   ChipInput,
@@ -14,8 +12,10 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTrigger,
-} from '@/components/emcn'
-import { Check } from '@/components/emcn/icons'
+} from '@sim/emcn'
+import { Check } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useMutation } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,

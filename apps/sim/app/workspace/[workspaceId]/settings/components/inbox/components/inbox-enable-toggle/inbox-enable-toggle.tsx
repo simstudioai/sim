@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   ChipConfirmModal,
   ChipModal,
@@ -11,7 +9,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Switch,
-} from '@/components/emcn'
+} from '@sim/emcn'
+import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 
 const logger = createLogger('InboxEnableToggle')

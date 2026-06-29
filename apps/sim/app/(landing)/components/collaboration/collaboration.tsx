@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useId, useRef, useState } from 'react'
+import { Badge } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Badge } from '@/components/emcn'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 const AuthModal = dynamic(

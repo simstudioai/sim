@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Input } from '@sim/emcn'
 import Link from 'next/link'
-import { Input } from '@/components/emcn'
 import { ChevronArrow, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
   type CatalogModel,
