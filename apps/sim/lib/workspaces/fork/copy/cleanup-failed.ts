@@ -70,7 +70,11 @@ function clearFailedSubBlockReferences(
  * a cleanup error never aborts the others. The placeholder drop is SKIPPED when a reference-clear
  * phase threw - dropping it then would turn an empty placeholder into a dangling reference to a
  * deleted row; leaving it keeps the reference resolvable (to empty content) until a later retry.
- * Returns the number of failed resources cleaned, for the fork activity report.
+ *
+ * Returns `{ cleared, clearingFailed }` for the fork activity metadata. `clearingFailed` is true
+ * when a reference-clear phase threw - placeholders were then NOT dropped - and `cleared` is 0 in
+ * that case, so the report never claims references it did not actually clear. On success `cleared`
+ * is the count of failed resources whose references were cleared.
  */
 export async function clearFailedForkResourceReferences(params: {
   childWorkspaceId: string
@@ -78,9 +82,9 @@ export async function clearFailedForkResourceReferences(params: {
   /** Target workflows this sync deployed; their deployed versions are swept regardless of draft. */
   deployedTargetWorkflowIds?: string[]
   requestId?: string
-}): Promise<number> {
+}): Promise<{ cleared: number; clearingFailed: boolean }> {
   const { childWorkspaceId, failures, requestId = 'unknown' } = params
-  if (failures.length === 0) return 0
+  if (failures.length === 0) return { cleared: 0, clearingFailed: false }
 
   const failedByKind = new Map<ForkRemapKind, Set<string>>()
   const markFailed = (kind: ForkRemapKind, id: string) => {
@@ -166,7 +170,7 @@ export async function clearFailedForkResourceReferences(params: {
         documents: docIds.length,
       }
     )
-    return failures.length
+    return { cleared: 0, clearingFailed: true }
   }
   try {
     if (tableIds.length > 0) {
@@ -185,7 +189,7 @@ export async function clearFailedForkResourceReferences(params: {
     })
   }
 
-  return failures.length
+  return { cleared: failures.length, clearingFailed: false }
 }
 
 /**

@@ -139,6 +139,9 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   if (m.failed && m.failed > 0) {
     notes.push({ value: `${plural(m.failed, 'resource')} failed to copy`, warning: true })
   }
+  if (m.clearingFailed) {
+    notes.push({ value: 'Reference cleanup incomplete', warning: true })
+  }
   return { groups, notes }
 }
 

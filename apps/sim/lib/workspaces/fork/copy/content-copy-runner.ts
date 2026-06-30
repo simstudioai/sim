@@ -117,7 +117,7 @@ export async function runForkContentCopy(payload: ForkContentCopyPayload): Promi
       kind: 'file',
       childKey,
     }))
-    const clearedReferences = await clearFailedForkResourceReferences({
+    const { cleared, clearingFailed } = await clearFailedForkResourceReferences({
       childWorkspaceId: contentPlan.childWorkspaceId,
       failures: [...resourceCounts.failures, ...fileFailures],
       deployedTargetWorkflowIds: payload.deployedTargetWorkflowIds,
@@ -132,7 +132,12 @@ export async function runForkContentCopy(payload: ForkContentCopyPayload): Promi
           failed > 0
             ? `Copied ${copied} item${copied === 1 ? '' : 's'}; ${failed} could not be copied`
             : `Copied ${copied} item${copied === 1 ? '' : 's'}`,
-        metadata: { copied, failed, clearedReferences },
+        metadata: {
+          copied,
+          failed,
+          clearedReferences: cleared,
+          ...(clearingFailed ? { clearingFailed: true } : {}),
+        },
       })
     }
   } catch (error) {

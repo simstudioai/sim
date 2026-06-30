@@ -334,7 +334,7 @@ describe('cleanup-failed', () => {
         requestId: 'test',
       })
 
-      expect(cleaned).toBe(1)
+      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       // One draft block update + one deployed version update (only the referencing version).
       const updatedTables = dbMock.updates.map((u) => u.table)
       expect(updatedTables).toEqual([workflowBlocks, workflowDeploymentVersion])
@@ -355,7 +355,7 @@ describe('cleanup-failed', () => {
         requestId: 'test',
       })
 
-      expect(cleaned).toBe(1)
+      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       // No draft block referenced the failed id AND no deployed targets were threaded, so the
       // deployed sweep is skipped entirely.
       expect(dbMock.updates).toHaveLength(0)
@@ -380,7 +380,7 @@ describe('cleanup-failed', () => {
         requestId: 'test',
       })
 
-      expect(cleaned).toBe(1)
+      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       expect(dbMock.updates.map((u) => u.table)).toContain(workflowDeploymentVersion)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-1')
       // Clearing succeeded, so the placeholder is dropped.
@@ -397,7 +397,7 @@ describe('cleanup-failed', () => {
         requestId: 'test',
       })
 
-      expect(cleaned).toBe(1)
+      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
       expect(dbMock.updates).toHaveLength(1)
       expect(dbMock.updates[0].table).toBe(workflowBlocks)
       const cleared = dbMock.updates[0].values.subBlocks as Record<string, { value: unknown }>
@@ -406,7 +406,7 @@ describe('cleanup-failed', () => {
       expect(dbMock.deletes).toHaveLength(0)
     })
 
-    it('skips the placeholder drop when a reference-clear phase throws', async () => {
+    it('reports cleared:0 + clearingFailed and skips the placeholder drop when a clear phase throws', async () => {
       // A clear-phase failure must not drop the placeholder: that would turn an empty placeholder
       // into a dangling reference to a deleted row. Make the draft block UPDATE throw.
       dbMock.queueRead(workflow, [{ id: 'wf-1' }])
@@ -421,7 +421,8 @@ describe('cleanup-failed', () => {
           failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
           requestId: 'test',
         })
-        expect(cleaned).toBe(1)
+        // The count must NOT overstate: nothing was cleared and the flag marks cleanup incomplete.
+        expect(cleaned).toEqual({ cleared: 0, clearingFailed: true })
       } finally {
         dbMock.db.update = originalUpdate
       }

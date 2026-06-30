@@ -521,6 +521,8 @@ export const backgroundWorkMetadataSchema = z
     failed: z.number().int().optional(),
     /** Count of failed resources whose dangling references were cleared post-fork (U8). */
     clearedReferences: z.number().int().optional(),
+    /** True when a reference-clear phase threw, so cleanup is incomplete (placeholders not dropped). */
+    clearingFailed: z.boolean().optional(),
     /** Names of the resources a fork copied, by kind, for the report breakdown. */
     workflowNames: z.array(z.string()).optional(),
     tableNames: z.array(z.string()).optional(),
