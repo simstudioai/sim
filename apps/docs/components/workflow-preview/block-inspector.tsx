@@ -1,17 +1,18 @@
 'use client'
 
 import {
-  ChipInput,
   ChipSelect,
   ChipSwitch,
   ChipTag,
-  ChipTextarea,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
   cn,
   FieldDivider,
   Label,
 } from '@sim/emcn'
 import { BookOpen, Pencil } from 'lucide-react'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
+import { formatReferences } from '@/components/workflow-preview/format-references'
 
 type FieldKind = 'select' | 'input' | 'textarea' | 'code' | 'slider' | 'toggle'
 
@@ -48,11 +49,11 @@ interface BlockInspectorProps {
 const NOOP = () => {}
 
 /**
- * Read-only facsimile of one configuration field, composed from the same emcn
- * chip primitives the live editor wraps: `select`→{@link ChipSelect},
- * `input`→{@link ChipInput}, `textarea`/`code`→{@link ChipTextarea} (read-only at
- * full opacity, not greyed out), `toggle`→{@link ChipSwitch}. `slider` has no
- * chip equivalent and stays a minimal app-token bar.
+ * Read-only facsimile of one configuration field, composed from emcn chip
+ * chrome: `select`→{@link ChipSelect}, `toggle`→{@link ChipSwitch}; text fields
+ * (`input`/`textarea`/`code`) render the value with `<...>`/`{{...}}` references
+ * highlighted via {@link formatReferences} in the canonical chip field surface.
+ * `slider` has no chip equivalent and stays a minimal app-token bar.
  */
 function FieldControl({ field }: { field: InspectorField }) {
   const kind = field.kind ?? 'input'
@@ -67,18 +68,6 @@ function FieldControl({ field }: { field: InspectorField }) {
         onChange={NOOP}
         placeholder={placeholder}
         options={value ? [{ value, label: value }] : []}
-      />
-    )
-  }
-
-  if (kind === 'textarea' || kind === 'code') {
-    return (
-      <ChipTextarea
-        viewOnly
-        rows={kind === 'code' ? 4 : 3}
-        value={value}
-        placeholder={placeholder}
-        className={cn('min-h-[60px]', kind === 'code' && 'font-mono')}
       />
     )
   }
@@ -117,7 +106,32 @@ function FieldControl({ field }: { field: InspectorField }) {
     )
   }
 
-  return <ChipInput readOnly value={value} placeholder={placeholder} />
+  // input / textarea / code: read-only value with `<...>` block references and
+  // `{{...}}` environment variables highlighted, in the canonical chip chrome.
+  const content = value ? (
+    formatReferences(value)
+  ) : (
+    <span className='text-[var(--text-muted)]'>{placeholder}</span>
+  )
+  if (kind === 'textarea' || kind === 'code') {
+    return (
+      <div
+        className={cn(
+          chipFieldSurfaceClass,
+          chipFieldTextClass,
+          'min-h-[60px] whitespace-pre-wrap break-words px-2 py-1.5',
+          kind === 'code' && 'font-mono'
+        )}
+      >
+        {content}
+      </div>
+    )
+  }
+  return (
+    <div className={cn(chipFieldSurfaceClass, 'flex h-[30px] items-center px-2')}>
+      <span className={cn(chipFieldTextClass, 'min-w-0 truncate')}>{content}</span>
+    </div>
+  )
 }
 
 function InspectorFieldRow({ field }: { field: InspectorField }) {

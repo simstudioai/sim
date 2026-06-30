@@ -249,9 +249,11 @@ export function WorkflowPreview({
     document.addEventListener('keydown', onKey)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    document.body.classList.add('wp-lightbox-open')
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
+      document.body.classList.remove('wp-lightbox-open')
     }
   }, [expanded])
 

@@ -31,6 +31,11 @@ body {
   --text-md: 16px;
 }
 
+/* Hide the floating Ask AI widget while a workflow-preview lightbox is open. */
+body.wp-lightbox-open [aria-label="Ask AI"] {
+  display: none;
+}
+
 /* Pure white light mode background */
 :root:not(.dark) {
   --color-fd-background: hsl(0, 0%, 100%) !important;
