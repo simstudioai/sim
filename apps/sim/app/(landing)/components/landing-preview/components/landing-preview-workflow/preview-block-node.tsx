@@ -40,6 +40,7 @@ import {
   EASE_OUT,
   type PreviewTool,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 /** Map block type strings to their icon components. */
 const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -195,7 +196,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                 className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
                 style={{ background: bgColor }}
               >
-                {Icon && <Icon className='size-[16px] text-white' />}
+                {Icon && <Icon className={`size-[16px] ${getTileIconColorClass(bgColor)}`} />}
               </div>
               <span className='truncate font-medium text-[16px] text-[var(--text-primary)]'>
                 {name}
@@ -246,7 +247,11 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
                             style={{ background: tool.bgColor }}
                           >
-                            {ToolIcon && <ToolIcon className='size-[10px] text-white' />}
+                            {ToolIcon && (
+                              <ToolIcon
+                                className={`size-[10px] ${getTileIconColorClass(tool.bgColor)}`}
+                              />
+                            )}
                           </div>
                           <span className='font-normal text-[12px] text-[var(--text-primary)]'>
                             {tool.name}

@@ -1,5 +1,6 @@
 import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from 'react'
 import { cn } from '@sim/emcn'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 
 interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {
   bgColor: string
@@ -39,9 +40,11 @@ export function IntegrationIcon({
       {...rest}
     >
       {Icon ? (
-        <Icon className={cn(iconClassName, 'text-white')} />
+        <Icon className={cn(iconClassName, getTileIconColorClass(bgColor))} />
       ) : (
-        <span className={cn('text-white leading-none', fallbackClassName)}>{name.charAt(0)}</span>
+        <span className={cn('leading-none', getTileIconColorClass(bgColor), fallbackClassName)}>
+          {name.charAt(0)}
+        </span>
       )}
     </Tag>
   )

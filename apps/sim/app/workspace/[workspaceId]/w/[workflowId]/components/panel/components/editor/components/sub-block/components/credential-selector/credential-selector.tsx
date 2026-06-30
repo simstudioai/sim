@@ -229,7 +229,7 @@ export function CredentialSelector({
       return <ExternalLink className='size-3' />
     }
     const Icon: StyleableIcon = baseProviderConfig.icon
-    return <Icon className='size-3' style={getBareIconStyle(Icon)} />
+    return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
