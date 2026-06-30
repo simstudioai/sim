@@ -124,14 +124,16 @@ export async function deleteAllTableRows(tableId: string): Promise<void> {
 export async function addImportColumns(
   table: TableDefinition,
   additions: { name: string; type: string }[],
-  requestId: string
+  requestId: string,
+  actingUserId?: string
 ): Promise<TableDefinition> {
   const updated = await db.transaction((trx) =>
     addTableColumnsWithTx(trx, table, additions, requestId)
   )
   auditTableColumnsAdded(
     table,
-    additions.map((c) => c.name)
+    additions.map((c) => c.name),
+    actingUserId
   )
   return updated
 }
