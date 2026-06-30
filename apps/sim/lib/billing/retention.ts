@@ -37,13 +37,18 @@ function sanitizeEntityTypes(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((t): t is string => typeof t === 'string') : []
 }
 
-/** A stage redacts nothing unless it is enabled AND has at least one entity type. */
+/**
+ * Expand a stored stage policy into its effective form. A disabled stage redacts
+ * nothing. An ENABLED stage with no entity types redacts ALL detected PII — the
+ * masking layer omits `entities` from the Presidio request — so it stays active;
+ * treating enabled-but-empty as disabled would let an explicit "redact all" save
+ * silently skip masking (fail-open).
+ */
 function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage {
-  const types = sanitizeEntityTypes(policy?.entityTypes)
-  if (!policy?.enabled || types.length === 0) return DISABLED_STAGE
+  if (!policy?.enabled) return DISABLED_STAGE
   return {
     enabled: true,
-    entityTypes: types,
+    entityTypes: sanitizeEntityTypes(policy.entityTypes),
     language: coercePiiLanguage(policy.language) ?? DEFAULT_PII_LANGUAGE,
   }
 }
@@ -55,9 +60,10 @@ function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage
  * selection is whole-rule; the selected rule is then expanded into three stages.
  *
  * Back-compat: a legacy rule with no `stages` is treated exactly as it was before
- * — logs-only, masking its flat `entityTypes` (input/blockOutputs disabled). A
- * resolved stage with no entity types redacts nothing. Defensive about the
- * loosely-typed JSON column.
+ * — logs-only, masking its flat `entityTypes` (input/blockOutputs disabled); an
+ * empty flat `entityTypes` redacts nothing (the workspace-exemption shape). For
+ * per-stage rules an enabled stage with no entity types redacts ALL detected PII
+ * (see {@link toEffectiveStage}). Defensive about the loosely-typed JSON column.
  */
 export function resolveEffectivePiiRedaction(params: {
   orgSettings: DataRetentionSettings | null | undefined
