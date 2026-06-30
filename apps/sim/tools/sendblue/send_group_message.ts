@@ -23,10 +23,10 @@ export const sendblueSendGroupMessageTool: ToolConfig<
     ...sendblueBaseParamFields,
     numbers: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Recipient phone numbers in E.164 format (e.g., ["+19998887777", "+13334445555"])',
+        'Recipient phone numbers in E.164 format (e.g., ["+19998887777", "+13334445555"]). Optional when sending to an existing group via group_id.',
       items: { type: 'string', description: 'Phone number in E.164 format' },
     },
     from_number: {
@@ -55,6 +55,13 @@ export const sendblueSendGroupMessageTool: ToolConfig<
       description:
         'iMessage expressive style (e.g., celebration, fireworks, lasers, confetti, balloons, invisible, slam).',
     },
+    seat_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Seat (user) the message is attributed to. Accepts the seat UUID or Firebase Auth subject.',
+    },
     group_id: {
       type: 'string',
       required: false,
@@ -80,6 +87,7 @@ export const sendblueSendGroupMessageTool: ToolConfig<
         content: params.content,
         media_url: params.media_url,
         send_style: params.send_style,
+        seat_id: params.seat_id,
         group_id: params.group_id,
         status_callback: params.status_callback,
       }),

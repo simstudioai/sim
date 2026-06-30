@@ -33,6 +33,20 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Your Sendblue line number to send from, in E.164 format.',
     },
+    state: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        '"start" (default) shows the indicator; "stop" ends an active indicator before max_duration_ms expires.',
+    },
+    max_duration_ms: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'How long (ms) the indicator stays visible before auto-stopping. Defaults to 60000. Must be between 1 and 300000.',
+    },
   },
 
   request: {
@@ -43,6 +57,8 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
       filterUndefined({
         number: params.number,
         from_number: params.from_number,
+        state: params.state,
+        max_duration_ms: params.max_duration_ms,
       }),
   },
 

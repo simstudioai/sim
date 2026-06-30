@@ -22,6 +22,18 @@ const SENDBLUE_TRIGGER_IS_OUTBOUND: Record<string, boolean> = {
   sendblue_message_status_updated: true,
 }
 
+/**
+ * Sendblue webhook handler.
+ *
+ * No `verifyAuth` is implemented: Sendblue supports an optional per-webhook
+ * `secret`/`globalSecret` that it "includes in the webhook request headers,"
+ * but the official docs never name the header or specify whether the value is
+ * a plain token echo or an HMAC signature. Implementing verification today
+ * would require guessing the header name, so it is deferred. When Sendblue
+ * documents the scheme, wire `verifyTokenAuth` (plain token) or
+ * `createHmacVerifier` (HMAC) from `@/lib/webhooks/providers/utils` and add a
+ * secret sub-block to the block definition.
+ */
 export const sendblueHandler: WebhookProviderHandler = {
   matchEvent({ body, webhook, requestId }: EventMatchContext): boolean {
     const providerConfig = getProviderConfig(webhook)
@@ -60,7 +72,7 @@ export const sendblueHandler: WebhookProviderHandler = {
       input: {
         account_email: b.accountEmail ?? b.account_email ?? null,
         content: b.content ?? null,
-        media_url: b.media_url ?? null,
+        media_url: (typeof b.media_url === 'string' && b.media_url) || null,
         is_outbound: b.is_outbound ?? null,
         status: b.status ?? null,
         error_code: b.error_code ?? null,
