@@ -1,8 +1,6 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -39,8 +37,6 @@ export interface TableExportPayload {
   tableId: string
   workspaceId: string
   format: 'csv' | 'json'
-  /** The user who requested the export; attributes the audit/analytics record. */
-  userId?: string
 }
 
 /**
@@ -53,7 +49,7 @@ export interface TableExportPayload {
  * scratch and overwrites nothing (fresh key per attempt; failures clean up their partial upload).
  */
 export async function runTableExport(payload: TableExportPayload): Promise<void> {
-  const { jobId, tableId, workspaceId, format, userId } = payload
+  const { jobId, tableId, workspaceId, format } = payload
   const requestId = generateId().slice(0, 8)
   let handle: MultipartUploadHandle | null = null
   let uploadedKey: string | null = null
@@ -132,26 +128,6 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
         progress: exported,
       })
       logger.info(`[${requestId}] Export complete`, { tableId, rows: exported, format })
-
-      const actorId = userId ?? table.createdBy
-      if (actorId) {
-        recordAudit({
-          workspaceId,
-          actorId,
-          action: AuditAction.TABLE_EXPORTED,
-          resourceType: AuditResourceType.TABLE,
-          resourceId: tableId,
-          resourceName: table.name,
-          description: `Exported table "${table.name}" as ${format.toUpperCase()}`,
-          metadata: { format, rowCount: exported, async: true },
-        })
-        captureServerEvent(
-          actorId,
-          'table_exported',
-          { table_id: tableId, workspace_id: workspaceId },
-          { groups: { workspace: workspaceId } }
-        )
-      }
     } else {
       // Canceled at the very end — the file is orphaned; remove it (janitor would otherwise
       // only catch it via the pruned job's resultKey).
