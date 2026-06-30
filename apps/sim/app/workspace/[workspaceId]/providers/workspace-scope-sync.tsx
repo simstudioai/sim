@@ -24,15 +24,17 @@ export function WorkspaceScopeSync() {
     if (!workspaceId) return
     if (organizationId) {
       posthog?.group('organization', organizationId)
-    } else {
-      // A personal workspace has no org — drop any organization group carried
-      // over from a previously-active team workspace so later events don't keep
-      // rolling up under it. resetGroups clears all groups, so the workspace
-      // group is re-applied immediately below.
+    } else if (activeWorkspace) {
+      // Metadata is loaded and this workspace genuinely has no org — drop any
+      // organization group carried over from a previously-active team workspace.
+      // While metadata is still loading, activeWorkspace is undefined and
+      // organizationId is transiently null, so resetting here would briefly strip
+      // a team workspace's org group. resetGroups clears all groups, so the
+      // workspace group is re-applied immediately below.
       posthog?.resetGroups()
     }
     posthog?.group('workspace', workspaceId, workspaceName ? { name: workspaceName } : undefined)
-  }, [posthog, workspaceId, workspaceName, organizationId])
+  }, [posthog, workspaceId, workspaceName, organizationId, activeWorkspace])
 
   useEffect(() => {
     if (!workspaceId || hydrationWorkspaceId === workspaceId) {

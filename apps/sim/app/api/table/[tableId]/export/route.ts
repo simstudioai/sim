@@ -56,6 +56,29 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
+  // Record the export before streaming begins. Rows leave the server incrementally,
+  // so a mid-stream failure would still exfiltrate partial data — auditing here
+  // (after access is granted) guarantees every authorized export is recorded.
+  recordAudit({
+    workspaceId: table.workspaceId ?? null,
+    actorId: userId,
+    action: AuditAction.TABLE_EXPORTED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: tableId,
+    resourceName: table.name,
+    description: `Exported table "${table.name}" as ${format.toUpperCase()}`,
+    metadata: { format, rowCount: table.rowCount },
+    request,
+  })
+  if (table.workspaceId) {
+    captureServerEvent(
+      userId,
+      'table_exported',
+      { table_id: tableId, workspace_id: table.workspaceId },
+      { groups: { workspace: table.workspaceId } }
+    )
+  }
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder()
@@ -101,26 +124,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
           format,
           rowCount: table.rowCount,
         })
-
-        recordAudit({
-          workspaceId: table.workspaceId ?? null,
-          actorId: userId,
-          action: AuditAction.TABLE_EXPORTED,
-          resourceType: AuditResourceType.TABLE,
-          resourceId: tableId,
-          resourceName: table.name,
-          description: `Exported table "${table.name}" as ${format.toUpperCase()}`,
-          metadata: { format, rowCount: table.rowCount },
-          request,
-        })
-        if (table.workspaceId) {
-          captureServerEvent(
-            userId,
-            'table_exported',
-            { table_id: tableId, workspace_id: table.workspaceId },
-            { groups: { workspace: table.workspaceId } }
-          )
-        }
       } catch (err) {
         logger.error(`[${requestId}] Export failed for table ${tableId}`, err)
         controller.error(err)
