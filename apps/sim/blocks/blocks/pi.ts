@@ -93,7 +93,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-6',
+      defaultValue: 'claude-sonnet-5',
       options: getPiModelOptions,
       commandSearchable: true,
     },

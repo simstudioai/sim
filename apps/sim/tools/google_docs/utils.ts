@@ -46,6 +46,27 @@ export function buildInsertLocation(
 }
 
 /**
+ * Build and validate a Docs API `Range` from a start and end character index.
+ * The Docs API requires `endIndex` to be strictly greater than `startIndex`.
+ * Throws when either index is missing or the range is empty/inverted so callers
+ * fail loudly before issuing a request.
+ */
+export function buildContentRange(
+  startIndex: unknown,
+  endIndex: unknown
+): { startIndex: number; endIndex: number } {
+  const start = Number(startIndex)
+  const end = Number(endIndex)
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    throw new Error('startIndex and endIndex are required')
+  }
+  if (end <= start) {
+    throw new Error('endIndex must be greater than startIndex')
+  }
+  return { startIndex: start, endIndex: end }
+}
+
+/**
  * Build canonical Google Docs metadata from a batchUpdate response. The
  * `documentId` is taken from the response body when present, otherwise parsed
  * from the request URL (`.../documents/{id}:batchUpdate`).

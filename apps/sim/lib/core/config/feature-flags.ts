@@ -97,13 +97,14 @@ const FEATURE_FLAGS = {
       'resolveTriggerRegion, so the whole deployment switches regions together.',
     fallback: 'TRIGGER_EU_REGION',
   },
-  'redis-progress-markers': {
+  'workspace-forking': {
     description:
-      'Write per-block live progress markers (lastStartedBlock/lastCompletedBlock) to Redis ' +
-      'instead of jsonb_set UPDATEs on workflow_execution_logs, folding them into the single ' +
-      'terminal UPDATE at completion. Eliminates the heaviest write query. Resolved once per ' +
-      'logging session (no user/org context) so an execution never mixes write paths.',
-    fallback: 'REDIS_PROGRESS_MARKERS',
+      'Runtime rollout gate for workspace forking (fork/promote/rollback), layered on top of ' +
+      'the existing FORKING_ENABLED / Enterprise-plan gate at the shared assertForkingEnabled ' +
+      'choke point. Enforced ONLY where AppConfig is the source of truth (Sim Cloud), so ' +
+      'operators can dark-launch forking to specific orgs/users/admins without touching ' +
+      'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
+    fallback: 'FORKING_ENABLED',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

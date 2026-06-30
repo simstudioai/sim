@@ -3,6 +3,7 @@ import { Badge, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Handle, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '../dimensions'
 import type { BlockRunStatus } from '../types'
+import { SubBlockRowView } from './sub-block-row-view'
 
 /**
  * Reusable styles and positioning for Handle components.
@@ -62,32 +63,34 @@ export interface WorkflowBlockViewProps {
   hasContentBelowHeader: boolean
   conditionRows: { id: string; title: string; value: string }[]
   routerRows: { id: string; value: string }[]
+  /** Router 'Context' summary-row value (router_v2 only). */
+  routerContextValue?: string
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
 
-  /** Child-workflow deploy badge state. */
-  isWorkflowSelector: boolean
+  /** Child-workflow deploy badge state — editor-only; omit in read-only contexts. */
+  isWorkflowSelector?: boolean
   childWorkflowId?: string
-  childIsDeployed: boolean | null
-  childNeedsRedeploy: boolean
-  isDeploying: boolean
-  canAdmin: boolean
-  onDeployChild: () => void
+  childIsDeployed?: boolean | null
+  childNeedsRedeploy?: boolean
+  isDeploying?: boolean
+  canAdmin?: boolean
+  onDeployChild?: () => void
 
-  /** Schedule badge state. */
-  shouldShowScheduleBadge: boolean
-  scheduleIsDisabled: boolean
-  onReactivateSchedule: () => void
+  /** Schedule badge state — editor-only; omit in read-only contexts. */
+  shouldShowScheduleBadge?: boolean
+  scheduleIsDisabled?: boolean
+  onReactivateSchedule?: () => void
 
-  /** Webhook badge state. */
-  showWebhookIndicator: boolean
+  /** Webhook badge state — editor-only; omit in read-only contexts. */
+  showWebhookIndicator?: boolean
   webhookProvider?: string
   webhookPath?: string
   webhookProviderName?: string
-  isWebhookConfigured: boolean
-  isWebhookDisabled: boolean
+  isWebhookConfigured?: boolean
+  isWebhookDisabled?: boolean
   webhookId?: string
-  onReactivateWebhook: () => void
+  onReactivateWebhook?: () => void
 
   /** Selects this block in the editor panel. */
   onSelect: () => void
@@ -95,7 +98,11 @@ export interface WorkflowBlockViewProps {
   contentRef?: Ref<HTMLDivElement>
   /** Editor-only action bar; omit in read-only / preview contexts. */
   actionBar?: ReactNode
-  /** Collapsed subblock summary rows, built by the container. */
+  /**
+   * Non-branch collapsed subblock summary rows, built by the container.
+   * Condition/router/error rows are rendered by the view itself from
+   * conditionRows/routerRows.
+   */
   rows: ReactNode
 }
 
@@ -121,6 +128,7 @@ export function WorkflowBlockView({
   hasContentBelowHeader,
   conditionRows,
   routerRows,
+  routerContextValue,
   wouldCreateConnectionCycle,
   isWorkflowSelector,
   childWorkflowId,
@@ -221,7 +229,7 @@ export function WorkflowBlockView({
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
-                        onDeployChild()
+                        onDeployChild?.()
                       }}
                     >
                       {isDeploying ? 'Deploying...' : !childIsDeployed ? 'undeployed' : 'redeploy'}
@@ -250,7 +258,7 @@ export function WorkflowBlockView({
                     dot
                     onClick={(e) => {
                       e.stopPropagation()
-                      onReactivateSchedule()
+                      onReactivateSchedule?.()
                     }}
                   >
                     disabled
@@ -293,7 +301,7 @@ export function WorkflowBlockView({
                     dot
                     onClick={(e) => {
                       e.stopPropagation()
-                      onReactivateWebhook()
+                      onReactivateWebhook?.()
                     }}
                   >
                     disabled
@@ -315,7 +323,29 @@ export function WorkflowBlockView({
           </div>
         </div>
 
-        {hasContentBelowHeader && <div className='flex flex-col gap-2 p-2'>{rows}</div>}
+        {hasContentBelowHeader && (
+          <div className='flex flex-col gap-2 p-2'>
+            {type === 'condition' ? (
+              conditionRows.map((cond) => (
+                <SubBlockRowView key={cond.id} title={cond.title} displayValue={cond.value} />
+              ))
+            ) : type === 'router_v2' ? (
+              <>
+                <SubBlockRowView key='context' title='Context' displayValue={routerContextValue} />
+                {routerRows.map((route, index) => (
+                  <SubBlockRowView
+                    key={route.id}
+                    title={`Route ${index + 1}`}
+                    displayValue={route.value}
+                  />
+                ))}
+              </>
+            ) : (
+              rows
+            )}
+            {shouldShowDefaultHandles && <SubBlockRowView title='error' />}
+          </div>
+        )}
 
         {type === 'condition' && (
           <>

@@ -1,11 +1,20 @@
 import type { ToolResponse } from '@/tools/types'
 
-interface TrelloBoard {
+export interface TrelloBoard {
   id: string
   name: string
   desc: string
   url: string
   closed: boolean
+  idOrganization: string | null
+}
+
+export interface TrelloChecklist {
+  id: string
+  name: string
+  idCard: string
+  idBoard: string | null
+  pos: number
 }
 
 export interface TrelloLabel {
@@ -123,6 +132,50 @@ export interface TrelloAddCommentParams {
   text: string
 }
 
+export interface TrelloCreateBoardParams {
+  accessToken: string
+  name: string
+  desc?: string
+  idOrganization?: string
+  defaultLists?: boolean
+}
+
+export interface TrelloGetBoardParams {
+  accessToken: string
+  boardId: string
+}
+
+export interface TrelloCreateListParams {
+  accessToken: string
+  boardId: string
+  name: string
+  pos?: string
+}
+
+export interface TrelloGetCardParams {
+  accessToken: string
+  cardId: string
+}
+
+export interface TrelloAddChecklistParams {
+  accessToken: string
+  cardId: string
+  name: string
+  pos?: string
+}
+
+export interface TrelloAddLabelParams {
+  accessToken: string
+  cardId: string
+  labelId: string
+}
+
+export interface TrelloAddMemberParams {
+  accessToken: string
+  cardId: string
+  memberId: string
+}
+
 export interface TrelloListListsResponse extends ToolResponse {
   output: {
     lists: TrelloList[]
@@ -168,6 +221,55 @@ export interface TrelloAddCommentResponse extends ToolResponse {
   }
 }
 
+export interface TrelloCreateBoardResponse extends ToolResponse {
+  output: {
+    board?: TrelloBoard
+    error?: string
+  }
+}
+
+export interface TrelloGetBoardResponse extends ToolResponse {
+  output: {
+    board?: TrelloBoard
+    error?: string
+  }
+}
+
+export interface TrelloCreateListResponse extends ToolResponse {
+  output: {
+    list?: TrelloList
+    error?: string
+  }
+}
+
+export interface TrelloGetCardResponse extends ToolResponse {
+  output: {
+    card?: TrelloCard
+    error?: string
+  }
+}
+
+export interface TrelloAddChecklistResponse extends ToolResponse {
+  output: {
+    checklist?: TrelloChecklist
+    error?: string
+  }
+}
+
+export interface TrelloAddLabelResponse extends ToolResponse {
+  output: {
+    labelIds: string[]
+    error?: string
+  }
+}
+
+export interface TrelloAddMemberResponse extends ToolResponse {
+  output: {
+    memberIds: string[]
+    error?: string
+  }
+}
+
 export type TrelloResponse =
   | TrelloListListsResponse
   | TrelloListCardsResponse
@@ -175,3 +277,10 @@ export type TrelloResponse =
   | TrelloUpdateCardResponse
   | TrelloGetActionsResponse
   | TrelloAddCommentResponse
+  | TrelloCreateBoardResponse
+  | TrelloGetBoardResponse
+  | TrelloCreateListResponse
+  | TrelloGetCardResponse
+  | TrelloAddChecklistResponse
+  | TrelloAddLabelResponse
+  | TrelloAddMemberResponse

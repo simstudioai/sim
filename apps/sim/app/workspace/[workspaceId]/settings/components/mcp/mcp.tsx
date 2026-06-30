@@ -381,202 +381,192 @@ export function MCP() {
           ? refreshedWorkflowsUpdated
             ? `Synced (${refreshedWorkflowsUpdated} workflow${refreshedWorkflowsUpdated === 1 ? '' : 's'})`
             : 'Refreshed'
-          : 'Refresh Tools'
+          : 'Refresh tools'
 
     return (
-      <div className='flex h-full flex-col bg-[var(--bg)]'>
-        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-          <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
-            MCP Tools
-          </Chip>
-          <div className='flex items-center'>
-            <Chip
-              onClick={() => handleRefreshServer(server.id)}
-              disabled={refreshingServerId === server.id || refreshedServerId === server.id}
-            >
-              {refreshLabel}
-            </Chip>
-            <Chip onClick={() => setEditingServerId(server.id)}>Edit</Chip>
-          </div>
-        </div>
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title={server.name || 'Unnamed Server'}
+        actions={[
+          {
+            text: refreshLabel,
+            onSelect: () => handleRefreshServer(server.id),
+            disabled: refreshingServerId === server.id || refreshedServerId === server.id,
+          },
+          {
+            text: 'Edit',
+            onSelect: () => setEditingServerId(server.id),
+          },
+        ]}
+      >
+        <SettingsSection label='Server'>
+          <div className='flex flex-col gap-4.5'>
+            <div className='flex flex-col gap-2'>
+              <span className='text-[12px] text-[var(--text-muted)]'>Server Name</span>
+              <p className='text-[14px] text-[var(--text-body)]'>
+                {server.name || 'Unnamed Server'}
+              </p>
+            </div>
 
-        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
-            <SettingsSection label='Server'>
-              <div className='flex flex-col gap-4.5'>
-                <div className='flex flex-col gap-2'>
-                  <span className='text-[12px] text-[var(--text-muted)]'>Server Name</span>
-                  <p className='text-[14px] text-[var(--text-body)]'>
-                    {server.name || 'Unnamed Server'}
-                  </p>
-                </div>
+            <div className='flex flex-col gap-2'>
+              <span className='text-[12px] text-[var(--text-muted)]'>Transport</span>
+              <p className='text-[14px] text-[var(--text-body)]'>{transportLabel}</p>
+            </div>
 
-                <div className='flex flex-col gap-2'>
-                  <span className='text-[12px] text-[var(--text-muted)]'>Transport</span>
-                  <p className='text-[14px] text-[var(--text-body)]'>{transportLabel}</p>
-                </div>
-
-                {server.url && (
-                  <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>URL</span>
-                    <p className='break-all text-[14px] text-[var(--text-body)]'>{server.url}</p>
-                  </div>
-                )}
-
-                {server.connectionStatus === 'error' && (
-                  <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
-                    <p className='text-[14px] text-[var(--text-error)]'>
-                      {server.lastError || 'Unable to connect'}
-                    </p>
-                  </div>
-                )}
-
-                {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-                  <div className='flex flex-col gap-2'>
-                    <span className='text-[12px] text-[var(--text-muted)]'>Authentication</span>
-                    <div>
-                      <Chip
-                        variant='primary'
-                        disabled={connectingOauthServers.has(server.id)}
-                        onClick={async () => {
-                          await startOauthForServer(server.id)
-                        }}
-                      >
-                        {connectingOauthServers.has(server.id)
-                          ? 'Connecting…'
-                          : 'Connect with OAuth'}
-                      </Chip>
-                    </div>
-                  </div>
-                )}
+            {server.url && (
+              <div className='flex flex-col gap-2'>
+                <span className='text-[12px] text-[var(--text-muted)]'>URL</span>
+                <p className='break-all text-[14px] text-[var(--text-body)]'>{server.url}</p>
               </div>
-            </SettingsSection>
+            )}
 
-            <SettingsSection label={`Tools (${tools.length})`}>
-              {tools.length === 0 ? (
-                <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
-              ) : (
-                <div className='flex flex-col gap-2'>
-                  {tools.map((tool) => {
-                    const issues = getStoredToolIssues(server.id, tool.name)
-                    const affectedWorkflows = issues.map((i) => i.workflowName)
-                    const isExpanded = expandedTools.has(tool.name)
-                    const hasParams =
-                      tool.inputSchema?.properties &&
-                      Object.keys(tool.inputSchema.properties).length > 0
-                    const requiredParams = tool.inputSchema?.required || []
+            {server.connectionStatus === 'error' && (
+              <div className='flex flex-col gap-2'>
+                <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
+                <p className='text-[14px] text-[var(--text-error)]'>
+                  {server.lastError || 'Unable to connect'}
+                </p>
+              </div>
+            )}
 
-                    return (
-                      <div
-                        key={tool.name}
-                        className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
-                      >
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          onClick={() => hasParams && toggleToolExpanded(tool.name)}
-                          className={cn(
-                            'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
-                            hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
+            {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+              <div className='flex flex-col gap-2'>
+                <span className='text-[12px] text-[var(--text-muted)]'>Authentication</span>
+                <div>
+                  <Chip
+                    variant='primary'
+                    disabled={connectingOauthServers.has(server.id)}
+                    onClick={async () => {
+                      await startOauthForServer(server.id)
+                    }}
+                  >
+                    {connectingOauthServers.has(server.id) ? 'Connecting…' : 'Connect with OAuth'}
+                  </Chip>
+                </div>
+              </div>
+            )}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection label={`Tools (${tools.length})`}>
+          {tools.length === 0 ? (
+            <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {tools.map((tool) => {
+                const issues = getStoredToolIssues(server.id, tool.name)
+                const affectedWorkflows = issues.map((i) => i.workflowName)
+                const isExpanded = expandedTools.has(tool.name)
+                const hasParams =
+                  tool.inputSchema?.properties &&
+                  Object.keys(tool.inputSchema.properties).length > 0
+                const requiredParams = tool.inputSchema?.required || []
+
+                return (
+                  <div
+                    key={tool.name}
+                    className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
+                  >
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => hasParams && toggleToolExpanded(tool.name)}
+                      className={cn(
+                        'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
+                        hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
+                      )}
+                      disabled={!hasParams}
+                    >
+                      <div className='flex-1'>
+                        <div className='flex h-[16px] items-center gap-1.5'>
+                          <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
+                            {tool.name}
+                          </p>
+                          {issues.length > 0 && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <div className='flex items-center'>
+                                  <Badge variant={getIssueBadgeVariant(issues[0].issue)} size='sm'>
+                                    {getIssueBadgeLabel(issues[0].issue)}
+                                  </Badge>
+                                </div>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content>
+                                Update in: {affectedWorkflows.join(', ')}
+                              </Tooltip.Content>
+                            </Tooltip.Root>
                           )}
-                          disabled={!hasParams}
-                        >
-                          <div className='flex-1'>
-                            <div className='flex h-[16px] items-center gap-1.5'>
-                              <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
-                                {tool.name}
-                              </p>
-                              {issues.length > 0 && (
-                                <Tooltip.Root>
-                                  <Tooltip.Trigger asChild>
-                                    <div className='flex items-center'>
-                                      <Badge
-                                        variant={getIssueBadgeVariant(issues[0].issue)}
-                                        size='sm'
-                                      >
-                                        {getIssueBadgeLabel(issues[0].issue)}
-                                      </Badge>
-                                    </div>
-                                  </Tooltip.Trigger>
-                                  <Tooltip.Content>
-                                    Update in: {affectedWorkflows.join(', ')}
-                                  </Tooltip.Content>
-                                </Tooltip.Root>
-                              )}
-                            </div>
-                            {tool.description && (
-                              <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
-                                {tool.description}
-                              </p>
-                            )}
-                          </div>
-                          {hasParams && (
-                            <ChevronDown
-                              className={cn(
-                                'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                                isExpanded && 'rotate-180'
-                              )}
-                            />
-                          )}
-                        </Button>
-
-                        {isExpanded && hasParams && (
-                          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
-                            <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
-                              Parameters
-                            </p>
-                            <div className='flex flex-col gap-1.5'>
-                              {Object.entries(tool.inputSchema!.properties!).map(
-                                ([paramName, param]) => {
-                                  const isRequired = requiredParams.includes(paramName)
-                                  const paramType =
-                                    typeof param === 'object' && param !== null
-                                      ? (param as { type?: string }).type || 'any'
-                                      : 'any'
-                                  const paramDesc =
-                                    typeof param === 'object' && param !== null
-                                      ? (param as { description?: string }).description
-                                      : undefined
-
-                                  return (
-                                    <div
-                                      key={paramName}
-                                      className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
-                                    >
-                                      <div className='flex items-center gap-1.5'>
-                                        <span className='font-medium text-[var(--text-primary)] text-small'>
-                                          {paramName}
-                                        </span>
-                                        <Badge variant='outline' size='sm'>
-                                          {paramType}
-                                        </Badge>
-                                        {isRequired && (
-                                          <Badge variant='default' size='sm'>
-                                            required
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      {paramDesc && (
-                                        <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
-                                          {paramDesc}
-                                        </p>
-                                      )}
-                                    </div>
-                                  )
-                                }
-                              )}
-                            </div>
-                          </div>
+                        </div>
+                        {tool.description && (
+                          <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
+                            {tool.description}
+                          </p>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </SettingsSection>
-          </div>
-        </div>
+                      {hasParams && (
+                        <ChevronDown
+                          className={cn(
+                            'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                            isExpanded && 'rotate-180'
+                          )}
+                        />
+                      )}
+                    </Button>
+
+                    {isExpanded && hasParams && (
+                      <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
+                        <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
+                          Parameters
+                        </p>
+                        <div className='flex flex-col gap-1.5'>
+                          {Object.entries(tool.inputSchema!.properties!).map(
+                            ([paramName, param]) => {
+                              const isRequired = requiredParams.includes(paramName)
+                              const paramType =
+                                typeof param === 'object' && param !== null
+                                  ? (param as { type?: string }).type || 'any'
+                                  : 'any'
+                              const paramDesc =
+                                typeof param === 'object' && param !== null
+                                  ? (param as { description?: string }).description
+                                  : undefined
+
+                              return (
+                                <div
+                                  key={paramName}
+                                  className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
+                                >
+                                  <div className='flex items-center gap-1.5'>
+                                    <span className='font-medium text-[var(--text-primary)] text-small'>
+                                      {paramName}
+                                    </span>
+                                    <Badge variant='outline' size='sm'>
+                                      {paramType}
+                                    </Badge>
+                                    {isRequired && (
+                                      <Badge variant='default' size='sm'>
+                                        required
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {paramDesc && (
+                                    <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
+                                      {paramDesc}
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            }
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </SettingsSection>
 
         <McpServerFormModal
           open={editingServerId !== null}
@@ -600,7 +590,7 @@ export function MCP() {
           availableEnvVars={availableEnvVars}
           allowedMcpDomains={allowedMcpDomains}
         />
-      </div>
+      </SettingsPanel>
     )
   }
 
@@ -612,16 +602,15 @@ export function MCP() {
           onChange: setSearchTerm,
           placeholder: 'Search MCPs...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={() => setShowAddModal(true)}
-            disabled={serversLoading}
-          >
-            Add Server
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Add server',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowAddModal(true),
+            disabled: serversLoading,
+          },
+        ]}
       >
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -630,7 +619,7 @@ export function MCP() {
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
-          <SettingsEmptyState>Click &quot;Add Server&quot; above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click &quot;Add server&quot; above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredServers.map((server) => {

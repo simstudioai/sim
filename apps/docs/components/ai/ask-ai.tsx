@@ -82,12 +82,12 @@ export function AskAI({ locale }: AskAIProps) {
       {!open && (
         <button
           type='button'
-          aria-label='Ask AI'
+          aria-label='Ask Sim'
           onClick={() => setOpen(true)}
           className='fixed right-4 bottom-4 z-50 flex h-11 items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-4 font-season text-[var(--text-body)] text-sm shadow-[var(--shadow-medium)] transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
         >
           <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
-          Ask AI
+          Ask Sim
         </button>
       )}
 
@@ -96,7 +96,7 @@ export function AskAI({ locale }: AskAIProps) {
           <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-3'>
             <span className='flex items-center gap-1.5 font-season text-[var(--text-body)] text-sm'>
               <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
-              Ask AI
+              Ask Sim
             </span>
             <button
               type='button'
@@ -127,18 +127,27 @@ export function AskAI({ locale }: AskAIProps) {
                 <div
                   key={message.id}
                   className={cn(
-                    'flex flex-col gap-1',
+                    'flex flex-col gap-1.5',
                     message.role === 'user' ? 'items-end' : 'items-start'
                   )}
                 >
                   {message.role === 'user' ? (
-                    <div className='max-w-[90%] whitespace-pre-wrap rounded-lg bg-[var(--surface-active)] px-3 py-2 text-[var(--text-body)] text-sm'>
+                    <div className='max-w-[85%] whitespace-pre-wrap rounded-[16px] bg-[var(--surface-5)] px-3 py-2 text-[var(--text-primary)] text-base leading-[23px]'>
                       {text}
                     </div>
                   ) : (
-                    <div className='max-w-[90%] text-[var(--text-body)] text-sm'>
+                    <div className='max-w-full text-[var(--text-primary)] text-base'>
                       {text ? (
-                        <Streamdown className='space-y-2 text-sm leading-relaxed [&_a]:text-[var(--brand-accent)] [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5'>
+                        <Streamdown
+                          className={cn(
+                            'space-y-3 text-[var(--text-primary)] text-base leading-relaxed',
+                            '[&_a]:text-[var(--text-primary)] [&_a]:underline [&_a]:decoration-dashed [&_a]:underline-offset-4',
+                            '[&_strong]:font-[600]',
+                            '[&_h1]:font-[600] [&_h2]:font-[600] [&_h3]:font-[600] [&_h4]:font-[600]',
+                            '[&_li]:my-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5',
+                            '[&_code]:font-mono [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--surface-5)] [&_pre]:p-3 [&_pre]:text-small'
+                          )}
+                        >
                           {text}
                         </Streamdown>
                       ) : isStreaming ? (
@@ -174,42 +183,46 @@ export function AskAI({ locale }: AskAIProps) {
             )}
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className='flex items-end gap-2 border-[var(--border-1)] border-t px-3 py-3'
-          >
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  handleSubmit(event)
-                }
-              }}
-              rows={1}
-              placeholder='Ask a question…'
-              className='max-h-32 flex-1 resize-none bg-transparent font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
-            />
-            {isBusy ? (
-              <button
-                type='button'
-                aria-label='Stop'
-                onClick={() => stop()}
-                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-active)] text-[var(--text-icon)]'
-              >
-                <Square className='size-[16px]' />
-              </button>
-            ) : (
-              <button
-                type='submit'
-                aria-label='Send'
-                disabled={!input.trim()}
-                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--text-primary)] text-[var(--text-inverse)] transition-opacity disabled:opacity-40 dark:bg-white dark:text-[var(--bg)]'
-              >
-                <ArrowUp className='size-[16px]' />
-              </button>
-            )}
+          <form onSubmit={handleSubmit} className='px-3 pb-3'>
+            <div className='flex items-end gap-2 rounded-2xl border border-[var(--border-1)] bg-white px-2.5 py-1.5 dark:bg-[var(--surface-5)]'>
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    handleSubmit(event)
+                  }
+                }}
+                rows={1}
+                placeholder='Ask Sim about the docs…'
+                className='max-h-32 flex-1 resize-none bg-transparent py-1 font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+              />
+              {isBusy ? (
+                <button
+                  type='button'
+                  aria-label='Stop'
+                  onClick={() => stop()}
+                  className='flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-colors hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                >
+                  <Square className='size-[12px] fill-white text-white dark:fill-black dark:text-black' />
+                </button>
+              ) : (
+                <button
+                  type='submit'
+                  aria-label='Send'
+                  disabled={!input.trim()}
+                  className={cn(
+                    'flex size-[28px] shrink-0 items-center justify-center rounded-full transition-colors',
+                    input.trim()
+                      ? 'bg-[#383838] hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                      : 'bg-[#808080]'
+                  )}
+                >
+                  <ArrowUp className='size-[16px] text-white dark:text-black' />
+                </button>
+              )}
+            </div>
           </form>
         </div>
       )}

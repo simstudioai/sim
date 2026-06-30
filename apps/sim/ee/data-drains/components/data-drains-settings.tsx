@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import {
   Badge,
-  Chip,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -129,11 +128,14 @@ export function DataDrainsSettings() {
   return (
     <>
       <SettingsPanel
-        actions={
-          <Chip leftIcon={Plus} variant='primary' onClick={() => setCreateOpen(true)}>
-            New Drain
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'New drain',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setCreateOpen(true),
+          },
+        ]}
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
@@ -182,7 +184,7 @@ export function DataDrainsSettings() {
                 </SettingsEmptyState>
               )
             ) : (
-              <SettingsEmptyState>Click "New Drain" above to get started</SettingsEmptyState>
+              <SettingsEmptyState>Click "New drain" above to get started</SettingsEmptyState>
             )}
           </div>
         </div>
