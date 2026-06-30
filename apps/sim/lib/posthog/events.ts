@@ -447,7 +447,7 @@ export interface PostHogEventMap {
   }
 
   file_downloaded: {
-    workspace_id: string
+    workspace_id?: string
     is_bulk: boolean
     file_count: number
   }

@@ -94,7 +94,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       request,
     })
     captureServerEvent(userId, 'file_downloaded', {
-      workspace_id: '',
       is_bulk: false,
       file_count: 1,
     })
