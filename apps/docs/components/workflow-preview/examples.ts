@@ -24,7 +24,6 @@ export const CLASSIFY_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 340, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Model', value: 'claude-sonnet-4-6' },
         { title: 'Messages', value: 'Classify <start.input>' },
@@ -69,7 +68,6 @@ export const CLASSIFY_REPLY_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Model', value: 'claude-sonnet-4-6' },
         { title: 'Messages', value: 'Draft a reply for <classify.content>' },
@@ -116,7 +114,6 @@ export const SUPPORT_KB_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Model', value: 'claude-sonnet-4-6' },
         { title: 'Messages', value: 'Answer from <knowledge.results>' },
@@ -168,7 +165,6 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
       type: 'table',
       bgColor: '#10B981',
       position: { x: 660, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Operation', value: 'Update Rows' },
         { title: 'Set', value: 'status = qualified' },
@@ -215,7 +211,6 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Model', value: 'claude-sonnet-4-6' },
         { title: 'Messages', value: 'Summarize <api.data>' },
@@ -263,7 +258,6 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Escalate this ticket' }],
     },
     {
@@ -271,8 +265,7 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
       name: 'Reply',
       type: 'agent',
       bgColor: '#33C482',
-      position: { x: 700, y: 130 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Messages', value: 'Draft a standard reply' }],
     },
   ],
@@ -320,7 +313,6 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       type: 'function',
       bgColor: '#FF402F',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Code', value: "throw 'blocked'" }],
     },
     {
@@ -328,8 +320,7 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       name: 'Publish',
       type: 'api',
       bgColor: '#2F55FF',
-      position: { x: 700, y: 130 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Method', value: 'POST' }],
     },
   ],
@@ -377,7 +368,6 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Walk through SSO and SCIM' }],
     },
     {
@@ -385,8 +375,7 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
       name: 'Quick start',
       type: 'agent',
       bgColor: '#33C482',
-      position: { x: 700, y: 130 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Messages', value: 'Send the 2-minute setup' }],
     },
   ],
@@ -433,7 +422,6 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       type: 'function',
       bgColor: '#FF402F',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Language', value: 'JavaScript' },
         { title: 'Code', value: 'return <api.data>.profile' },
@@ -477,7 +465,6 @@ export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
       type: 'api',
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Method', value: 'POST' },
         { title: 'Body', value: '<clean.result>' },
@@ -526,7 +513,6 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Answer the pricing question' }],
     },
     {
@@ -534,8 +520,7 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
       name: 'Support',
       type: 'agent',
       bgColor: '#33C482',
-      position: { x: 700, y: 95 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Messages', value: 'Help with the issue' }],
     },
     {
@@ -543,8 +528,7 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
       name: 'Billing',
       type: 'agent',
       bgColor: '#33C482',
-      position: { x: 700, y: 190 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 280 },
       rows: [{ title: 'Messages', value: 'Resolve the billing question' }],
     },
   ],
@@ -584,7 +568,6 @@ export const RESPONSE_API_WORKFLOW: PreviewWorkflow = {
       type: 'response',
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Data', value: '{ "answer": <agent.content> }' },
         { title: 'Status', value: '200' },
@@ -629,7 +612,6 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
       type: 'workflow',
       bgColor: '#6366F1',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Workflow', value: 'product-intake' }],
     },
     {
@@ -637,8 +619,7 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
       name: 'Bug report',
       type: 'workflow',
       bgColor: '#6366F1',
-      position: { x: 700, y: 110 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Workflow', value: 'bug-triage' }],
     },
   ],
@@ -681,7 +662,6 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Book a sales call' }],
     },
     {
@@ -689,8 +669,7 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
       name: 'Self-serve',
       type: 'workflow',
       bgColor: '#6366F1',
-      position: { x: 700, y: 110 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Workflow', value: 'onboarding' }],
     },
   ],
@@ -739,7 +718,6 @@ export const RESPONSE_WEBHOOK_WORKFLOW: PreviewWorkflow = {
       type: 'response',
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Data', value: '{ "received": true }' },
         { title: 'Status', value: '200' },
@@ -784,7 +762,6 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
       type: 'response',
       bgColor: '#2F55FF',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Status', value: '200' }],
     },
     {
@@ -792,8 +769,7 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
       name: 'Response',
       type: 'response',
       bgColor: '#2F55FF',
-      position: { x: 700, y: 130 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Status', value: '400' }],
     },
   ],
@@ -832,7 +808,6 @@ export const VARIABLES_RETRY_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [],
       branches: [
         { id: 'condition-if', label: 'If', value: '<variable.retryCount> < 3' },
@@ -874,7 +849,6 @@ export const VARIABLES_CONFIG_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Personalize for <variable.userTier>' }],
     },
   ],
@@ -915,7 +889,6 @@ export const WAIT_RATELIMIT_WORKFLOW: PreviewWorkflow = {
       type: 'api',
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Method', value: 'GET' }],
     },
   ],
@@ -956,7 +929,6 @@ export const WAIT_FOLLOWUP_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Send a check-in' }],
     },
   ],
@@ -997,7 +969,6 @@ export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [],
       branches: [
         { id: 'condition-if', label: 'If', value: '<evaluator.accuracy> >= 4' },
@@ -1034,7 +1005,6 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       type: 'gmail',
       bgColor: '#FFFFFF',
       position: { x: 380, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Account', value: '<credential.credentialId>' }],
     },
     {
@@ -1042,8 +1012,7 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       name: 'Drive',
       type: 'google_drive',
       bgColor: '#FFFFFF',
-      position: { x: 380, y: 100 },
-      hideSourceHandle: true,
+      position: { x: 380, y: 140 },
       rows: [{ title: 'Account', value: '<credential.credentialId>' }],
     },
     {
@@ -1051,8 +1020,7 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       name: 'Calendar',
       type: 'google_calendar',
       bgColor: '#FFFFFF',
-      position: { x: 380, y: 200 },
-      hideSourceHandle: true,
+      position: { x: 380, y: 280 },
       rows: [{ title: 'Account', value: '<credential.credentialId>' }],
     },
   ],
@@ -1095,7 +1063,6 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
       type: 'credential',
       bgColor: '#6366F1',
       position: { x: 700, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Account', value: 'Prod Slack' }],
     },
     {
@@ -1103,8 +1070,7 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
       name: 'Credential',
       type: 'credential',
       bgColor: '#6366F1',
-      position: { x: 700, y: 130 },
-      hideSourceHandle: true,
+      position: { x: 700, y: 140 },
       rows: [{ title: 'Account', value: 'Staging Slack' }],
     },
   ],
@@ -1135,7 +1101,6 @@ const GUARDRAILS_GATE = {
   type: 'condition',
   bgColor: '#FF752F',
   position: { x: 640, y: 0 },
-  hideSourceHandle: true,
 } as const
 
 /** Guardrails example: validate JSON before parsing it. */
@@ -1270,7 +1235,6 @@ export const HITL_APPROVAL_WORKFLOW: PreviewWorkflow = {
       type: 'api',
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Method', value: 'POST' }],
     },
   ],
@@ -1316,7 +1280,6 @@ export const HITL_MULTISTAGE_WORKFLOW: PreviewWorkflow = {
       type: 'function',
       bgColor: '#FF402F',
       position: { x: 880, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Code', value: 'apply()' }],
     },
   ],
@@ -1355,7 +1318,6 @@ export const HITL_VALIDATE_WORKFLOW: PreviewWorkflow = {
       type: 'function',
       bgColor: '#FF402F',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Code', value: 'process()' }],
     },
   ],
@@ -1393,7 +1355,6 @@ export const WEBHOOK_NOTIFY_WORKFLOW: PreviewWorkflow = {
       type: 'webhook',
       bgColor: '#10B981',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'URL', value: 'hooks.slack.com/…' }],
     },
   ],
@@ -1435,7 +1396,6 @@ export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
       type: 'webhook',
       bgColor: '#10B981',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'URL', value: 'api.partner.com/hook' }],
     },
   ],
@@ -1476,7 +1436,6 @@ export const WORKFLOW_CALL_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 640, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Summarize <workflow.result>' }],
     },
   ],
@@ -1516,7 +1475,6 @@ export const LOOP_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 150, y: 62 },
       parentId: 'loop',
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Rate <loop.currentItem>' }],
     },
     {
@@ -1525,7 +1483,6 @@ export const LOOP_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 860, y: 95 },
-      hideSourceHandle: true,
       rows: [{ title: 'Messages', value: 'Summarize <loop.results>' }],
     },
   ],
@@ -1566,7 +1523,6 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2F55FF',
       position: { x: 150, y: 62 },
       parentId: 'parallel',
-      hideSourceHandle: true,
       rows: [{ title: 'URL', value: '/tasks/<parallel.currentItem>' }],
     },
     {
@@ -1575,13 +1531,17 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
       type: 'function',
       bgColor: '#FF402F',
       position: { x: 860, y: 95 },
-      hideSourceHandle: true,
       rows: [{ title: 'Code', value: 'merge(<parallel.results>)' }],
     },
   ],
   edges: [
     { id: 'start-parallel', source: 'start', target: 'parallel' },
-    { id: 'parallel-call', source: 'parallel', target: 'call', sourceHandle: 'loop-start-source' },
+    {
+      id: 'parallel-call',
+      source: 'parallel',
+      target: 'call',
+      sourceHandle: 'parallel-start-source',
+    },
     { id: 'parallel-aggregate', source: 'parallel', target: 'aggregate' },
   ],
 }
@@ -1621,7 +1581,6 @@ export const BUILD_AGENT_WORKFLOW: PreviewWorkflow = {
       type: 'response',
       bgColor: '#2F55FF',
       position: { x: 680, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Data', value: '{ "score": <agent.score> }' }],
     },
   ],
@@ -1665,7 +1624,6 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
       type: 'file',
       bgColor: '#40916C',
       position: { x: 660, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Operation', value: 'Write' },
         { title: 'File Name', value: 'summary.md' },
@@ -1709,7 +1667,6 @@ export const TABLE_ROUNDTRIP_WORKFLOW: PreviewWorkflow = {
       type: 'table',
       bgColor: '#10B981',
       position: { x: 680, y: 0 },
-      hideSourceHandle: true,
       rows: [
         { title: 'Operation', value: 'Update Rows' },
         { title: 'Set', value: "category, status = 'qualified'" },
@@ -1779,7 +1736,6 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
       type: 'google_sheets',
       bgColor: '#FFFFFF',
       position: { x: 1200, y: 0 },
-      hideSourceHandle: true,
       rows: [{ title: 'Operation', value: 'Append' }],
     },
   ],
@@ -1788,5 +1744,225 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
     { id: 'enrich-reshape', source: 'enrich', target: 'reshape' },
     { id: 'reshape-score', source: 'reshape', target: 'score' },
     { id: 'score-log', source: 'score', target: 'log' },
+  ],
+}
+
+/**
+ * The "Blocks run as soon as they can" diagram on the how-it-runs page: two
+ * agents that each depend only on Start, so they run concurrently.
+ */
+export const CONCURRENCY_WORKFLOW: PreviewWorkflow = {
+  id: 'concurrency',
+  name: 'Run in parallel',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'support',
+      name: 'Customer Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 0 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'research',
+      name: 'Deep Researcher',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 150 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+  ],
+  edges: [
+    { id: 'start-support', source: 'start', target: 'support' },
+    { id: 'start-research', source: 'start', target: 'research' },
+  ],
+}
+
+/**
+ * The "A block waits for all its inputs" diagram: a Function that runs only
+ * after both agents finish, reading both outputs.
+ */
+export const COMBINATION_WORKFLOW: PreviewWorkflow = {
+  id: 'combination',
+  name: 'Wait for all inputs',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'support',
+      name: 'Customer Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 0 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'research',
+      name: 'Deep Researcher',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 360, y: 150 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'combine',
+      name: 'Combine',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 75 },
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'merge(<support.content>, <research.content>)' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-support', source: 'start', target: 'support' },
+    { id: 'start-research', source: 'start', target: 'research' },
+    { id: 'support-combine', source: 'support', target: 'combine' },
+    { id: 'research-combine', source: 'research', target: 'combine' },
+  ],
+}
+
+/**
+ * The "Branches follow one path" diagram: a Condition splits on an explicit
+ * rule, and on one branch a Router lets a model choose among paths.
+ */
+export const ROUTING_WORKFLOW: PreviewWorkflow = {
+  id: 'routing',
+  name: 'Branch by condition and router',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 140 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Message' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 340, y: 140 },
+      rows: [],
+      branches: [
+        { id: 'condition-if', label: 'If', value: "<start.type> === 'lead'" },
+        { id: 'condition-else', label: 'else' },
+      ],
+    },
+    {
+      id: 'router',
+      name: 'Router',
+      type: 'router',
+      bgColor: '#28C43F',
+      position: { x: 740, y: 0 },
+      rows: [],
+      branches: [
+        { id: 'router-sales', label: 'Sales' },
+        { id: 'router-support', label: 'Support' },
+      ],
+    },
+    {
+      id: 'reply',
+      name: 'Reply',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 740, y: 280 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'sales',
+      name: 'Sales',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 1120, y: -60 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+    {
+      id: 'support',
+      name: 'Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 1120, y: 90 },
+      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+    },
+  ],
+  edges: [
+    { id: 'start-condition', source: 'start', target: 'condition' },
+    { id: 'condition-router', source: 'condition', target: 'router', sourceHandle: 'condition-if' },
+    { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'condition-else' },
+    { id: 'router-sales', source: 'router', target: 'sales', sourceHandle: 'router-sales' },
+    { id: 'router-support', source: 'router', target: 'support', sourceHandle: 'router-support' },
+  ],
+}
+
+/**
+ * The "When a block fails" diagram: a Function fails and the run leaves through
+ * its red error port to a handler, while the normal-path block never runs.
+ */
+export const ERROR_PATH_WORKFLOW: PreviewWorkflow = {
+  id: 'error-path',
+  name: 'Handle a failure',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 80 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Order' }],
+    },
+    {
+      id: 'throwError',
+      name: 'throwError',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 340, y: 80 },
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'throw new Error("failed")' },
+      ],
+    },
+    {
+      id: 'handleSuccess',
+      name: 'handleSuccess',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 0 },
+      rows: [{ title: 'Code', value: 'return ok' }],
+    },
+    {
+      id: 'handleError',
+      name: 'handleError',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 720, y: 170 },
+      rows: [{ title: 'Code', value: 'return recovered' }],
+    },
+  ],
+  edges: [
+    { id: 'start-throw', source: 'start', target: 'throwError' },
+    { id: 'throw-success', source: 'throwError', target: 'handleSuccess' },
+    { id: 'throw-error', source: 'throwError', target: 'handleError', sourceHandle: 'error' },
   ],
 }
