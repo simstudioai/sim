@@ -1,5 +1,15 @@
 'use client'
 
+import {
+  ChipInput,
+  ChipSelect,
+  ChipSwitch,
+  ChipTag,
+  ChipTextarea,
+  cn,
+  FieldDivider,
+  Label,
+} from '@sim/emcn'
 import { BookOpen, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 
@@ -42,44 +52,56 @@ interface BlockInspectorProps {
   embedded?: boolean
 }
 
-const CONTROL =
-  'flex w-full items-center justify-between gap-2 rounded-[10px] bg-[var(--surface-5)] px-3 py-2.5 text-[13px]'
+const NOOP = () => {}
 
+/**
+ * Read-only facsimile of one configuration field, composed from the same emcn
+ * chip primitives the live editor wraps: `select`→{@link ChipSelect},
+ * `input`→{@link ChipInput}, `textarea`/`code`→{@link ChipTextarea} (read-only at
+ * full opacity, not greyed out), `toggle`→{@link ChipSwitch}. `slider` has no
+ * chip equivalent and stays a minimal app-token bar.
+ */
 function FieldControl({ field }: { field: InspectorField }) {
   const kind = field.kind ?? 'input'
-  const hasValue = field.value !== undefined && field.value !== ''
-  const textColor = hasValue ? 'var(--text-primary)' : 'var(--text-muted)'
-  const text = hasValue ? field.value : (field.placeholder ?? '—')
+  const value = field.value ?? ''
+  const placeholder = field.placeholder ?? '—'
+
+  if (kind === 'select') {
+    return (
+      <ChipSelect
+        fullWidth
+        value={value || undefined}
+        onChange={NOOP}
+        placeholder={placeholder}
+        options={value ? [{ value, label: value }] : []}
+      />
+    )
+  }
 
   if (kind === 'textarea' || kind === 'code') {
     return (
-      <div
-        className='w-full rounded-[10px] bg-[var(--surface-5)] px-3 py-2.5 text-[13px] leading-[1.55]'
-        style={{
-          color: textColor,
-          fontFamily: kind === 'code' ? 'var(--font-mono, monospace)' : undefined,
-        }}
-      >
-        {text}
-      </div>
+      <ChipTextarea
+        viewOnly
+        rows={kind === 'code' ? 4 : 3}
+        value={value}
+        placeholder={placeholder}
+        className={cn('min-h-[60px]', kind === 'code' && 'font-mono')}
+      />
     )
   }
 
   if (kind === 'toggle') {
     const on = field.value === 'on'
     return (
-      <div className='flex items-center gap-2'>
-        <div
-          className='flex h-[18px] w-[32px] items-center rounded-full px-[2px] transition-colors'
-          style={{ background: on ? 'var(--brand-accent)' : 'var(--border-1)' }}
-        >
-          <div
-            className='size-[14px] rounded-full bg-white'
-            style={{ marginLeft: on ? 'auto' : 0 }}
-          />
-        </div>
-        <span className='text-[12px] text-[var(--text-muted)]'>{on ? 'On' : 'Off'}</span>
-      </div>
+      <ChipSwitch
+        value={on ? 'on' : 'off'}
+        onChange={NOOP}
+        aria-label={field.label}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+      />
     )
   }
 
@@ -87,13 +109,13 @@ function FieldControl({ field }: { field: InspectorField }) {
     const percent = field.percent ?? 50
     return (
       <div className='flex w-full items-center gap-3'>
-        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--border-1)]'>
+        <div className='relative h-[4px] flex-1 rounded-full bg-[var(--surface-5)]'>
           <div
-            className='absolute inset-y-0 left-0 rounded-full bg-[var(--brand-accent)]'
+            className='absolute inset-y-0 left-0 rounded-full bg-[var(--brand-secondary)]'
             style={{ width: `${percent}%` }}
           />
           <div
-            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full bg-white'
+            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full border border-[var(--border-1)] bg-white'
             style={{ left: `calc(${percent}% - 6px)` }}
           />
         </div>
@@ -102,22 +124,25 @@ function FieldControl({ field }: { field: InspectorField }) {
     )
   }
 
+  return <ChipInput readOnly value={value} placeholder={placeholder} />
+}
+
+function InspectorFieldRow({ field }: { field: InspectorField }) {
   return (
-    <div className={CONTROL}>
-      <span className='truncate' style={{ color: textColor }}>
-        {text}
-      </span>
-      {kind === 'select' && (
-        <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-      )}
+    <div className='flex flex-col gap-2.5'>
+      <Label className='pl-0.5'>
+        {field.label}
+        {field.required && <span className='ml-0.5'>*</span>}
+      </Label>
+      <FieldControl field={field} />
     </div>
   )
 }
 
 /**
  * A read-only facsimile of the editor's right-hand block inspector: the block
- * header, its configuration fields as static controls, and its connections.
- * Hand-authored per usage, like {@link WorkflowPreview} examples.
+ * header, its configuration fields as static chip controls, and its
+ * connections. Hand-authored per usage, like {@link WorkflowPreview} examples.
  */
 export function BlockInspector({
   name,
@@ -129,18 +154,20 @@ export function BlockInspector({
   embedded = false,
 }: BlockInspectorProps) {
   const Icon = resolveIcon(type)
+  const hasTools = Boolean(tools && tools.length > 0)
 
   return (
     <div
-      className={
+      className={cn(
+        'bg-[var(--surface-1)]',
         embedded
-          ? 'flex h-full w-full flex-col overflow-y-auto bg-[var(--surface-1)]'
-          : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-1)]'
-      }
+          ? 'flex h-full w-full flex-col overflow-y-auto'
+          : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)]'
+      )}
     >
       <div className='flex items-center gap-2.5 border-[var(--border)] border-b px-3 py-2.5'>
         <div
-          className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-[6px]'
+          className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-md'
           style={{ background: color }}
         >
           {Icon && <Icon className='size-[13px] text-white' />}
@@ -152,45 +179,35 @@ export function BlockInspector({
         </span>
       </div>
 
-      <div className='flex flex-col px-3 py-1'>
+      <div className='flex flex-col px-3 py-3'>
         {fields.map((field, i) => (
-          <div
-            key={field.label}
-            className='flex flex-col gap-2 py-3'
-            style={i > 0 ? { borderTop: '1px dashed var(--divider)' } : undefined}
-          >
-            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-              {field.label}
-              {field.required && <span className='ml-1 text-[var(--text-muted)]'>*</span>}
-            </span>
-            <FieldControl field={field} />
+          <div key={field.label}>
+            {i > 0 && <FieldDivider />}
+            <InspectorFieldRow field={field} />
           </div>
         ))}
 
-        {tools && tools.length > 0 && (
-          <div
-            className='flex flex-col gap-2 py-3'
-            style={fields.length > 0 ? { borderTop: '1px dashed var(--divider)' } : undefined}
-          >
-            <span className='font-medium text-[13px] text-[var(--text-primary)]'>Tools</span>
-            <div className='flex flex-wrap gap-[6px]'>
-              {tools.map((tool) => {
-                const TIcon = resolveIcon(tool.type)
-                return (
-                  <div
-                    key={tool.type}
-                    className='flex items-center gap-[5px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[7px] py-[4px]'
-                  >
-                    <div
-                      className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
-                      style={{ background: tool.bgColor }}
-                    >
-                      {TIcon && <TIcon className='size-[9px] text-white' />}
-                    </div>
-                    <span className='text-[12px] text-[var(--text-primary)]'>{tool.name}</span>
-                  </div>
-                )
-              })}
+        {hasTools && (
+          <div>
+            {fields.length > 0 && <FieldDivider />}
+            <div className='flex flex-col gap-2.5'>
+              <Label className='pl-0.5'>Tools</Label>
+              <div className='flex flex-wrap gap-[6px]'>
+                {tools?.map((tool) => {
+                  const TIcon = resolveIcon(tool.type)
+                  return (
+                    <ChipTag key={tool.type} variant='gray'>
+                      <span
+                        className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                        style={{ background: tool.bgColor }}
+                      >
+                        {TIcon && <TIcon className='size-[9px] text-white' />}
+                      </span>
+                      {tool.name}
+                    </ChipTag>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )}
