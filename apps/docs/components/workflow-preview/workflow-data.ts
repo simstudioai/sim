@@ -48,10 +48,10 @@ export interface PreviewWorkflow {
 export const BLOCK_STAGGER = 0.12
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
-const EDGE_STYLE = { stroke: 'var(--workflow-edge)', strokeWidth: 1.5 } as const
+const EDGE_STYLE = { stroke: 'var(--workflow-edge)', strokeWidth: 2 } as const
 const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--brand-secondary)', strokeWidth: 2.5 } as const
 /** Edges leaving a block's error port render red, matching the editor. */
-const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 1.5 } as const
+const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 2 } as const
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {

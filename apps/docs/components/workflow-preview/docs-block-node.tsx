@@ -14,7 +14,7 @@ import {
 /** Renders the colored square with no glyph when a block type has no registered icon. */
 const EMPTY_ICON: ComponentType<{ className?: string }> = () => null
 
-const RING_STYLES = 'ring-2 ring-[var(--brand-secondary)]'
+const RING_STYLES = 'ring-[1.75px] ring-[var(--brand-secondary)]'
 
 interface DocsBlockData {
   name: string

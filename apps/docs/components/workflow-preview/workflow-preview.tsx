@@ -6,8 +6,6 @@ import { Maximize2, X } from 'lucide-react'
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
-  Background,
-  BackgroundVariant,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -60,6 +58,8 @@ function PreviewEdge({
     targetY,
     sourcePosition,
     targetPosition,
+    borderRadius: 8,
+    offset: 30,
   })
 
   if (data?.animate) {
@@ -213,13 +213,11 @@ function PreviewFlow({
       preventScrolling={interactive}
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
-      minZoom={0.2}
+      minZoom={0.1}
       fitView
       fitViewOptions={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS}
       className='h-full w-full'
-    >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--border)' />
-    </ReactFlow>
+    />
   )
 }
 
