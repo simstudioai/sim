@@ -153,10 +153,12 @@ function PreviewFlow({
   selectedBlock,
   interactive = false,
   onNodeClick,
+  onPaneClick,
 }: WorkflowPreviewProps & {
   selectedBlock?: string
   interactive?: boolean
   onNodeClick?: (blockId: string) => void
+  onPaneClick?: () => void
 }) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge, selectedBlock }),
@@ -197,6 +199,7 @@ function PreviewFlow({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
+      onPaneClick={onPaneClick}
       nodeTypes={NODE_TYPES}
       edgeTypes={EDGE_TYPES}
       defaultEdgeOptions={{ type: 'previewEdge' }}
@@ -281,6 +284,7 @@ export function WorkflowPreview({
             highlightBlock={highlightBlock}
             highlightEdge={highlightEdge}
             onNodeClick={(id) => openWith(id)}
+            onPaneClick={() => openWith(null)}
           />
         </ReactFlowProvider>
         <button
@@ -326,6 +330,7 @@ export function WorkflowPreview({
                   selectedBlock={selectedId ?? undefined}
                   interactive
                   onNodeClick={(id) => setSelectedId(id)}
+                  onPaneClick={() => setSelectedId(null)}
                 />
               </ReactFlowProvider>
             </div>
