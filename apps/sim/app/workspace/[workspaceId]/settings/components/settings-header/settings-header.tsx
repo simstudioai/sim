@@ -3,6 +3,7 @@
 import {
   type ComponentType,
   createContext,
+  Fragment,
   type ReactNode,
   type Ref,
   useCallback,
@@ -12,7 +13,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipLink, Search } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, Search, Tooltip } from '@sim/emcn'
 
 /** The strict contract for a settings header action — rendered as a {@link Chip}, data only. */
 export interface SettingsAction {
@@ -22,6 +23,8 @@ export interface SettingsAction {
   active?: boolean
   onSelect: () => void
   disabled?: boolean
+  /** Hover/focus tooltip (e.g. why the action is disabled) — the shell renders it; no per-page JSX. */
+  tooltip?: string
 }
 
 export interface SettingsHeaderSearch {
@@ -62,7 +65,11 @@ interface ReadContextValue {
 
 const ReadContext = createContext<ReadContextValue | null>(null)
 
-/** Visible/structural fields only — callbacks stay in the ref, so registering never loops or serves a stale handler. */
+/**
+ * Serializes only the visible/structural fields — callbacks stay in the ref and
+ * the shell dereferences them at call time, so registering never loops and never
+ * serves a stale handler. Any new VISIBLE field must be added here too.
+ */
 function computeSignature(c: SettingsHeaderConfig): string {
   return JSON.stringify({
     t: c.title ?? '',
@@ -75,6 +82,7 @@ function computeSignature(c: SettingsHeaderConfig): string {
       x.active ?? false,
       x.disabled ?? false,
       x.icon ? 1 : 0,
+      x.tooltip ?? '',
     ]),
     s: c.search ? [c.search.value, c.search.placeholder ?? '', c.search.disabled ?? false] : null,
     aside: c.aside ? 1 : 0,
@@ -120,14 +128,15 @@ export function useSettingsHeader(config: SettingsHeaderConfig) {
  */
 export function SettingsHeaderShell({ children }: { children: ReactNode }) {
   const read = useContext(ReadContext)
-  const config = read?.configRef.current ?? EMPTY_CONFIG
+  const configRef = read?.configRef
+  const config = configRef?.current ?? EMPTY_CONFIG
   const { title, description, docsLink, back, actions, search, aside, scrollContainerRef } = config
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         {back ? (
-          <Chip leftIcon={back.icon} onClick={back.onSelect}>
+          <Chip leftIcon={back.icon} onClick={() => configRef?.current.back?.onSelect()}>
             {back.text}
           </Chip>
         ) : (
@@ -140,18 +149,29 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
             </ChipLink>
           )}
           {aside}
-          {actions?.map((action) => (
-            <Chip
-              key={action.text}
-              variant={action.variant}
-              active={action.active}
-              leftIcon={action.icon}
-              onClick={action.onSelect}
-              disabled={action.disabled}
-            >
-              {action.text}
-            </Chip>
-          ))}
+          {actions?.map((action, index) => {
+            const chip = (
+              <Chip
+                variant={action.variant}
+                active={action.active}
+                leftIcon={action.icon}
+                onClick={() => configRef?.current.actions?.[index]?.onSelect()}
+                disabled={action.disabled}
+              >
+                {action.text}
+              </Chip>
+            )
+            return action.tooltip ? (
+              <Tooltip.Root key={action.text}>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>{chip}</span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <Fragment key={action.text}>{chip}</Fragment>
+            )
+          })}
         </div>
       </div>
       <div
@@ -170,7 +190,7 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
               icon={Search}
               placeholder={search.placeholder ?? 'Search...'}
               value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
+              onChange={(event) => configRef?.current.search?.onChange(event.target.value)}
               disabled={search.disabled}
               autoComplete='off'
               className='w-full'

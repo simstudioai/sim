@@ -1256,7 +1256,7 @@ export function GroupDetail({
   return (
     <>
       <SettingsPanel
-        back={{ text: 'Access Control', icon: ArrowLeft, onSelect: handleBack }}
+        back={{ text: 'Access control', icon: ArrowLeft, onSelect: handleBack }}
         title={viewingGroup.name}
         description={viewingGroup.description ?? undefined}
         actions={[

@@ -23,7 +23,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
@@ -388,19 +387,17 @@ export function MCP() {
       <SettingsPanel
         back={{ text: 'MCP Tools', icon: ArrowLeft, onSelect: handleBackToList }}
         title={server.name || 'Unnamed Server'}
-        actions={
-          [
-            {
-              text: refreshLabel,
-              onSelect: () => handleRefreshServer(server.id),
-              disabled: refreshingServerId === server.id || refreshedServerId === server.id,
-            },
-            {
-              text: 'Edit',
-              onSelect: () => setEditingServerId(server.id),
-            },
-          ] satisfies SettingsAction[]
-        }
+        actions={[
+          {
+            text: refreshLabel,
+            onSelect: () => handleRefreshServer(server.id),
+            disabled: refreshingServerId === server.id || refreshedServerId === server.id,
+          },
+          {
+            text: 'Edit',
+            onSelect: () => setEditingServerId(server.id),
+          },
+        ]}
       >
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
@@ -605,17 +602,15 @@ export function MCP() {
           onChange: setSearchTerm,
           placeholder: 'Search MCPs...',
         }}
-        actions={
-          [
-            {
-              text: 'Add server',
-              icon: Plus,
-              variant: 'primary',
-              onSelect: () => setShowAddModal(true),
-              disabled: serversLoading,
-            },
-          ] satisfies SettingsAction[]
-        }
+        actions={[
+          {
+            text: 'Add server',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowAddModal(true),
+            disabled: serversLoading,
+          },
+        ]}
       >
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -624,7 +619,7 @@ export function MCP() {
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
-          <SettingsEmptyState>Click &quot;Add Server&quot; above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click &quot;Add server&quot; above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredServers.map((server) => {

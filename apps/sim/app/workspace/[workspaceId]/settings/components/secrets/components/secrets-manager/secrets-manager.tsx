@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipInput, cn, Tooltip, toast } from '@sim/emcn'
+import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
@@ -953,33 +953,17 @@ export function SecretsManager() {
                 } satisfies SettingsAction,
               ]
             : []),
-          ...(hasConflicts || hasInvalidKeys
-            ? []
-            : [
-                {
-                  text: isListSaving ? 'Saving...' : 'Save',
-                  variant: 'primary',
-                  onSelect: handleSave,
-                  disabled: isLoading || !hasChanges || isListSaving,
-                } satisfies SettingsAction,
-              ]),
+          {
+            text: isListSaving ? 'Saving...' : 'Save',
+            onSelect: handleSave,
+            disabled: hasConflicts || hasInvalidKeys || isLoading || !hasChanges || isListSaving,
+            tooltip: hasConflicts
+              ? 'Resolve all conflicts before saving'
+              : hasInvalidKeys
+                ? 'Fix invalid variable names before saving'
+                : undefined,
+          },
         ]}
-        aside={
-          hasConflicts || hasInvalidKeys ? (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <div className='inline-flex'>
-                  <Chip disabled>Save</Chip>
-                </div>
-              </Tooltip.Trigger>
-              {hasConflicts ? (
-                <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
-              ) : (
-                <Tooltip.Content>Fix invalid variable names before saving</Tooltip.Content>
-              )}
-            </Tooltip.Root>
-          ) : undefined
-        }
       >
         {!isLoading && (
           <div className='flex flex-col gap-7'>

@@ -33,7 +33,6 @@ import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -608,14 +607,14 @@ export function CredentialSets() {
         }}
         actions={
           canManageCredentialSets
-            ? ([
+            ? [
                 {
                   text: 'Create group',
                   icon: Plus,
                   variant: 'primary',
                   onSelect: () => setShowCreateModal(true),
                 },
-              ] satisfies SettingsAction[])
+              ]
             : undefined
         }
       >

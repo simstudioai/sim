@@ -6,7 +6,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipConfirmModal,
   ChipInput,
   ChipModal,
@@ -20,7 +19,6 @@ import {
   Code,
   type ComboboxOption,
   Label,
-  Tooltip,
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -355,11 +353,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 
   if (isLoading) {
-    return (
-      <SettingsPanel back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }}>
-        {null}
-      </SettingsPanel>
-    )
+    return <SettingsPanel back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }} />
   }
 
   if (error || !data) {
@@ -376,35 +370,24 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
   const { server } = data
 
-  const addWorkflowsAside = showAddDisabledTooltip ? (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <div className='inline-flex'>
-          <Chip leftIcon={Plus} variant='primary' disabled>
-            Add workflows
-          </Chip>
-        </div>
-      </Tooltip.Trigger>
-      <Tooltip.Content>All deployed workflows have been added to this server.</Tooltip.Content>
-    </Tooltip.Root>
-  ) : (
-    <Chip
-      leftIcon={Plus}
-      variant='primary'
-      onClick={() => setShowAddWorkflow(true)}
-      disabled={!canAddWorkflow}
-    >
-      Add workflows
-    </Chip>
-  )
-
   return (
     <>
       <SettingsPanel
         back={{ text: 'MCP Servers', icon: ArrowLeft, onSelect: onBack }}
         title={server.name}
-        actions={[{ text: 'Edit server', onSelect: handleOpenEditServer }]}
-        aside={addWorkflowsAside}
+        actions={[
+          {
+            text: 'Add workflows',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: () => setShowAddWorkflow(true),
+            disabled: !canAddWorkflow,
+            tooltip: showAddDisabledTooltip
+              ? 'All deployed workflows have been added to this server.'
+              : undefined,
+          },
+          { text: 'Edit server', onSelect: handleOpenEditServer },
+        ]}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ChipModalTabs

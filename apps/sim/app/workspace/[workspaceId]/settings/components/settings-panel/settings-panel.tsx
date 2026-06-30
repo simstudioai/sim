@@ -37,7 +37,7 @@ function useSettingsSection(): SettingsSection | null {
 
 interface SettingsPanelProps {
   /** Body content rendered below the header in the centered content column. */
-  children: ReactNode
+  children?: ReactNode
   /** Strict top-right action chips — data only (`text`/`icon`/`variant`/…), never JSX. */
   actions?: SettingsAction[]
   /** Left-aligned back chip for a detail sub-view; omit on list/panel pages. */
@@ -46,7 +46,11 @@ interface SettingsPanelProps {
   search?: SettingsHeaderSearch
   /** Overrides the nav-driven title (e.g. for a detail sub-view). */
   title?: string
-  /** Overrides the nav-driven description. */
+  /**
+   * Overrides the nav-driven description. When `title` is set (a detail sub-view),
+   * the description is used verbatim — it never falls back to the section's meta
+   * blurb, so an entity with no description renders no description.
+   */
   description?: string
   /** Overrides the nav-driven docs link (the "Docs" link rendered in the header bar). */
   docsLink?: string
@@ -80,7 +84,7 @@ export function SettingsPanel({
 
   useSettingsHeader({
     title: title ?? meta?.label,
-    description: description ?? meta?.description,
+    description: title !== undefined ? description : (description ?? meta?.description),
     docsLink: docsLink ?? meta?.docsLink,
     back,
     actions,

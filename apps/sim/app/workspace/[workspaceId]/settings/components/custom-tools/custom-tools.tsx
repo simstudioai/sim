@@ -115,7 +115,7 @@ export function CustomTools() {
             </p>
           </div>
         ) : isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Add Tool" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click "Add tool" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredTools.map((tool) => (

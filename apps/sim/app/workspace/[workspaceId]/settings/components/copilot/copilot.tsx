@@ -128,7 +128,7 @@ export function Copilot() {
         actions={actions}
       >
         {isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Create API Key" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredKeys.map((key) => (
