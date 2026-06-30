@@ -150,8 +150,8 @@ function inspectorFieldsFor(block: PreviewBlock) {
   const branchFields = (block.branches ?? []).map((branch) => ({
     label: branch.label,
     kind: 'code' as const,
-    value: branch.value,
-    placeholder: '—',
+    // Match the canvas + the editor's getDisplayValue: a blank value reads as '-'.
+    value: branch.value || '-',
   }))
   return [...rowFields, ...branchFields]
 }
