@@ -403,7 +403,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             name={name}
             Icon={IconComponent}
             className='size-12 rounded-xl border border-[var(--border-1)]'
-            iconClassName='h-6 w-6'
+            iconClassName='size-6'
             fallbackClassName='text-[20px]'
             aria-hidden='true'
           />
@@ -745,7 +745,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                         Icon={ToolIcon}
                         as='span'
                         className='size-6 rounded-[4px]'
-                        iconClassName='h-3.5 w-3.5'
+                        iconClassName='size-3.5'
                         fallbackClassName='text-[10px]'
                         aria-hidden='true'
                       />
@@ -935,7 +935,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               name={name}
               Icon={IconComponent}
               className='size-14 rounded-xl'
-              iconClassName='h-7 w-7'
+              iconClassName='size-7'
               fallbackClassName='text-[22px]'
               aria-hidden='true'
             />

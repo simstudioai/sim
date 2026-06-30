@@ -61,7 +61,7 @@ export function LandingFAQ({ faqs }: LandingFAQProps) {
                   </span>
                   <ChevronDown
                     className={cn(
-                      'h-3 w-3 shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                      'size-3 shrink-0 text-[var(--text-muted)] transition-transform duration-200',
                       isOpen ? 'rotate-180' : 'rotate-0'
                     )}
                     aria-hidden='true'

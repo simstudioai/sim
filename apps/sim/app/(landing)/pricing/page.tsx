@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import Pricing from '@/app/(landing)/pricing/pricing'
+import { pricingSearchParamsCache } from '@/app/(landing)/pricing/search-params'
 
 export const revalidate = 3600
 
@@ -58,6 +60,7 @@ export const metadata: Metadata = {
   category: 'technology',
 }
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await pricingSearchParamsCache.parse(searchParams)
   return <Pricing />
 }

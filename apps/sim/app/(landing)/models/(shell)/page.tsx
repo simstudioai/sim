@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
@@ -7,6 +8,7 @@ import {
   FeaturedModelCard,
   FeaturedProviderCard,
 } from '@/app/(landing)/models/components/model-primitives'
+import { modelsSearchParamsCache } from '@/app/(landing)/models/search-params'
 import {
   ALL_CATALOG_MODELS,
   getPricingBounds,
@@ -80,7 +82,13 @@ export const metadata: Metadata = {
   },
 }
 
-export default function ModelsPage() {
+export default async function ModelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  await modelsSearchParamsCache.parse(searchParams)
+
   const flatModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => ({ provider, model }))
   )

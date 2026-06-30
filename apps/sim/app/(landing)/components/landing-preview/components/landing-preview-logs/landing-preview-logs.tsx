@@ -248,7 +248,7 @@ export function LandingPreviewLogs() {
                     )}
                   >
                     {label}
-                    {sortKey === key && <ArrowUpDown className='h-[10px] w-[10px] opacity-60' />}
+                    {sortKey === key && <ArrowUpDown className='size-[10px] opacity-60' />}
                   </button>
                 </th>
               ))}

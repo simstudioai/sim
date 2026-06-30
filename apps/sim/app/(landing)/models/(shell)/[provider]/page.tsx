@@ -154,7 +154,7 @@ export default async function ProviderModelsPage({
               <ProviderIcon
                 provider={provider}
                 className='size-12 rounded-xl'
-                iconClassName='h-6 w-6'
+                iconClassName='size-6'
               />
               <h1
                 id='provider-heading'

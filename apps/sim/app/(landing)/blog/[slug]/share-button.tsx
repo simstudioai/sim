@@ -41,21 +41,21 @@ export function ShareButton({ url, title }: ShareButtonProps) {
           className='flex items-center gap-1.5 text-[var(--text-muted)] text-sm hover:text-[var(--text-primary)]'
           aria-label='Share this post'
         >
-          <Share2 className='h-4 w-4' />
+          <Share2 className='size-4' />
           <span>Share</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={handleCopyLink}>
-          <Duplicate className='h-4 w-4' />
+          <Duplicate className='size-4' />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareTwitter}>
-          <XIcon className='h-4 w-4' />
+          <XIcon className='size-4' />
           Share on X
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareLinkedIn}>
-          <LinkedInIcon className='h-4 w-4' />
+          <LinkedInIcon className='size-4' />
           Share on LinkedIn
         </DropdownMenuItem>
       </DropdownMenuContent>

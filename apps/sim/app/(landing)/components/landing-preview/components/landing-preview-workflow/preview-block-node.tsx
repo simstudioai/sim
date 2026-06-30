@@ -83,7 +83,7 @@ const MODEL_PROVIDER_ICONS: Array<{
   { prefix: 'o4', icon: OpenAIIcon },
   { prefix: 'claude-', icon: AnthropicIcon },
   { prefix: 'gemini-', icon: GeminiIcon },
-  { prefix: 'grok-', icon: xAIIcon, size: 'h-[17px] w-[17px]' },
+  { prefix: 'grok-', icon: xAIIcon, size: 'size-[17px]' },
   { prefix: 'mistral-', icon: MistralIcon },
 ]
 
@@ -219,7 +219,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                       <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[14px] text-[var(--text-primary)]'>
                         {ModelIcon && (
                           <ModelIcon
-                            className={`inline-block flex-shrink-0 text-[var(--text-primary)] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
+                            className={`inline-block flex-shrink-0 text-[var(--text-primary)] ${modelEntry.size ?? 'size-[14px]'}`}
                           />
                         )}
                         <span className='truncate'>{row.value}</span>
