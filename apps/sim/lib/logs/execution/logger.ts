@@ -35,11 +35,8 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
-import {
-  type RedactablePayload,
-  redactPIIFromExecution,
-  scrubLargeValueRefs,
-} from '@/lib/logs/execution/pii-redaction'
+import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
+import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import {
   clearProgressMarkers,
   type ExecutionProgressMarkers,
@@ -621,7 +618,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
    */
   private async applyPiiRedaction(
     workspaceId: string | null,
-    payload: RedactablePayload
+    payload: RedactablePayload,
+    storeContext: { workflowId?: string | null; executionId: string; userId?: string | null }
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
 
@@ -645,11 +643,23 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     // The string redactor can't reach values already offloaded to large-value
     // storage (>8MB refs). Those are masked before offload only when the
-    // block-output stage is on; when it's off, scrub the refs so the log never
-    // references unredacted bytes.
-    const scrubbed = resolved.blockOutputs.enabled ? payload : scrubLargeValueRefs(payload)
+    // block-output stage is on; when it's off, hydrate → mask → re-store the refs
+    // so the log keeps redacted content (falling back to a marker only if a ref
+    // can't be materialized/re-stored).
+    const working = resolved.blockOutputs.enabled
+      ? payload
+      : await redactLargeValueRefs(payload, {
+          entityTypes: config.entityTypes,
+          language: config.language,
+          store: {
+            workspaceId,
+            workflowId: storeContext.workflowId ?? undefined,
+            executionId: storeContext.executionId,
+            userId: storeContext.userId ?? undefined,
+          },
+        })
 
-    return redactPIIFromExecution(scrubbed, {
+    return redactPIIFromExecution(working, {
       entityTypes: config.entityTypes,
       language: config.language,
     })
@@ -793,25 +803,35 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const redactedWorkflowInput =
       filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
 
-    const pii = await this.applyPiiRedaction(existingLog?.workspaceId ?? null, {
-      traceSpans: redactedTraceSpans,
-      finalOutput: redactedFinalOutput,
-      ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
-      ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
-      ...(builtExecutionData.completionFailure !== undefined
-        ? { completionFailure: builtExecutionData.completionFailure }
-        : {}),
-      ...(builtExecutionData.trigger !== undefined ? { trigger: builtExecutionData.trigger } : {}),
-      ...(builtExecutionData.executionState !== undefined
-        ? { executionState: builtExecutionData.executionState }
-        : {}),
-      ...(builtExecutionData.environment !== undefined
-        ? { environment: builtExecutionData.environment }
-        : {}),
-      ...(builtExecutionData.correlation !== undefined
-        ? { correlation: builtExecutionData.correlation }
-        : {}),
-    })
+    const pii = await this.applyPiiRedaction(
+      existingLog?.workspaceId ?? null,
+      {
+        traceSpans: redactedTraceSpans,
+        finalOutput: redactedFinalOutput,
+        ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+        ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
+        ...(builtExecutionData.completionFailure !== undefined
+          ? { completionFailure: builtExecutionData.completionFailure }
+          : {}),
+        ...(builtExecutionData.trigger !== undefined
+          ? { trigger: builtExecutionData.trigger }
+          : {}),
+        ...(builtExecutionData.executionState !== undefined
+          ? { executionState: builtExecutionData.executionState }
+          : {}),
+        ...(builtExecutionData.environment !== undefined
+          ? { environment: builtExecutionData.environment }
+          : {}),
+        ...(builtExecutionData.correlation !== undefined
+          ? { correlation: builtExecutionData.correlation }
+          : {}),
+      },
+      {
+        workflowId: existingLog?.workflowId ?? null,
+        executionId,
+        userId: billingUserId,
+      }
+    )
 
     const rawDurationMs =
       isResume && existingLog?.startedAt

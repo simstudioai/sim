@@ -93,6 +93,12 @@ function transformStrings(value: unknown, handle: (s: string) => string): unknow
   if (typeof value === 'string') {
     return isEligibleString(value) ? handle(value) : value
   }
+  // Treat offloaded large-value refs as opaque: masking their internal `key`/`id`
+  // strings would corrupt the reference. Their content is handled separately
+  // (hydrate → mask → re-store) before this runs.
+  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
+    return value
+  }
   if (Array.isArray(value)) {
     return value.map((item) => transformStrings(item, handle))
   }
@@ -135,44 +141,6 @@ function transformUnit(
     return value.map((span) => transformSpan(span, handle))
   }
   return transformStrings(value, handle)
-}
-
-/** Replace every offloaded large-value ref / array manifest with `handle()`. */
-function transformRefs(value: unknown, handle: () => unknown): unknown {
-  if (isLargeValueRef(value) || isLargeArrayManifest(value)) {
-    return handle()
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => transformRefs(item, handle))
-  }
-  if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [key, v] of Object.entries(value)) {
-      out[key] = transformRefs(v, handle)
-    }
-    return out
-  }
-  return value
-}
-
-/**
- * Replace offloaded large-value references with {@link REDACTION_FAILED_MARKER}.
- *
- * The string redactor only masks inline content; a value already offloaded to
- * large-value storage (>8MB) is an opaque ref it can't reach. Block outputs are
- * masked BEFORE offload only when the block-output stage is on — so when that
- * stage is off, the refs in a persisted log point to unredacted bytes. Scrubbing
- * them keeps raw PII out of the log (the rare huge field loses its content rather
- * than leaking; consistent with the over-ceiling scrub behavior).
- */
-export function scrubLargeValueRefs(payload: RedactablePayload): RedactablePayload {
-  const result: RedactablePayload = { ...payload }
-  for (const key of REDACTABLE_KEYS) {
-    if (payload[key] !== undefined) {
-      result[key] = transformRefs(payload[key], () => REDACTION_FAILED_MARKER)
-    }
-  }
-  return result
 }
 
 /**

@@ -16,7 +16,6 @@ import {
   REDACTION_FAILED_MARKER,
   redactObjectStrings,
   redactPIIFromExecution,
-  scrubLargeValueRefs,
 } from '@/lib/logs/execution/pii-redaction'
 
 describe('redactPIIFromExecution', () => {
@@ -171,29 +170,26 @@ describe('redactObjectStrings', () => {
   })
 })
 
-describe('scrubLargeValueRefs', () => {
-  const ref = {
-    __simLargeValueRef: true,
-    version: 1,
-    id: 'lv_abcdef123456',
-    kind: 'object',
-    size: 9_000_000,
-  }
-
-  it('replaces large-value refs with the marker, preserving surrounding structure', () => {
-    const result = scrubLargeValueRefs({
-      traceSpans: [{ blockId: 'b1', status: 'success', output: { big: ref, small: 'hi' } }],
-      finalOutput: ref,
-    })
-    const span = (result.traceSpans as any[])[0]
-    expect(span.blockId).toBe('b1')
-    expect(span.output.big).toBe(REDACTION_FAILED_MARKER)
-    expect(span.output.small).toBe('hi')
-    expect(result.finalOutput).toBe(REDACTION_FAILED_MARKER)
+describe('transformStrings (via redactObjectStrings) leaves large-value refs intact', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `MASKED(${t})`))
   })
 
-  it('leaves payloads without refs untouched', () => {
-    const payload = { finalOutput: { answer: 'world', count: 5 } }
-    expect(scrubLargeValueRefs(payload)).toEqual(payload)
+  it('does not recurse into / corrupt a large-value ref while masking siblings', async () => {
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_abcdef123456',
+      kind: 'object',
+      size: 9_000_000,
+    }
+    const result = (await redactObjectStrings(
+      { name: 'bob', big: ref },
+      { entityTypes: ['PERSON'] }
+    )) as any
+    expect(result.name).toBe('MASKED(bob)')
+    // The ref is left byte-for-byte intact (its key/id are not masked).
+    expect(result.big).toEqual(ref)
   })
 })
