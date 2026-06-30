@@ -19,6 +19,7 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
@@ -116,16 +117,24 @@ const SELECT_TITLES = new Set([
 ])
 
 function inspectorFieldsFor(block: PreviewBlock) {
-  const rowFields = block.rows.map((row) => ({
-    label: row.title,
-    kind:
-      TEXTAREA_TITLES.has(row.title) || row.value.length > 40
-        ? ('textarea' as const)
-        : SELECT_TITLES.has(row.title)
-          ? ('select' as const)
-          : ('input' as const),
-    value: row.value,
-  }))
+  // Show the block type's full field list (from the reference data) with this
+  // block's example values overlaid, so the inspector reads like the editor's
+  // panel — every field — not just the summary rows shown on the canvas node.
+  const exampleByTitle = new Map(block.rows.map((row) => [row.title, row.value]))
+  const fullRows = BLOCK_DISPLAY_WORKFLOWS[block.type]?.blocks[0]?.rows ?? block.rows
+  const rowFields = fullRows.map((row) => {
+    const value = exampleByTitle.get(row.title) ?? row.value
+    return {
+      label: row.title,
+      kind:
+        TEXTAREA_TITLES.has(row.title) || value.length > 40
+          ? ('textarea' as const)
+          : SELECT_TITLES.has(row.title)
+            ? ('select' as const)
+            : ('input' as const),
+      value,
+    }
+  })
   const branchFields = (block.branches ?? []).map((branch) => ({
     label: branch.label,
     kind: 'code' as const,
@@ -156,8 +165,18 @@ function PreviewFlow({
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
 
+  /**
+   * Apply data changes (highlight/selection) without discarding positions the
+   * viewer has dragged — only a different workflow should relayout the canvas.
+   */
   useEffect(() => {
-    setNodes(initialNodes)
+    setNodes((prev) => {
+      const positions = new Map(prev.map((node) => [node.id, node.position]))
+      return initialNodes.map((node) => {
+        const position = positions.get(node.id)
+        return position ? { ...node, position } : node
+      })
+    })
     setEdges(initialEdges)
   }, [initialNodes, initialEdges])
 
