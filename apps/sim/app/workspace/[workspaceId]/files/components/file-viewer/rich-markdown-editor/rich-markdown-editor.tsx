@@ -31,6 +31,7 @@ import './rich-markdown-editor.css'
 
 const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
+  embeds: true,
 })
 
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
