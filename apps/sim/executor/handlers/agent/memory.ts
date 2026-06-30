@@ -60,19 +60,7 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    // Handlers persist their response to memory before the executor redacts the
-    // block output, so mask here too when the block-output stage is enabled —
-    // otherwise raw PII would be stored in memory and read back on later runs.
-    if (ctx.piiBlockOutputRedaction?.enabled && message.content) {
-      message = {
-        ...message,
-        content: await redactObjectStrings(message.content, {
-          entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
-          language: ctx.piiBlockOutputRedaction.language,
-          onFailure: 'throw',
-        }),
-      }
-    }
+    message = await this.maskContentForStorage(ctx, message)
 
     this.validateContent(message.content)
 
@@ -118,6 +106,10 @@ export class Memory {
       messagesToStore = this.applyTokenWindow(conversationMessages, maxTokens, inputs.model)
     }
 
+    messagesToStore = await Promise.all(
+      messagesToStore.map((message) => this.maskContentForStorage(ctx, message))
+    )
+
     await this.seedMemoryRecord(workspaceId, key, messagesToStore)
 
     logger.debug('Seeded memory', {
@@ -125,6 +117,26 @@ export class Memory {
       key,
       count: messagesToStore.length,
     })
+  }
+
+  /**
+   * Handlers persist messages to memory before the executor redacts block
+   * output, so mask content here too when the block-output stage is enabled —
+   * otherwise raw PII is stored in the memory table and read back on later runs.
+   * `onFailure: 'throw'` aborts rather than persisting unredacted content.
+   */
+  private async maskContentForStorage(ctx: ExecutionContext, message: Message): Promise<Message> {
+    if (!ctx.piiBlockOutputRedaction?.enabled || !message.content) {
+      return message
+    }
+    return {
+      ...message,
+      content: await redactObjectStrings(message.content, {
+        entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+        language: ctx.piiBlockOutputRedaction.language,
+        onFailure: 'throw',
+      }),
+    }
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {
