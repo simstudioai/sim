@@ -125,6 +125,9 @@ jobs:
       - name: Client boundary import audit
         run: bun run check:client-boundary
 
+      - name: Bare-icon theme-safety audit
+        run: bun run check:bare-icons
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 

@@ -12,6 +12,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -150,7 +151,8 @@ function ConnectionItem({
           {Icon && (
             <Icon
               className={clsx(
-                'text-white transition-transform duration-200',
+                'transition-transform duration-200',
+                getTileIconColorClass(bgColor),
                 hasFields && 'group-hover:scale-110',
                 '!h-[9px] !w-[9px]'
               )}

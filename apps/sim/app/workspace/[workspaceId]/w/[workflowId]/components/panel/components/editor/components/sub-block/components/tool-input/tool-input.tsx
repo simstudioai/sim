@@ -59,6 +59,7 @@ import {
   useActiveSearchTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getAllBlocks } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
@@ -426,7 +427,7 @@ function createToolIcon(
       className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
       style={{ background: bgColor }}
     >
-      <IconComponent className='size-[10px] text-white' />
+      <IconComponent className={cn('size-[10px]', getTileIconColorClass(bgColor))} />
     </div>
   )
 }
@@ -1857,13 +1858,25 @@ export const ToolInput = memo(function ToolInput({
                     }}
                   >
                     {isCustomTool ? (
-                      <WrenchIcon className='size-[10px] text-white' />
+                      <WrenchIcon className={cn('size-[10px]', getTileIconColorClass('#3B82F6'))} />
                     ) : isMcpTool ? (
-                      <IconComponent icon={McpIcon} className='size-[10px] text-white' />
+                      <IconComponent
+                        icon={McpIcon}
+                        className={cn(
+                          'size-[10px]',
+                          getTileIconColorClass(mcpTool?.bgColor || '#6366F1')
+                        )}
+                      />
                     ) : isWorkflowTool ? (
-                      <IconComponent icon={WorkflowIcon} className='size-[10px] text-white' />
+                      <IconComponent
+                        icon={WorkflowIcon}
+                        className={cn('size-[10px]', getTileIconColorClass('#6366F1'))}
+                      />
                     ) : (
-                      <IconComponent icon={toolBlock?.icon} className='size-[10px] text-white' />
+                      <IconComponent
+                        icon={toolBlock?.icon}
+                        className={cn('size-[10px]', getTileIconColorClass(toolBlock?.bgColor))}
+                      />
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
