@@ -280,11 +280,16 @@ export async function deleteCopilotFile(key: string): Promise<void> {
     }
   }
 
-  if (released) {
-    await deleteFile({
-      key,
-      context: 'copilot',
-    })
-    logger.info(`Successfully deleted copilot file: ${key}`)
+  // Accounting couldn't be settled (read or release failed). The file is left
+  // fully intact; throw so the caller knows the deletion did not happen and can
+  // retry, rather than silently reporting success.
+  if (!released) {
+    throw new Error(`Copilot file deletion aborted; storage accounting failed for key: ${key}`)
   }
+
+  await deleteFile({
+    key,
+    context: 'copilot',
+  })
+  logger.info(`Successfully deleted copilot file: ${key}`)
 }
