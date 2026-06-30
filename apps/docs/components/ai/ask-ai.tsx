@@ -127,18 +127,27 @@ export function AskAI({ locale }: AskAIProps) {
                 <div
                   key={message.id}
                   className={cn(
-                    'flex flex-col gap-1',
+                    'flex flex-col gap-1.5',
                     message.role === 'user' ? 'items-end' : 'items-start'
                   )}
                 >
                   {message.role === 'user' ? (
-                    <div className='max-w-[90%] whitespace-pre-wrap rounded-lg bg-[var(--surface-active)] px-3 py-2 text-[var(--text-body)] text-sm'>
+                    <div className='max-w-[85%] whitespace-pre-wrap rounded-[16px] bg-[var(--surface-5)] px-3 py-2 text-[var(--text-primary)] text-base leading-[23px]'>
                       {text}
                     </div>
                   ) : (
-                    <div className='max-w-[90%] text-[var(--text-body)] text-sm'>
+                    <div className='max-w-full text-[var(--text-primary)] text-base'>
                       {text ? (
-                        <Streamdown className='space-y-2 text-sm leading-relaxed [&_a]:text-[var(--brand-accent)] [&_a]:underline [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5'>
+                        <Streamdown
+                          className={cn(
+                            'space-y-3 text-base text-[var(--text-primary)] leading-relaxed',
+                            '[&_a]:text-[var(--text-primary)] [&_a]:underline [&_a]:decoration-dashed [&_a]:underline-offset-4',
+                            '[&_strong]:font-[600]',
+                            '[&_h1]:font-[600] [&_h2]:font-[600] [&_h3]:font-[600] [&_h4]:font-[600]',
+                            '[&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1',
+                            '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-[var(--surface-5)] [&_pre]:p-3 [&_pre]:text-small [&_code]:font-mono'
+                          )}
+                        >
                           {text}
                         </Streamdown>
                       ) : isStreaming ? (
