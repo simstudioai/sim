@@ -1,5 +1,6 @@
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled, isForkingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { type ForkEdge, resolveForkEdge } from '@/lib/workspaces/fork/lineage/lineage'
 import { checkWorkspaceAccess, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -9,13 +10,20 @@ import { getWorkspaceCreationPolicy, type WorkspaceCreationPolicy } from '@/lib/
 export type PromoteDirection = 'push' | 'pull'
 
 /**
- * Enterprise-only gate shared by every fork/promote route. On Sim Cloud the gate
- * is the Enterprise plan; on self-hosted it's `FORKING_ENABLED`, which 404s when
- * unset so a newer image doesn't silently expose forking. Mirrors the data-drains
- * gate - this repo gates EE features by plan + env flag, not by directory.
+ * Gate shared by every fork/promote route. A runtime `workspace-forking` flag is the
+ * master rollout switch: on Sim Cloud it's resolved from AppConfig with org/user
+ * context (dark-launchable to specific orgs/users/admins), and off-AppConfig it falls
+ * back to `FORKING_ENABLED`, leaving self-hosted behaviour unchanged. An off/absent
+ * flag 404s so a newer image never silently exposes forking. On Sim Cloud the
+ * Enterprise-plan entitlement still applies on top of the flag. Mirrors the
+ * data-drains gate - this repo gates EE features by plan + flag, not by directory.
  */
-async function assertForkingEnabled(organizationId: string | null): Promise<void> {
-  if (!isBillingEnabled && !isForkingEnabled) {
+async function assertForkingEnabled(organizationId: string | null, userId: string): Promise<void> {
+  const flagEnabled = await isFeatureEnabled('workspace-forking', {
+    userId,
+    orgId: organizationId,
+  })
+  if (!flagEnabled) {
     throw new ForkError('Workspace forking is not enabled on this deployment', 404)
   }
   if (isBillingEnabled) {
@@ -51,7 +59,7 @@ async function requireWorkspace(
   if (!access.exists || !access.workspace) {
     throw new ForkError('Workspace not found', 404)
   }
-  await assertForkingEnabled(access.workspace.organizationId)
+  await assertForkingEnabled(access.workspace.organizationId, userId)
   return { workspace: access.workspace, canAdmin: access.canAdmin }
 }
 
