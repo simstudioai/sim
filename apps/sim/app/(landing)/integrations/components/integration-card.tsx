@@ -1,4 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
+import { memo } from 'react'
 import Link from 'next/link'
 import type { Integration } from '@/lib/integrations'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
@@ -46,7 +47,10 @@ export function IntegrationCard({ integration, IconComponent }: IntegrationItemP
  * Integration list row - matches blog remaining post pattern.
  * Each row followed by an h-px divider.
  */
-export function IntegrationRow({ integration, IconComponent }: IntegrationItemProps) {
+export const IntegrationRow = memo(function IntegrationRow({
+  integration,
+  IconComponent,
+}: IntegrationItemProps) {
   const { slug, name, description, bgColor } = integration
 
   return (
@@ -80,4 +84,4 @@ export function IntegrationRow({ integration, IconComponent }: IntegrationItemPr
       <div className='h-px w-full bg-[var(--border)]' />
     </>
   )
-}
+})

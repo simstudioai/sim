@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
 import { debounce, useQueryStates } from 'nuqs'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
@@ -28,29 +29,42 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   )
   const activeCategory = category || null
 
-  const counts = new Map<string, number>()
-  for (const i of integrations) {
-    if (i.integrationType) {
-      counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+  // Category facets and a per-integration lowercased search index, derived once
+  // from the (stable) integration list instead of rebuilt on every keystroke.
+  // The index keeps each searchable field as its own entry so matching stays
+  // identical to a per-field `includes` (no cross-field boundary matches).
+  const { availableCategories, searchIndex } = useMemo(() => {
+    const counts = new Map<string, number>()
+    const searchIndex = new Map<string, string[]>()
+    for (const i of integrations) {
+      if (i.integrationType) {
+        counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+      }
+      searchIndex.set(i.type, [
+        i.name.toLowerCase(),
+        i.description.toLowerCase(),
+        ...i.operations.flatMap((op) => [op.name.toLowerCase(), op.description.toLowerCase()]),
+        ...i.triggers.map((t) => t.name.toLowerCase()),
+      ])
     }
-  }
-  const availableCategories = Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([key]) => key)
+    return {
+      availableCategories: Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([key]) => key),
+      searchIndex,
+    }
+  }, [integrations])
 
   const q = query.trim().toLowerCase()
-  const filtered = integrations.filter((i) => {
-    if (activeCategory && i.integrationType !== activeCategory) return false
-    if (!q) return true
-    return (
-      i.name.toLowerCase().includes(q) ||
-      i.description.toLowerCase().includes(q) ||
-      i.operations.some(
-        (op) => op.name.toLowerCase().includes(q) || op.description.toLowerCase().includes(q)
-      ) ||
-      i.triggers.some((t) => t.name.toLowerCase().includes(q))
-    )
-  })
+  const filtered = useMemo(
+    () =>
+      integrations.filter((i) => {
+        if (activeCategory && i.integrationType !== activeCategory) return false
+        if (!q) return true
+        return searchIndex.get(i.type)?.some((field) => field.includes(q)) ?? false
+      }),
+    [integrations, searchIndex, q, activeCategory]
+  )
 
   return (
     <div>
