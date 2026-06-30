@@ -94,7 +94,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       value: () => 'channel',
       condition: {
         field: 'operation',
-        value: ['send', 'read'],
+        value: ['send', 'read', 'schedule_message'],
       },
     },
     {
