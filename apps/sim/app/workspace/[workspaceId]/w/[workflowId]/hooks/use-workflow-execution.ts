@@ -163,8 +163,11 @@ function buildInputFormatInput(inputFormatValue: unknown): Record<string, any> |
     }
   }
 
+  // Route file[] fields to the dedicated `files` channel, but never clobber a
+  // user field that is itself named `files` (a reserved-name config error the
+  // executor surfaces on its own).
   const files = collectInputFormatFiles(inputFormatValue)
-  if (files.length > 0) testInput.files = files
+  if (files.length > 0 && !('files' in testInput)) testInput.files = files
 
   return Object.keys(testInput).length > 0 ? testInput : undefined
 }

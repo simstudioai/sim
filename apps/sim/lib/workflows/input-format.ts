@@ -81,14 +81,21 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
 
   if (!Array.isArray(raw)) return []
 
-  return raw.filter(
-    (file): file is InputFormatFile =>
-      file !== null &&
-      typeof file === 'object' &&
-      typeof (file as InputFormatFile).name === 'string' &&
-      typeof (file as InputFormatFile).url === 'string' &&
-      typeof (file as InputFormatFile).id === 'string'
-  )
+  return raw.filter((file): file is InputFormatFile => {
+    if (file === null || typeof file !== 'object') return false
+    const f = file as InputFormatFile
+    // Require the full run-ready shape the executor's normalizeStartFile needs,
+    // so a partial object never opens in uploader mode or reaches the files
+    // channel only to be rejected (which would silently drop every file).
+    return (
+      typeof f.id === 'string' &&
+      typeof f.name === 'string' &&
+      typeof f.url === 'string' &&
+      typeof f.size === 'number' &&
+      Number.isFinite(f.size) &&
+      typeof f.type === 'string'
+    )
+  })
 }
 
 /**

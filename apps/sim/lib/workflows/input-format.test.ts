@@ -288,6 +288,17 @@ describe('parseInputFormatFiles', () => {
   it.concurrent('keeps only the valid files in a mixed array', () => {
     expect(parseInputFormatFiles(JSON.stringify([file, { name: 'bad' }]))).toEqual([file])
   })
+
+  it.concurrent('rejects partial files missing the run-ready size/type', () => {
+    expect(parseInputFormatFiles(JSON.stringify([{ id: 'x', name: 'a.pdf', url: '/u' }]))).toEqual(
+      []
+    )
+    expect(
+      parseInputFormatFiles(
+        JSON.stringify([{ id: 'x', name: 'a.pdf', url: '/u', size: Number.NaN, type: 'x' }])
+      )
+    ).toEqual([])
+  })
 })
 
 describe('collectInputFormatFiles', () => {
