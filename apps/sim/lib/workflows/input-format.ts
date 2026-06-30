@@ -1,6 +1,7 @@
 import { generateId } from '@sim/utils/id'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import type { UserFile } from '@/executor/types'
 
 /**
  * Simplified input field representation for workflow input mapping
@@ -42,33 +43,23 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
 }
 
 /**
- * Field type strings that denote a file input. The editor writes the canonical
- * `file[]`, but workflows authored via copilot or the API persist variants
- * (`files`, `file`, `image`); treat them all as file fields so the uploader and
- * runtime behave consistently.
- */
-const FILE_FIELD_TYPES = new Set(['file[]', 'files', 'file', 'image'])
-
-/**
- * Whether an input-format field type denotes a file input.
+ * Whether an input-format field type denotes a file input. Matches the canonical
+ * `file[]` written by the field-type dropdown — the same literal the execution
+ * and webhook file paths already key off (`lib/execution/files.ts`,
+ * `lib/webhooks/providers/generic.ts`) — so the editor and runtime agree and no
+ * existing non-`file[]` field changes behavior.
  */
 export function isFileFieldType(type: string | null | undefined): boolean {
-  return typeof type === 'string' && FILE_FIELD_TYPES.has(type.trim().toLowerCase())
+  return type === 'file[]'
 }
 
 /**
- * Run-ready file object stored as a file field's value. Mirrors the executor's
- * `UserFile` requirements (`normalizeStartFile`): an internal `url`/`key` plus a
- * stable `id`, so editor-attached files flow into a run unchanged.
+ * Run-ready file object stored as a file field's value. Derived from the
+ * executor's canonical {@link UserFile} (validated by `normalizeStartFile`) so
+ * editor-attached files flow into a run unchanged and the shape can't drift.
  */
-export interface InputFormatFile {
-  id: string
-  name: string
-  url: string
-  key?: string
-  size: number
-  type: string
-}
+export type InputFormatFile = Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 'type'> &
+  Pick<Partial<UserFile>, 'key'>
 
 /**
  * Tolerantly parses a file field's stored value (a JSON string, or an already
@@ -97,6 +88,22 @@ export function parseInputFormatFiles(value: unknown): InputFormatFile[] {
       typeof (file as InputFormatFile).name === 'string' &&
       typeof (file as InputFormatFile).url === 'string' &&
       typeof (file as InputFormatFile).id === 'string'
+  )
+}
+
+/**
+ * Collects all editor-attached files from the file-typed fields of an
+ * inputFormat value. Files are already uploaded (run-ready), so callers can pass
+ * them straight to the executor's file channel without a re-upload.
+ */
+export function collectInputFormatFiles(inputFormatValue: unknown): InputFormatFile[] {
+  if (!Array.isArray(inputFormatValue)) return []
+  return inputFormatValue.flatMap((field) =>
+    field &&
+    typeof field === 'object' &&
+    isFileFieldType((field as { type?: unknown }).type as string)
+      ? parseInputFormatFiles((field as { value?: unknown }).value)
+      : []
   )
 }
 

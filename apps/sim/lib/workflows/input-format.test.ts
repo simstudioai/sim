@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectInputFormatFiles,
   createDefaultInputFormatField,
   extractInputFieldsFromBlocks,
   isFileFieldType,
@@ -232,19 +233,14 @@ describe('normalizeInputFormatValue', () => {
 })
 
 describe('isFileFieldType', () => {
-  it.concurrent('matches canonical and legacy file type variants', () => {
+  it.concurrent('matches the canonical file[] type', () => {
     expect(isFileFieldType('file[]')).toBe(true)
-    expect(isFileFieldType('files')).toBe(true)
-    expect(isFileFieldType('file')).toBe(true)
-    expect(isFileFieldType('image')).toBe(true)
   })
 
-  it.concurrent('is case- and whitespace-insensitive', () => {
-    expect(isFileFieldType('  File[]  ')).toBe(true)
-    expect(isFileFieldType('FILES')).toBe(true)
-  })
-
-  it.concurrent('returns false for non-file and nullish types', () => {
+  it.concurrent('does not match legacy variants or other types (no behavior change)', () => {
+    expect(isFileFieldType('files')).toBe(false)
+    expect(isFileFieldType('file')).toBe(false)
+    expect(isFileFieldType('image')).toBe(false)
     expect(isFileFieldType('string')).toBe(false)
     expect(isFileFieldType('array')).toBe(false)
     expect(isFileFieldType(undefined)).toBe(false)
@@ -291,6 +287,41 @@ describe('parseInputFormatFiles', () => {
 
   it.concurrent('keeps only the valid files in a mixed array', () => {
     expect(parseInputFormatFiles(JSON.stringify([file, { name: 'bad' }]))).toEqual([file])
+  })
+})
+
+describe('collectInputFormatFiles', () => {
+  const file = {
+    id: 'f1',
+    name: 'doc.pdf',
+    url: '/api/files/serve/key',
+    key: 'key',
+    size: 10,
+    type: 'application/pdf',
+  }
+
+  it.concurrent('returns empty for non-array values', () => {
+    expect(collectInputFormatFiles(null)).toEqual([])
+    expect(collectInputFormatFiles('nope')).toEqual([])
+  })
+
+  it.concurrent('collects files only from file[] fields, ignoring other types', () => {
+    const value = [
+      { name: 'query', type: 'string', value: 'hi' },
+      { name: 'a', type: 'file[]', value: JSON.stringify([file]) },
+      { name: 'b', type: 'file[]', value: JSON.stringify([{ ...file, id: 'f2' }]) },
+      { name: 'legacy', type: 'files', value: JSON.stringify([{ ...file, id: 'ignored' }]) },
+    ]
+    expect(collectInputFormatFiles(value).map((f) => f.id)).toEqual(['f1', 'f2'])
+  })
+
+  it.concurrent('ignores legacy/unparseable file values', () => {
+    const value = [
+      { name: 'a', type: 'file[]', value: 'C:/Users/x/budget.xlsx' },
+      { name: 'b', type: 'file[]', value: '[{"data":"<base64>"}]' },
+      { name: 'c', type: 'file[]', value: '' },
+    ]
+    expect(collectInputFormatFiles(value)).toEqual([])
   })
 })
 
