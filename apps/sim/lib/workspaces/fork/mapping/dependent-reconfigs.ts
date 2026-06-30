@@ -8,7 +8,10 @@ import {
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  resolveActiveCanonicalValue,
+  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import { toScannerBlocks } from '@/lib/workspaces/fork/remap/reference-scan'
@@ -63,6 +66,8 @@ interface EmitAnchoredParams {
   contextSubBlocks: Record<string, { value?: unknown }>
   blockName: string
   targetWorkflowId: string
+  /** Canonical-mode overrides for resolving the active parent member (undefined -> value heuristic). */
+  canonicalModes?: CanonicalModeOverrides
   /** Memoized so the deterministic target block id is derived at most once per block. */
   resolveTargetBlockId: () => string
   /** Map a dependent's config id to its wire `subBlockKey` (identity, or nested `tools[i].id`). */
@@ -92,6 +97,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     contextSubBlocks,
     blockName,
     targetWorkflowId,
+    canonicalModes,
     resolveTargetBlockId,
     makeSubBlockKey,
     makeTitle,
@@ -107,7 +113,14 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   for (const anchor of PARENT_ANCHORS) {
     for (const anchorCfg of config.subBlocks) {
       if (anchorCfg.type !== anchor.subBlockType || !anchorCfg.id) continue
-      const rawValue = values[anchorCfg.id]
+      // Resolve the parent's ACTIVE canonical value: an advanced override (or an advanced-only
+      // value) beats a stale dormant basic selector, so a dependent re-pick is offered when
+      // advanced mode is active (today's raw basic read skips it).
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[anchorCfg.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      const rawValue = group
+        ? resolveActiveCanonicalValue(group, values, canonicalModes)
+        : values[anchorCfg.id]
       const parentSourceId = typeof rawValue === 'string' ? rawValue : ''
       // Skip empty and org-scoped credential sets (those carry over unchanged).
       if (!parentSourceId || parentSourceId.startsWith('credentialSet:')) continue
@@ -224,7 +237,9 @@ export function collectForkDependentReconfigs(
       const resolveBlockId = () =>
         (cachedTargetBlockId ??= resolveTargetBlockId(item.targetWorkflowId, sourceBlockId))
 
-      // Top-level credential/KB/table-anchored selectors.
+      // Top-level credential/KB/table-anchored selectors. Block-level canonicalModes pick the
+      // active parent member; nested tools below pass their tool-scoped overrides (via
+      // scopeCanonicalModesForTool), falling back to the value heuristic only when none is set.
       emitAnchoredDependents({
         config,
         values: sourceValues,
@@ -232,6 +247,7 @@ export function collectForkDependentReconfigs(
         contextSubBlocks: subBlocks,
         blockName: block.name,
         targetWorkflowId: item.targetWorkflowId,
+        canonicalModes: block.data?.canonicalModes,
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
@@ -274,6 +290,7 @@ export function collectForkDependentReconfigs(
             contextSubBlocks: toolContextSubBlocks,
             blockName: block.name,
             targetWorkflowId: item.targetWorkflowId,
+            canonicalModes: scopeCanonicalModesForTool(block.data?.canonicalModes, tool.type),
             resolveTargetBlockId: resolveBlockId,
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
             makeTitle: (dependent) => `${toolLabel}: ${dependent.title ?? dependent.id ?? ''}`,

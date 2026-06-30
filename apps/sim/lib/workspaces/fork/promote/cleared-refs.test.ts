@@ -271,6 +271,74 @@ describe('collectForkClearedRefCandidates', () => {
     expect(result).toEqual([])
   })
 
+  it('collapses the workflowId pair to the active member: a dormant basic selector is not a false cleared-ref', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        {
+          id: 'workflowId',
+          title: 'Workflow',
+          type: 'workflow-selector',
+          canonicalParamId: 'workflowId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualWorkflowId',
+          title: 'Workflow ID',
+          type: 'short-input',
+          canonicalParamId: 'workflowId',
+          mode: 'advanced',
+        },
+      ])
+    )
+    // Advanced mode active; the dormant basic selector holds a stale, uncopied id.
+    const advancedState = {
+      blocks: {
+        'block-1': {
+          id: 'block-1',
+          type: 'workflow',
+          name: 'Caller',
+          data: { canonicalModes: { workflowId: 'advanced' } },
+          subBlocks: {
+            workflowId: { type: 'workflow-selector', value: 'wf-old' },
+            manualWorkflowId: { type: 'short-input', value: 'wf-active' },
+          },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    } as unknown as WorkflowState
+    const item = {
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      mode: 'replace' as const,
+      sourceMeta: { name: 'Caller' },
+    }
+
+    // Active advanced workflow carried into the target: the dormant basic must NOT produce a row.
+    const carried = collectForkClearedRefCandidates(
+      params({
+        items: [item],
+        sourceStates: new Map([['wf-src', advancedState]]),
+        workflowIdMap: new Map([['wf-active', 'wf-active-child']]),
+      })
+    )
+    expect(carried.filter((ref) => ref.cause === 'workflow')).toEqual([])
+
+    // The ACTIVE member still produces a row when it is not carried (active path unbroken).
+    const cleared = collectForkClearedRefCandidates(
+      params({
+        items: [item],
+        sourceStates: new Map([['wf-src', advancedState]]),
+        sourceWorkflowNames: new Map([['wf-active', 'Active Workflow']]),
+      })
+    )
+    const workflowRows = cleared.filter((ref) => ref.cause === 'workflow')
+    expect(workflowRows).toHaveLength(1)
+    expect(workflowRows[0].sourceId).toBe('wf-active')
+  })
+
   it('emits a configured create-target dependent a remapped parent will clear (cause dependent)', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([

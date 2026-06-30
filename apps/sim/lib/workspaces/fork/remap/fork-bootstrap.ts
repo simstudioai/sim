@@ -1,4 +1,5 @@
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   clearDependentsOnRemap,
   type ForkRemapKind,
@@ -22,9 +23,13 @@ export type ForkCopyResolver = (kind: ForkRemapKind, sourceId: string) => string
  */
 export function createForkBootstrapTransform(
   resolveCopied: ForkCopyResolver
-): (subBlocks: SubBlockRecord, blockType: string) => SubBlockRecord {
-  return (subBlocks, blockType) => {
+): (
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  canonicalModes?: CanonicalModeOverrides
+) => SubBlockRecord {
+  return (subBlocks, blockType, canonicalModes) => {
     const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create')
-    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys)
+    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys, canonicalModes)
   }
 }

@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -63,8 +64,13 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
 
       const config = getProviderConfig<GoogleSheetsWebhookConfig>(webhookData.providerConfig)
-      const spreadsheetId = config.spreadsheetId || config.manualSpreadsheetId
-      const sheetName = config.sheetName || config.manualSheetName
+      // Canonical keys (`spreadsheetId`/`sheetName`) first; the `manual*` keys are a transitional
+      // basic-first fallback for configs deployed before the canonical key existed.
+      const spreadsheetId = readCanonicalTriggerValue(
+        config.spreadsheetId,
+        config.manualSpreadsheetId
+      )
+      const sheetName = readCanonicalTriggerValue(config.sheetName, config.manualSheetName)
       const now = new Date()
 
       if (!spreadsheetId || !sheetName) {

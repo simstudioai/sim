@@ -4,6 +4,13 @@ import {
   isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import {
@@ -58,9 +65,21 @@ function baseSubBlockId(key: string): string {
  * remap would clear. Returns one entry per referenced workflow id with its owning subblock key.
  */
 function collectForkWorkflowReferences(
-  subBlocks: SubBlockRecord
+  subBlocks: SubBlockRecord,
+  config: ReturnType<typeof getBlock>,
+  canonicalModes: CanonicalModeOverrides | undefined
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
+  // Collapse the `workflowId` canonical pair (basic `workflow-selector` + advanced `manualWorkflowId`)
+  // to its ACTIVE member: only the active mode is serialized, so a dormant stale member is not a ref
+  // that would be cleared (mirrors remap-internal-ids.ts). Undefined mode -> emit both (legacy/no-pair).
+  const workflowGroup = config
+    ? buildCanonicalIndex(config.subBlocks).groupsById.workflowId
+    : undefined
+  const workflowMode =
+    workflowGroup && isCanonicalPair(workflowGroup)
+      ? resolveCanonicalMode(workflowGroup, buildSubBlockValues(subBlocks), canonicalModes)
+      : undefined
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (!subBlock || typeof subBlock !== 'object') continue
     const baseKey = baseSubBlockId(key)
@@ -69,6 +88,9 @@ function collectForkWorkflowReferences(
       typeof subBlock.value === 'string' &&
       subBlock.value
     ) {
+      // Skip the dormant member of the pair (the active mode owns the reference).
+      const isAdvancedMember = baseKey === 'manualWorkflowId'
+      if (workflowMode && (workflowMode === 'advanced') !== isAdvancedMember) continue
       out.push({ workflowId: subBlock.value, subBlockKey: key })
     } else if (baseKey === 'manualWorkflowIds' || baseKey === 'workflowSelector') {
       const ids = Array.isArray(subBlock.value)
@@ -157,7 +179,11 @@ export function collectForkClearedRefCandidates(
       }
 
       // Cause `workflow`: refs to a workflow not carried into the target.
-      for (const wfRef of collectForkWorkflowReferences(subBlocks)) {
+      for (const wfRef of collectForkWorkflowReferences(
+        subBlocks,
+        config,
+        block.data?.canonicalModes
+      )) {
         if (workflowIdMap.has(wfRef.workflowId)) continue
         out.push({
           targetWorkflowId: item.targetWorkflowId,

@@ -119,6 +119,71 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     expect(result.inputMapping.value).toBe('{"a":"b"}')
   })
 
+  // The `inputMapping` belongs to the ACTIVE canonical mode's workflow only. resolveCanonicalMode
+  // picks the active mode (block.data.canonicalModes override, else the value heuristic); the wipe
+  // fires iff the ACTIVE mode's workflowId was removed by the remap. clearUnmapped: true throughout.
+  it('keeps inputMapping: active basic valid + dormant advanced stale (no override)', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
+      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-unknown' },
+      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
+    expect(result.workflowId.value).toBe('wf-dst')
+    expect(result.manualWorkflowId.value).toBe('')
+    expect(result.inputMapping.value).toBe('{"a":"b"}')
+  })
+
+  it('wipes inputMapping: active advanced stale (canonicalModes override) + dormant basic valid', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
+      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-unknown' },
+      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, {
+      clearUnmapped: true,
+      canonicalModes: { workflowId: 'advanced' },
+    })
+    expect(result.workflowId.value).toBe('wf-dst')
+    expect(result.manualWorkflowId.value).toBe('')
+    expect(result.inputMapping.value).toBe('')
+  })
+
+  it('wipes inputMapping: active basic stale (heuristic) + dormant advanced valid', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-unknown' },
+      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-src' },
+      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
+    expect(result.workflowId.value).toBe('')
+    expect(result.manualWorkflowId.value).toBe('wf-dst')
+    expect(result.inputMapping.value).toBe('')
+  })
+
+  it('wipes inputMapping: active advanced stale + basic empty (heuristic)', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowId: { id: 'workflowId', type: 'workflow-selector', value: '' },
+      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-unknown' },
+      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
+    expect(result.manualWorkflowId.value).toBe('')
+    expect(result.inputMapping.value).toBe('')
+  })
+
+  it('keeps inputMapping: both modes valid', () => {
+    const subBlocks: SubBlockRecord = {
+      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
+      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'sub-src' },
+      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
+    }
+    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
+    expect(result.workflowId.value).toBe('wf-dst')
+    expect(result.manualWorkflowId.value).toBe('sub-dst')
+    expect(result.inputMapping.value).toBe('{"a":"b"}')
+  })
+
   it('remaps the advanced-mode manualWorkflowId override', () => {
     const subBlocks: SubBlockRecord = {
       manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-src' },

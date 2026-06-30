@@ -23,11 +23,13 @@ import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-
 import { createForkBootstrapTransform } from '@/lib/workspaces/fork/remap/fork-bootstrap'
 import {
   applyDependentOverrides,
+  clearDependentsOnRemap,
   collectClearedDependents,
   parseNestedDependentKey,
   readTargetDraftDependentValue,
   remapForkSubBlocks,
   remapToolBlockResources,
+  scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import { getBlock } from '@/blocks/registry'
 
@@ -408,6 +410,137 @@ describe('createForkBootstrapTransform document-selector remap', () => {
     const result = transform(subBlocks(), 'knowledge')
     expect(result.knowledgeBaseId.value).toBe('kb-dst')
     expect(result.documentId.value).toBe('')
+  })
+})
+
+describe('clearDependentsOnRemap canonical-pair gating', () => {
+  const kbCanonicalBlock = () =>
+    blockWith([
+      {
+        id: 'knowledgeBaseSelector',
+        title: 'KB',
+        type: 'knowledge-base-selector',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualKnowledgeBaseId',
+        title: 'KB ID',
+        type: 'short-input',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'advanced',
+      },
+      {
+        id: 'documentSelector',
+        title: 'Document',
+        type: 'document-selector',
+        dependsOn: ['knowledgeBaseSelector'],
+      },
+    ])
+
+  it('does not clear a dependent when only the DORMANT basic selector was remapped (advanced active)', () => {
+    vi.mocked(getBlock).mockReturnValue(kbCanonicalBlock())
+    const subBlocks: SubBlockRecord = {
+      knowledgeBaseSelector: { type: 'knowledge-base-selector', value: '' },
+      manualKnowledgeBaseId: { type: 'short-input', value: 'kb-active' },
+      documentSelector: { type: 'document-selector', value: 'doc-1' },
+    }
+    const result = clearDependentsOnRemap(
+      subBlocks,
+      'knowledge',
+      new Set(['knowledgeBaseSelector']),
+      {
+        knowledgeBaseId: 'advanced',
+      }
+    )
+    // The active advanced parent is unchanged, so the dependent must be preserved.
+    expect(result.documentSelector.value).toBe('doc-1')
+  })
+
+  it('clears a dependent when the ACTIVE basic selector was remapped (basic active)', () => {
+    vi.mocked(getBlock).mockReturnValue(kbCanonicalBlock())
+    const subBlocks: SubBlockRecord = {
+      knowledgeBaseSelector: { type: 'knowledge-base-selector', value: 'kb-new' },
+      manualKnowledgeBaseId: { type: 'short-input', value: '' },
+      documentSelector: { type: 'document-selector', value: 'doc-1' },
+    }
+    const result = clearDependentsOnRemap(
+      subBlocks,
+      'knowledge',
+      new Set(['knowledgeBaseSelector']),
+      {
+        knowledgeBaseId: 'basic',
+      }
+    )
+    // Basic is active; its remap clears the dependent (unchanged behavior).
+    expect(result.documentSelector.value).toBe('')
+  })
+})
+
+describe('scanWorkflowReferences canonical-pair detection', () => {
+  const credBlock = () =>
+    blockWith([
+      {
+        id: 'credential',
+        title: 'Account',
+        type: 'oauth-input',
+        canonicalParamId: 'credential',
+        mode: 'basic',
+      },
+      {
+        id: 'manualCredential',
+        title: 'Account ID',
+        type: 'short-input',
+        canonicalParamId: 'credential',
+        mode: 'advanced',
+      },
+    ])
+  // The advanced manualCredential is a short-input escape hatch (never scanned); the basic
+  // oauth-input is the detectable member, so the "active" assertion targets the basic mode.
+  const scanBlock = (canonicalModes?: Record<string, 'basic' | 'advanced'>) => ({
+    id: 'b1',
+    name: 'Send',
+    type: 'gmail',
+    canonicalModes,
+    subBlocks: {
+      credential: { id: 'credential', type: 'oauth-input', value: 'cred-stale' },
+      manualCredential: { id: 'manualCredential', type: 'short-input', value: 'cred-active' },
+    },
+  })
+
+  it('does not detect a DORMANT basic credential while advanced is active (no required ref / sync gate)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const scan = scanWorkflowReferences([scanBlock({ credential: 'advanced' })], () => null)
+    expect(scan.references.filter((ref) => ref.kind === 'credential')).toEqual([])
+    expect(scan.unmapped.filter((ref) => ref.kind === 'credential')).toEqual([])
+  })
+
+  it('detects the ACTIVE basic credential as a required reference (basic active)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const scan = scanWorkflowReferences([scanBlock({ credential: 'basic' })], () => null)
+    const creds = scan.references.filter((ref) => ref.kind === 'credential')
+    expect(creds).toHaveLength(1)
+    expect(creds[0].sourceId).toBe('cred-stale')
+    expect(creds[0].required).toBe(true)
+  })
+
+  it('skips DETECTION for a dormant member but still REWRITES its value (separation)', () => {
+    vi.mocked(getBlock).mockReturnValue(credBlock())
+    const result = remapForkSubBlocks(
+      {
+        credential: { id: 'credential', type: 'oauth-input', value: 'cred-stale' },
+        manualCredential: { id: 'manualCredential', type: 'short-input', value: 'cred-active' },
+      },
+      () => null,
+      'promote',
+      { blockType: 'gmail', canonicalModes: { credential: 'advanced' } }
+    )
+    // Detection skipped (dormant basic), so it never gates sync...
+    expect(result.references.filter((ref) => ref.kind === 'credential')).toEqual([])
+    // ...but the dual-mode rewrite still cleared the unresolved dormant basic credential.
+    expect(result.subBlocks.credential.value).toBe('')
+    // The advanced escape-hatch id is preserved verbatim (not auto-remapped).
+    expect(result.subBlocks.manualCredential.value).toBe('cred-active')
   })
 })
 

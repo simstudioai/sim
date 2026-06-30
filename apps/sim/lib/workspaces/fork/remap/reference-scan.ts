@@ -1,8 +1,18 @@
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   type ForkRemapKind,
   scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+/** A block reduced to what the reference scanner reads (incl. canonical context for detection). */
+interface ScannerBlock {
+  id: string
+  name: string
+  type: string
+  subBlocks: unknown
+  canonicalModes?: CanonicalModeOverrides
+}
 
 /**
  * Unique source ids of one remap kind referenced across a set of blocks - both top-level
@@ -12,7 +22,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  * of mapping), so a null resolver is passed.
  */
 export function collectReferencedResourceIds(
-  blocks: Array<{ id: string; name: string; subBlocks: unknown }>,
+  blocks: ScannerBlock[],
   kind: ForkRemapKind
 ): Set<string> {
   const ids = new Set<string>()
@@ -28,13 +38,13 @@ export function collectReferencedResourceIds(
  * to the scanner, which re-narrows per subblock type) to one spot shared by every fork caller
  * that scans a source workflow's references.
  */
-export function toScannerBlocks(
-  state: WorkflowState
-): Array<{ id: string; name: string; subBlocks: unknown }> {
+export function toScannerBlocks(state: WorkflowState): ScannerBlock[] {
   return Object.values(state.blocks).map((block) => ({
     id: block.id,
     name: block.name,
+    type: block.type,
     subBlocks: block.subBlocks as unknown,
+    canonicalModes: block.data?.canonicalModes,
   }))
 }
 

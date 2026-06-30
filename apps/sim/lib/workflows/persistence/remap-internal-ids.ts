@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
+import { resolveCanonicalMode } from '@/lib/workflows/subblocks/visibility'
 import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowRemapInternalIds')
@@ -140,24 +141,33 @@ export function remapVariableIdsInSubBlocks(
 export function remapWorkflowReferencesInSubBlocks(
   subBlocks: SubBlockRecord,
   workflowIdMap: Map<string, string> | undefined,
-  options?: { clearUnmapped?: boolean }
+  options?: { clearUnmapped?: boolean; canonicalModes?: Record<string, 'basic' | 'advanced'> }
 ): SubBlockRecord {
   if (!workflowIdMap?.size) return subBlocks
   const clearUnmapped = options?.clearUnmapped ?? false
-  let clearedWorkflowSelector = false
   const remapScalar = (value: string): string => {
     const mapped = workflowIdMap.get(value)
     if (mapped) return mapped
-    if (clearUnmapped) {
-      clearedWorkflowSelector = true
-      return ''
-    }
-    return value
+    return clearUnmapped ? '' : value
   }
+  // The `workflowId` canonical pair: basic `workflow-selector` + advanced `manualWorkflowId`. Capture
+  // each key (by type/baseKey, regardless of value) and its ORIGINAL value so the inputMapping wipe
+  // below can decide on the ACTIVE mode's disposition via `resolveCanonicalMode`.
+  let basicId: string | undefined
+  let basicValue = ''
+  let advancedId: string | undefined
+  let advancedValue = ''
   const updated: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (subBlock && typeof subBlock === 'object') {
       const baseKey = key.replace(/_\d+$/, '')
+      if (subBlock.type === 'workflow-selector' && basicId === undefined) {
+        basicId = key
+        basicValue = typeof subBlock.value === 'string' ? subBlock.value : ''
+      } else if (baseKey === 'manualWorkflowId' && advancedId === undefined) {
+        advancedId = key
+        advancedValue = typeof subBlock.value === 'string' ? subBlock.value : ''
+      }
       if (
         (subBlock.type === 'workflow-selector' || baseKey === 'manualWorkflowId') &&
         typeof subBlock.value === 'string' &&
@@ -183,16 +193,27 @@ export function remapWorkflowReferencesInSubBlocks(
     }
     updated[key] = subBlock
   }
-  // A cleared workflow selector (its target workflow wasn't copied) leaves the block's
-  // `inputMapping` pointing at a workflow that no longer exists; clear it too so no orphaned
-  // mapping survives. The nested `workflow_input` tool case drops the whole tool (with its
-  // inputMapping) above, so only the top-level block-level inputMapping needs this.
-  if (clearedWorkflowSelector) {
-    for (const [key, subBlock] of Object.entries(updated)) {
-      if (key.replace(/_\d+$/, '') !== 'inputMapping') continue
-      if (!subBlock || typeof subBlock !== 'object') continue
-      if (subBlock.value === '' || subBlock.value == null) continue
-      updated[key] = { ...subBlock, value: '' }
+
+  if (basicId !== undefined || advancedId !== undefined) {
+    const isEmptyValue = (value: unknown) => value === '' || value == null
+    const values: Record<string, unknown> = {}
+    if (basicId !== undefined) values[basicId] = basicValue
+    if (advancedId !== undefined) values[advancedId] = advancedValue
+    const activeMode = resolveCanonicalMode(
+      { canonicalId: 'workflowId', basicId, advancedIds: advancedId ? [advancedId] : [] },
+      values,
+      options?.canonicalModes
+    )
+    const activeKey = activeMode === 'advanced' ? advancedId : basicId
+    const originalActive = activeKey === basicId ? basicValue : advancedValue
+    const postActive = activeKey !== undefined ? updated[activeKey]?.value : undefined
+    if (activeKey !== undefined && !isEmptyValue(originalActive) && isEmptyValue(postActive)) {
+      for (const [key, subBlock] of Object.entries(updated)) {
+        if (key.replace(/_\d+$/, '') !== 'inputMapping') continue
+        if (!subBlock || typeof subBlock !== 'object') continue
+        if (subBlock.value === '' || subBlock.value == null) continue
+        updated[key] = { ...subBlock, value: '' }
+      }
     }
   }
   return updated
