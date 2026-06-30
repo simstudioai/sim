@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { checkStorageQuota, releaseDeletedFileStorage } from '@/lib/billing/storage'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   deleteFile,
@@ -8,7 +7,6 @@ import {
   generatePresignedUploadUrl,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
@@ -95,11 +93,6 @@ export async function generateCopilotUploadUrl(
     )
   }
 
-  const quotaCheck = await checkStorageQuota(userId, fileSize)
-  if (!quotaCheck.allowed) {
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
-  }
-
   const presignedUrlResponse = await generatePresignedUploadUrl({
     fileName,
     contentType,
@@ -123,11 +116,6 @@ export async function uploadCopilotFile(options: {
   contentType: string
   userId: string
 }): Promise<CopilotStoredFile> {
-  const quotaCheck = await checkStorageQuota(options.userId, options.buffer.length)
-  if (!quotaCheck.allowed) {
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
-  }
-
   const fileInfo = await uploadFile({
     file: options.buffer,
     fileName: options.fileName,
@@ -149,8 +137,6 @@ export async function uploadCopilotFile(options: {
     userId: options.userId,
   })
 
-  // Storage is incremented centrally when the metadata row is created (see
-  // insertFileMetadata), so there is no per-path increment here.
   return {
     id: fileInfo.key,
     key: fileInfo.key,
@@ -253,43 +239,10 @@ export async function generateCopilotDownloadUrl(
  * @param key File storage key
  */
 export async function deleteCopilotFile(key: string): Promise<void> {
-  let metadataReadFailed = false
-  const metadata = await getFileMetadataByKey(key, 'copilot').catch((error) => {
-    logger.error('Failed to read copilot file metadata for storage accounting:', error)
-    metadataReadFailed = true
-    return null
-  })
-
-  // Settle accounting (atomic soft-delete + decrement) BEFORE removing the blob,
-  // and only delete the blob if it succeeded — so any failure (including a failed
-  // metadata read, which may hide a still-active row) leaves the file fully intact
-  // and retryable rather than orphaning the blob with an inflated counter.
-  let released = !metadataReadFailed
-  if (metadata) {
-    try {
-      await releaseDeletedFileStorage(
-        key,
-        metadata.userId,
-        metadata.size,
-        metadata.workspaceId ?? undefined
-      )
-      released = true
-    } catch (storageError) {
-      released = false
-      logger.error('Failed to release copilot file storage:', storageError)
-    }
-  }
-
-  // Accounting couldn't be settled (read or release failed). The file is left
-  // fully intact; throw so the caller knows the deletion did not happen and can
-  // retry, rather than silently reporting success.
-  if (!released) {
-    throw new Error(`Copilot file deletion aborted; storage accounting failed for key: ${key}`)
-  }
-
   await deleteFile({
     key,
     context: 'copilot',
   })
+
   logger.info(`Successfully deleted copilot file: ${key}`)
 }

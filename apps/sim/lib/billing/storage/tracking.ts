@@ -5,9 +5,9 @@
  */
 
 import { db } from '@sim/db'
-import { organization, userStats, workspaceFiles } from '@sim/db/schema'
+import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage/limits'
@@ -193,50 +193,5 @@ export async function decrementStorageUsageInTx(
       .update(userStats)
       .set({ storageUsedBytes: sql`GREATEST(0, ${userStats.storageUsedBytes} - ${bytes})` })
       .where(eq(userStats.userId, userId))
-  }
-}
-
-/**
- * Atomically soft-delete a file's metadata row and decrement the owner's storage
- * counter in a single transaction.
- *
- * The soft-delete (`deletedAt` transition) is the idempotency claim: only the
- * call that actually flips the row decrements, so a retry that finds the row
- * already deleted does not double-count. Because the claim and the decrement
- * share one transaction, a failure of either rolls both back — the counter is
- * never left permanently inflated and never double-decremented. Best-effort:
- * when billing is disabled it just soft-deletes the row.
- */
-export async function releaseDeletedFileStorage(
-  key: string,
-  userId: string,
-  bytes: number,
-  workspaceId?: string
-): Promise<void> {
-  if (!isBillingEnabled || bytes <= 0) {
-    await db
-      .update(workspaceFiles)
-      .set({ deletedAt: new Date() })
-      .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
-    return
-  }
-
-  const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-  const sub = await getHighestPrioritySubscription(userId)
-
-  let claimed = false
-  await db.transaction(async (tx) => {
-    const claimedRows = await tx
-      .update(workspaceFiles)
-      .set({ deletedAt: new Date() })
-      .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
-      .returning({ id: workspaceFiles.id })
-    if (claimedRows.length === 0) return
-    claimed = true
-    await decrementStorageUsageInTx(tx, sub, userId, bytes)
-  })
-
-  if (claimed && workspaceId) {
-    void maybeNotifyStorageLimit(userId, workspaceId, sub, true)
   }
 }

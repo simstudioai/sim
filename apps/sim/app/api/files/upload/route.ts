@@ -10,7 +10,6 @@ import {
 } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { checkStorageQuota } from '@/lib/billing/storage'
 import {
   assertKnownSizeWithinLimit,
   isPayloadSizeLimitError,
@@ -375,15 +374,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         if (workspaceId && context === 'chat') {
           metadata.workspaceId = workspaceId
-        }
-
-        // Copilot uploads are metered, so gate against the storage quota before
-        // writing — the increment happens centrally when the metadata row lands.
-        if (context === 'copilot') {
-          const quotaCheck = await checkStorageQuota(session.user.id, buffer.length)
-          if (!quotaCheck.allowed) {
-            throw new InvalidRequestError(quotaCheck.error || 'Storage limit exceeded')
-          }
         }
 
         const fileInfo = await storageService.uploadFile({
