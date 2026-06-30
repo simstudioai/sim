@@ -3,10 +3,15 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('GitHubStars')
 
-const FALLBACK_STAR_COUNT = 28800
+/**
+ * Floor shown only when the live GitHub count can't be fetched. Kept a touch
+ * below the real count (~28.9k as of 2026-06) so it never overstates, and
+ * bumped periodically.
+ */
+const FALLBACK_STAR_COUNT = 28900
 
 /**
- * Formats a raw star count for display (e.g. 19400 → "19.4k").
+ * Formats a raw star count for display (e.g. 28900 → "28.9k").
  */
 export function formatStarCount(num: number): string {
   if (num < 1000) return String(num)

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import {
   blockTypeToIconMap,
@@ -11,6 +12,7 @@ import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
 import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
 import { RequestIntegrationModal } from '@/app/(landing)/integrations/components/request-integration-modal'
+import { integrationsSearchParamsCache } from '@/app/(landing)/integrations/search-params'
 
 const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
@@ -87,7 +89,16 @@ export const metadata: Metadata = {
   alternates: { canonical: `${baseUrl}/integrations` },
 }
 
-export default function IntegrationsPage() {
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  // Parse on the server so the route renders dynamically with the active
+  // search/category from the URL — the client grid (`useQueryStates`) hydrates in
+  // sync, keeping filtered views crawlable and shareable.
+  await integrationsSearchParamsCache.parse(searchParams)
+
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',

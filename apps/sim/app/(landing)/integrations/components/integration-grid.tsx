@@ -1,9 +1,16 @@
 'use client'
 
-import { useState } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
+import { debounce, useQueryStates } from 'nuqs'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
+import {
+  integrationsParsers,
+  integrationsUrlKeys,
+} from '@/app/(landing)/integrations/search-params'
+
+/** Debounce window for writing the search term to the URL (filtering is instant). */
+const SEARCH_DEBOUNCE_MS = 300
 
 const PILL_BASE =
   'rounded-[5px] border border-[var(--border-1)] px-[9px] py-0.5 text-small text-[var(--text-primary)] transition-colors' as const
@@ -15,8 +22,11 @@ interface IntegrationGridProps {
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
-  const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [{ q: query, category }, setParams] = useQueryStates(
+    integrationsParsers,
+    integrationsUrlKeys
+  )
+  const activeCategory = category || null
 
   const counts = new Map<string, number>()
   for (const i of integrations) {
@@ -51,7 +61,9 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) =>
+              setParams({ q: e.target.value }, { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) })
+            }
             aria-label='Search integrations'
           />
         </div>
@@ -60,7 +72,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       <div className='mb-6 flex flex-wrap gap-2 px-6'>
         <button
           type='button'
-          onClick={() => setActiveCategory(null)}
+          onClick={() => setParams({ category: '' })}
           className={`${PILL_BASE} ${activeCategory === null ? PILL_ACTIVE : PILL_INACTIVE}`}
         >
           All
@@ -69,7 +81,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
           <button
             key={cat}
             type='button'
-            onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+            onClick={() => setParams({ category: activeCategory === cat ? '' : cat })}
             className={`${PILL_BASE} ${activeCategory === cat ? PILL_ACTIVE : PILL_INACTIVE}`}
           >
             {formatIntegrationType(cat)}

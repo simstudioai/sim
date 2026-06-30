@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
 import Link from 'next/link'
+import { debounce, useQueryStates } from 'nuqs'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
+import { modelsParsers, modelsUrlKeys } from '@/app/(landing)/models/search-params'
 import {
   type CatalogModel,
   type CatalogProvider,
@@ -14,6 +16,9 @@ import {
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
 } from '@/app/(landing)/models/utils'
 
+/** Debounce window for writing the search term to the URL (filtering is instant). */
+const SEARCH_DEBOUNCE_MS = 300
+
 const PROVIDER_OPTIONS = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
   id: provider.id,
   name: provider.name,
@@ -21,8 +26,8 @@ const PROVIDER_OPTIONS = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
 }))
 
 export function ModelDirectory() {
-  const [query, setQuery] = useState('')
-  const [activeProviderId, setActiveProviderId] = useState<string | null>(null)
+  const [{ q: query, provider }, setParams] = useQueryStates(modelsParsers, modelsUrlKeys)
+  const activeProviderId = provider || null
 
   const normalizedQuery = query.trim().toLowerCase()
 
@@ -85,7 +90,12 @@ export function ModelDirectory() {
             type='search'
             placeholder='Search models, providers, or capabilities…'
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) =>
+              setParams(
+                { q: event.target.value },
+                { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+              )
+            }
             aria-label='Search AI models'
           />
         </div>
@@ -94,7 +104,7 @@ export function ModelDirectory() {
       <div className='mb-6 flex flex-wrap gap-2 px-6'>
         <button
           type='button'
-          onClick={() => setActiveProviderId(null)}
+          onClick={() => setParams({ provider: '' })}
           className={`rounded-[5px] border px-[9px] py-0.5 text-small transition-colors ${
             activeProviderId === null
               ? 'border-[var(--border-1)] bg-[var(--surface-active)] text-[var(--text-primary)]'
@@ -108,7 +118,7 @@ export function ModelDirectory() {
             key={provider.id}
             type='button'
             onClick={() =>
-              setActiveProviderId(activeProviderId === provider.id ? null : provider.id)
+              setParams({ provider: activeProviderId === provider.id ? '' : provider.id })
             }
             className={`rounded-[5px] border px-[9px] py-0.5 text-small transition-colors ${
               activeProviderId === provider.id

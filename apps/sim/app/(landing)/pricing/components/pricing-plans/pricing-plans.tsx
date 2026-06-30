@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useQueryStates } from 'nuqs'
 import { getUpgradeCardCta, type PlanTier, type UpgradeCardId } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
 import {
@@ -9,6 +9,7 @@ import {
   type PricingCardCta,
   type PricingCardSection,
 } from '@/app/(landing)/pricing/components/pricing-card'
+import { pricingParsers, pricingUrlKeys } from '@/app/(landing)/pricing/search-params'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components'
 import {
   type CellValue,
@@ -65,7 +66,9 @@ function sectionsForColumn(col: number): PricingCardSection[] {
  * included, funnels to `/signup`.
  */
 export function PricingPlans({ heading }: PricingPlansProps) {
-  const [isAnnual, setIsAnnual] = useState(false)
+  const [{ billing }, setParams] = useQueryStates(pricingParsers, pricingUrlKeys)
+  const isAnnual = billing === 'annual'
+  const setIsAnnual = (next: boolean) => setParams({ billing: next ? 'annual' : 'monthly' })
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
   const proPrice = isAnnual
