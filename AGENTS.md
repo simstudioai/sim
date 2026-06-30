@@ -20,6 +20,16 @@ You are a professional software engineer. All code must follow best practices: a
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
+## Git Branch Naming
+
+Use team branch prefixes instead of `codex/`:
+
+- `feat/...` for product features
+- `fix/...` for bug fixes
+- `improvement/...` for UI, design, content, template, and workflow updates
+- `refactor/...` for internal code restructuring
+- `perf/...` for performance work
+
 ## Architecture
 
 ### Core Principles
@@ -467,4 +477,3 @@ Two hard rules that the skills assume:
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
-
