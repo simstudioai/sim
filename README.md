@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://sim.ai" target="_blank" rel="noopener noreferrer">
-    <img src="apps/sim/public/static/readme-hero.gif" alt="Sim — your workflow agent for solving automations. Build, deploy, and manage AI agents visually, conversationally, or with code." width="800"/>
+    <img src="apps/sim/public/static/readme-hero.gif" alt="Sim — your workflow agent for solving automations. Build, deploy, and manage AI agents visually, conversationally, or with code." width="100%"/>
   </a>
 </p>
 
@@ -35,11 +35,7 @@ Open [http://localhost:3000](http://localhost:3000)
 Docker must be installed and running. Use `-p, --port <port>` to run Sim on a different port, or `--no-pull` to skip pulling the latest Docker images.
 
 <p align="center">
-  <img src="apps/sim/public/static/readme-feature-row.svg" alt="Integrate, Ingest, Build, and Monitor" width="800"/>
-</p>
-
-<p align="center">
-  <img src="apps/sim/public/static/readme-tour.gif" alt="A tour of Sim: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="800"/>
+  <img src="apps/sim/public/static/readme-tour.gif" alt="How Sim works — Integrate, Ingest, Build, Monitor — shown end to end: start a chat to build an agent, connect Slack and other integrations, add a knowledge base, build the workflow visually, deploy it, and monitor runs in the logs" width="100%"/>
 </p>
 
 ## Capabilities
@@ -149,5 +145,5 @@ We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTI
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 <p align="center">
-  <img src="apps/sim/public/static/readme-built-by-sim-team.png" alt="Built by the Sim team in San Francisco" width="800"/>
+  <img src="apps/sim/public/static/readme-built-by-sim-team.png" alt="Built by the Sim team in San Francisco" width="100%"/>
 </p>
