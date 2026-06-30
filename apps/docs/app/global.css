@@ -20,6 +20,15 @@ body {
 
 @theme {
   --color-fd-primary: var(--color-fd-foreground);
+  /* Sim's custom type scale — emcn components (Label, Badge, the shared block
+     views) use these names, so they must resolve here or text falls back to the
+     inherited size. Mirrors apps/sim/tailwind.config.ts. */
+  --text-micro: 10px;
+  --text-xs: 11px;
+  --text-caption: 12px;
+  --text-small: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
 }
 
 /* Pure white light mode background */

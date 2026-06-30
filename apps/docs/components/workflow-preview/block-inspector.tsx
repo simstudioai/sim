@@ -10,7 +10,7 @@ import {
   FieldDivider,
   Label,
 } from '@sim/emcn'
-import { BookOpen, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
+import { BookOpen, Pencil } from 'lucide-react'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 
 type FieldKind = 'select' | 'input' | 'textarea' | 'code' | 'slider' | 'toggle'
@@ -27,12 +27,6 @@ interface InspectorField {
   percent?: number
 }
 
-interface InspectorConnection {
-  name: string
-  type?: string
-  color?: string
-}
-
 interface InspectorTool {
   type: string
   name: string
@@ -47,7 +41,6 @@ interface BlockInspectorProps {
   color?: string
   fields: InspectorField[]
   tools?: InspectorTool[]
-  connections?: InspectorConnection[]
   /** Render as a borderless panel filling its parent (the lightbox sidebar). */
   embedded?: boolean
 }
@@ -150,7 +143,6 @@ export function BlockInspector({
   color = '#33C482',
   fields,
   tools,
-  connections,
   embedded = false,
 }: BlockInspectorProps) {
   const Icon = resolveIcon(type)
@@ -165,18 +157,20 @@ export function BlockInspector({
           : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)]'
       )}
     >
-      <div className='flex items-center gap-2.5 border-[var(--border)] border-b px-3 py-2.5'>
-        <div
-          className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-md'
-          style={{ background: color }}
-        >
-          {Icon && <Icon className='size-[13px] text-white' />}
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <div
+            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            style={{ background: color }}
+          >
+            {Icon && <Icon className='size-[12px] text-white' />}
+          </div>
+          <span className='truncate font-medium text-[var(--text-primary)] text-sm'>{name}</span>
         </div>
-        <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
-        <span className='ml-auto flex items-center gap-2.5 text-[var(--text-muted)]'>
-          <Pencil className='size-[13px]' />
-          <BookOpen className='size-[13px]' />
-        </span>
+        <div className='flex shrink-0 items-center gap-2 text-[var(--text-secondary)]'>
+          <Pencil className='size-[14px]' />
+          <BookOpen className='size-[14px]' />
+        </div>
       </div>
 
       <div className='flex flex-col px-3 py-3'>
@@ -212,30 +206,6 @@ export function BlockInspector({
           </div>
         )}
       </div>
-
-      {connections && connections.length > 0 && (
-        <div className='border-[var(--border)] border-t px-3 py-2.5'>
-          <div className='flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]'>
-            <ChevronDown className='size-[12px]' />
-            Connections
-          </div>
-          {connections.map((c) => {
-            const CIcon = c.type ? resolveIcon(c.type) : null
-            return (
-              <div key={c.name} className='mt-2 flex items-center gap-2'>
-                <div
-                  className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-[5px]'
-                  style={{ background: c.color ?? 'var(--border-1)' }}
-                >
-                  {CIcon && <CIcon className='size-[10px] text-white' />}
-                </div>
-                <span className='text-[13px] text-[var(--text-primary)]'>{c.name}</span>
-                <ChevronRight className='size-[12px] text-[var(--text-muted)]' />
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

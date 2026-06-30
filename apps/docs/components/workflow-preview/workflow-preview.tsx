@@ -239,12 +239,6 @@ export function WorkflowPreview({
   const selectedBlock = selectedId
     ? (workflow.blocks.find((b) => b.id === selectedId) ?? null)
     : null
-  const incoming = selectedBlock
-    ? workflow.edges
-        .filter((e) => e.target === selectedBlock.id)
-        .map((e) => workflow.blocks.find((b) => b.id === e.source))
-        .filter((b): b is PreviewBlock => Boolean(b))
-    : []
 
   const openWith = (blockId: string | null) => {
     setSelectedId(blockId)
@@ -322,11 +316,6 @@ export function WorkflowPreview({
                   color={selectedBlock.bgColor}
                   fields={inspectorFieldsFor(selectedBlock)}
                   tools={selectedBlock.tools}
-                  connections={incoming.map((b) => ({
-                    name: b.name,
-                    type: b.type,
-                    color: b.bgColor,
-                  }))}
                 />
               ) : (
                 <div className='flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--text-muted)]'>
