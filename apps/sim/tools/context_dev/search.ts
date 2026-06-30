@@ -40,6 +40,18 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       visibility: 'user-or-llm',
       description: 'Recency filter (last_24_hours, last_week, last_month, last_year)',
     },
+    numResults: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (10-100, default 10)',
+    },
+    country: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Restrict results to a country (ISO 3166-1 alpha-2 code, e.g. US)',
+    },
     queryFanout: {
       type: 'boolean',
       required: false,
@@ -75,6 +87,8 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       if (params.includeDomains?.length) body.includeDomains = params.includeDomains
       if (params.excludeDomains?.length) body.excludeDomains = params.excludeDomains
       if (params.freshness) body.freshness = params.freshness
+      if (params.numResults != null) body.numResults = params.numResults
+      if (params.country) body.country = params.country
       if (params.queryFanout != null) body.queryFanout = params.queryFanout
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }

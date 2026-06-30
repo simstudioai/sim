@@ -1734,6 +1734,9 @@ Trigger workflow from Slack events like mentions, messages, and reactions
 |   ↳ `callback_id` | string | Callback ID of the shortcut or view. Present for shortcuts and modal submissions |
 |   ↳ `api_app_id` | string | Slack app ID. Present for interactivity and slash commands |
 |   ↳ `message_ts` | string | Timestamp of the message the interaction originated from. Present for block_actions |
+|   ↳ `view` | json | Full Slack view object for modal interactions: state.values \(submitted input values\), private_metadata, id, callback_id, and hash. Present for view_submission/view_closed; null otherwise |
+|   ↳ `message` | json | Full source message object the interaction came from, including its blocks and text. Present for block_actions on a message; null otherwise |
+|   ↳ `state` | json | Current values of all stateful elements in the surface \(state.values\) at the time of a block action — e.g. inputs read on a button click. Present for block_actions; null otherwise |
 |   ↳ `hasFiles` | boolean | Whether the message has file attachments |
 |   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
 
