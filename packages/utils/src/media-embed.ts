@@ -57,10 +57,9 @@ function toDropboxDirectVideoUrl(parsed: URL): string | null {
  * generic video/audio file extensions. Returns null when the URL is not a
  * recognized embeddable source.
  *
- * Each platform is gated on its parsed hostname via {@link hostMatches} before the
- * id-extracting regex runs, so a look-alike host can never produce a trusted-looking
- * embed. The generic file-extension fallbacks are intentionally host-agnostic — any
- * direct media file URL is embeddable.
+ * Each platform is gated on its parsed hostname via {@link hostMatches} before its
+ * id-extracting regex runs. The generic file-extension fallbacks are intentionally
+ * host-agnostic — any direct media file URL is embeddable.
  */
 export function getEmbedInfo(url: string): EmbedInfo | null {
   const parsed = parseUrl(url)

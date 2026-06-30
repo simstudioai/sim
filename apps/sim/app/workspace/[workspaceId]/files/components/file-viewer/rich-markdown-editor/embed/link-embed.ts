@@ -13,11 +13,11 @@ const LINK_EMBED_PLUGIN_KEY = new PluginKey('linkEmbed')
  * standalone links become media embeds — a link inline within a sentence stays a plain link,
  * matching how Notion and Linear auto-embed.
  */
-function getStandaloneLinkHref(node: ProseMirrorNode): string | null {
-  if (node.type.name !== 'paragraph' || node.childCount === 0) return null
+function getStandaloneLinkHref(paragraph: ProseMirrorNode): string | null {
+  if (paragraph.childCount === 0) return null
   let href: string | null = null
   let isStandalone = true
-  node.forEach((child) => {
+  paragraph.forEach((child) => {
     if (!isStandalone) return
     const linkMark = child.isText
       ? child.marks.find((mark) => mark.type.name === 'link')
@@ -43,9 +43,6 @@ function buildDecorations(doc: ProseMirrorNode): DecorationSet {
     if (href) {
       const embedInfo = getEmbedInfo(href)
       if (embedInfo) {
-        // Key by source + occurrence index so the iframe/video DOM is reused across unrelated
-        // edits (no reload on keystroke) while two links to the same URL still render as two
-        // distinct widgets rather than collapsing into one.
         const source = `embed:${embedInfo.type}:${embedInfo.url}`
         const index = sourceCounts.get(source) ?? 0
         sourceCounts.set(source, index + 1)
@@ -57,7 +54,7 @@ function buildDecorations(doc: ProseMirrorNode): DecorationSet {
         )
       }
     }
-    // Paragraphs hold only inline content — never another embeddable paragraph.
+    // Paragraphs hold only inline content, so there is nothing more to descend into.
     return false
   })
   return DecorationSet.create(doc, decorations)
