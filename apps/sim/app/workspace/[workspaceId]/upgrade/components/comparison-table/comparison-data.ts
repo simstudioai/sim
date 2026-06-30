@@ -5,7 +5,18 @@ import {
   DEFAULT_FREE_CREDITS,
 } from '@/lib/billing/constants'
 
-const [PRO_TIER, MAX_TIER] = CREDIT_TIERS
+/**
+ * Looks up a credit tier by name, so a column binds to the right tier even if
+ * {@link CREDIT_TIERS} is reordered or a tier is inserted.
+ */
+function tierByName(name: (typeof CREDIT_TIERS)[number]['name']) {
+  const tier = CREDIT_TIERS.find((t) => t.name === name)
+  if (!tier) throw new Error(`comparison-data: no credit tier named "${name}"`)
+  return tier
+}
+
+const PRO_TIER = tierByName('Pro')
+const MAX_TIER = tierByName('Max')
 
 /** Formats a credit count with thousands separators (e.g. 25000 → "25,000"). */
 const formatCredits = (credits: number): string => credits.toLocaleString('en-US')
