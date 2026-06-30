@@ -677,7 +677,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
-    readProgressMarkers?: boolean
   }): Promise<WorkflowExecutionLog> {
     const {
       executionId,
@@ -693,7 +692,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
       isResume,
       level: levelOverride,
       status: statusOverride,
-      readProgressMarkers = true,
     } = params
 
     let execLog = logger.withMetadata({ executionId })
@@ -751,7 +749,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
-    const progressMarkers = readProgressMarkers ? await getProgressMarkers(executionId) : null
+    const progressMarkers = await getProgressMarkers(executionId)
 
     const builtExecutionData = this.buildCompletedExecutionData({
       existingExecutionData,

@@ -617,7 +617,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const conditionRows = useMemo(() => {
     if (type !== 'condition') return [] as { id: string; title: string; value: string }[]
-    return getConditionRows(id, topologySubBlocks.conditions?.value)
+    return getConditionRows(id, topologySubBlocks.conditions?.value).map((cond) => ({
+      ...cond,
+      value: getDisplayValue(cond.value),
+    }))
   }, [type, topologySubBlocks, id])
 
   /**
@@ -627,7 +630,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    */
   const routerRows = useMemo(() => {
     if (type !== 'router_v2') return [] as { id: string; value: string }[]
-    return getRouterRows(id, topologySubBlocks.routes?.value)
+    return getRouterRows(id, topologySubBlocks.routes?.value).map((route) => ({
+      ...route,
+      value: getDisplayValue(route.value),
+    }))
   }, [type, topologySubBlocks, id])
 
   /**
@@ -699,29 +705,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
 
-  const rows = (
-    <>
-      {type === 'condition' ? (
-        conditionRows.map((cond) => (
-          <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
-        ))
-      ) : type === 'router_v2' ? (
-        <>
-          <SubBlockRow
-            key='context'
-            title='Context'
-            value={getDisplayValue(subBlockState.context?.value)}
-          />
-          {routerRows.map((route, index) => (
-            <SubBlockRow
-              key={route.id}
-              title={`Route ${index + 1}`}
-              value={getDisplayValue(route.value)}
-            />
-          ))}
-        </>
-      ) : (
-        subBlockRows.map((row, rowIndex) =>
+  const rows =
+    type === 'condition' || type === 'router_v2' ? null : (
+      <>
+        {subBlockRows.map((row, rowIndex) =>
           row.flatMap((subBlock) => {
             const rawValue = subBlockState[subBlock.id]?.value
             if (subBlock.type === 'mcp-dynamic-args') {
@@ -761,11 +748,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               />,
             ]
           })
-        )
-      )}
-      {shouldShowDefaultHandles && <SubBlockRow title='error' />}
-    </>
-  )
+        )}
+      </>
+    )
 
   return (
     <WorkflowBlockView
@@ -785,6 +770,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       hasContentBelowHeader={hasContentBelowHeader}
       conditionRows={conditionRows}
       routerRows={routerRows}
+      routerContextValue={getDisplayValue(subBlockState.context?.value)}
       wouldCreateConnectionCycle={wouldCreateConnectionCycle}
       isWorkflowSelector={isWorkflowSelector}
       childWorkflowId={childWorkflowId}

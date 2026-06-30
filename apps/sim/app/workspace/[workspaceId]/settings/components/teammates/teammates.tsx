@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Chip, ChipDropdown, Plus, toast } from '@sim/emcn'
+import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
@@ -170,18 +170,16 @@ export function Teammates() {
           onChange: setSearchTerm,
           placeholder: 'Search teammates...',
         }}
-        actions={
-          <Chip
-            leftIcon={Plus}
-            variant='primary'
-            onClick={handleInvite}
-            onMouseEnter={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            onFocus={isInvitationsDisabled ? prefetchUpgrade : undefined}
-            title={inviteDisabledReason ?? undefined}
-          >
-            Invite
-          </Chip>
-        }
+        actions={[
+          {
+            text: 'Invite',
+            icon: Plus,
+            variant: 'primary',
+            onSelect: handleInvite,
+            tooltip: inviteDisabledReason ?? undefined,
+            onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
+          },
+        ]}
       >
         <MemberSection
           label={`Teammates (${teammates.length})`}

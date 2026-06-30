@@ -4598,13 +4598,54 @@
       "type": "elevenlabs",
       "slug": "elevenlabs",
       "name": "ElevenLabs",
-      "description": "Convert text to speech with ElevenLabs",
-      "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
+      "description": "Generate and transform audio with ElevenLabs",
+      "longDescription": "Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.",
       "bgColor": "#181C1E",
       "iconName": "ElevenLabsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Text to Speech",
+          "description": "Convert text to speech using ElevenLabs voices"
+        },
+        {
+          "name": "Sound Effects",
+          "description": "Generate a sound effect from a text prompt using ElevenLabs"
+        },
+        {
+          "name": "Speech to Speech",
+          "description": "Convert audio into a chosen ElevenLabs voice while preserving content and emotion"
+        },
+        {
+          "name": "Audio Isolation",
+          "description": "Remove background noise from an audio file, isolating the speech using ElevenLabs"
+        },
+        {
+          "name": "List Voices",
+          "description": "List the voices available in your ElevenLabs account"
+        },
+        {
+          "name": "Get Voice",
+          "description": "Get metadata and settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Get Voice Settings",
+          "description": "Get the configured settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "Edit Voice Settings",
+          "description": "Update the settings for a specific ElevenLabs voice"
+        },
+        {
+          "name": "List Models",
+          "description": "List the models available in ElevenLabs"
+        },
+        {
+          "name": "Get User Info",
+          "description": "Get account and subscription information for the ElevenLabs user"
+        }
+      ],
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5123,12 +5164,28 @@
           "description": "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information."
         },
         {
+          "name": "Batch Scrape",
+          "description": "Scrape multiple URLs in a single batch job and retrieve structured content from each page."
+        },
+        {
+          "name": "Batch Scrape Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID."
+        },
+        {
           "name": "Search",
           "description": "Search for information on the web using Firecrawl"
         },
         {
           "name": "Crawl",
           "description": "Crawl entire websites and extract structured content from all accessible pages"
+        },
+        {
+          "name": "Crawl Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID."
+        },
+        {
+          "name": "Cancel Crawl",
+          "description": "Cancel an in-progress Firecrawl crawl job by its job ID."
         },
         {
           "name": "Map",
@@ -5139,15 +5196,23 @@
           "description": "Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction."
         },
         {
+          "name": "Extract Status",
+          "description": "Check the status and retrieve results of a previously started Firecrawl extract job by its job ID."
+        },
+        {
           "name": "Agent",
           "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
         },
         {
           "name": "Parse Document",
           "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
+        },
+        {
+          "name": "Credit Usage",
+          "description": "Retrieve the remaining and allocated Firecrawl credits for the team."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6408,11 +6473,35 @@
           "description": "List all permissions (who has access) for a file in Google Drive"
         },
         {
+          "name": "Export File",
+          "description": "Export a Google Workspace file (Docs, Sheets, Slides, Drawings) to a chosen format such as PDF, DOCX, XLSX, or CSV"
+        },
+        {
+          "name": "List Revisions",
+          "description": "List the revision history of a file in Google Drive"
+        },
+        {
+          "name": "Get Revision",
+          "description": "Get metadata for a specific revision of a file in Google Drive"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on a file in Google Drive"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a file in Google Drive"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a file in Google Drive"
+        },
+        {
           "name": "Get Drive Info",
           "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 24,
       "triggers": [
         {
           "id": "google_drive_poller",
@@ -11860,7 +11949,7 @@
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
-      "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
+      "longDescription": "Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.",
       "bgColor": "#0D1117",
       "iconName": "PineconeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pinecone",
@@ -11874,6 +11963,14 @@
           "description": "Insert or update text records in a Pinecone index"
         },
         {
+          "name": "Update Vector",
+          "description": "Update the values, sparse values, or metadata of a vector in a Pinecone namespace"
+        },
+        {
+          "name": "Delete Vectors",
+          "description": "Delete vectors from a Pinecone namespace by IDs, by metadata filter, or delete all"
+        },
+        {
           "name": "Search With Text",
           "description": "Search for similar text in a Pinecone index"
         },
@@ -11884,9 +11981,25 @@
         {
           "name": "Fetch Vectors",
           "description": "Fetch vectors by ID from a Pinecone index"
+        },
+        {
+          "name": "List Vector IDs",
+          "description": "List vector IDs in a Pinecone namespace by prefix (serverless indexes only)"
+        },
+        {
+          "name": "Describe Index Stats",
+          "description": "Get statistics about a Pinecone index, including per-namespace vector counts"
+        },
+        {
+          "name": "List Indexes",
+          "description": "List all Pinecone indexes in the project"
+        },
+        {
+          "name": "Describe Index",
+          "description": "Get the configuration and status of a Pinecone index by name"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -13141,6 +13254,10 @@
           "description": "Retrieve details of a previously sent email by its ID"
         },
         {
+          "name": "Cancel Email",
+          "description": "Cancel a scheduled email before it is sent"
+        },
+        {
           "name": "Create Contact",
           "description": "Create a new contact in Resend"
         },
@@ -13161,11 +13278,39 @@
           "description": "Delete a contact from Resend by ID or email"
         },
         {
+          "name": "Create Audience",
+          "description": "Create a new audience in Resend"
+        },
+        {
+          "name": "Get Audience",
+          "description": "Retrieve details of an audience by ID"
+        },
+        {
+          "name": "List Audiences",
+          "description": "List all audiences in Resend"
+        },
+        {
+          "name": "Delete Audience",
+          "description": "Delete an audience from Resend by ID"
+        },
+        {
+          "name": "Create Broadcast",
+          "description": "Create a broadcast email for an audience in Resend"
+        },
+        {
+          "name": "Send Broadcast",
+          "description": "Send a broadcast immediately or schedule it for later"
+        },
+        {
+          "name": "Get Broadcast",
+          "description": "Retrieve details of a broadcast by ID"
+        },
+        {
           "name": "List Domains",
           "description": "List all verified domains in your Resend account"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 16,
       "triggers": [
         {
           "id": "resend_email_sent",
@@ -13875,8 +14020,8 @@
       "type": "s3",
       "slug": "s3",
       "name": "S3",
-      "description": "Upload, download, list, and manage S3 files",
-      "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
+      "description": "Upload, download, list, and manage S3 files and buckets",
+      "longDescription": "Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
       "iconName": "S3Icon",
       "docsUrl": "https://docs.sim.ai/integrations/s3",
@@ -13898,11 +14043,35 @@
           "description": "Delete an object from an AWS S3 bucket"
         },
         {
+          "name": "Delete Objects (Batch)",
+          "description": "Delete multiple objects from an AWS S3 bucket in a single batch request"
+        },
+        {
           "name": "Copy Object",
           "description": "Copy an object within or between AWS S3 buckets"
+        },
+        {
+          "name": "Head Object (Metadata)",
+          "description": "Retrieve metadata for an S3 object without downloading its body"
+        },
+        {
+          "name": "Presigned URL",
+          "description": "Generate a time-limited presigned URL to download or upload an S3 object"
+        },
+        {
+          "name": "List Buckets",
+          "description": "List the S3 buckets owned by the authenticated AWS account"
+        },
+        {
+          "name": "Create Bucket",
+          "description": "Create a new AWS S3 bucket in the specified region"
+        },
+        {
+          "name": "Delete Bucket",
+          "description": "Delete an empty AWS S3 bucket"
         }
       ],
-      "operationCount": 5,
+      "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

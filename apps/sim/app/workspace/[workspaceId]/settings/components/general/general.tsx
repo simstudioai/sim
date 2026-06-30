@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -29,6 +28,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -269,25 +269,26 @@ export function General() {
     return null
   }
 
+  const actions: SettingsAction[] = [
+    ...(isHosted
+      ? [
+          {
+            text: 'Home page',
+            onSelect: () => window.open('/?home', '_blank', 'noopener,noreferrer'),
+          },
+        ]
+      : []),
+    ...(!isAuthDisabled
+      ? [
+          { text: 'Sign out', onSelect: handleSignOut },
+          { text: 'Reset password', onSelect: () => setShowResetPasswordModal(true) },
+        ]
+      : []),
+  ]
+
   return (
     <>
-      <SettingsPanel
-        actions={
-          <>
-            {isHosted && (
-              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
-              </Chip>
-            )}
-            {!isAuthDisabled && (
-              <>
-                <Chip onClick={handleSignOut}>Sign out</Chip>
-                <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-              </>
-            )}
-          </>
-        }
-      >
+      <SettingsPanel actions={actions}>
         <SettingsSection label='Profile'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center gap-3'>

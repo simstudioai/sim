@@ -1,0 +1,92 @@
+import type { PineconeDescribeIndexStatsParams, PineconeResponse } from '@/tools/pinecone/types'
+import { parseJsonParam } from '@/tools/pinecone/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const describeIndexStatsTool: ToolConfig<
+  PineconeDescribeIndexStatsParams,
+  PineconeResponse
+> = {
+  id: 'pinecone_describe_index_stats',
+  name: 'Pinecone Describe Index Stats',
+  description: 'Get statistics about a Pinecone index, including per-namespace vector counts',
+  version: '1.0',
+
+  params: {
+    indexHost: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Full Pinecone index host URL (e.g., "https://my-index-abc123.svc.pinecone.io")',
+    },
+    filter: {
+      type: 'object',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Metadata filter to limit which vectors are counted (pod-based indexes only, e.g., {"category": {"$eq": "product"}})',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
+    },
+  },
+
+  request: {
+    method: 'POST',
+    url: (params) => `${params.indexHost}/describe_index_stats`,
+    headers: (params) => ({
+      'Api-Key': params.apiKey,
+      'Content-Type': 'application/json',
+      'X-Pinecone-API-Version': '2025-01',
+    }),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.filter != null && params.filter !== '') {
+        body.filter = parseJsonParam(params.filter, 'filter')
+      }
+      return body
+    },
+  },
+
+  transformResponse: async (response) => {
+    const data = await response.json()
+    const rawNamespaces = (data.namespaces ?? {}) as Record<
+      string,
+      { vectorCount?: number; vector_count?: number }
+    >
+    const namespaces: Record<string, { vectorCount: number | null }> = {}
+    for (const [name, summary] of Object.entries(rawNamespaces)) {
+      namespaces[name] = { vectorCount: summary.vectorCount ?? summary.vector_count ?? null }
+    }
+    return {
+      success: true,
+      output: {
+        namespaces,
+        dimension: data.dimension ?? null,
+        indexFullness: data.indexFullness ?? data.index_fullness ?? null,
+        totalVectorCount: data.totalVectorCount ?? data.total_vector_count ?? null,
+      },
+    }
+  },
+
+  outputs: {
+    namespaces: {
+      type: 'json',
+      description: 'Map of namespace name to its summary including vectorCount',
+    },
+    dimension: {
+      type: 'number',
+      description: 'Dimensionality of the indexed vectors',
+    },
+    indexFullness: {
+      type: 'number',
+      description: 'Fullness of the index (pod-based indexes only)',
+    },
+    totalVectorCount: {
+      type: 'number',
+      description: 'Total number of vectors across all namespaces',
+    },
+  },
+}
