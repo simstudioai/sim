@@ -56,7 +56,13 @@ describe('slackHandler formatInput - interactivity (block_actions)', () => {
         trigger_id: 'trigger-1',
         response_url: 'https://hooks.slack.com/actions/abc',
         container: { message_ts: '999.000' },
-        message: { ts: '999.000', text: 'Approve this?', thread_ts: '999.aaa' },
+        message: {
+          ts: '999.000',
+          text: 'Approve this?',
+          thread_ts: '999.aaa',
+          blocks: [{ type: 'section', block_id: 'b1', text: { type: 'mrkdwn', text: 'Approve?' } }],
+        },
+        state: { values: { reason_block: { reason_input: { value: 'looks good' } } } },
         actions: [
           {
             action_id: 'approve_btn',
@@ -85,6 +91,49 @@ describe('slackHandler formatInput - interactivity (block_actions)', () => {
     expect(event.api_app_id).toBe('A123')
     expect(Array.isArray(event.actions)).toBe(true)
     expect((event.actions as unknown[]).length).toBe(1)
+    const message = event.message as Record<string, unknown>
+    expect(message).not.toBeNull()
+    expect(Array.isArray(message.blocks)).toBe(true)
+    expect((message.blocks as unknown[]).length).toBe(1)
+    expect(event.view).toBeNull()
+    const state = event.state as { values: Record<string, Record<string, { value: string }>> }
+    expect(state).not.toBeNull()
+    expect(state.values.reason_block.reason_input.value).toBe('looks good')
+  })
+
+  it('carries the full view (state.values + private_metadata) through for a view_submission', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        type: 'view_submission',
+        user: { id: 'U1', username: 'alice' },
+        team: { id: 'T1' },
+        trigger_id: 'trigger-2',
+        view: {
+          id: 'V123',
+          callback_id: 'create_ticket',
+          private_metadata: '{"thread_ts":"999.aaa"}',
+          hash: 'abc.def',
+          state: {
+            values: {
+              summary_block: { summary_input: { type: 'plain_text_input', value: 'Printer down' } },
+            },
+          },
+        },
+      })
+    )
+    const event = eventOf(input)
+    expect(event.event_type).toBe('view_submission')
+    expect(event.callback_id).toBe('create_ticket')
+    const view = event.view as Record<string, unknown>
+    expect(view).not.toBeNull()
+    expect(view.private_metadata).toBe('{"thread_ts":"999.aaa"}')
+    const values = (view.state as Record<string, unknown>).values as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >
+    expect(values.summary_block.summary_input.value).toBe('Printer down')
+    expect(event.message).toBeNull()
+    expect(event.state).toBeNull()
   })
 
   it('normalizes a static_select value and falls back to action value for text', async () => {
