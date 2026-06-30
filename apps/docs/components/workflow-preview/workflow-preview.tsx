@@ -120,14 +120,18 @@ function inspectorFieldsFor(block: PreviewBlock) {
   // Show the block type's full field list (from the reference data) with this
   // block's example values overlaid, so the inspector reads like the editor's
   // panel — every field — not just the summary rows shown on the canvas node.
-  // Apply the template only when the block's rows are actually a subset of it;
-  // otherwise the type string is ambiguous (a `table` action vs the table
-  // trigger, a `webhook` trigger vs the webhook action) and the wrong template
-  // would win, so the block's own authored rows are the source of truth.
+  // Apply the template only when the block authored rows that are actually a
+  // subset of it; otherwise the type string is ambiguous (a `table` action vs
+  // the table trigger, a `webhook` trigger vs the webhook action) and the wrong
+  // template would win, so the block's own authored rows are the source of
+  // truth. A block with no rows (e.g. a router defined only by its branches)
+  // keeps its empty set rather than inheriting the template's invented defaults.
   const exampleByTitle = new Map(block.rows.map((row) => [row.title, row.value]))
   const template = BLOCK_DISPLAY_WORKFLOWS[block.type]?.blocks[0]?.rows
   const fullRows =
-    template && block.rows.every((row) => template.some((field) => field.title === row.title))
+    template &&
+    block.rows.length > 0 &&
+    block.rows.every((row) => template.some((field) => field.title === row.title))
       ? template
       : block.rows
   const rowFields = fullRows.map((row) => {
