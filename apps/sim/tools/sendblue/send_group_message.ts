@@ -89,7 +89,7 @@ export const sendblueSendGroupMessageTool: ToolConfig<
         )
       }
       return filterUndefined({
-        numbers: params.numbers,
+        numbers: hasNumbers ? params.numbers : undefined,
         from_number: params.from_number,
         content: params.content,
         media_url: params.media_url,
