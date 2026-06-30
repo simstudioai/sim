@@ -95,7 +95,7 @@ export const sendblueSendGroupMessageTool: ToolConfig<
         media_url: params.media_url,
         send_style: params.send_style,
         seat_id: params.seat_id,
-        group_id: params.group_id,
+        group_id: hasGroupId ? params.group_id?.trim() : undefined,
         status_callback: params.status_callback,
       })
     },

@@ -88,7 +88,7 @@ export const sendblueHandler: WebhookProviderHandler = {
         was_downgraded: b.was_downgraded ?? null,
         plan: b.plan ?? null,
         message_type: b.message_type ?? null,
-        group_id: b.group_id ?? null,
+        group_id: (typeof b.group_id === 'string' && b.group_id) || null,
         participants: b.participants ?? [],
         send_style: b.send_style ?? null,
         opted_out: b.opted_out ?? null,
