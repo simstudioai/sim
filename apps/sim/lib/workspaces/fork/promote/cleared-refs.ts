@@ -153,8 +153,6 @@ export function collectForkClearedRefCandidates(
           sourceId: ref.sourceId,
           sourceLabel: labelFor(ref.kind, ref.sourceId),
           cause: 'reference',
-          parentKind: null,
-          parentSourceId: null,
         })
       }
 
@@ -171,8 +169,6 @@ export function collectForkClearedRefCandidates(
           sourceId: wfRef.workflowId,
           sourceLabel: params.sourceWorkflowNames.get(wfRef.workflowId) ?? wfRef.workflowId,
           cause: 'workflow',
-          parentKind: null,
-          parentSourceId: null,
         })
       }
     }

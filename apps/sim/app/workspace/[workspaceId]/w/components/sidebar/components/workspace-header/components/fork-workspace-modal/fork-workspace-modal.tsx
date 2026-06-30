@@ -316,15 +316,15 @@ export function ForkWorkspaceModal({
                             label={kind.label}
                             items={resources.data?.[kind.key] ?? []}
                             selected={selected[kind.key]}
-                            onToggleAll={(selectAll) =>
-                              setSelected((prev) => ({
-                                ...prev,
-                                [kind.key]: selectAll
-                                  ? new Set(
-                                      (resources.data?.[kind.key] ?? []).map((item) => item.id)
-                                    )
-                                  : new Set<string>(),
-                              }))
+                            onToggleMany={(ids, checked) =>
+                              setSelected((prev) => {
+                                const next = new Set(prev[kind.key])
+                                for (const id of ids) {
+                                  if (checked) next.add(id)
+                                  else next.delete(id)
+                                }
+                                return { ...prev, [kind.key]: next }
+                              })
                             }
                             onToggleItem={(id, checked) =>
                               setSelected((prev) => {

@@ -18,8 +18,8 @@ const PARENT_KINDS_THAT_PRESERVE_CHILD: ReadonlySet<string> = new Set(['knowledg
  *  - `reference`: drops off once its own resource is resolved (mapped or copied).
  *  - `dependent`: drops off once its PARENT resource (`parentKind`/`parentSourceId`) is resolved -
  *    using the SAME predicate as `reference` - but ONLY when the child follows that parent (a
- *    document under a KB). A credential- or table-anchored dependent is cleared on any parent
- *    remap, so it stays even after the parent is mapped. A dependent missing its parent stays.
+ *    document under a KB). A credential- or table-anchored dependent is cleared on any parent remap,
+ *    so it stays even after the parent is mapped.
  *  - `workflow`: always stays - a cross-workflow reference cannot be resolved in the modal.
  *
  * Pure so the reactive list is unit-testable independent of the modal's selection state.
@@ -30,12 +30,8 @@ export function selectVisibleClearedRefs(
 ): ForkClearedRef[] {
   return clearedRefs.filter((ref) => {
     if (ref.cause === 'reference') return !isResolved(ref.kind, ref.sourceId)
-    if (
-      ref.cause === 'dependent' &&
-      ref.parentKind &&
-      ref.parentSourceId &&
-      PARENT_KINDS_THAT_PRESERVE_CHILD.has(ref.parentKind)
-    ) {
+    // The discriminated union guarantees `parentKind`/`parentSourceId` on a `dependent` variant.
+    if (ref.cause === 'dependent' && PARENT_KINDS_THAT_PRESERVE_CHILD.has(ref.parentKind)) {
       return !isResolved(ref.parentKind, ref.parentSourceId)
     }
     return true

@@ -247,9 +247,9 @@ function ForkJobRow({ job }: { job: BackgroundWorkItem }) {
           {report.groups.map((group) => (
             <ReportGroupRow key={group.label} group={group} />
           ))}
-          {report.notes.map((note) => (
+          {report.notes.map((note, index) => (
             <span
-              key={note.value}
+              key={`${index}:${note.value}`}
               className={cn(
                 'text-caption',
                 note.warning ? 'text-[var(--text-error)]' : 'text-[var(--text-tertiary)]'

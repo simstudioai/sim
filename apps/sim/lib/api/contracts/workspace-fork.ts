@@ -319,43 +319,50 @@ export const forkResourceUsageSchema = z.object({
 })
 export type ForkResourceUsage = z.output<typeof forkResourceUsageSchema>
 
-/** Cleared-ref kinds: every remappable kind plus `workflow` (a cross-workflow reference). */
-export const forkClearedRefKindSchema = z.enum([...forkRemapKindSchema.options, 'workflow'])
-export type ForkClearedRefKind = z.infer<typeof forkClearedRefKindSchema>
-
-/**
- * A reference in a synced source workflow that WILL be blanked in the target by this sync, with
- * the labels to phrase it as "{blockLabel} will lose {fieldLabel} in workflow {workflowName}".
- * `cause` tells the client how the item resolves:
- *  - `reference`: an unmapped remappable resource - drops off once the user maps OR copies it
- *    (the only reactive kind; matched to a mapping entry by `${kind}:${sourceId}`).
- *  - `workflow`: a `workflow-selector`/`workflow_input` ref to a workflow not in the target -
- *    always cleared (cannot be fixed in the modal).
- *  - `dependent`: a create-target dependent selector the source configured that a remapped parent
- *    clears. Carries the controlling parent (`parentKind`/`parentSourceId`). When the child follows
- *    its parent (a document under a knowledge base, copied/auto-copied with it) the client drops the
- *    entry once that parent is mapped OR copied; a credential's label or a table's column is cleared
- *    on any parent remap, so it stays.
- */
-export const forkClearedRefSchema = z.object({
+/** Fields shared by every cleared-ref variant: the labels to phrase the "will be cleared" line. */
+const forkClearedRefBaseSchema = z.object({
   targetWorkflowId: z.string(),
   workflowName: z.string(),
   blockId: z.string(),
   blockLabel: z.string(),
   fieldLabel: z.string(),
-  kind: forkClearedRefKindSchema,
   sourceId: z.string(),
   sourceLabel: z.string(),
-  cause: z.enum(['reference', 'workflow', 'dependent']),
-  /**
-   * The dependsOn parent resource of a `dependent` entry (its KB / credential / table). When the
-   * child follows its parent (a document under a KB) the client drops the entry once this parent is
-   * mapped or copied; otherwise the child is cleared on any parent remap and the entry stays. Null
-   * for `reference`/`workflow`, whose own `kind`/`sourceId` are the reactive anchor.
-   */
-  parentKind: forkRemapKindSchema.nullable(),
-  parentSourceId: z.string().nullable(),
 })
+
+/**
+ * A reference in a synced source workflow that WILL be blanked in the target by this sync, with the
+ * labels to phrase it as "{blockLabel} will lose {fieldLabel} in workflow {workflowName}". A
+ * discriminated union on `cause` so clients narrow exhaustively (only `dependent` carries the parent
+ * fields):
+ *  - `reference`: an unmapped remappable resource (`kind`) - drops off the list once the user maps
+ *    OR copies it (matched to a mapping entry by `${kind}:${sourceId}`).
+ *  - `workflow`: a `workflow-selector`/`workflow_input` ref to a workflow not in the target -
+ *    always cleared (cannot be fixed in the modal).
+ *  - `dependent`: a create-target dependent selector a remapped parent clears. Carries the parent
+ *    (`parentKind`/`parentSourceId`); when the child follows its parent (a document under a knowledge
+ *    base) the client drops it once that parent is mapped/copied, else it stays (credential label /
+ *    table column).
+ */
+export const forkClearedRefSchema = z.discriminatedUnion('cause', [
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('reference'),
+    /** The unmapped remappable resource (never `workflow`). */
+    kind: forkRemapKindSchema,
+  }),
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('workflow'),
+    kind: z.literal('workflow'),
+  }),
+  forkClearedRefBaseSchema.extend({
+    cause: z.literal('dependent'),
+    /** Mirrors `parentKind` - the parent resource the cleared dependent hangs off. */
+    kind: forkRemapKindSchema,
+    /** The dependsOn parent; the entry drops off once this parent is mapped/copied (KB-document case). */
+    parentKind: forkRemapKindSchema,
+    parentSourceId: z.string(),
+  }),
+])
 export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
 
 export const getForkDiffQuerySchema = z.object({

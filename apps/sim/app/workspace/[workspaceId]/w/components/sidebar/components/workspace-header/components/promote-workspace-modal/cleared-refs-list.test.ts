@@ -5,36 +5,54 @@ import { describe, expect, it } from 'vitest'
 import type { ForkClearedRef } from '@/lib/api/contracts/workspace-fork'
 import { selectVisibleClearedRefs } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/promote-workspace-modal/cleared-refs-list'
 
-const ref = (overrides: Partial<ForkClearedRef>): ForkClearedRef => ({
+type ReferenceRef = Extract<ForkClearedRef, { cause: 'reference' }>
+type WorkflowRef = Extract<ForkClearedRef, { cause: 'workflow' }>
+type DependentRef = Extract<ForkClearedRef, { cause: 'dependent' }>
+
+const base = {
   targetWorkflowId: 'wf-tgt',
   workflowName: 'Workflow',
   blockId: 'block-1',
   blockLabel: 'Block',
-  fieldLabel: 'Field',
-  kind: 'credential',
-  sourceId: 'src-1',
   sourceLabel: 'Source',
-  cause: 'reference',
-  parentKind: null,
-  parentSourceId: null,
-  ...overrides,
+}
+
+const referenceRef = (
+  kind: ReferenceRef['kind'],
+  sourceId: string,
+  fieldLabel = 'Field'
+): ReferenceRef => ({ ...base, fieldLabel, cause: 'reference', kind, sourceId })
+
+const workflowRef = (sourceId: string, fieldLabel = 'Workflow'): WorkflowRef => ({
+  ...base,
+  fieldLabel,
+  cause: 'workflow',
+  kind: 'workflow',
+  sourceId,
 })
 
-// The modal's predicate is `mapped || copied`; here we model each disposition separately so the
-// document-under-KB case is exercised for BOTH a copied parent and a mapped parent.
+const dependentRef = (
+  parentKind: DependentRef['parentKind'],
+  parentSourceId: string,
+  fieldLabel = 'Field'
+): DependentRef => ({
+  ...base,
+  fieldLabel,
+  cause: 'dependent',
+  kind: parentKind,
+  sourceId: parentSourceId,
+  parentKind,
+  parentSourceId,
+})
+
+// The modal's predicate is `mapped || copied`; here we model each disposition as a resolved key so
+// the document-under-KB case is exercised for both a copied parent and a mapped parent.
 const resolvedKeys = (...keys: string[]) => {
   const set = new Set(keys)
   return (kind: string, sourceId: string) => set.has(`${kind}:${sourceId}`)
 }
 
-const documentDependent = ref({
-  cause: 'dependent',
-  fieldLabel: 'Document',
-  kind: 'knowledge-base',
-  sourceId: 'kb-1',
-  parentKind: 'knowledge-base',
-  parentSourceId: 'kb-1',
-})
+const documentDependent = dependentRef('knowledge-base', 'kb-1', 'Document')
 
 describe('selectVisibleClearedRefs', () => {
   it('drops a document dependent when its parent KB is selected for copy', () => {
@@ -57,14 +75,7 @@ describe('selectVisibleClearedRefs', () => {
   })
 
   it('keeps a credential-anchored dependent even when the credential is mapped (label still clears)', () => {
-    const labelDependent = ref({
-      cause: 'dependent',
-      fieldLabel: 'Label',
-      kind: 'credential',
-      sourceId: 'cred-1',
-      parentKind: 'credential',
-      parentSourceId: 'cred-1',
-    })
+    const labelDependent = dependentRef('credential', 'cred-1', 'Label')
     // A mapped credential remaps to a different account, so the account-scoped label is cleared
     // regardless - the entry must stay even though the parent is "resolved".
     expect(selectVisibleClearedRefs([labelDependent], resolvedKeys('credential:cred-1'))).toEqual([
@@ -74,26 +85,14 @@ describe('selectVisibleClearedRefs', () => {
   })
 
   it('keeps a table-anchored dependent even when the table is copied/mapped (column still clears)', () => {
-    const columnDependent = ref({
-      cause: 'dependent',
-      fieldLabel: 'Column',
-      kind: 'table',
-      sourceId: 'tbl-1',
-      parentKind: 'table',
-      parentSourceId: 'tbl-1',
-    })
+    const columnDependent = dependentRef('table', 'tbl-1', 'Column')
     expect(selectVisibleClearedRefs([columnDependent], resolvedKeys('table:tbl-1'))).toEqual([
       columnDependent,
     ])
   })
 
   it('drops the parent KB reference AND its child document together when the KB is resolved', () => {
-    const kbReference = ref({
-      cause: 'reference',
-      fieldLabel: 'Knowledge Base',
-      kind: 'knowledge-base',
-      sourceId: 'kb-1',
-    })
+    const kbReference = referenceRef('knowledge-base', 'kb-1', 'Knowledge Base')
     expect(
       selectVisibleClearedRefs(
         [kbReference, documentDependent],
@@ -103,7 +102,7 @@ describe('selectVisibleClearedRefs', () => {
   })
 
   it('applies the same predicate to a reference entry (drops resolved, keeps unresolved)', () => {
-    const credentialReference = ref({ cause: 'reference', kind: 'credential', sourceId: 'cred-1' })
+    const credentialReference = referenceRef('credential', 'cred-1')
     expect(
       selectVisibleClearedRefs([credentialReference], resolvedKeys('credential:cred-1'))
     ).toEqual([])
@@ -113,14 +112,9 @@ describe('selectVisibleClearedRefs', () => {
   })
 
   it('always keeps a workflow reference (it cannot be resolved in the modal)', () => {
-    const workflowReference = ref({ cause: 'workflow', kind: 'workflow', sourceId: 'wf-other' })
+    const workflowReference = workflowRef('wf-other')
     expect(
       selectVisibleClearedRefs([workflowReference], resolvedKeys('workflow:wf-other'))
     ).toEqual([workflowReference])
-  })
-
-  it('keeps a dependent missing its parent identity (defensive)', () => {
-    const orphanDependent = ref({ cause: 'dependent', parentKind: null, parentSourceId: null })
-    expect(selectVisibleClearedRefs([orphanDependent], resolvedKeys())).toEqual([orphanDependent])
   })
 })

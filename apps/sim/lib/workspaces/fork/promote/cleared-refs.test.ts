@@ -114,8 +114,6 @@ describe('collectForkClearedRefCandidates', () => {
         sourceId: 'kb-src',
         sourceLabel: 'Docs KB',
         cause: 'reference',
-        parentKind: null,
-        parentSourceId: null,
       },
     ])
   })
@@ -241,8 +239,6 @@ describe('collectForkClearedRefCandidates', () => {
         sourceId: 'wf-other',
         sourceLabel: 'Other Workflow',
         cause: 'workflow',
-        parentKind: null,
-        parentSourceId: null,
       },
     ])
   })

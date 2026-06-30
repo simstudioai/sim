@@ -142,6 +142,9 @@ const COPYABLE_KIND_SECTIONS: ReadonlyArray<{
 
 const copyableKey = (candidate: ForkCopyableUnmapped) => forkRefKey(candidate)
 
+/** Sentinel option value for the editor's "Copy instead" entry - handled via onSelect, never sent. */
+const COPY_INSTEAD_VALUE = '__copy_instead__'
+
 interface EdgeOption {
   value: string
   label: string
@@ -245,6 +248,11 @@ export function PromoteWorkspaceModal({
   )
   const clearedRefs = useMemo(() => diff.data?.clearedRefs ?? [], [diff.data?.clearedRefs])
 
+  // Keys the backend offers as copy candidates, so the editor shows a "Copy instead" affordance only
+  // for those - clearing a name-match suggestion returns the ref to the copy list (it re-enters
+  // `visibleCopyables` once its effective target is '').
+  const copyableKeys = useMemo(() => new Set(copyableUnmapped.map(copyableKey)), [copyableUnmapped])
+
   // Copy-vs-map reconciliation: a copyable resource the user has given an effective (in-session
   // or persisted) mapping target must NOT also appear in the copy list - the user picked map, not
   // copy. `copyableKey` shares the `${kind}:${sourceId}` keyspace with `entryKey`, so a mapped
@@ -326,6 +334,27 @@ export function PromoteWorkspaceModal({
   // This entry's dependent fields (its credential/KB's selectors), from the memoized grouping.
   const dependentsForEntry = (entry: ForkMappingEntry): ForkDependentReconfig[] =>
     dependentsByParent.get(entryKey(entry)) ?? EMPTY_DEPENDENTS
+
+  // Set an entry's in-session mapping target. A `value` of '' explicitly clears it, overriding any
+  // name-match suggestion (effectiveForkTarget's `?? ` treats '' as present, so the suggestion no
+  // longer wins) - so the resource re-enters `visibleCopyables` and is copy-selectable again.
+  // Changing the parent invalidates its dependents' in-session re-picks (chosen against the old
+  // account), so drop them.
+  const applyTargetChange = (entry: ForkMappingEntry, value: string) => {
+    setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
+    setReconfig((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const dependent of dependentsForEntry(entry)) {
+        const key = dependentKey(dependent)
+        if (key in next) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }
 
   // Group mappings by resource type - one step per kind, required types first.
   const groupedEntries = useMemo(() => {
@@ -414,10 +443,22 @@ export function PromoteWorkspaceModal({
   const kindSummaries = groupedEntries.map((group) => {
     const total = group.items.length
     const mapped = group.items.filter((entry) => targetFor(entry) !== '').length
+    // Copy-selected items are resolved too (their refs are kept), so they count toward completion
+    // and render as "copied" rather than unconfigured. mapped/copied are disjoint: a mapped
+    // copyable is excluded from the copy candidates, so copyingKeys never overlaps a mapped entry.
+    const copied = group.items.filter((entry) => copyingKeys.has(entryKey(entry))).length
     // Mirror the Sync gate: a required ref selected for copy is satisfied, so it is not "pending".
     const requiredPending = forkRequiredPending(group.items, targets, copyingKeys)
     const reconfigPending = reconfigPendingByKind.has(group.kind)
-    return { kind: group.kind, label: group.label, total, mapped, requiredPending, reconfigPending }
+    return {
+      kind: group.kind,
+      label: group.label,
+      total,
+      mapped,
+      copied,
+      requiredPending,
+      reconfigPending,
+    }
   })
 
   // Step 0 is the overview; each subsequent step edits one resource kind, entered via
@@ -428,22 +469,18 @@ export function PromoteWorkspaceModal({
   const safeStep = Math.min(step, Math.max(0, stepCount - 1))
   const isLastStep = safeStep >= stepCount - 1
   const currentGroup = safeStep >= 1 ? (groupedEntries[safeStep - 1] ?? null) : null
-  // Gate Sync on BOTH queries being settled for the current direction. Beyond loading: a failed/
-  // empty mapping (`!mapping.data`) must not read as "nothing required" (required-ref completeness
-  // can't be determined), and placeholder data after a direction switch is the PREVIOUS direction's
-  // payload - syncing on it would send stale mappings/copies and clear references. Until `diff.data`
-  // arrives `dependentReconfigs` is empty, so `reconfigComplete` is vacuously true and `runPromote`
-  // would bypass dependent gating.
-  const syncDisabled =
-    submitting ||
-    !otherWorkspaceId ||
-    !requiredComplete ||
-    !reconfigComplete ||
+  // Sync details still settling for the current direction: loading, a failed/empty mapping
+  // (`!mapping.data` must not read as "nothing required"), or the PREVIOUS direction's placeholder
+  // after a switch (syncing on it would send stale mappings/copies and clear references). Until
+  // `diff.data` arrives `dependentReconfigs` is empty, so `reconfigComplete` is vacuously true.
+  const dataPending =
     mapping.isLoading ||
     !mapping.data ||
     mapping.isPlaceholderData ||
     !diff.data ||
     diff.isPlaceholderData
+  const syncDisabled =
+    submitting || !otherWorkspaceId || !requiredComplete || !reconfigComplete || dataPending
   const headsUp =
     (diff.data?.mcpReauthServerIds.length ?? 0) > 0 ||
     (diff.data?.inlineSecretSources.length ?? 0) > 0
@@ -557,8 +594,16 @@ export function PromoteWorkspaceModal({
         optionalBlocks > 0
           ? ` (+${optionalBlocks} block${optionalBlocks === 1 ? '' : 's'} with optional fields cleared)`
           : ''
+      // Surfaced alongside a needs-config warning too, so concurrent deploy failures aren't only in
+      // logs/Activity when both happen (the needs-config branch would otherwise win alone).
+      const deployFailedSuffix =
+        result.deployFailed > 0
+          ? ` (+${result.deployFailed} workflow${result.deployFailed === 1 ? '' : 's'} failed to deploy)`
+          : ''
       if (needsConfig.length > 0) {
-        toast.warning(`${label}. Re-check ${formatWhere(needsConfig)}.${optionalSuffix}`)
+        toast.warning(
+          `${label}. Re-check ${formatWhere(needsConfig)}.${deployFailedSuffix}${optionalSuffix}`
+        )
       } else if (result.deployFailed > 0) {
         const n = result.deployFailed
         toast.warning(
@@ -691,8 +736,28 @@ export function PromoteWorkspaceModal({
                 <SettingsSection label='Mappings'>
                   <div className='flex flex-col gap-2'>
                     {kindSummaries.map(
-                      ({ kind, label, total, mapped, requiredPending, reconfigPending }) => {
-                        const complete = mapped === total && !reconfigPending
+                      ({
+                        kind,
+                        label,
+                        total,
+                        mapped,
+                        copied,
+                        requiredPending,
+                        reconfigPending,
+                      }) => {
+                        const resolved = mapped + copied
+                        const complete = resolved === total && !reconfigPending
+                        const badgeLabel = complete
+                          ? mapped === total
+                            ? 'Fully mapped'
+                            : copied === total
+                              ? 'Copied'
+                              : 'Mapped & copied'
+                          : reconfigPending && resolved === total
+                            ? 'Needs setup'
+                            : copied > 0
+                              ? `${resolved}/${total} ready`
+                              : `${mapped}/${total} mapped`
                         return (
                           <div key={kind} className='flex items-center justify-between gap-2'>
                             <span className='text-[var(--text-body)] text-small'>{label}</span>
@@ -707,11 +772,7 @@ export function PromoteWorkspaceModal({
                               size='sm'
                               dot
                             >
-                              {complete
-                                ? 'Fully mapped'
-                                : reconfigPending && mapped === total
-                                  ? 'Needs setup'
-                                  : `${mapped}/${total} mapped`}
+                              {badgeLabel}
                             </Badge>
                           </div>
                         )
@@ -796,7 +857,7 @@ export function PromoteWorkspaceModal({
                             label: candidate.label,
                           }))}
                           selected={selectedIds}
-                          onToggleAll={toggleAll}
+                          onToggleMany={toggleMany}
                           onToggleItem={(id, checked) => toggleMany([id], checked)}
                           disabled={submitting}
                         />
@@ -834,36 +895,31 @@ export function PromoteWorkspaceModal({
                   >
                     <ChipCombobox
                       className='w-full'
-                      options={entry.candidates.map((candidate) => {
-                        const owner = takenOwners.get(candidate.id)
-                        return {
-                          label: owner
-                            ? `${candidate.label} · mapped to ${owner}`
-                            : candidate.label,
-                          value: candidate.id,
-                          disabled: owner !== undefined,
-                        }
-                      })}
-                      value={targetFor(entry) || undefined}
-                      onChange={(value) => {
-                        setTargets((prev) => ({ ...prev, [entryKey(entry)]: value }))
-                        // Changing the parent invalidates any in-session re-picks of its
-                        // dependents - they were chosen against the old account and won't resolve
-                        // against the new one, so drop them; otherwise a stale re-pick (which
-                        // wins over the parent-changed check) would be sent to the new account.
-                        setReconfig((prev) => {
-                          let changed = false
-                          const next = { ...prev }
-                          for (const dependent of dependentsForEntry(entry)) {
-                            const key = dependentKey(dependent)
-                            if (key in next) {
-                              delete next[key]
-                              changed = true
-                            }
+                      options={[
+                        // Let the user revert a name-match suggestion (or any in-session map) of a
+                        // copyable resource back to the copy flow - clears the target via onSelect.
+                        ...(copyableKeys.has(entryKey(entry)) && targetFor(entry) !== ''
+                          ? [
+                              {
+                                label: 'Copy instead',
+                                value: COPY_INSTEAD_VALUE,
+                                onSelect: () => applyTargetChange(entry, ''),
+                              },
+                            ]
+                          : []),
+                        ...entry.candidates.map((candidate) => {
+                          const owner = takenOwners.get(candidate.id)
+                          return {
+                            label: owner
+                              ? `${candidate.label} · mapped to ${owner}`
+                              : candidate.label,
+                            value: candidate.id,
+                            disabled: owner !== undefined,
                           }
-                          return changed ? next : prev
-                        })
-                      }}
+                        }),
+                      ]}
+                      value={targetFor(entry) || undefined}
+                      onChange={(value) => applyTargetChange(entry, value)}
                       placeholder='Select target'
                     />
                     {entry.candidatesTruncated ? (
@@ -910,7 +966,9 @@ export function PromoteWorkspaceModal({
                     ? 'Map all required secrets first'
                     : !reconfigComplete
                       ? 'Reconfigure all required fields first'
-                      : undefined,
+                      : dataPending
+                        ? 'Loading sync details…'
+                        : undefined,
                 }
           }
         />

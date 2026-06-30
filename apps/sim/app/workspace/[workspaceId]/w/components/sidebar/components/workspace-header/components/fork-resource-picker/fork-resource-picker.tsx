@@ -22,7 +22,8 @@ interface ResourceKindRowProps {
   label: string
   items: ForkResourcePickerItem[]
   selected: Set<string>
-  onToggleAll: (selectAll: boolean) => void
+  /** Toggle the given ids on/off. Used for select-all over the currently-VISIBLE (filtered) subset. */
+  onToggleMany: (ids: string[], checked: boolean) => void
   onToggleItem: (id: string, checked: boolean) => void
   disabled?: boolean
 }
@@ -38,7 +39,7 @@ export function ResourceKindRow({
   label,
   items,
   selected,
-  onToggleAll,
+  onToggleMany,
   onToggleItem,
   disabled = false,
 }: ResourceKindRowProps) {
@@ -46,15 +47,17 @@ export function ResourceKindRow({
   const [query, setQuery] = useState('')
   const fieldId = useId()
 
-  const total = items.length
-  const selectedCount = selected.size
-  const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
-
   const filtered = useMemo(() => {
     const trimmed = query.trim().toLowerCase()
     if (!trimmed) return items
     return items.filter((item) => item.label.toLowerCase().includes(trimmed))
   }, [items, query])
+
+  // Count + header state + select-all are scoped to the VISIBLE (filtered) items so a search never
+  // selects or counts hidden ones. With no filter, `filtered === items`, so behavior is unchanged.
+  const total = filtered.length
+  const selectedCount = filtered.reduce((count, item) => count + (selected.has(item.id) ? 1 : 0), 0)
+  const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
 
   return (
     <div className='flex flex-col gap-1'>
@@ -63,7 +66,12 @@ export function ResourceKindRow({
           size='sm'
           aria-label={`Copy all ${label}`}
           checked={headerState}
-          onCheckedChange={() => onToggleAll(headerState !== true)}
+          onCheckedChange={() =>
+            onToggleMany(
+              filtered.map((item) => item.id),
+              headerState !== true
+            )
+          }
           disabled={disabled}
         />
         <button
