@@ -17,13 +17,32 @@ function getTwitchParent(): string {
   return typeof window !== 'undefined' ? window.location.hostname : 'localhost'
 }
 
-/** Parse a URL's lowercased hostname, returning null for non-absolute/invalid URLs. */
-function parseHostname(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase()
-  } catch {
-    return null
+/** Parse a URL, tolerating scheme-less inputs (https is assumed). Returns null if unparseable. */
+function parseUrl(url: string): URL | null {
+  for (const candidate of [url, `https://${url}`]) {
+    try {
+      return new URL(candidate)
+    } catch {}
   }
+  return null
+}
+
+/**
+ * Resolve a Dropbox share link to a direct, embeddable video URL. Accepts only URLs
+ * whose host is `dropbox.com` or a `*.dropbox.com` subdomain (so attacker-controlled
+ * hosts like `dropbox.com.evil.com` are rejected), then rewrites the host to
+ * `dl.dropboxusercontent.com` so the file streams as media. Returns null for any
+ * non-Dropbox host or non-video path.
+ */
+function getDropboxDirectVideoUrl(url: string): string | null {
+  const parsed = parseUrl(url)
+  if (!parsed) return null
+  const host = parsed.hostname.toLowerCase()
+  if (host !== 'dropbox.com' && !host.endsWith('.dropbox.com')) return null
+  if (!/\.(mp4|mov|webm)$/i.test(parsed.pathname)) return null
+  parsed.hostname = 'dl.dropboxusercontent.com'
+  parsed.searchParams.delete('dl')
+  return parsed.toString()
 }
 
 /**
@@ -259,16 +278,9 @@ function getEmbedInfo(url: string): EmbedInfo | null {
     return { url: `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`, type: 'iframe' }
   }
 
-  const dropboxHost = parseHostname(url)
-  if (
-    dropboxHost &&
-    (dropboxHost === 'dropbox.com' || dropboxHost.endsWith('.dropbox.com')) &&
-    /\.(mp4|mov|webm)/.test(url)
-  ) {
-    const directUrl = url
-      .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
-      .replace('?dl=0', '')
-    return { url: directUrl, type: 'video' }
+  const dropboxDirectVideoUrl = getDropboxDirectVideoUrl(url)
+  if (dropboxDirectVideoUrl) {
+    return { url: dropboxDirectVideoUrl, type: 'video' }
   }
 
   const tenorMatch = url.match(/tenor\.com\/view\/[^/]+-(\d+)/)
