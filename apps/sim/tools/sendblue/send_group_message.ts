@@ -81,7 +81,10 @@ export const sendblueSendGroupMessageTool: ToolConfig<
     method: 'POST',
     headers: (params) => sendblueHeaders(params),
     body: (params) => {
-      const hasNumbers = Array.isArray(params.numbers) && params.numbers.length > 0
+      const numbers = Array.isArray(params.numbers)
+        ? params.numbers.map((n) => n.trim()).filter(Boolean)
+        : undefined
+      const hasNumbers = numbers !== undefined && numbers.length > 0
       const hasGroupId = typeof params.group_id === 'string' && params.group_id.trim().length > 0
       if (!hasNumbers && !hasGroupId) {
         throw new Error(
@@ -89,7 +92,7 @@ export const sendblueSendGroupMessageTool: ToolConfig<
         )
       }
       return filterUndefined({
-        numbers: hasNumbers ? params.numbers : undefined,
+        numbers: hasNumbers ? numbers : undefined,
         from_number: params.from_number,
         content: params.content,
         media_url: params.media_url,
