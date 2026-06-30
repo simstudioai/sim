@@ -76,11 +76,13 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
                   height: '100%',
                 }}
               >
-                {/* Dot - centered exactly on the line (70px - 6px). Hover darkens
-                    rather than brightens, so light brand colors stay visible. */}
+                {/* Dot - centered exactly on the line (70px - 6px). Resting at 85%
+                    opacity, hover lifts it to full with a slight scale — an
+                    understated, opacity-driven hover matching the comparison
+                    chart, so it reads as a clean accent rather than a jump. */}
                 <div
-                  className='-translate-x-1/2 absolute top-[64px] left-1/2 size-[12px] rounded-full transition-[filter,transform] duration-150 group-hover:scale-150 group-hover:brightness-75'
-                  style={{ backgroundColor: color, opacity: 0.85 }}
+                  className='-translate-x-1/2 absolute top-[64px] left-1/2 size-[12px] rounded-full opacity-[0.85] transition-[opacity,transform] duration-150 group-hover:scale-110 group-hover:opacity-100'
+                  style={{ backgroundColor: color }}
                 />
 
                 {/* Stem + label above */}
