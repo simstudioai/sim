@@ -637,27 +637,26 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // truth; re-checking the flag/plan here returns false on a transient read and
     // would silently skip masking, leaking PII (fail-open). Absence of rules
     // yields the disabled default, so non-PII orgs incur only the lookup.
-    const resolved = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
-    const config = resolved.logs
+    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
     // The string redactor can't reach values already offloaded to large-value
-    // storage (>8MB refs). Those are masked before offload only when the
-    // block-output stage is on; when it's off, hydrate → mask → re-store the refs
-    // so the log keeps redacted content (falling back to a marker only if a ref
-    // can't be materialized/re-stored).
-    const working = resolved.blockOutputs.enabled
-      ? payload
-      : await redactLargeValueRefs(payload, {
-          entityTypes: config.entityTypes,
-          language: config.language,
-          store: {
-            workspaceId,
-            workflowId: storeContext.workflowId ?? undefined,
-            executionId: storeContext.executionId,
-            userId: storeContext.userId ?? undefined,
-          },
-        })
+    // storage (>8MB refs). Always hydrate → mask → re-store them under the LOGS
+    // policy, even if the block-output stage already masked before offload: that
+    // used the block-output entity set, which can differ from the logs set, so
+    // the log's large values must get the logs policy applied like inline content
+    // does. Masking is idempotent, so already-masked spans are unaffected; a ref
+    // that can't be materialized/re-stored falls back to a marker.
+    const working = await redactLargeValueRefs(payload, {
+      entityTypes: config.entityTypes,
+      language: config.language,
+      store: {
+        workspaceId,
+        workflowId: storeContext.workflowId ?? undefined,
+        executionId: storeContext.executionId,
+        userId: storeContext.userId ?? undefined,
+      },
+    })
 
     return redactPIIFromExecution(working, {
       entityTypes: config.entityTypes,
