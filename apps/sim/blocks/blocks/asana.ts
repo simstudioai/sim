@@ -442,6 +442,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               .filter((p: string) => p.length > 0)
           : undefined
 
+        // Only send a completion value when the user actually checked the box; an
+        // empty/untouched checkbox must omit the field (not send `false`), so
+        // update_task doesn't silently un-complete a task and search_tasks doesn't
+        // implicitly filter to incomplete tasks.
+        const completedValue =
+          Array.isArray(params.completed) && params.completed.length > 0
+            ? params.completed.includes('completed')
+            : undefined
+
         const baseParams = {
           accessToken: oauthCredential?.accessToken,
         }
@@ -471,7 +480,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               name: params.name,
               notes: params.notes,
               assignee: params.assignee,
-              completed: params.completed?.includes('completed'),
+              completed: completedValue,
               due_on: params.due_on,
             }
           case 'get_projects':
@@ -486,7 +495,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               text: params.searchText,
               assignee: params.assignee,
               projects: projectsArray,
-              completed: params.completed?.includes('completed'),
+              completed: completedValue,
             }
           case 'add_comment':
             return {
