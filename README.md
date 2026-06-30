@@ -12,18 +12,8 @@
 
 <p align="center">
   <a href="https://sim.ai" target="_blank" rel="noopener noreferrer">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="apps/sim/public/logo/readme-logotype-light.svg">
-      <source media="(prefers-color-scheme: light)" srcset="apps/sim/public/logo/readme-logotype-dark.svg">
-      <img src="apps/sim/public/logo/readme-logotype-dark.svg" alt="Sim Logo" width="210"/>
-    </picture>
+    <img src="apps/sim/public/static/readme-hero.gif" alt="Sim — your workflow agent for solving automations. Build, deploy, and manage AI agents visually, conversationally, or with code." width="800"/>
   </a>
-</p>
-
-<h1 align="center">Your workflow&#8202;<img src="apps/sim/public/static/readme-cycle-loader.gif" alt="" width="56"/>&#8202;agent<br>for solving automations.</h1>
-
-<p align="center">
-  <img src="apps/sim/public/static/readme-platform-banner.png" alt="A workspace to build, deploy and manage AI agents and workflows" width="800"/>
 </p>
 
 <p align="center">A workspace to build, deploy and manage AI agents and workflows.</p>

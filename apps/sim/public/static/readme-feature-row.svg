@@ -1,6 +1,7 @@
 <svg width="800" height="190" viewBox="0 0 800 190" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Sim feature areas</title>
   <desc id="desc">Four feature illustrations labeled Integrate, Ingest, Build, and Monitor.</desc>
+  <rect x="0.5" y="0.5" width="799" height="189" rx="10" fill="#F8F8F8" stroke="#E6E6E6"/>
   <g aria-label="Integrate">
     <g transform="translate(37 10) scale(0.35)">
       <g transform="translate(43.3730 15.0000) scale(0.436508)">
