@@ -121,6 +121,15 @@ export function toReactFlowElements(
     const isEdgeHighlight = highlightEdge === e.id
     const dimmed = hasHighlight && !isEdgeHighlight
     const isErrorEdge = e.sourceHandle === 'error'
+    // Subflow containers expose a right-edge output handle (`loop-end-source` /
+    // `parallel-end-source`) and a left-edge input handle with no id; regular
+    // blocks use `source` / `target`. Resolve each end to the block's real handle
+    // so edges into and out of Loop/Parallel containers still connect.
+    const sourceBlock = blocksById.get(e.source)
+    const targetBlock = blocksById.get(e.target)
+    const sourceHandle =
+      e.sourceHandle ?? (sourceBlock?.size ? `${sourceBlock.type}-end-source` : 'source')
+    const targetHandle = targetBlock?.size ? undefined : 'target'
     return {
       id: e.id,
       source: e.source,
@@ -131,8 +140,8 @@ export function toReactFlowElements(
         ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : isErrorEdge ? EDGE_STYLE_ERROR : EDGE_STYLE),
         opacity: dimmed ? 0.35 : 1,
       },
-      sourceHandle: e.sourceHandle ?? 'source',
-      targetHandle: 'target',
+      sourceHandle,
+      targetHandle,
       data: {
         animate,
         delay: animate ? sourceIndex * BLOCK_STAGGER + BLOCK_STAGGER : 0,
