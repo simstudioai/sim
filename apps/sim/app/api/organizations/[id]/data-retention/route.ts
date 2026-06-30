@@ -46,15 +46,15 @@ function normalizeConfigured(
               ? {
                   input: {
                     ...rule.stages.input,
-                    language: coercePiiLanguage(rule.stages.input.language),
+                    language: coercePiiLanguage(rule.stages.input?.language),
                   },
                   blockOutputs: {
                     ...rule.stages.blockOutputs,
-                    language: coercePiiLanguage(rule.stages.blockOutputs.language),
+                    language: coercePiiLanguage(rule.stages.blockOutputs?.language),
                   },
                   logs: {
                     ...rule.stages.logs,
-                    language: coercePiiLanguage(rule.stages.logs.language),
+                    language: coercePiiLanguage(rule.stages.logs?.language),
                   },
                 }
               : undefined,
