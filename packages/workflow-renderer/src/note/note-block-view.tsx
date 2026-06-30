@@ -17,6 +17,15 @@ function getTwitchParent(): string {
   return typeof window !== 'undefined' ? window.location.hostname : 'localhost'
 }
 
+/** Parse a URL's lowercased hostname, returning null for non-absolute/invalid URLs. */
+function parseHostname(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
 /**
  * Get embed info for supported media platforms
  */
@@ -250,7 +259,12 @@ function getEmbedInfo(url: string): EmbedInfo | null {
     return { url: `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`, type: 'iframe' }
   }
 
-  if (url.includes('dropbox.com') && /\.(mp4|mov|webm)/.test(url)) {
+  const dropboxHost = parseHostname(url)
+  if (
+    dropboxHost &&
+    (dropboxHost === 'dropbox.com' || dropboxHost.endsWith('.dropbox.com')) &&
+    /\.(mp4|mov|webm)/.test(url)
+  ) {
     const directUrl = url
       .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
       .replace('?dl=0', '')
