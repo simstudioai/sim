@@ -86,6 +86,9 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
           value: branch.value ?? '',
         }))
       : []
+  /** The View renders the router's leading Context row from this prop, not `rows`. */
+  const routerContextValue =
+    type === 'router_v2' ? dataRows.find((row) => row.title === 'Context')?.value : undefined
 
   /**
    * Non-branch content only — the View renders condition/router/error rows from
@@ -130,6 +133,7 @@ export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps
         hasContentBelowHeader={hasContentBelowHeader}
         conditionRows={conditionRows}
         routerRows={routerRows}
+        routerContextValue={routerContextValue}
         wouldCreateConnectionCycle={() => false}
         onSelect={() => {}}
         rows={rows}
