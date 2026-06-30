@@ -80,8 +80,15 @@ export const sendblueSendGroupMessageTool: ToolConfig<
     url: `${SENDBLUE_API_BASE_URL}/api/send-group-message`,
     method: 'POST',
     headers: (params) => sendblueHeaders(params),
-    body: (params) =>
-      filterUndefined({
+    body: (params) => {
+      const hasNumbers = Array.isArray(params.numbers) && params.numbers.length > 0
+      const hasGroupId = typeof params.group_id === 'string' && params.group_id.trim().length > 0
+      if (!hasNumbers && !hasGroupId) {
+        throw new Error(
+          'Provide either "numbers" to start a new group or "group_id" to message an existing group.'
+        )
+      }
+      return filterUndefined({
         numbers: params.numbers,
         from_number: params.from_number,
         content: params.content,
@@ -90,7 +97,8 @@ export const sendblueSendGroupMessageTool: ToolConfig<
         seat_id: params.seat_id,
         group_id: params.group_id,
         status_callback: params.status_callback,
-      }),
+      })
+    },
   },
 
   transformResponse: async (response) => {

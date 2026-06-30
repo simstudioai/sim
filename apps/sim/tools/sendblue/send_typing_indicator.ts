@@ -53,13 +53,24 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
     url: `${SENDBLUE_API_BASE_URL}/api/send-typing-indicator`,
     method: 'POST',
     headers: (params) => sendblueHeaders(params),
-    body: (params) =>
-      filterUndefined({
+    body: (params) => {
+      if (params.state !== undefined && params.state !== 'start' && params.state !== 'stop') {
+        throw new Error('"state" must be either "start" or "stop".')
+      }
+      let maxDurationMs: number | undefined
+      if (params.max_duration_ms !== undefined) {
+        maxDurationMs = Number(params.max_duration_ms)
+        if (!Number.isInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > 300000) {
+          throw new Error('"max_duration_ms" must be an integer between 1 and 300000.')
+        }
+      }
+      return filterUndefined({
         number: params.number,
         from_number: params.from_number,
         state: params.state,
-        max_duration_ms: params.max_duration_ms,
-      }),
+        max_duration_ms: maxDurationMs,
+      })
+    },
   },
 
   transformResponse: async (response) => {
