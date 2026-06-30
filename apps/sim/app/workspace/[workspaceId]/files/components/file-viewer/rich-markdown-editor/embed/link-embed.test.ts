@@ -34,6 +34,11 @@ describe('LinkEmbed', () => {
     expect(iframe?.getAttribute('src')).toBe('https://www.youtube.com/embed/dQw4w9WgXcQ')
   })
 
+  it('renders one player per link when the same URL appears twice', () => {
+    const view = editorWith(`${YOUTUBE_LINK}${YOUTUBE_LINK}`).view
+    expect(view.dom.querySelectorAll('iframe')).toHaveLength(2)
+  })
+
   it('keeps the underlying document a plain markdown link (lossless round-trip)', () => {
     const markdown = editorWith(YOUTUBE_LINK).getMarkdown()
     expect(markdown).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ')

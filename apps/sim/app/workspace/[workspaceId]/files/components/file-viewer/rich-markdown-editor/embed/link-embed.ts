@@ -35,18 +35,24 @@ function getStandaloneLinkHref(node: ProseMirrorNode): string | null {
 
 function buildDecorations(doc: ProseMirrorNode): DecorationSet {
   const decorations: Decoration[] = []
+  /** Per-source occurrence count, so repeated embeds of the same URL get distinct, stable keys. */
+  const sourceCounts = new Map<string, number>()
   doc.descendants((node, pos) => {
     if (node.type.name !== 'paragraph') return undefined
     const href = getStandaloneLinkHref(node)
     if (href) {
       const embedInfo = getEmbedInfo(href)
       if (embedInfo) {
-        // Render the player just after the link paragraph, keyed by source so the iframe/video
-        // DOM is reused across edits instead of reloading on every keystroke.
+        // Key by source + occurrence index so the iframe/video DOM is reused across unrelated
+        // edits (no reload on keystroke) while two links to the same URL still render as two
+        // distinct widgets rather than collapsing into one.
+        const source = `embed:${embedInfo.type}:${embedInfo.url}`
+        const index = sourceCounts.get(source) ?? 0
+        sourceCounts.set(source, index + 1)
         decorations.push(
           Decoration.widget(pos + node.nodeSize, () => createEmbedDom(embedInfo), {
             side: 1,
-            key: `embed:${embedInfo.type}:${embedInfo.url}`,
+            key: `${source}:${index}`,
           })
         )
       }
