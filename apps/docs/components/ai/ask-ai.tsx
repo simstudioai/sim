@@ -82,12 +82,12 @@ export function AskAI({ locale }: AskAIProps) {
       {!open && (
         <button
           type='button'
-          aria-label='Ask AI'
+          aria-label='Ask Sim'
           onClick={() => setOpen(true)}
           className='fixed right-4 bottom-4 z-50 flex h-11 items-center gap-1.5 rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] px-4 font-season text-[var(--text-body)] text-sm shadow-[var(--shadow-medium)] transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
         >
           <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
-          Ask AI
+          Ask Sim
         </button>
       )}
 
@@ -96,7 +96,7 @@ export function AskAI({ locale }: AskAIProps) {
           <div className='flex items-center justify-between border-[var(--border-1)] border-b px-4 py-3'>
             <span className='flex items-center gap-1.5 font-season text-[var(--text-body)] text-sm'>
               <MessageCircle className='size-[16px] text-[var(--text-icon)]' />
-              Ask AI
+              Ask Sim
             </span>
             <button
               type='button'
@@ -174,42 +174,48 @@ export function AskAI({ locale }: AskAIProps) {
             )}
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className='flex items-end gap-2 border-[var(--border-1)] border-t px-3 py-3'
-          >
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  handleSubmit(event)
-                }
-              }}
-              rows={1}
-              placeholder='Ask a question…'
-              className='max-h-32 flex-1 resize-none bg-transparent font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
-            />
-            {isBusy ? (
-              <button
-                type='button'
-                aria-label='Stop'
-                onClick={() => stop()}
-                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-active)] text-[var(--text-icon)]'
-              >
-                <Square className='size-[16px]' />
-              </button>
-            ) : (
-              <button
-                type='submit'
-                aria-label='Send'
-                disabled={!input.trim()}
-                className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--text-primary)] text-[var(--text-inverse)] transition-opacity disabled:opacity-40 dark:bg-white dark:text-[var(--bg)]'
-              >
-                <ArrowUp className='size-[16px]' />
-              </button>
-            )}
+          <form onSubmit={handleSubmit} className='px-3 pb-3'>
+            <div className='cursor-text rounded-2xl border border-[var(--border-1)] bg-white px-2.5 py-2 dark:bg-[var(--surface-5)]'>
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    handleSubmit(event)
+                  }
+                }}
+                rows={1}
+                placeholder='Ask Sim about the docs…'
+                className='max-h-32 w-full resize-none bg-transparent font-season text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+              />
+              <div className='mt-1 flex items-center justify-end'>
+                {isBusy ? (
+                  <button
+                    type='button'
+                    aria-label='Stop'
+                    onClick={() => stop()}
+                    className='flex size-[28px] items-center justify-center rounded-full bg-[#383838] transition-colors hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                  >
+                    <Square className='size-[12px] fill-white text-white dark:fill-black dark:text-black' />
+                  </button>
+                ) : (
+                  <button
+                    type='submit'
+                    aria-label='Send'
+                    disabled={!input.trim()}
+                    className={cn(
+                      'flex size-[28px] items-center justify-center rounded-full transition-colors',
+                      input.trim()
+                        ? 'bg-[#383838] hover:bg-[#575757] dark:bg-[#e0e0e0] dark:hover:bg-[#cfcfcf]'
+                        : 'bg-[#808080]'
+                    )}
+                  >
+                    <ArrowUp className='size-[16px] text-white dark:text-black' />
+                  </button>
+                )}
+              </div>
+            </div>
           </form>
         </div>
       )}

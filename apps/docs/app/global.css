@@ -31,8 +31,8 @@ body {
   --text-md: 16px;
 }
 
-/* Hide the floating Ask AI widget while a workflow-preview lightbox is open. */
-body.wp-lightbox-open [aria-label="Ask AI"] {
+/* Hide the floating Ask Sim widget while a workflow-preview lightbox is open. */
+body.wp-lightbox-open [aria-label="Ask Sim"] {
   display: none;
 }
 
