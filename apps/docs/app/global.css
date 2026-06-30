@@ -60,15 +60,6 @@ body.wp-lightbox-open [aria-label="Ask AI"] {
   max-height: 12px;
   fill: currentColor;
 }
-/* On the inline preview, reveal the zoom controls only on hover (the .group is
-   the preview wrapper); in the lightbox they stay visible. */
-.wp-controls-subtle {
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-.group:hover .wp-controls-subtle {
-  opacity: 1;
-}
 
 /* Pure white light mode background */
 :root:not(.dark) {

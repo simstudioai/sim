@@ -220,11 +220,7 @@ function PreviewFlow({
       className='h-full w-full'
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='var(--border)' />
-      <Controls
-        showInteractive={false}
-        position='bottom-left'
-        className={interactive ? undefined : 'wp-controls-subtle'}
-      />
+      {interactive && <Controls showInteractive={false} position='bottom-left' />}
     </ReactFlow>
   )
 }
